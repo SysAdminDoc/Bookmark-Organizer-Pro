@@ -1210,6 +1210,592 @@ style_manager = StyleManager()
 
 
 
+
+# =============================================================================
+# DEFENSIVE CODING UTILITIES
+# =============================================================================
+
+def safe_int(value, default: int = 0) -> int:
+    """Safely convert value to int with default fallback.
+    
+    Args:
+        value: Value to convert
+        default: Default value if conversion fails
+        
+    Returns:
+        int: Converted value or default
+    """
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+
+def safe_float(value, default: float = 0.0) -> float:
+    """Safely convert value to float with default fallback.
+    
+    Args:
+        value: Value to convert
+        default: Default value if conversion fails
+        
+    Returns:
+        float: Converted value or default
+    """
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+
+def safe_str(value, default: str = "") -> str:
+    """Safely convert value to string with default fallback.
+    
+    Args:
+        value: Value to convert
+        default: Default value if conversion fails
+        
+    Returns:
+        str: Converted value or default
+    """
+    if value is None:
+        return default
+    try:
+        return str(value)
+    except Exception:
+        return default
+
+
+def safe_get(dictionary: dict, key: str, default=None):
+    """Safely get value from dictionary with type checking.
+    
+    Args:
+        dictionary: Dict to get value from
+        key: Key to look up
+        default: Default value if key missing or dict is None
+        
+    Returns:
+        Value from dictionary or default
+    """
+    if dictionary is None or not isinstance(dictionary, dict):
+        return default
+    return dictionary.get(key, default)
+
+
+def safe_list_get(lst: list, index: int, default=None):
+    """Safely get item from list by index.
+    
+    Args:
+        lst: List to get item from
+        index: Index to access
+        default: Default value if index out of bounds
+        
+    Returns:
+        Item from list or default
+    """
+    if lst is None or not isinstance(lst, (list, tuple)):
+        return default
+    try:
+        return lst[index]
+    except (IndexError, TypeError):
+        return default
+
+
+def safe_divide(numerator, denominator, default: float = 0.0) -> float:
+    """Safely divide with zero-division protection.
+    
+    Args:
+        numerator: Number to divide
+        denominator: Number to divide by
+        default: Default value if division fails
+        
+    Returns:
+        float: Result of division or default
+    """
+    try:
+        if denominator == 0:
+            return default
+        return float(numerator) / float(denominator)
+    except (ValueError, TypeError, ZeroDivisionError):
+        return default
+
+
+def validate_url(url: str) -> Tuple[bool, str]:
+    """Validate a URL and return status with message.
+    
+    Args:
+        url: URL string to validate
+        
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if not url:
+        return False, "URL cannot be empty"
+    
+    if not isinstance(url, str):
+        return False, "URL must be a string"
+    
+    url = url.strip()
+    
+    if len(url) > 2048:
+        return False, "URL exceeds maximum length (2048 characters)"
+    
+    # Check for basic URL structure
+    if not url.startswith(('http://', 'https://', 'file://', 'ftp://')):
+        return False, "URL must start with http://, https://, file://, or ftp://"
+    
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        if not parsed.netloc and not parsed.path:
+            return False, "URL is malformed"
+        return True, ""
+    except Exception as e:
+        return False, f"URL parsing error: {str(e)}"
+
+
+def validate_path(path_str: str, must_exist: bool = False) -> Tuple[bool, str]:
+    """Validate a file path and return status with message.
+    
+    Args:
+        path_str: Path string to validate
+        must_exist: Whether the path must exist
+        
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if not path_str:
+        return False, "Path cannot be empty"
+    
+    try:
+        path = Path(path_str)
+        
+        # Check for invalid characters (Windows)
+        if IS_WINDOWS:
+            invalid_chars = '<>:"|?*'
+            if any(c in str(path) for c in invalid_chars):
+                return False, f"Path contains invalid characters: {invalid_chars}"
+        
+        if must_exist and not path.exists():
+            return False, f"Path does not exist: {path}"
+        
+        return True, ""
+    except Exception as e:
+        return False, f"Path error: {str(e)}"
+
+
+def truncate_string(s: str, max_length: int, suffix: str = "...") -> str:
+    """Safely truncate a string to maximum length.
+    
+    Args:
+        s: String to truncate
+        max_length: Maximum allowed length
+        suffix: Suffix to add if truncated
+        
+    Returns:
+        str: Truncated string
+    """
+    if not s or not isinstance(s, str):
+        return ""
+    if len(s) <= max_length:
+        return s
+    return s[:max_length - len(suffix)] + suffix
+
+
+def sanitize_filename(filename: str) -> str:
+    """Sanitize a filename by removing invalid characters.
+    
+    Args:
+        filename: Original filename
+        
+    Returns:
+        str: Sanitized filename safe for all platforms
+    """
+    if not filename:
+        return "unnamed"
+    
+    # Remove invalid characters
+    invalid_chars = '<>:"/\\|?*\x00-\x1f'
+    sanitized = re.sub(f'[{invalid_chars}]', '_', filename)
+    
+    # Remove leading/trailing spaces and dots
+    sanitized = sanitized.strip(' .')
+    
+    # Ensure not empty
+    if not sanitized:
+        return "unnamed"
+    
+    # Truncate if too long
+    return sanitized[:255]
+
+
+def safe_json_loads(json_str: str, default=None):
+    """Safely parse JSON string with error handling.
+    
+    Args:
+        json_str: JSON string to parse
+        default: Default value if parsing fails
+        
+    Returns:
+        Parsed JSON or default
+    """
+    if not json_str:
+        return default
+    try:
+        return json.loads(json_str)
+    except (json.JSONDecodeError, TypeError, ValueError) as e:
+        log.warning(f"JSON parse error: {e}")
+        return default
+
+
+def safe_json_dumps(obj, default: str = "{}") -> str:
+    """Safely serialize object to JSON string.
+    
+    Args:
+        obj: Object to serialize
+        default: Default string if serialization fails
+        
+    Returns:
+        str: JSON string
+    """
+    try:
+        return json.dumps(obj, ensure_ascii=False, default=str)
+    except (TypeError, ValueError) as e:
+        log.warning(f"JSON serialize error: {e}")
+        return default
+
+def safe_get_domain(url: str) -> str:
+    """Safely extract domain from URL.
+    
+    Args:
+        url: URL to extract domain from
+        
+    Returns:
+        str: Domain name or empty string
+    """
+    if not url or not isinstance(url, str):
+        return ""
+
+def validate_config(config: dict, required_keys: list = None, defaults: dict = None) -> dict:
+    """Validate and fill missing config values.
+    
+    Args:
+        config: Configuration dictionary
+        required_keys: List of required keys
+        defaults: Default values for missing keys
+        
+    Returns:
+        dict: Validated configuration
+    """
+    if config is None:
+        config = {}
+    
+    if not isinstance(config, dict):
+        log.warning("Config is not a dictionary, using defaults")
+        config = {}
+    
+    # Apply defaults
+    if defaults:
+        for key, value in defaults.items():
+            if key not in config:
+                config[key] = value
+    
+    # Check required keys
+    if required_keys:
+        for key in required_keys:
+            if key not in config:
+                log.warning(f"Missing required config key: {key}")
+    
+    return config
+
+def safe_invoke_callback(callback, *args, **kwargs):
+    """Safely invoke a callback with error handling.
+    
+    Args:
+        callback: Callback function (can be None)
+        *args: Arguments to pass
+        **kwargs: Keyword arguments to pass
+        
+    Returns:
+        Result of callback or None if error/None callback
+    """
+    if callback is None:
+        return None
+
+def clamp(value, min_val, max_val):
+    """Clamp a value to a range.
+    
+    Args:
+        value: Value to clamp
+        min_val: Minimum allowed value
+        max_val: Maximum allowed value
+        
+    Returns:
+        Clamped value
+    """
+    try:
+        return max(min_val, min(max_val, value))
+    except (TypeError, ValueError):
+        return min_val
+
+
+def safe_slice(lst, start: int = 0, end: int = None, default=None):
+    """Safely slice a list with bounds checking.
+    
+    Args:
+        lst: List to slice
+        start: Start index
+        end: End index (optional)
+        default: Default if slice fails
+        
+    Returns:
+        Sliced list or default
+    """
+    if lst is None or not isinstance(lst, (list, tuple)):
+        return default if default is not None else []
+
+# User-friendly error message mappings
+ERROR_MESSAGES = {
+    "FileNotFoundError": "The file could not be found. Please check the path and try again.",
+    "PermissionError": "Permission denied. Please check file permissions or run as administrator.",
+    "JSONDecodeError": "The file contains invalid data. It may be corrupted or not in the expected format.",
+    "ConnectionError": "Could not connect to the server. Please check your internet connection.",
+    "TimeoutError": "The operation timed out. Please try again later.",
+    "ValueError": "Invalid value provided. Please check your input.",
+    "MemoryError": "Not enough memory to complete this operation. Try closing other applications.",
+    "OSError": "An operating system error occurred. Please check disk space and permissions.",
+}
+
+
+def get_user_friendly_error(exception: Exception) -> str:
+    """Get a user-friendly error message for an exception.
+    
+    Args:
+        exception: The exception that occurred
+        
+    Returns:
+        str: User-friendly error message
+    """
+    exc_type = type(exception).__name__
+    
+    # Check for known error types
+    if exc_type in ERROR_MESSAGES:
+        return ERROR_MESSAGES[exc_type]
+    
+    # Check for specific error messages
+    error_str = str(exception).lower()
+    
+    if "permission" in error_str:
+        return ERROR_MESSAGES["PermissionError"]
+    elif "timeout" in error_str:
+        return ERROR_MESSAGES["TimeoutError"]
+    elif "connect" in error_str or "network" in error_str:
+        return ERROR_MESSAGES["ConnectionError"]
+    elif "memory" in error_str:
+        return ERROR_MESSAGES["MemoryError"]
+    elif "not found" in error_str or "no such file" in error_str:
+        return ERROR_MESSAGES["FileNotFoundError"]
+    
+    # Default: return the original message with some cleanup
+    msg = str(exception)
+    if len(msg) > 200:
+        msg = msg[:200] + "..."
+    
+    return f"An error occurred: {msg}"
+
+class ResourceManager:
+    """Context manager for safe resource cleanup."""
+    
+    def __init__(self):
+        self._resources = []
+    
+    def register(self, resource, cleanup_func=None):
+        """Register a resource for cleanup.
+        
+        Args:
+            resource: Resource to track
+            cleanup_func: Optional cleanup function (defaults to resource.close())
+        """
+        self._resources.append((resource, cleanup_func))
+        return resource
+    
+    def cleanup(self):
+        """Clean up all registered resources."""
+        for resource, cleanup_func in reversed(self._resources):
+            try:
+                if cleanup_func:
+                    cleanup_func(resource)
+                elif hasattr(resource, 'close'):
+                    resource.close()
+                elif hasattr(resource, 'destroy'):
+                    resource.destroy()
+            except Exception as e:
+                log.warning(f"Resource cleanup error: {e}")
+        self._resources.clear()
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.cleanup()
+        return False
+
+def validate_environment():
+    """Validate the runtime environment at startup.
+    
+    Returns:
+        Tuple[bool, List[str]]: (is_valid, list of warnings)
+    """
+    warnings = []
+    
+    # Check Python version
+    if sys.version_info < (3, 8):
+        warnings.append(f"Python 3.8+ recommended (running {sys.version})")
+    
+    # Check data directory
+    if not APP_DIR.exists():
+        try:
+            APP_DIR.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            warnings.append(f"Could not create data directory: {e}")
+    
+    # Check write permissions
+    try:
+        test_file = APP_DIR / ".write_test"
+        test_file.write_text("test")
+        test_file.unlink()
+    except Exception as e:
+        warnings.append(f"Data directory not writable: {e}")
+    
+    # Check disk space (warn if < 100MB)
+    try:
+        import shutil
+        total, used, free = shutil.disk_usage(APP_DIR)
+        if free < 100 * 1024 * 1024:  # 100MB
+            warnings.append(f"Low disk space: {free // (1024*1024)}MB free")
+    except Exception:
+        pass  # Disk space check is optional
+    
+    is_valid = len([w for w in warnings if "not writable" in w]) == 0
+    return is_valid, warnings
+
+
+
+    
+    try:
+        if end is None:
+            return lst[start:]
+        return lst[start:end]
+    except (IndexError, TypeError):
+        return default if default is not None else []
+
+    
+    if not callable(callback):
+        log.warning(f"Callback is not callable: {type(callback)}")
+        return None
+    
+    try:
+        return callback(*args, **kwargs)
+    except Exception as e:
+        log.error(f"Callback error: {e}")
+        return None
+
+
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url.strip())
+        domain = parsed.netloc or ""
+        # Remove www. prefix
+        if domain.startswith("www."):
+            domain = domain[4:]
+        return domain.lower()
+    except Exception:
+        return ""
+
+
+
+class SafeDict(dict):
+    """Dictionary subclass with safe access methods."""
+    
+    def safe_get(self, key, default=None, expected_type=None):
+        """Get value with optional type checking.
+        
+        Args:
+            key: Key to look up
+            default: Default if missing or wrong type
+            expected_type: Expected type (optional)
+            
+        Returns:
+            Value or default
+        """
+        value = self.get(key, default)
+        if expected_type and not isinstance(value, expected_type):
+            return default
+        return value
+
+
+def show_error_dialog(title: str, message: str, details: str = None):
+    """Show a user-friendly error dialog.
+    
+    Args:
+        title: Dialog title
+        message: Main error message (user-friendly)
+        details: Technical details (optional)
+    """
+    full_message = message
+    if details:
+        full_message += f"\n\nDetails: {details}"
+    
+    try:
+        messagebox.showerror(title, full_message)
+    except Exception:
+        # Fallback to console if messagebox fails
+        print(f"ERROR - {title}: {full_message}")
+
+
+def show_warning_dialog(title: str, message: str):
+    """Show a user-friendly warning dialog.
+    
+    Args:
+        title: Dialog title
+        message: Warning message
+    """
+    try:
+        messagebox.showwarning(title, message)
+    except Exception:
+        print(f"WARNING - {title}: {message}")
+
+
+def run_with_timeout(func, timeout_seconds: float, default=None):
+    """Run a function with a timeout.
+    
+    Args:
+        func: Function to run (no arguments)
+        timeout_seconds: Maximum execution time
+        default: Default value if timeout occurs
+        
+    Returns:
+        Function result or default
+    """
+    import concurrent.futures
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(func)
+        try:
+            return future.result(timeout=timeout_seconds)
+        except concurrent.futures.TimeoutError:
+            log.warning(f"Function timed out after {timeout_seconds}s")
+            return default
+        except Exception as e:
+            log.error(f"Function error: {e}")
+            return default
+
+
+
+
 @dataclass
 class ThemeColors:
     """
@@ -2549,7 +3135,7 @@ class FaviconManager:
             draw = ImageDraw.Draw(img)
             
             # Get first letter
-            letter = domain[0].upper()
+            letter = domain[0].upper() if domain else '?'
             
             # Draw letter (simple approach without custom font)
             text_color = "#ffffff"
@@ -2563,7 +3149,7 @@ class FaviconManager:
             
             # Get text bbox
             bbox = draw.textbbox((0, 0), letter, font=font)
-            text_width = bbox[2] - bbox[0]
+            text_width = (bbox[2] - bbox[0]) if bbox else 0
             text_height = bbox[3] - bbox[1]
             
             x = (size - text_width) // 2
@@ -3412,7 +3998,7 @@ class StorageManager:
             # Keep only last 10 backups
             backups = sorted(BACKUP_DIR.glob(f"{self.filepath.stem}_*.json"))
             while len(backups) > 10:
-                backups[0].unlink()
+                if backups: backups[0].unlink()
                 backups.pop(0)
         except Exception:
             pass
@@ -4979,7 +5565,7 @@ class OpenAIClient(AIClient):
             temperature=0.3,
             response_format={"type": "json_object"}
         )
-        return self._parse_response(response.choices[0].message.content, bookmarks)
+        return self._parse_response((response.choices[0].message.content if response.choices else ''), bookmarks)
     
     def test_connection(self) -> Tuple[bool, str]:
         try:
@@ -5020,7 +5606,7 @@ class AnthropicClient(AIClient):
             max_tokens=4096,
             messages=[{"role": "user", "content": prompt}]
         )
-        return self._parse_response(response.content[0].text, bookmarks)
+        return self._parse_response((response.content[0].text if response.content else ''), bookmarks)
     
     def test_connection(self) -> Tuple[bool, str]:
         try:
@@ -5100,7 +5686,7 @@ class GroqClient(AIClient):
             temperature=0.3,
             response_format={"type": "json_object"}
         )
-        return self._parse_response(response.choices[0].message.content, bookmarks)
+        return self._parse_response((response.choices[0].message.content if response.choices else ''), bookmarks)
     
     def test_connection(self) -> Tuple[bool, str]:
         try:
@@ -5309,7 +5895,8 @@ class Tooltip:
             self.scheduled_id = None
         
         if self.tooltip_window:
-            self.tooltip_window.destroy()
+            if self.tooltip_window and self.tooltip_window.winfo_exists():
+                self.tooltip_window.destroy()
             self.tooltip_window = None
     
     def update_text(self, new_text: str):
@@ -8781,7 +9368,9 @@ class BookmarkOrganizerApp:
         """Handle double-click on bookmark"""
         selected = self.tree.selection()
         if selected:
-            bm_id = int(selected[0])
+            bm_id = None
+            if selected:
+                bm_id = safe_int(selected[0])
             bookmark = self.bookmark_manager.get_bookmark(bm_id)
             if bookmark:
                 webbrowser.open(bookmark.url)
@@ -8905,7 +9494,9 @@ class BookmarkOrganizerApp:
         if not selected:
             return
         
-        bookmark = self.bookmark_manager.get_bookmark(selected[0])
+        bookmark = None
+        if selected:
+            bookmark = self.bookmark_manager.get_bookmark(selected[0])
         if not bookmark:
             return
         
@@ -16343,7 +16934,7 @@ class OptimizedFaviconManager:
     
     def _generate_placeholder(self, domain: str) -> str:
         """Generate a text-based placeholder (returns the letter and color)"""
-        letter = domain[0].upper() if domain else "?"
+        letter = domain[0].upper() if domain else '?' if domain else "?"
         # Generate consistent color from domain
         colors = ["#58a6ff", "#3fb950", "#f0883e", "#a371f7", "#f778ba", "#79c0ff"]
         color = colors[hash(domain) % len(colors)]
@@ -16974,7 +17565,7 @@ class SortableTreeview(ttk.Treeview):
                 
                 # Center letter
                 bbox = draw.textbbox((0, 0), letter, font=font)
-                text_width = bbox[2] - bbox[0]
+                text_width = (bbox[2] - bbox[0]) if bbox else 0
                 text_height = bbox[3] - bbox[1]
                 x = (size - text_width) // 2
                 y = (size - text_height) // 2 - 2
@@ -21932,14 +22523,14 @@ Respond with JSON: {{"summaries": [{{"url": "...", "description": "..."}}]}}"""
                     temperature=0.3,
                     response_format={"type": "json_object"}
                 )
-                text = response.choices[0].message.content
+                text = (response.choices[0].message.content if response.choices else '')
             elif provider == "anthropic":
                 response = client.client.messages.create(
                     model=client.model,
                     max_tokens=4096,
                     messages=[{"role": "user", "content": prompt}]
                 )
-                text = response.content[0].text
+                text = (response.content[0].text if response.content else '')
             elif provider == "google":
                 response = client.client.generate_content(prompt)
                 text = response.text
@@ -21953,7 +22544,7 @@ Respond with JSON: {{"summaries": [{{"url": "...", "description": "..."}}]}}"""
                     temperature=0.3,
                     response_format={"type": "json_object"}
                 )
-                text = response.choices[0].message.content
+                text = (response.choices[0].message.content if response.choices else '')
             else:  # ollama
                 response = requests.post(
                     f"{client.base_url}/api/generate",
@@ -22074,14 +22665,14 @@ Respond with ONLY valid JSON in this exact format:
                     temperature=0.3,
                     response_format={"type": "json_object"}
                 )
-                text = response.choices[0].message.content
+                text = (response.choices[0].message.content if response.choices else '')
             elif provider == "anthropic":
                 response = client.client.messages.create(
                     model=client.model,
                     max_tokens=4096,
                     messages=[{"role": "user", "content": prompt}]
                 )
-                text = response.content[0].text
+                text = (response.content[0].text if response.content else '')
             elif provider == "google":
                 response = client.client.generate_content(prompt)
                 text = response.text
@@ -22095,7 +22686,7 @@ Respond with ONLY valid JSON in this exact format:
                     temperature=0.3,
                     response_format={"type": "json_object"}
                 )
-                text = response.choices[0].message.content
+                text = (response.choices[0].message.content if response.choices else '')
             else:  # ollama
                 response = requests.post(
                     f"{client.base_url}/api/generate",
