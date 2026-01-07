@@ -377,3 +377,102 @@ MIT License - see LICENSE file for details.
 - Advanced search with boolean operators
 - System tray integration
 - Grid and list view modes
+
+## Building Standalone Executable
+
+### Prerequisites
+
+```bash
+# Install PyInstaller
+pip install pyinstaller
+
+# Install dependencies
+pip install beautifulsoup4 requests Pillow pystray
+```
+
+### Build Commands
+
+**Windows:**
+```batch
+# Using spec file (recommended)
+pyinstaller bookmark_organizer.spec --clean
+
+# Or use the build script
+build_windows.bat
+```
+
+**macOS/Linux:**
+```bash
+# Using spec file (recommended)
+pyinstaller bookmark_organizer.spec --clean
+
+# Or use the build script
+chmod +x build_unix.sh
+./build_unix.sh
+```
+
+### Build Output
+
+The executable will be created in the `dist/` folder:
+- **Windows**: `dist/BookmarkOrganizerPro.exe`
+- **macOS**: `dist/BookmarkOrganizerPro` (or .app bundle)
+- **Linux**: `dist/BookmarkOrganizerPro`
+
+### Customizing the Build
+
+Edit `bookmark_organizer.spec` to customize:
+
+```python
+# Single file vs folder
+# Default is single file. For folder, uncomment COLLECT section
+
+# Console window
+console=False  # Set to True for debugging
+
+# UPX compression
+upx=True  # Set to False if UPX not installed
+
+# macOS app bundle
+# Uncomment BUNDLE section for .app creation
+```
+
+### Build Size Optimization
+
+The spec file already excludes unnecessary packages. For smaller builds:
+
+1. Use UPX: Install UPX and ensure `upx=True` in spec
+2. Remove unused features: Comment out unused hidden_imports
+3. Strip debug info: Set `strip=True` (may cause issues on some systems)
+
+### Icon Files
+
+The distribution includes these icon files:
+- `bookmark_organizer.ico` - Windows executable icon
+- `bookmark_organizer.png` - Cross-platform icon (256x256)
+- `icon_32.png` through `icon_256.png` - Various sizes
+
+### Code Signing (Optional)
+
+**Windows:**
+```batch
+signtool sign /f certificate.pfx /p password /t http://timestamp.url dist\BookmarkOrganizerPro.exe
+```
+
+**macOS:**
+```bash
+codesign --deep --force --verify --verbose --sign "Developer ID" dist/BookmarkOrganizerPro.app
+```
+
+## File Manifest
+
+| File | Description |
+|------|-------------|
+| `bookmark_organizer_pro_v4.py` | Main application script |
+| `bookmark_organizer.spec` | PyInstaller build specification |
+| `build_windows.bat` | Windows build script |
+| `build_unix.sh` | macOS/Linux build script |
+| `version_info.txt` | Windows version metadata |
+| `bookmark_organizer.ico` | Windows icon |
+| `bookmark_organizer.png` | Cross-platform icon |
+| `README.md` | This documentation |
+
