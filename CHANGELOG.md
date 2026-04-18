@@ -2,6 +2,50 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v4.5.0] - 2026-04-18
+
+### Changed — Modular Architecture Refactor
+Broke the 25,310-line monolithic file into a proper Python package plus a
+thinner UI + wiring file. Backend infrastructure now lives in `bookmark_organizer_pro/`.
+
+**New package structure:**
+```
+bookmark_organizer_pro/
+├── __init__.py            # Package-level re-exports (57 public names)
+├── constants.py           # APP_NAME, paths, platform detection
+├── logging_config.py      # AppLogger singleton + global `log`
+├── utils/
+│   ├── safe.py            # safe_int, safe_float, safe_json_loads, clamp, etc.
+│   ├── validators.py      # validate_url, validate_path
+│   ├── url.py             # normalize_url + TRACKING_PARAMS (60+ entries)
+│   ├── metadata.py        # fetch_page_metadata, wayback_check, wayback_save
+│   └── health.py          # calculate_health_score, merge_duplicate_bookmarks
+├── models/
+│   ├── bookmark.py        # Bookmark dataclass
+│   ├── category.py        # Category dataclass
+│   └── tag.py             # Tag dataclass
+├── core/
+│   ├── pattern_engine.py  # PatternEngine
+│   ├── storage_manager.py # StorageManager (atomic writes, backups)
+│   ├── category_manager.py # CategoryManager + CATEGORY_ICONS + get_category_icon
+│   └── default_categories.py # DEFAULT_CATEGORIES (892 patterns, 32 categories)
+└── io_formats/
+    └── xbel.py            # XBELHandler
+```
+
+**Migration impact:**
+- Main file: 25,310 → 22,923 lines (~2,400 lines extracted)
+- Main file now imports from the package; all existing UI code unchanged
+- External consumers can `from bookmark_organizer_pro import Bookmark, normalize_url, ...`
+- 892 categorization patterns preserved
+- Zero behavioral changes — all tests pass, all pattern matches identical
+
+**Kept in main file (intentionally, due to tight UI coupling):**
+- UI classes (BookmarkOrganizerApp, dialogs, views, ~100 classes)
+- BookmarkManager, TagManager (reference UI callbacks)
+- FaviconManager, LinkChecker (tied to UI progress callbacks)
+- AI provider clients (tied to UI cost tracker)
+
 ## [v4.4.0] - 2026-04-18
 
 ### Added
