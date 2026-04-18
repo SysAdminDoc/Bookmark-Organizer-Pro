@@ -1,4 +1,4 @@
-# Bookmark Organizer Pro v4.2.0
+# Bookmark Organizer Pro v4.3.0
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, and advanced organization features.
 
@@ -33,10 +33,18 @@ A powerful, professional-grade bookmark manager with AI-powered categorization, 
 
 ### Data Management
 - **Automatic Backups**: Timestamped backups with easy restore
-- **Export Options**: HTML, JSON, CSV formats
-- **URL Validation**: Check for broken links
-- **Duplicate Detection**: Find and merge duplicates
-- **Favicon Caching**: Fast, cached favicon display
+- **Export Options**: HTML, JSON, CSV, OPML, Markdown formats
+- **URL Validation**: Check for broken links with concurrent checking
+- **Smart Duplicate Detection**: Academic-grade URL normalization (strips 60+ tracking params, normalizes scheme/host/port/path, sorts query params)
+- **Duplicate Merger**: Auto-merge duplicates keeping best title, combined tags, earliest date, summed visits
+- **Favicon Caching**: Fast, cached favicon display with multi-size support
+
+### Bookmark Intelligence
+- **Health Scoring**: 0-100 health score per bookmark based on 7 factors (validity, title, tags, recency, categorization)
+- **Page Metadata Fetch**: Auto-fetch title, description, and favicon from live URLs
+- **Wayback Machine Integration**: Check archive.org for snapshots, submit pages for archival
+- **URL Normalization**: RFC 3986 canonicalization for precise deduplication
+- **892+ Categorization Patterns**: 32 categories covering 500+ popular domains
 
 ## Installation
 
@@ -358,7 +366,7 @@ MIT License - see LICENSE file for details.
 
 ## Version History
 
-### v4.2.0 (April 2026)
+### v4.3.0 (April 2026)
 - Expanded categorization from 150 to 894 patterns across 32 categories
 - Added 5 new categories: SysAdmin & IT, Weather, Downloads & Torrents, Media Production, Software & Customization, Productivity
 - Fixed PatternEngine domain matching (proper suffix matching instead of substring)
