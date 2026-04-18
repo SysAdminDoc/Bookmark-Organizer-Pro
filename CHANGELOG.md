@@ -2,6 +2,52 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v4.6.0] - 2026-04-18
+
+### Changed — Massive Categorization Coverage Expansion
+Expanded DEFAULT_CATEGORIES from 892 → **1,583 patterns** (+77%). Measured
+against a real-world export of 5,293 bookmarks:
+
+- **Before**: 31.4% uncategorized (1,660 bookmarks)
+- **After**: 15.7% uncategorized (832 bookmarks)
+- **Improvement**: coverage jumped from 68.6% → **84.3%**
+
+Added ~700 new patterns covering:
+- **AI**: grok, notebooklm, openrouter, klingai, tattooai, prompts.chat,
+  bitlife, otter, lenso, copyseeker, apollo, jobo.world, venice, phind, you.com
+- **SysAdmin & IT**: cisco, juniper, fortinet, sonicwall, sophos, meraki,
+  nirsoft, ntlite, autoit, autohotkey, christitus, nexttechconsultants,
+  teamlogicit, zoom, webex, logmein, netgate, pfsense, avast forums
+- **News**: local stations (whio, thinktv), alternative (infogalactic,
+  bellingcat, dailywire, mises), science (nuclearsecrecy, phys.org)
+- **Weather**: cira.colostate, weatherwise, velocityweather, pivotalweather
+- **Health**: mavenimaging, 2020imaging, compassphs, covid19criticalcare,
+  anthem, mymoffitt, weasis, osirix, radiant
+- **Shopping**: rei, kuhl, patagonia, thefurniturewarehouse, secretlab,
+  laserpointerpro, extraspace storage, northerner
+- **Finance**: wpcuonline, achievacu, creditonebank, tiaa, geico, anthem,
+  kraken, binance, bitbo, finviz, marketwatch, coingecko
+- **Career**: careerplug, jobs.net, kellycareernetwork, workday, greenhouse,
+  lever, angel.co, wellfound, weworkremotely, flexjobs
+- **Downloads**: fmhy, lookmovie, couchtuner, filenext, rapidgator,
+  getintopc, igg-games, skidrow, downr, audfree
+- **Entertainment**: uflix, thetvapp, m4uhd, publiciptv, kapwing, storyblocks,
+  pandora, bensound, groovedrumming
+- **Forums**: patriots.win, kiwifarms, 16chan, ar15.com, forum.avast
+- **Real Estate**: hotpads, appfolio, forrent, homes.com, loopnet, costar
+- **Google/Microsoft catch-alls**: `domain:google.com` as Productivity
+  fallback (specific subdomains still match their proper categories first),
+  chrome.google.com for extensions
+- **Keyword fallbacks**: remote desktop, web hosting, VPS, backup solution,
+  file sharing, cloud storage, virtual machine, pfsense, print driver,
+  bitcoin price, crypto, stock price, mortgage, zestimate, careers at,
+  ai generator, prompt engineering, and more
+
+### Fixed
+- `whio.com`, `kuhl.com`, `covid19criticalcare.com`, `grok.com`, `arcgis.com`,
+  `sysadmindoc.github.io` and many others now categorize correctly (were
+  falling through to uncategorized)
+
 ## [v4.5.0] - 2026-04-18
 
 ### Changed — Modular Architecture Refactor

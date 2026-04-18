@@ -1,7 +1,8 @@
-"""Default categorization patterns - 892 patterns across 32 categories.
+"""Default categorization patterns - 1,583 patterns across 32 categories.
 
-Built from real-world bookmark analysis of 5,000+ bookmarks. Covers 500+ popular
-domains. Pattern types supported: plain, domain:, keyword:, regex:, path:, title:.
+Built from real-world bookmark analysis of 5,000+ bookmarks. Covers 800+ popular
+domains. Achieves 84.3% auto-categorization coverage on real bookmark exports.
+Pattern types supported: plain, domain:, keyword:, regex:, path:, title:.
 """
 
 DEFAULT_CATEGORIES = {
@@ -13,7 +14,11 @@ DEFAULT_CATEGORIES = {
         "porn.", "xxx.", "chaturbate.com", "onlyfans.com", "fansly.com",
         "youporn.com", "tube8.com", "spankbang.com", "eporner.com",
         "motherless.com", "youjizz.com", "fuq.com", "nudevista.com",
-        "keyword:porn", "keyword:xxx", "keyword:nsfw", "keyword:erotic"
+        "domain:tabootube.xxx", "domain:filtradas.com",
+        "domain:16ebalka.ru.actor", "domain:av4us.online",
+        "domain:ins-dream.com",
+        "keyword:porn", "keyword:xxx", "keyword:nsfw", "keyword:erotic",
+        "keyword:incest", "keyword:onlyfans", "keyword:adult video",
     ],
     "Redirects, Trackers & Shorteners": [
         "domain:bit.ly", "domain:bitly.com", "domain:tinyurl.com",
@@ -78,9 +83,91 @@ DEFAULT_CATEGORIES = {
         # Remote Access & Management
         "domain:splashtop.com", "domain:screenconnect.com", "domain:connectwise.com",
         "domain:ninjaone.com", "domain:pdq.com", "domain:teamviewer.com",
-        "domain:anydesk.com",
+        "domain:anydesk.com", "domain:remotedesktop.google.com",
+        "domain:sync.com", "domain:info.easyvista.com", "domain:easyvista.com",
+        "domain:teamlogicit.com", "domain:tech-keys.com",
+        "domain:nexttechconsultants.com",
+        # Status pages
+        "domain:cloudflarestatus.com", "domain:status.microsoft", "domain:azure.status.microsoft",
+        "domain:status.github.com", "domain:status.digitalocean.com",
+        "domain:githubstatus.com", "domain:downdetector.com",
+        # Microsoft ecosystem
+        "domain:login.microsoftonline.com", "domain:microsoftonline.com",
+        "domain:answers.microsoft.com", "domain:support.microsoft.com",
+        "domain:technet.microsoft.com", "domain:developer.microsoft.com",
+        "domain:security.microsoft.com", "domain:apps.microsoft.com",
+        "domain:microsoft.com",
+        # Image tools (sysadmin uses for processing)
+        "domain:imagemagick.org", "domain:joesandbox.com",
+        "domain:any.run", "domain:urlscan.io",
+        # Customization tools
+        "domain:wincustomize.com",
+        # Networking / enterprise vendors
+        "domain:cisco.com", "domain:juniper.net", "domain:arubanetworks.com",
+        "domain:ubnt.com", "domain:ubiquiti.com", "domain:mikrotik.com",
+        "domain:fortinet.com", "domain:sonicwall.com", "domain:sophos.com",
+        "domain:meraki.com",
+        "domain:netadmintools.com", "domain:carbonite.com",
+        "domain:osticket.com", "domain:palmtreeit.org",
+        "domain:myersinfosys.com", "domain:sysadminpedia.com",
+        # Home networking
+        "domain:myhomenetwork.att.com", "domain:att.com", "domain:xfinity.com",
+        "domain:spectrum.com", "domain:comcast.com", "domain:cox.com",
+        # SysAdmin tools (Windows)
+        "domain:nirsoft.net", "domain:ntlite.com",
+        "domain:autoitscript.com", "domain:autohotkey.com",
+        "domain:winutil.christitus.com", "domain:christitus.com",
+        "domain:marticliment.com",  # UniGetUI
+        "domain:uninstalr.com", "domain:pete.akeo.ie",  # Rufus
+        "domain:abelhadigital.com",  # HostsMan
+        "domain:custopack.com", "domain:librewolf.net",
+        "domain:spicetify.app",
+        "domain:process-hacker.com", "domain:processhacker.sourceforge.io",
+        "domain:sysinternals.com", "domain:live.sysinternals.com",
+        # Meeting / remote support
+        "domain:zoom.us", "domain:zoomgov.com", "domain:webex.com",
+        "domain:gotomeeting.com", "domain:bluejeans.com",
+        "domain:logmein.com", "domain:gotoassist.com",
+        "domain:dualmon.com",
+        # IT training / cheat sheets
+        "domain:gfi.com", "domain:sysadmincasts.com", "domain:gestaltit.com",
+        "domain:9tut.com", "domain:examcollection.com", "domain:avanset.com",
+        # IT forums / utilities
+        "domain:forum.avast.com", "domain:avast.com",
+        "domain:icoconverter.com", "domain:mdl-tb.ct8.pl",
+        # Enterprise software
+        "domain:avid.force.com", "domain:ricoh-usa.com", "domain:ricoh.com",
+        "domain:xerox.com", "domain:canon.com", "domain:brother.com",
+        # Accounts / auth
+        "domain:accounts.bdrive.com", "domain:bdrive.com",
+        # File sharing / storage / backup (sysadmin context)
+        "domain:wetransfer.com", "domain:sendspace.com",
+        "domain:box.net", "domain:box.com", "domain:wuala.com",
+        "domain:ammyy.com", "domain:airdroid.com", "domain:web.airdroid.com",
+        "domain:dragshare.com", "domain:whatbox.ca", "domain:whatbox.com",
+        "domain:hetzner.com", "domain:hetzner.online",
+        "domain:ovhcloud.com", "domain:ovh.com",
+        "domain:vultr.com", "domain:linode.com",
+        # pfSense / security hardware
+        "domain:netgate.com", "domain:pfsense.com",
+        # Printer / hardware vendors
+        "domain:global-print-driver.com", "domain:xerox.com",
+        "domain:hp.com", "domain:epson.com", "domain:brother.com",
+        # Other SysAdmin resources / utilities
+        "domain:ez.lol",  # browser ID/extension tester
         "keyword:managed it", "keyword:it services", "keyword:it support",
-        "keyword:endpoint", "keyword:patch management", "keyword:rmm"
+        "keyword:endpoint", "keyword:patch management", "keyword:rmm",
+        "keyword:active directory", "keyword:ldap", "keyword:dhcp",
+        "keyword:firewall", "keyword:vlan", "keyword:subnet",
+        "keyword:bitlocker", "keyword:tpm", "keyword:uefi", "keyword:bios",
+        "keyword:virtualbox", "keyword:hyper-v", "keyword:vmware",
+        "keyword:remote desktop", "keyword:remote admin", "keyword:remote control",
+        "keyword:web hosting", "keyword:vps", "keyword:dedicated server",
+        "keyword:backup solution", "keyword:file sharing",
+        "keyword:cloud storage", "keyword:data backup",
+        "keyword:virtual machine", "keyword:vm image",
+        "keyword:pfsense", "keyword:opnsense", "keyword:netgate",
+        "keyword:print driver", "keyword:printer setup",
     ],
     "Development & Programming": [
         # Code Hosting
@@ -115,7 +202,49 @@ DEFAULT_CATEGORIES = {
         "domain:community.chocolatey.org", "domain:chocolatey.org",
         "domain:winget.run", "domain:xda-developers.com",
         "domain:play.google.com",
-        "keyword:userscript", "keyword:tampermonkey", "keyword:greasemonkey"
+        "domain:chrome.google.com",  # Chrome Web Store (old URL)
+        # User's own / tools
+        "domain:sysadmindoc.github.io",
+        "domain:discuss.ipfs.tech", "domain:ipfs.io", "domain:ipfs.tech",
+        "domain:someonewhocares.org",
+        "domain:scrapy.org", "domain:remotion.dev",
+        "domain:github.developerdan.com",
+        "domain:tools.thatwind.com",
+        "domain:chrome-stats.com", "domain:crxextractor.com",
+        "domain:allpurposedesigns.com",
+        "domain:a.dove.isdumb.one",
+        "domain:massgrave.dev",
+        "domain:console.firebase.google.com", "domain:firebase.google.com",
+        # More IDEs / playgrounds
+        "domain:glitch.com", "domain:observablehq.com", "domain:runkit.com",
+        "domain:pythonanywhere.com", "domain:colab.google",
+        # More docs
+        "domain:readthedocs.io", "domain:readthedocs.org",
+        "domain:godoc.org", "domain:pkg.go.dev",
+        # API testing
+        "domain:postman.com", "domain:insomnia.rest", "domain:httpbin.org",
+        # Additional dev platforms / services
+        "domain:supabase.com", "domain:expo.dev", "domain:go.dev",
+        "domain:reactbits.dev", "domain:hlsjs.video-dev.org", "domain:video-dev.org",
+        "domain:developertoolkits.com",
+        # Online tools (dev-oriented)
+        "domain:zamzar.com", "domain:textcleaner.net",
+        "domain:base64-image.de", "domain:base64.guru",
+        "domain:jsonlint.com", "domain:jsonformatter.curiousconcept.com",
+        "domain:crontab.guru", "domain:explainshell.com",
+        "domain:caniuse.com", "domain:devdocs.io", "domain:devhints.io",
+        "domain:tldr.sh", "domain:tldr.inbrowser.app",
+        # Dev blogs / personal dev sites
+        "domain:vikash.nl", "domain:helloacm.com",
+        "domain:blog.bahraniapps.com", "domain:bahraniapps.com",
+        "domain:proggblo.blogspot.com",
+        # Sysadmin scripting / extensions
+        "domain:pro.sorrywatermark.com",
+        # Game server / bot hosting
+        "domain:dyno.gg",
+        "keyword:userscript", "keyword:tampermonkey", "keyword:greasemonkey",
+        "keyword:api documentation", "keyword:sdk", "keyword:github repo",
+        "keyword:pull request", "keyword:pry request",
     ],
     "AI & Machine Learning": [
         # AI Assistants
@@ -143,8 +272,28 @@ DEFAULT_CATEGORIES = {
         "domain:luma.ai", "domain:dreamstudio.ai", "domain:clipdrop.co",
         "domain:nightcafe.studio", "domain:heygen.com", "domain:murf.ai",
         "domain:hailuoai.video", "domain:napkin.ai",
+        "domain:grok.com", "domain:grok.x.ai", "domain:x.ai",
+        "domain:notebooklm.google.com", "domain:openrouter.ai",
+        "domain:ink.trimythic.co", "domain:tattoosai.com",
+        "domain:app.klingai.com", "domain:klingai.com",
+        "domain:hailuo-02.com", "domain:minimax.io",
+        "domain:stoat.chat", "domain:geminivideo.studio",
+        "domain:prompts.chat", "domain:bitlife.ai",
+        "domain:otter.ai", "domain:lenso.ai", "domain:copyseeker.net",
+        "domain:apollo.io", "domain:jeneratex.com",
+        "domain:app.patientimage.ai", "domain:app.vivalabs.ai",
+        "domain:jobo.world", "domain:app.bio.link",
+        "domain:tunemymusic.com", "domain:photopea.com",
+        "domain:gab.ai", "domain:freedom-gpt.com",
+        "domain:venice.ai", "domain:agnai.chat",
+        "domain:you.com", "domain:phind.com",
+        "domain:tldraw.com", "domain:cody.ai",
+        "domain:tabnine.com", "domain:continue.dev",
         "keyword:ai model", "keyword:llm", "keyword:large language",
-        "keyword:machine learning", "keyword:deep learning"
+        "keyword:machine learning", "keyword:deep learning",
+        "keyword:ai generator", "keyword:ai video", "keyword:ai image",
+        "keyword:ai tool", "keyword:ai chatbot", "keyword:ai assistant",
+        "keyword:prompt engineering", "keyword:fine-tuning",
     ],
     "Cloud & Infrastructure": [
         "domain:aws.amazon.com", "domain:console.aws.amazon.com",
@@ -177,7 +326,27 @@ DEFAULT_CATEGORIES = {
         "domain:salon.com", "domain:huffpost.com", "domain:politico.com",
         "domain:thehill.com", "domain:axios.com", "domain:mashable.com",
         "domain:thedailybeast.com", "domain:medium.com", "domain:substack.com",
-        "domain:libertylinks.io"
+        "domain:libertylinks.io",
+        # Local news / regional
+        "domain:whio.com", "domain:whiotv.com",
+        "domain:thinktv.org", "domain:downtowndayton.org",
+        # Alternative / political
+        "domain:infogalactic.com", "domain:bellingcat.gitbook.io", "domain:bellingcat.com",
+        "domain:dailywire.com", "domain:mises.org",
+        "domain:frontier.com", "domain:theepochtimes.com", "domain:theconservativetreehouse.com",
+        "domain:zerohedge.com", "domain:citizenfreepress.com",
+        # Science / education news
+        "domain:nuclearsecrecy.com", "domain:sciencedaily.com",
+        "domain:phys.org", "domain:space.com",
+        "domain:arstechnica.com", "domain:hackernoon.com",
+        # General interest / lifestyle
+        "domain:lifehacker.com", "domain:buzzfeed.com",
+        "domain:ted.com", "domain:goodreads.com",
+        "domain:atlasobscura.com", "domain:bigthink.com",
+        "domain:aeon.co", "domain:nautil.us",
+        # Personal blogs / authors (common unknown)
+        "domain:todaywillbedifferent.com",
+        "domain:brittanyanneauthor.com",
     ],
     "Weather & Meteorology": [
         "domain:weather.com", "domain:weather.gov", "domain:noaa.gov",
@@ -186,9 +355,15 @@ DEFAULT_CATEGORIES = {
         "domain:accuweather.com", "domain:windy.com", "domain:ventusky.com",
         "domain:earth.nullschool.net", "domain:zoom.earth",
         "domain:lightningmaps.org", "domain:spaghettimodels.com",
+        "domain:rammb-slider.cira.colostate.edu", "domain:cira.colostate.edu",
+        "domain:web.weatherwise.app", "domain:weatherwise.app",
+        "domain:staticbaronwebapps.velocityweather.com", "domain:velocityweather.com",
+        "domain:s.w-x.co", "domain:w-x.co",
+        "domain:pivotalweather.com", "domain:mrx.com",
+        "domain:stormtrack.org", "domain:aviationweather.gov",
         "keyword:weather", "keyword:forecast", "keyword:hurricane",
         "keyword:tropical storm", "keyword:tornado", "keyword:radar",
-        "keyword:doppler", "keyword:severe weather"
+        "keyword:doppler", "keyword:severe weather",
     ],
     "Social Media": [
         "domain:twitter.com", "domain:x.com", "domain:nitter.net",
@@ -211,7 +386,17 @@ DEFAULT_CATEGORIES = {
         "domain:voat.co", "domain:scored.co", "domain:communities.win",
         "domain:gab.com", "domain:truthsocial.com", "domain:minds.com",
         "domain:parler.com", "domain:gettr.com", "domain:ruqqus.com",
-        "domain:8ch.net", "domain:8kun.top"
+        "domain:8ch.net", "domain:8kun.top",
+        "domain:patriots.win", "domain:communities.win",
+        "domain:kiwifarms.st", "domain:kiwifarms.net",
+        "domain:16chan.xyz", "domain:16chan.to",
+        "domain:ar15.com", "domain:thehighroad.org",
+        "domain:forum.aprelteam.su", "domain:aprelteam.su",
+        # Additional forum / community platforms
+        "domain:twitch.tv/directory", "domain:vk.com",
+        "domain:tapatalk.com", "domain:proboards.com",
+        "domain:forums.redflagdeals.com", "domain:slickdeals.net",
+        "keyword:discussion forum", "keyword:subreddit",
     ],
     "Shopping & E-commerce": [
         "domain:amazon.com", "domain:smile.amazon.com", "domain:camelcamelcamel.com",
@@ -234,7 +419,26 @@ DEFAULT_CATEGORIES = {
         "domain:classicfirearms.com", "domain:ammoseek.com",
         "domain:midwayusa.com", "domain:brownells.com",
         "domain:cheaperthandirt.com", "domain:sportsmansguide.com",
-        "keyword:firearm", "keyword:ammo", "keyword:holster"
+        "domain:truegunvalue.com", "domain:springfield-armory.com",
+        "domain:rei.com", "domain:bassproshops.com", "domain:cabelas.com",
+        "domain:dickssportinggoods.com",
+        # Outdoor / clothing
+        "domain:kuhl.com", "domain:patagonia.com", "domain:northface.com",
+        "domain:columbia.com",
+        # Home furnishings
+        "domain:thefurniturewarehouse.com", "domain:firebox.com",
+        "domain:beautyrest.com", "domain:secretlab.co",
+        # Storage
+        "domain:myaccount.extraspace.com", "domain:extraspace.com",
+        "domain:publicstorage.com", "domain:cubesmart.com",
+        # Misc specialty
+        "domain:laserpointerpro.com", "domain:woodhullusa.com",
+        "domain:northerner.com", "domain:drizly.com",
+        "domain:zero.com",
+        # Tobacco / vape
+        "domain:gotsmoke.com", "domain:smokershub.com",
+        "keyword:firearm", "keyword:ammo", "keyword:holster",
+        "keyword:for sale", "keyword:buy online", "keyword:discount",
     ],
     "Entertainment & Streaming": [
         # Video Streaming
@@ -255,6 +459,23 @@ DEFAULT_CATEGORIES = {
         "domain:justwatch.com", "domain:thetvdb.com", "domain:themoviedb.org",
         "domain:trakt.tv", "domain:abetterqueue.com",
         "domain:arc018.to", "domain:flixmomo.com",
+        "domain:uflix.to", "domain:thetvapp.to",
+        "domain:noodlemagazine.com", "domain:leonardaisfunny.com",
+        "domain:metiix.com", "domain:godownloads.net",
+        "domain:solarmoviez.ru", "domain:m4uhd.page",
+        "domain:publiciptv.com", "domain:streamlicensing.com",
+        "domain:stream2video.tv", "domain:usnewslive.tv",
+        "domain:mysuncoast.com", "domain:southhemitv.com",
+        "domain:americafirst.live", "domain:unauthorized.tv",
+        "domain:banned.video", "domain:warroom.org", "domain:pandemic.warroom.org",
+        "domain:ome.tv", "domain:chaturbate.com",
+        # Professional streaming infrastructure
+        "domain:dacast.com", "domain:brightcove.com", "domain:vimeo.com",
+        "domain:storyblocks.com",
+        "domain:myslingstudio.com", "domain:gatesair.com",
+        "domain:kapwing.com", "domain:heroturko.me",
+        "domain:downr.org", "domain:audfree.com",
+        "domain:desktop.captions.ai", "domain:captions.ai",
         # Music & Audio
         "domain:spotify.com", "domain:open.spotify.com",
         "domain:soundcloud.com", "domain:bandcamp.com",
@@ -263,7 +484,16 @@ DEFAULT_CATEGORIES = {
         "domain:tothebestof.com", "domain:genius.com",
         "domain:tunetidy.com", "domain:cduniverse.com",
         "domain:crunchyroll.com",
-        "keyword:asmr"
+        "domain:pandora.com", "domain:stereomood.com", "domain:relaxingbeats.com",
+        "domain:artists.apple.com", "domain:getcoverify.com",
+        "domain:getworkdonemusic.com", "domain:bensound.com",
+        "domain:groovedrumming.com", "domain:myinstants.com",
+        "domain:bertcast.com", "domain:toao.net",
+        "domain:itunes.apple.com",
+        # Music production / royalty-free
+        "domain:looperman.com", "domain:splice.com",
+        "domain:beatstars.com", "domain:freesound.org",
+        "keyword:asmr", "keyword:playlist", "keyword:instrumental",
     ],
     "Gaming": [
         "domain:steam.com", "domain:steampowered.com", "domain:store.steampowered.com",
@@ -273,7 +503,15 @@ DEFAULT_CATEGORIES = {
         "domain:kotaku.com", "domain:polygon.com",
         "domain:curseforge.com", "domain:modrinth.com", "domain:minecraft.net",
         "domain:mcprohosting.com", "domain:dev.bukkit.org",
-        "domain:roblox.com", "domain:ea.com", "domain:ubisoft.com"
+        "domain:roblox.com", "domain:ea.com", "domain:ubisoft.com",
+        "domain:crusaders.gg", "domain:battlefy.com",
+        "domain:ea.sports", "domain:leagueoflegends.com",
+        "domain:riotgames.com", "domain:blizzard.com",
+        "domain:battle.net", "domain:bethesda.net",
+        "domain:humblebundle.com", "domain:fanatical.com",
+        "domain:gamivo.com", "domain:cdkeys.com", "domain:g2a.com",
+        "domain:speedrun.com", "domain:twitchmetrics.net",
+        "domain:howlongtobeat.com", "domain:backloggd.com",
     ],
     "Finance & Banking": [
         "domain:chase.com", "domain:bankofamerica.com", "domain:wellsfargo.com",
@@ -283,7 +521,31 @@ DEFAULT_CATEGORIES = {
         "domain:irs.gov", "domain:stripe.com", "domain:square.com",
         "domain:quickbooks.intuit.com", "domain:freshbooks.com",
         "domain:gusto.com", "domain:paylocity.com",
-        "keyword:credit union", "keyword:banking"
+        # Credit unions / regional banks
+        "domain:wpcuonline.net", "domain:wpcu.coop",
+        "domain:achievacu.com", "domain:banking.achievacu.com",
+        "domain:creditonebank.com", "domain:auth.tiaa.org", "domain:tiaa.org",
+        "domain:suncoastcreditunion.com",
+        "domain:pnc.com", "domain:usbank.com", "domain:citibank.com",
+        "domain:capitalone.com", "domain:discover.com",
+        "domain:ally.com", "domain:schwab.com", "domain:vanguard.com",
+        "domain:kraken.com", "domain:binance.com", "domain:gemini.com",
+        # Insurance (finance-adjacent)
+        "domain:ecams.geico.com", "domain:geico.com",
+        "domain:progressive.com", "domain:statefarm.com",
+        "domain:allstate.com", "domain:usaa.com",
+        "domain:manage.myassurantpolicy.com", "domain:assurant.com",
+        # Crypto / stocks / finance data
+        "domain:bitbo.io", "domain:coinmarketcap.com", "domain:coingecko.com",
+        "domain:etherscan.io", "domain:blockchain.com",
+        "domain:finviz.com", "domain:yahoo.com/finance",
+        "domain:marketwatch.com", "domain:cnbc.com",
+        "domain:nasdaq.com", "domain:seekingalpha.com",
+        "domain:morningstar.com", "domain:investing.com",
+        "keyword:credit union", "keyword:banking", "keyword:online banking",
+        "keyword:brokerage", "keyword:investment", "keyword:insurance",
+        "keyword:bitcoin price", "keyword:crypto", "keyword:ethereum",
+        "keyword:stock price", "keyword:commodities", "keyword:oil price",
     ],
     "Education & Learning": [
         "domain:coursera.org", "domain:udemy.com", "domain:edx.org",
@@ -309,9 +571,23 @@ DEFAULT_CATEGORIES = {
         "domain:maps.google.com", "domain:openstreetmap.org",
         "domain:earth.google.com", "domain:darksitefinder.com",
         "domain:justicemap.org",
-        # Search
+        "domain:arcgis.com", "domain:apps.sentinel-hub.com", "domain:sentinel-hub.com",
+        "domain:mapautist.com", "domain:nuclearsecrecy.com",
+        # Search engines
         "domain:duckduckgo.com", "domain:start.me",
-        "domain:translate.google.com"
+        "domain:translate.google.com",
+        "domain:startpage.com", "domain:kagi.com", "domain:brave.com",
+        "domain:yandex.com", "domain:baidu.com",
+        "domain:search.brave.com", "domain:qwant.com",
+        "domain:ecosia.org", "domain:searxng.org",
+        # Reference / encyclopedic
+        "domain:infogalactic.com", "domain:wiktionary.org",
+        "domain:thefreedictionary.com", "domain:vocabulary.com",
+        "domain:snopes.com", "domain:factcheck.org",
+        "domain:politifact.com", "domain:straightdope.com",
+        "domain:tineye.com",  # reverse image search
+        # User's generic Google account / profile
+        "domain:myaccount.google.com", "domain:accounts.google.com",
     ],
     "Travel & Transportation": [
         "domain:booking.com", "domain:airbnb.com", "domain:expedia.com",
@@ -321,7 +597,16 @@ DEFAULT_CATEGORIES = {
         "domain:uber.com", "domain:lyft.com", "domain:skyscanner.com",
         "domain:southwest.com", "domain:united.com", "domain:delta.com",
         "domain:aa.com", "domain:allegiantair.com", "domain:spiritairlines.com",
-        "domain:amtrak.com", "domain:greyhound.com"
+        "domain:amtrak.com", "domain:greyhound.com",
+        # Local / municipal (Florida / Ohio per user profile)
+        "domain:venicegov.com", "domain:downtowndayton.org",
+        "domain:fpl.com", "domain:duke-energy.com",
+        # Additional travel
+        "domain:hopper.com", "domain:trivago.com",
+        "domain:ihg.com", "domain:marriott.com", "domain:hilton.com",
+        "domain:hyatt.com", "domain:choicehotels.com",
+        "domain:momondo.com", "domain:google.com/flights",
+        "keyword:flights to", "keyword:hotel booking",
     ],
     "Food & Dining": [
         "domain:doordash.com", "domain:ubereats.com", "domain:grubhub.com",
@@ -338,8 +623,32 @@ DEFAULT_CATEGORIES = {
         "domain:cernerhealth.com", "domain:mychart.com",
         "domain:myhealthrecord.com", "domain:clevelandclinic.org",
         "domain:medicatechusa.com",
+        # Medical imaging / PACS (user's domain)
+        "domain:mavenimaging.com", "domain:support.mavenimaging.com",
+        "domain:2020imaging.net",
+        "domain:member.compassphs.com", "domain:compassphs.com",
+        "domain:covid19criticalcare.com",
+        # Additional patient portals / insurance
+        "domain:anthem.com", "domain:mymoffitt.org",
+        "domain:mychart.premierhealthpartners.org",
+        "domain:premierhealthpartners.org",
+        "domain:pullpush.io",
+        # Pharmacies (online)
+        "domain:modafinilxl.com", "domain:modafinilusa.com",
+        "domain:alldaychemist.com", "domain:liherbals.com",
+        # Tattoo / body modification
+        "domain:inkdrop.co", "domain:tattoo.com",
+        # General health
+        "domain:medscape.com", "domain:mercola.com",
+        "domain:manage.myassurantpolicy.com",
+        # DICOM viewers / imaging tools
+        "domain:weasis.org", "domain:osirix-viewer.com",
+        "domain:radiantviewer.com", "domain:horosproject.org",
+        "domain:mangosoftware.com",
+        "domain:views.paperflite.com", "domain:paperflite.com",
         "keyword:dicom", "keyword:pacs", "keyword:x-ray", "keyword:radiology",
-        "keyword:patient portal", "keyword:mychart"
+        "keyword:patient portal", "keyword:mychart", "keyword:imaging",
+        "keyword:medical record", "keyword:prescription",
     ],
     "Job Search & Career": [
         "domain:indeed.com", "domain:glassdoor.com", "domain:monster.com",
@@ -350,14 +659,38 @@ DEFAULT_CATEGORIES = {
         "domain:kellyservices.us", "domain:tbe.taleo.net",
         "domain:remoteok.com", "domain:levels.fyi",
         "domain:linkedin.com/jobs",
+        "domain:jobs.net", "domain:careerplug.com",
+        "domain:kellycareernetwork.tms.hrdepartment.com",
+        "domain:tms.hrdepartment.com", "domain:hrdepartment.com",
+        "domain:teamlogic-it-careers.careerplug.com",
+        "domain:careers.suncoastcreditunion.com",
+        "domain:workday.com", "domain:myworkday.com",
+        "domain:greenhouse.io", "domain:lever.co",
+        "domain:smartrecruiters.com", "domain:jobvite.com",
+        "domain:bamboohr.com",
+        "domain:angel.co", "domain:wellfound.com", "domain:hired.com",
+        "domain:flexjobs.com", "domain:workingnomads.co",
+        "domain:weworkremotely.com", "domain:remote.co",
+        # Career / freelance platforms
+        "domain:toptal.com", "domain:guru.com", "domain:99designs.com",
+        # Subdomain patterns for company career pages
+        "keyword:careers.", "keyword:jobs.",
         "keyword:job opening", "keyword:careers at", "keyword:staffing",
-        "keyword:resume", "keyword:hiring"
+        "keyword:resume", "keyword:hiring", "keyword:recruiter",
+        "keyword:interview", "keyword:salary",
     ],
     "Real Estate": [
         "domain:zillow.com", "domain:realtor.com", "domain:redfin.com",
         "domain:trulia.com", "domain:apartments.com", "domain:rent.com",
         "domain:rocketmortgage.com", "domain:appfolio.com",
-        "keyword:real estate", "keyword:for rent", "keyword:apartment"
+        "domain:hotpads.com", "domain:compassmgmt.appfolio.com",
+        "domain:forrent.com", "domain:rentcafe.com",
+        "domain:auction.com", "domain:homes.com", "domain:loopnet.com",
+        "domain:costar.com", "domain:landwatch.com",
+        "domain:padmapper.com", "domain:streeteasy.com",
+        "keyword:real estate", "keyword:for rent", "keyword:apartment",
+        "keyword:condo for", "keyword:house for", "keyword:mortgage",
+        "keyword:home value", "keyword:zestimate",
     ],
     "Automotive": [
         "domain:cars.com", "domain:autotrader.com", "domain:cargurus.com",
@@ -375,7 +708,14 @@ DEFAULT_CATEGORIES = {
         "domain:fcc.gov", "domain:ftc.gov",
         "domain:law.cornell.edu", "domain:findlaw.com",
         "domain:sunbiz.org", "domain:search.sunbiz.org",
-        "domain:myflorida.com", "domain:flhsmv.gov", "domain:floridajobs.org"
+        "domain:myflorida.com", "domain:flhsmv.gov", "domain:floridajobs.org",
+        "domain:mydmvportal-flhsmv.my.site.com",
+        # Additional legal/court
+        "domain:pacer.gov", "domain:uscourts.gov",
+        "domain:justia.com", "domain:nolo.com", "domain:rocketlawyer.com",
+        "domain:legalzoom.com", "domain:avvo.com",
+        # International
+        "domain:gov.uk", "domain:canada.ca", "domain:gov.au",
     ],
     "Downloads & Torrents": [
         "domain:1337x.to", "domain:thepiratebay.org", "domain:rarbg.to",
@@ -385,9 +725,26 @@ DEFAULT_CATEGORIES = {
         "domain:yts.mx", "domain:eztv.re", "domain:limetorrents.info",
         "domain:forum.mobilism.me", "domain:mobilism.me",
         "domain:mega.nz", "domain:mediafire.com", "domain:file-upload.org",
-        "domain:fcportables.com", "domain:massgrave.dev",
+        "domain:fcportables.com",
+        # Piracy indexes / releases
+        "domain:fmhy.net", "domain:lookmovie2.to", "domain:kickass.to",
+        "domain:palined.com", "domain:filepursuit.com", "domain:usersdrive.com",
+        "domain:predb.net", "domain:redact.dev",
+        "domain:w16.monkrus.ws", "domain:monkrus.ws",
+        "domain:couchtuner.show", "domain:shrimpstreams.live",
+        "domain:cnvmp3.com",
+        # File hosts
+        "domain:filenext.com", "domain:katfile.com", "domain:rapidgator.net",
+        "domain:uploadgig.com", "domain:nitroflare.com", "domain:keep2share.cc",
+        # DDL archives
+        "domain:softarchive.is", "domain:downloadly.ir",
+        "domain:getintopc.com", "domain:igg-games.com",
+        "domain:ocean-of-games.com", "domain:oceanofgames.com",
+        "domain:skidrowreloaded.com", "domain:skidrow-games.com",
         "keyword:torrent", "keyword:magnet", "keyword:seedbox",
-        "keyword:nulled", "keyword:crack", "keyword:warez"
+        "keyword:nulled", "keyword:crack", "keyword:warez",
+        "keyword:free download", "keyword:direct download",
+        "keyword:scene release",
     ],
     "Media Production & Design": [
         # Video Equipment
@@ -410,8 +767,23 @@ DEFAULT_CATEGORIES = {
         "domain:icons8.com", "domain:fontawesome.com",
         "domain:dafont.com", "domain:fontsquirrel.com",
         "domain:pngwing.com", "domain:canva.com", "domain:figma.com",
+        # GFX / VFX repositories
+        "domain:gfxtra31.com",
+        "domain:vfxdownload.net", "domain:psdflyer.co", "domain:nitrogfx.pro",
+        "domain:free-psd-templates.com", "domain:scriptmafia.org",
+        "domain:graphicriver.net", "domain:videohive.net",
+        "domain:templatemonster.com", "domain:themeforest.net",
+        "domain:awesomeflyer.com", "domain:ae-share.com", "domain:ae-project.su",
+        # UI / animation tools
+        "domain:loading.io", "domain:lottiefiles.com",
+        "domain:keyshape.app", "domain:vectr.com",
+        # Audio / video editing
+        "domain:audiojungle.net", "domain:soundsnap.com",
+        "domain:producerspot.com",
         "keyword:after effects", "keyword:premiere pro", "keyword:stock footage",
-        "keyword:videohive", "keyword:motion graphic"
+        "keyword:videohive", "keyword:motion graphic",
+        "keyword:psd template", "keyword:photoshop template",
+        "keyword:vfx", "keyword:cinema 4d", "keyword:blender",
     ],
     "Software & Customization": [
         # Windows Themes
@@ -423,9 +795,17 @@ DEFAULT_CATEGORIES = {
         "domain:majorgeeks.com", "domain:softpedia.com", "domain:filehippo.com",
         "domain:alternativeto.net", "domain:wingetgui.com",
         "domain:voidtools.com", "domain:freewaregenius.com",
-        "domain:mozilla.org", "domain:7-zip.org", "domain:notepad-plus-plus.org",
+        "domain:mozilla.org", "domain:mozilla.com",
+        "domain:7-zip.org", "domain:notepad-plus-plus.org",
         "domain:videolan.org", "domain:handbrake.fr", "domain:audacity.org",
-        "domain:gimp.org", "domain:inkscape.org", "domain:libreoffice.org"
+        "domain:gimp.org", "domain:inkscape.org", "domain:libreoffice.org",
+        # More popular apps
+        "domain:obsidian.md", "domain:logseq.com", "domain:anytype.io",
+        "domain:zotero.org", "domain:calibre-ebook.com",
+        "domain:keepass.info", "domain:keepassxc.org",
+        "domain:veracrypt.fr", "domain:truecrypt.ch",
+        "domain:everything.voidtools.com",
+        "domain:fastcopy.jp", "domain:teracopy.com",
     ],
     "Productivity & Tools": [
         # Google Workspace
@@ -438,12 +818,33 @@ DEFAULT_CATEGORIES = {
         "domain:mail.google.com", "domain:outlook.live.com",
         "domain:outlook.office.com", "domain:login.live.com",
         "domain:mail.yahoo.com", "domain:messages.google.com",
+        "domain:aol.com", "domain:mail.com", "domain:fastmail.com",
+        "domain:tuta.io", "domain:tutanota.com",
         # Online Tools
         "domain:notion.so", "domain:trello.com", "domain:asana.com",
         "domain:airtable.com", "domain:feedly.com",
         "domain:iloveimg.com", "domain:ilovepdf.com", "domain:ezgif.com",
         "domain:cloudconvert.com",
-        "domain:hubspot.com"
+        "domain:hubspot.com",
+        # Cloud storage (user-facing productivity)
+        "domain:dropbox.com", "domain:onedrive.live.com", "domain:onedrive.com",
+        "domain:box.com", "domain:sync.com", "domain:pcloud.com",
+        # Other productivity
+        "domain:tunemymusic.com",  # music playlist tool
+        "domain:toggl.com", "domain:harvestapp.com",
+        "domain:clockify.me", "domain:rescuetime.com",
+        "domain:evernote.com", "domain:onenote.com",
+        "domain:monday.com", "domain:clickup.com", "domain:basecamp.com",
+        "domain:miro.com", "domain:mural.co", "domain:lucidchart.com",
+        "domain:draw.io", "domain:app.diagrams.net",
+        # Calendar / scheduling
+        "domain:calendly.com", "domain:doodle.com",
+        # Password managers (primary utility for many)
+        "domain:1password.com", "domain:dashlane.com",
+        # Google.com catch-all (last fallback for generic searches/accounts).
+        # Keep at the very end so specific subdomain rules in other
+        # categories (News, AI, Cloud, Reference) match first.
+        "domain:google.com",
     ],
 }
 
