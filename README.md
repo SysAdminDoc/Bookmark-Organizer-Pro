@@ -1,4 +1,4 @@
-# Bookmark Organizer Pro v4.5.0
+# Bookmark Organizer Pro v4.6.0
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, and advanced organization features.
 
@@ -371,7 +371,7 @@ MIT License - see LICENSE file for details.
 
 ## Version History
 
-### v4.5.0 (April 2026)
+### v4.6.0 (April 2026)
 - Expanded categorization from 150 to 894 patterns across 32 categories
 - Added 5 new categories: SysAdmin & IT, Weather, Downloads & Torrents, Media Production, Software & Customization, Productivity
 - Fixed PatternEngine domain matching (proper suffix matching instead of substring)
