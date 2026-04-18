@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Bookmark Organizer Pro - Ultimate Edition v4.3.0
+Bookmark Organizer Pro - Ultimate Edition v4.4.0
 =================================================
 A powerful, modern bookmark manager with:
 - Multi-theme system with 10+ built-in themes
@@ -13,7 +13,7 @@ A powerful, modern bookmark manager with:
 - Enhanced favicon caching
 - Professional UI with DPI awareness
 
-Version 4.3.0 - April 2026
+Version 4.4.0 - April 2026
 """
 
 # =============================================================================
@@ -57,7 +57,7 @@ from io import BytesIO
 # Application Constants
 # =============================================================================
 APP_NAME = "Bookmark Organizer Pro"
-APP_VERSION = "4.3.0"
+APP_VERSION = "4.4.0"
 APP_SUBTITLE = "Ultimate Bookmark Management"
 
 # =============================================================================
@@ -6257,6 +6257,144 @@ class BookmarkManager:
             return None
         return wayback_save(bm.url)
     
+    # ── Soft Delete / Trash (inspired by LinkAce) ─────────────────────────
+    def soft_delete_bookmark(self, bookmark_id: int) -> bool:
+        """Move a bookmark to trash instead of permanent deletion.
+
+        Sets is_archived=True and adds a '_deleted_at' timestamp to custom_data.
+        Use restore_from_trash() to recover, or empty_trash() to purge.
+        """
+        bm = self.bookmarks.get(bookmark_id)
+        if not bm:
+            return False
+        bm.is_archived = True
+        bm.custom_data['_deleted_at'] = datetime.now().isoformat()
+        bm.modified_at = datetime.now().isoformat()
+        self.save_bookmarks()
+        return True
+
+    def restore_from_trash(self, bookmark_id: int) -> bool:
+        """Restore a bookmark from trash."""
+        bm = self.bookmarks.get(bookmark_id)
+        if not bm:
+            return False
+        bm.is_archived = False
+        bm.custom_data.pop('_deleted_at', None)
+        bm.modified_at = datetime.now().isoformat()
+        self.save_bookmarks()
+        return True
+
+    def get_trash(self) -> List[Bookmark]:
+        """Get all bookmarks in the trash."""
+        return [bm for bm in self.bookmarks.values()
+                if bm.is_archived and '_deleted_at' in bm.custom_data]
+
+    def empty_trash(self) -> int:
+        """Permanently delete all bookmarks in the trash."""
+        trash_ids = [bm.id for bm in self.get_trash()]
+        for bid in trash_ids:
+            self.bookmarks.pop(bid, None)
+        if trash_ids:
+            self.save_bookmarks()
+        return len(trash_ids)
+
+    # ── Random Bookmark Rediscovery (inspired by Buku) ──────────────────
+    def get_random_bookmark(self, exclude_trash: bool = True) -> Optional[Bookmark]:
+        """Get a random bookmark for rediscovery.
+
+        Excludes archived/trashed bookmarks by default.
+        """
+        import random
+        candidates = [bm for bm in self.bookmarks.values()
+                      if not (exclude_trash and bm.is_archived)]
+        return random.choice(candidates) if candidates else None
+
+    # ── Batch Metadata Refresh (inspired by Buku's multi-threaded refresh) ──
+    def batch_refresh_metadata(self, bookmark_ids: List[int] = None,
+                                max_workers: int = 5,
+                                progress_callback: Callable = None) -> int:
+        """Re-fetch titles and descriptions for multiple bookmarks.
+
+        If bookmark_ids is None, refreshes all bookmarks.
+        Returns count of bookmarks updated.
+        """
+        if bookmark_ids is None:
+            targets = list(self.bookmarks.values())
+        else:
+            targets = [self.bookmarks[bid] for bid in bookmark_ids if bid in self.bookmarks]
+
+        if not targets:
+            return 0
+
+        updated = 0
+        total = len(targets)
+
+        def refresh_one(bm):
+            meta = fetch_page_metadata(bm.url, timeout=8)
+            changed = False
+            if meta['title'] and (not bm.title or bm.title == bm.url):
+                bm.title = meta['title']
+                changed = True
+            if meta['description'] and not bm.description:
+                bm.description = meta['description']
+                changed = True
+            if meta['favicon_url'] and not bm.favicon_url:
+                bm.favicon_url = meta['favicon_url']
+                changed = True
+            if changed:
+                bm.modified_at = datetime.now().isoformat()
+            return changed
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(refresh_one, bm): bm for bm in targets}
+            done = 0
+            for future in as_completed(futures):
+                done += 1
+                try:
+                    if future.result():
+                        updated += 1
+                except Exception:
+                    pass
+                if progress_callback:
+                    progress_callback(done, total)
+
+        if updated > 0:
+            self.save_bookmarks()
+        return updated
+
+    # ── Auto-Clean URLs on Add (inspired by Shaarli) ────────────────────
+    def add_bookmark_clean(self, url: str, title: str = "",
+                           category: str = "", tags: List[str] = None,
+                           **kwargs) -> Optional[Bookmark]:
+        """Add a bookmark with automatic URL cleaning and categorization.
+
+        Strips tracking parameters, normalizes URL, auto-categorizes if no
+        category given, and checks for duplicates.
+        """
+        # Clean the URL
+        clean = normalize_url(url)
+        # But keep the original scheme if user explicitly used http
+        if url.startswith('http://') and clean.startswith('https://'):
+            clean = 'http://' + clean[8:]
+
+        # Check for existing
+        canonical = normalize_url(url)
+        for bm in self.bookmarks.values():
+            if normalize_url(bm.url) == canonical:
+                return None  # Duplicate
+
+        # Auto-categorize
+        if not category:
+            category = self.category_manager.categorize_url(clean, title)
+
+        bm = Bookmark(
+            id=None, url=clean, title=title or clean,
+            category=category, tags=tags or [], **kwargs
+        )
+        self.bookmarks[bm.id] = bm
+        self.save_bookmarks()
+        return bm
+
     def find_broken_links(self) -> List[Bookmark]:
         """Get bookmarks marked as broken"""
         return [bm for bm in self.bookmarks.values() if not bm.is_valid]
@@ -9505,14 +9643,32 @@ class LinkChecker:
                 self.callback()
     
     def _check_url(self, bookmark: Bookmark) -> Tuple[bool, int]:
-        """Check a single URL"""
+        """Check a single URL.
+
+        Detects redirects and stores the final URL in custom_data['redirect_url']
+        so the user can choose to update the bookmark URL.
+        """
         try:
             response = requests.head(
-                bookmark.url, 
+                bookmark.url,
                 timeout=10,
                 allow_redirects=True,
                 headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
             )
+
+            # Track redirects — if the final URL differs, store it
+            if response.history and response.url != bookmark.url:
+                bookmark.custom_data['redirect_url'] = response.url
+                bookmark.custom_data['redirect_count'] = len(response.history)
+                bookmark.custom_data['redirect_chain'] = (
+                    ' -> '.join(r.url for r in response.history[:5])
+                )
+            elif 'redirect_url' in bookmark.custom_data:
+                # Clear stale redirect data if URL now resolves directly
+                bookmark.custom_data.pop('redirect_url', None)
+                bookmark.custom_data.pop('redirect_count', None)
+                bookmark.custom_data.pop('redirect_chain', None)
+
             return response.status_code < 400, response.status_code
         except requests.exceptions.Timeout:
             return False, 408
@@ -9523,6 +9679,31 @@ class LinkChecker:
         except Exception:
             return False, 0
     
+    def get_redirected_bookmarks(self, bookmarks: List[Bookmark]) -> List[Tuple[Bookmark, str]]:
+        """Get bookmarks that have been redirected to a new URL.
+
+        Returns list of (bookmark, new_url) tuples.
+        """
+        return [(bm, bm.custom_data['redirect_url'])
+                for bm in bookmarks
+                if 'redirect_url' in bm.custom_data]
+
+    @staticmethod
+    def fix_redirect(bookmark: Bookmark) -> bool:
+        """Update a bookmark's URL to its redirect destination.
+
+        Returns True if URL was updated.
+        """
+        new_url = bookmark.custom_data.get('redirect_url')
+        if not new_url:
+            return False
+        bookmark.url = new_url
+        bookmark.custom_data.pop('redirect_url', None)
+        bookmark.custom_data.pop('redirect_count', None)
+        bookmark.custom_data.pop('redirect_chain', None)
+        bookmark.modified_at = datetime.now().isoformat()
+        return True
+
     def stop(self):
         """Stop the checker"""
         self._running = False
@@ -18713,11 +18894,167 @@ class NetscapeBookmarkImporter:
                         bookmarks.append(bm)
         
         except Exception as e:
-            print(f"Error importing Netscape bookmarks: {e}")
-        
+            log.error(f"Error importing Netscape bookmarks: {e}")
+
         return bookmarks
 
 
+# =============================================================================
+# XBEL Import/Export (XML Bookmark Exchange Language - standard interchange)
+# Inspired by: Buku (7K stars) - supports XBEL as standard format
+# Spec: https://pyxml.sourceforge.net/topics/xbel/
+# =============================================================================
+class XBELHandler:
+    """Import and export bookmarks in XBEL (XML Bookmark Exchange Language) format.
+
+    XBEL is a standard XML-based bookmark interchange format supported by
+    KDE Konqueror, GNOME Epiphany, Buku, and other tools.
+    """
+
+    @staticmethod
+    def export(bookmarks: List[Bookmark], filepath: str):
+        """Export bookmarks to XBEL format."""
+        # Group by category
+        by_category: Dict[str, List[Bookmark]] = {}
+        for bm in bookmarks:
+            by_category.setdefault(bm.category, []).append(bm)
+
+        lines = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<!DOCTYPE xbel PUBLIC "+//IDN python.org//DTD XML Bookmark Exchange '
+            'Language 1.0//EN//XML"',
+            '    "http://pyxml.sourceforge.net/topics/dtds/xbel.dtd">',
+            f'<xbel version="1.0">',
+            f'  <title>Bookmarks (Exported by Bookmark Organizer Pro v{APP_VERSION})</title>',
+        ]
+
+        def _esc(text):
+            """Escape XML special characters."""
+            return (text.replace('&', '&amp;').replace('<', '&lt;')
+                    .replace('>', '&gt;').replace('"', '&quot;')
+                    .replace("'", '&apos;'))
+
+        for cat_name in sorted(by_category.keys()):
+            bms = by_category[cat_name]
+            lines.append(f'  <folder>')
+            lines.append(f'    <title>{_esc(cat_name)}</title>')
+
+            for bm in bms:
+                added = ''
+                if bm.created_at:
+                    try:
+                        dt = datetime.fromisoformat(bm.created_at.replace('Z', '+00:00'))
+                        added = f' added="{dt.strftime("%Y-%m-%dT%H:%M:%S")}"'
+                    except Exception:
+                        pass
+                visited = ''
+                if bm.last_visited:
+                    try:
+                        dt = datetime.fromisoformat(bm.last_visited.replace('Z', '+00:00'))
+                        visited = f' visited="{dt.strftime("%Y-%m-%dT%H:%M:%S")}"'
+                    except Exception:
+                        pass
+
+                lines.append(f'    <bookmark href="{_esc(bm.url)}"{added}{visited}>')
+                lines.append(f'      <title>{_esc(bm.title)}</title>')
+                desc_parts = []
+                if bm.description:
+                    desc_parts.append(bm.description)
+                if bm.tags:
+                    desc_parts.append(f'Tags: {", ".join(bm.tags)}')
+                if desc_parts:
+                    lines.append(f'      <desc>{_esc("; ".join(desc_parts))}</desc>')
+                lines.append(f'    </bookmark>')
+
+            lines.append(f'  </folder>')
+
+        lines.append('</xbel>')
+
+        filepath = Path(filepath)
+        fd, temp_path = tempfile.mkstemp(dir=filepath.parent, suffix='.tmp', text=True)
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                f.write('\n'.join(lines) + '\n')
+            os.replace(temp_path, filepath)
+        except Exception:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise
+
+    @staticmethod
+    def import_from_xbel(filepath: str) -> List[Bookmark]:
+        """Import bookmarks from XBEL format."""
+        bookmarks = []
+
+        try:
+            import xml.etree.ElementTree as ET
+            tree = ET.parse(filepath)
+            root = tree.getroot()
+
+            # Strip namespace if present
+            ns = ''
+            if root.tag.startswith('{'):
+                ns = root.tag[:root.tag.index('}') + 1]
+
+            def parse_folder(element, category="Imported from XBEL"):
+                """Recursively parse folders and bookmarks."""
+                # Get folder title
+                title_el = element.find(f'{ns}title')
+                if title_el is not None and title_el.text:
+                    category = title_el.text.strip()
+
+                # Parse bookmarks in this folder
+                for bm_el in element.findall(f'{ns}bookmark'):
+                    href = bm_el.get('href', '')
+                    if not href or not href.startswith(('http://', 'https://')):
+                        continue
+
+                    bm_title_el = bm_el.find(f'{ns}title')
+                    bm_title = bm_title_el.text.strip() if bm_title_el is not None and bm_title_el.text else href
+
+                    bm = Bookmark(
+                        id=None, url=href,
+                        title=html_module.unescape(bm_title),
+                        category=category
+                    )
+
+                    # Parse added/visited dates
+                    added = bm_el.get('added', '')
+                    if added:
+                        try:
+                            bm.created_at = datetime.fromisoformat(added).isoformat()
+                        except Exception:
+                            pass
+                    visited = bm_el.get('visited', '')
+                    if visited:
+                        try:
+                            bm.last_visited = datetime.fromisoformat(visited).isoformat()
+                        except Exception:
+                            pass
+
+                    # Parse description — may contain tags
+                    desc_el = bm_el.find(f'{ns}desc')
+                    if desc_el is not None and desc_el.text:
+                        desc = desc_el.text.strip()
+                        if 'Tags:' in desc:
+                            parts = desc.split('Tags:', 1)
+                            bm.description = parts[0].rstrip('; ').strip()
+                            bm.tags = [t.strip() for t in parts[1].split(',') if t.strip()]
+                        else:
+                            bm.description = desc
+
+                    bookmarks.append(bm)
+
+                # Recurse into sub-folders
+                for folder_el in element.findall(f'{ns}folder'):
+                    parse_folder(folder_el, category)
+
+            parse_folder(root)
+
+        except Exception as e:
+            log.error(f"Error importing XBEL: {e}")
+
+        return bookmarks
 
 
 # =============================================================================
