@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Bookmark Organizer Pro - Ultimate Edition v4.1.0
+Bookmark Organizer Pro - Ultimate Edition v4.2.0
 =================================================
 A powerful, modern bookmark manager with:
 - Multi-theme system with 10+ built-in themes
@@ -13,7 +13,7 @@ A powerful, modern bookmark manager with:
 - Enhanced favicon caching
 - Professional UI with DPI awareness
 
-Version 4.1.0 - January 2026
+Version 4.2.0 - April 2026
 """
 
 # =============================================================================
@@ -57,7 +57,7 @@ from io import BytesIO
 # Application Constants
 # =============================================================================
 APP_NAME = "Bookmark Organizer Pro"
-APP_VERSION = "4.1.0"
+APP_VERSION = "4.2.0"
 APP_SUBTITLE = "Ultimate Bookmark Management"
 
 # =============================================================================
@@ -2963,7 +2963,7 @@ class ThemeManager:
             self.custom_themes[theme.name] = theme
             return theme
         except Exception as e:
-            print(f"Error importing theme: {e}")
+            log.error(f"Error importing theme: {e}")
             return None
     
     def add_theme_change_callback(self, callback: Callable):
@@ -3114,7 +3114,7 @@ class TagManager:
                     tag = Tag.from_dict(tag_data)
                     self.tags[tag.full_path] = tag
             except Exception as e:
-                print(f"Error loading tags: {e}")
+                log.error(f"Error loading tags: {e}")
     
     def save_tags(self):
         """Save tags to file"""
@@ -3126,7 +3126,7 @@ class TagManager:
             with open(self.filepath, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
-            print(f"Error saving tags: {e}")
+            log.error(f"Error saving tags: {e}")
     
     def add_tag(self, name: str, color: str = "", parent: str = "") -> Tag:
         """Add a new tag"""
@@ -3253,7 +3253,7 @@ class Bookmark:
     
     def __post_init__(self):
         if self.id is None:
-            self.id = int(time.time() * 1000000) + hash(self.url) % 10000
+            self.id = int.from_bytes(os.urandom(7), 'big')
         if not self.created_at:
             self.created_at = datetime.now().isoformat()
         if not self.modified_at:
@@ -3362,9 +3362,12 @@ class Bookmark:
     
     @classmethod
     def from_dict(cls, d: Dict) -> "Bookmark":
+        url = d.get("url", "").strip()
+        if not url:
+            raise ValueError("Bookmark URL is required")
         return cls(
             id=d.get("id"),
-            url=d.get("url", ""),
+            url=url,
             title=d.get("title", ""),
             category=d.get("category", "Uncategorized / Needs Review"),
             parent_category=d.get("parent_category", ""),
@@ -3884,15 +3887,16 @@ class SearchQuery:
             searchable = f"{bookmark.title} {bookmark.url} {bookmark.notes} {' '.join(bookmark.tags)}"
             return bool(self.regex_pattern.search(searchable))
         
-        # Domain filters
+        # Domain filters (suffix match so domain:github matches github.com)
         for domain in self.domain_filters:
-            if domain not in bookmark.domain.lower():
+            bm_domain = bookmark.domain.lower()
+            if bm_domain != domain and not bm_domain.endswith("." + domain):
                 return False
-        
-        # Tag filters
+
+        # Tag filters (exact match)
         for tag in self.tag_filters:
             tag_lower = tag.lower()
-            if not any(tag_lower in t.lower() for t in bookmark.tags):
+            if not any(tag_lower == t.lower() for t in bookmark.tags):
                 return False
         
         # Category filters
@@ -4184,32 +4188,65 @@ CATEGORY_ICONS = {
     "shopping": "🛒",
     "entertainment": "🎬",
     "social": "👥",
+    "forum": "💬",
+    "communit": "💬",
     "reference": "📚",
     "documentation": "📚",
     "finance": "💰",
+    "banking": "🏦",
     "health": "🏥",
+    "medical": "🏥",
     "travel": "✈️",
     "food": "🍔",
+    "dining": "🍔",
     "music": "🎵",
+    "audio": "🎵",
     "video": "🎥",
     "gaming": "🎮",
     "education": "🎓",
+    "learning": "🎓",
     "science": "🔬",
     "sports": "⚽",
     "art": "🎨",
     "design": "🎨",
+    "media production": "🎬",
     "security": "🔒",
+    "privacy": "🔒",
     "tools": "🔧",
     "utilities": "🔧",
+    "productivity": "📋",
     "cloud": "☁️",
+    "infrastructure": "☁️",
     "database": "🗄️",
     "api": "🔌",
     "mobile": "📱",
     "work": "💼",
+    "career": "💼",
+    "job": "💼",
     "personal": "👤",
     "bookmarks": "🔖",
     "reading": "📖",
     "research": "🔍",
+    "weather": "🌦️",
+    "meteorolog": "🌦️",
+    "sysadmin": "🖥️",
+    "download": "📥",
+    "torrent": "📥",
+    "software": "💿",
+    "customiz": "🎨",
+    "adult": "🔞",
+    "mature": "🔞",
+    "redirect": "🔀",
+    "tracker": "🔀",
+    "shortener": "🔀",
+    "internal": "🏠",
+    "homelab": "🏠",
+    "self-hosted": "🏠",
+    "real estate": "🏘️",
+    "automotive": "🚗",
+    "government": "🏛️",
+    "legal": "🏛️",
+    "streaming": "📡",
 }
 
 
@@ -4304,7 +4341,7 @@ class PatternEngine:
             rtype = rule["type"]
             
             try:
-                if rtype == "domain" and matcher in domain:
+                if rtype == "domain" and (domain == matcher or domain.endswith("." + matcher)):
                     return rule["category"]
                 elif rtype == "path" and matcher in path:
                     return rule["category"]
@@ -4381,14 +4418,12 @@ class StorageManager:
             try:
                 with os.fdopen(fd, 'w', encoding='utf-8') as f:
                     json.dump(payload, f, indent=2, ensure_ascii=False)
-                
-                if os.name == 'nt' and self.filepath.exists():
-                    os.remove(self.filepath)
-                shutil.move(temp_path, self.filepath)
-            except Exception as e:
+
+                os.replace(temp_path, self.filepath)
+            except Exception:
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
-                raise e
+                raise
     
     def _create_backup(self):
         """Create a backup of the current file"""
@@ -4401,27 +4436,42 @@ class StorageManager:
             # Keep only last 10 backups
             backups = sorted(BACKUP_DIR.glob(f"{self.filepath.stem}_*.json"))
             while len(backups) > 10:
-                if backups: backups[0].unlink()
-                backups.pop(0)
-        except Exception:
-            pass
+                try:
+                    backups.pop(0).unlink()
+                except OSError:
+                    break
+        except Exception as e:
+            log.warning(f"Backup creation failed: {e}")
     
     def load(self) -> List[Bookmark]:
         """Load bookmarks from file"""
         if not self.filepath.exists():
             return []
-        
+
         try:
             with open(self.filepath, 'r', encoding='utf-8') as f:
                 raw = json.load(f)
-            
+
             if isinstance(raw, list):
-                return [Bookmark.from_dict(item) for item in raw]
+                items = raw
             elif isinstance(raw, dict):
-                data = raw.get("data", [])
-                return [Bookmark.from_dict(item) for item in data]
+                items = raw.get("data", [])
+            else:
+                log.warning(f"Unexpected data format in {self.filepath}")
+                return []
+
+            bookmarks = []
+            for item in items:
+                try:
+                    bookmarks.append(Bookmark.from_dict(item))
+                except Exception as e:
+                    log.warning(f"Skipping corrupt bookmark entry: {e}")
+            return bookmarks
+        except json.JSONDecodeError as e:
+            log.error(f"Corrupt JSON in {self.filepath}: {e}")
+            return []
         except Exception as e:
-            log.warning(f"Warning: Could not load data: {e}")
+            log.error(f"Could not load data from {self.filepath}: {e}")
             return []
     
     def get_backups(self) -> List[Tuple[str, datetime, int]]:
@@ -4435,20 +4485,22 @@ class StorageManager:
                     datetime.fromtimestamp(stat.st_mtime),
                     stat.st_size
                 ))
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning(f"Error reading backup {f.name}: {e}")
         return sorted(backups, key=lambda x: x[1], reverse=True)
     
     def restore_backup(self, backup_name: str) -> bool:
         """Restore from a backup"""
         backup_path = BACKUP_DIR / backup_name
-        if backup_path.exists():
-            try:
-                shutil.copy2(backup_path, self.filepath)
-                return True
-            except Exception:
-                pass
-        return False
+        if not backup_path.exists():
+            log.error(f"Backup not found: {backup_name}")
+            return False
+        try:
+            shutil.copy2(backup_path, self.filepath)
+            return True
+        except Exception as e:
+            log.error(f"Failed to restore backup {backup_name}: {e}")
+            return False
 
 
 # =============================================================================
@@ -4482,109 +4534,445 @@ class CategoryManager:
         """
     
     DEFAULT_CATEGORIES = {
-        "Uncategorized / Needs Review": ["example.com", "example.org", "test.", "demo.", "staging."],
+        "Uncategorized / Needs Review": [
+            "example.com", "example.org", "test.", "demo.", "staging."
+        ],
         "Adult & Mature Content": [
             "pornhub.com", "xvideos.com", "xnxx.com", "xhamster.com", "redtube.com",
-            "porn.", "xxx.", "chaturbate.com", "onlyfans.com", "fansly.com"
+            "porn.", "xxx.", "chaturbate.com", "onlyfans.com", "fansly.com",
+            "youporn.com", "tube8.com", "spankbang.com", "eporner.com",
+            "motherless.com", "youjizz.com", "fuq.com", "nudevista.com",
+            "keyword:porn", "keyword:xxx", "keyword:nsfw", "keyword:erotic"
         ],
         "Redirects, Trackers & Shorteners": [
-            "bit.ly", "bitly.com", "tinyurl.com", "t.co", "goo.gl", "ow.ly",
-            "linktr.ee", "linkin.bio", "redirect.", "track.", "tracking.", "click.",
-            "utm_source=", "fbclid=", "gclid="
+            "domain:bit.ly", "domain:bitly.com", "domain:tinyurl.com",
+            "domain:t.co", "domain:goo.gl", "domain:ow.ly",
+            "domain:linktr.ee", "domain:linkin.bio",
+            "domain:rebrand.ly", "domain:cutt.ly", "domain:is.gd",
+            "domain:v.gd", "domain:shorturl.at",
+            "domain:linkvertise.com", "domain:adf.ly", "domain:ouo.io",
+            "redirect.", "tracking.", "click.",
+            "utm_source=", "fbclid=", "gclid=", "mc_eid="
         ],
         "Internal Tools & Dashboards": [
             "localhost", "127.0.0.1", "192.168.", "10.0.", "172.16.", ".local",
-            ".internal", ".lan", ":3000", ":8080", "/admin", "/dashboard",
-            "admin.", "dashboard.", "internal.", "intranet."
+            ".internal", ".lan", ":3000", ":8080", ":8443", ":9090", ":5000",
+            "/admin", "/dashboard", "admin.", "dashboard.", "internal.", "intranet.",
+            "domain:pfsense", "domain:opnsense", "domain:unifi"
         ],
         "Privacy & Security": [
-            "1password.com", "lastpass.com", "bitwarden.com", "protonmail.com",
-            "proton.me", "nordvpn.com", "expressvpn.com", "mullvad.net",
-            "torproject.org", "duckduckgo.com", "signal.org", "haveibeenpwned.com"
+            "domain:1password.com", "domain:lastpass.com", "domain:bitwarden.com",
+            "domain:protonmail.com", "domain:proton.me", "domain:nordvpn.com",
+            "domain:expressvpn.com", "domain:mullvad.net", "domain:torproject.org",
+            "domain:signal.org", "domain:haveibeenpwned.com", "domain:privacyguides.org",
+            "domain:privacytools.io", "domain:virustotal.com", "domain:keepassxc.org",
+            "domain:tails.boum.org", "domain:whonix.org",
+            "keyword:vpn", "keyword:privacy", "keyword:encrypt"
         ],
         "Self-Hosted & Homelab": [
-            "pfsense.org", "opnsense.org", "proxmox.com", "truenas.com", "unraid.net",
-            "synology.com", "home-assistant.io", "jellyfin.org", "plex.tv",
-            "sonarr.tv", "radarr.video", "nextcloud.com", "pi-hole.net", "portainer.io"
+            "domain:pfsense.org", "domain:opnsense.org", "domain:proxmox.com",
+            "domain:truenas.com", "domain:unraid.net", "domain:synology.com",
+            "domain:home-assistant.io", "domain:jellyfin.org", "domain:plex.tv",
+            "domain:sonarr.tv", "domain:radarr.video", "domain:nextcloud.com",
+            "domain:pi-hole.net", "domain:portainer.io", "domain:emby.media",
+            "domain:cockpit-project.org", "domain:homer-dashboard.com",
+            "domain:wireguard.com", "domain:tailscale.com", "domain:zerotier.com"
+        ],
+        "SysAdmin & IT": [
+            # Windows & Group Policy
+            "domain:getadmx.com", "domain:admx.help", "domain:schneegans.de",
+            "domain:winaero.com", "keyword:group policy", "keyword:gpedit",
+            "keyword:admx", "keyword:unattend", "keyword:windows 10", "keyword:windows 11",
+            "keyword:windows server", "keyword:powershell", "keyword:registry",
+            "keyword:sccm", "keyword:intune", "keyword:wsus",
+            "domain:go.microsoft.com", "domain:learn.microsoft.com",
+            "domain:docs.microsoft.com", "domain:devblogs.microsoft.com",
+            # Networking & DNS
+            "domain:dnscheck.tools", "domain:mxtoolbox.com", "domain:whatismyip.com",
+            "domain:dnschecker.org", "domain:dnsviz.net", "domain:ipchicken.com",
+            "domain:whatsmydns.net", "domain:who.is", "domain:whois.com",
+            "domain:speedtest.net", "domain:speakeasy.net", "domain:wifiman.com",
+            "keyword:speed test", "keyword:dns", "keyword:whois",
+            # Hardware & Drivers
+            "domain:dell.com", "domain:hp.com", "domain:lenovo.com",
+            "domain:intel.com", "domain:amd.com", "domain:nvidia.com",
+            "domain:toshiba.com", "domain:gsmarena.com", "domain:amcrest.com",
+            "domain:tomshardware.com", "domain:anandtech.com", "domain:pcpartpicker.com",
+            # IT Forums & Resources
+            "domain:tenforums.com", "domain:elevenforum.com", "domain:serverfault.com",
+            "domain:spiceworks.com", "domain:ghacks.net", "domain:askwoody.com",
+            "domain:howtogeek.com", "domain:techrepublic.com",
+            "domain:windowscentral.com", "domain:neowin.net", "domain:theregister.com",
+            "domain:computerworld.com", "domain:bleepingcomputer.com",
+            # Remote Access & Management
+            "domain:splashtop.com", "domain:screenconnect.com", "domain:connectwise.com",
+            "domain:ninjaone.com", "domain:pdq.com", "domain:teamviewer.com",
+            "domain:anydesk.com",
+            "keyword:managed it", "keyword:it services", "keyword:it support",
+            "keyword:endpoint", "keyword:patch management", "keyword:rmm"
         ],
         "Development & Programming": [
-            "github.com", "gitlab.com", "bitbucket.org", "stackoverflow.com", "dev.to",
-            "codepen.io", "jsfiddle.net", "replit.com", "codesandbox.io",
-            "hackerrank.com", "leetcode.com", "codeforces.com"
+            # Code Hosting
+            "domain:github.com", "domain:gitlab.com", "domain:bitbucket.org",
+            "domain:codeberg.org", "domain:sourceforge.net",
+            "domain:gist.github.com", "domain:raw.githubusercontent.com",
+            # Q&A & Community
+            "domain:stackoverflow.com", "domain:stackexchange.com",
+            "domain:superuser.com", "domain:serverfault.com", "domain:dev.to",
+            # IDEs & Playgrounds
+            "domain:codepen.io", "domain:jsfiddle.net", "domain:replit.com",
+            "domain:codesandbox.io", "domain:stackblitz.com",
+            # Package Managers
+            "domain:npmjs.com", "domain:pypi.org", "domain:crates.io",
+            "domain:packagist.org", "domain:rubygems.org", "domain:nuget.org",
+            # Competitive
+            "domain:hackerrank.com", "domain:leetcode.com", "domain:codeforces.com",
+            # Documentation
+            "domain:developer.mozilla.org", "domain:w3schools.com",
+            "domain:css-tricks.com", "domain:smashingmagazine.com",
+            # Userscripts & Extensions
+            "domain:greasyfork.org", "domain:openuserjs.org",
+            "domain:userstyles.world", "domain:userstyles.org", "domain:userscripts.org",
+            "domain:chromewebstore.google.com", "domain:addons.mozilla.org",
+            "domain:uso.kkx.one",
+            # Web Development
+            "domain:themeforest.net", "domain:tailwindcss.com",
+            "domain:vercel.com", "domain:netlify.com", "domain:heroku.com",
+            # Dev Tools
+            "domain:regex101.com", "domain:jsonformatter.org",
+            "domain:producthunt.com", "domain:pastebin.com",
+            "domain:community.chocolatey.org", "domain:chocolatey.org",
+            "domain:winget.run", "domain:xda-developers.com",
+            "domain:play.google.com",
+            "keyword:userscript", "keyword:tampermonkey", "keyword:greasemonkey"
         ],
         "AI & Machine Learning": [
-            "openai.com", "anthropic.com", "claude.ai", "chatgpt.com", "huggingface.co",
-            "kaggle.com", "tensorflow.org", "pytorch.org", "colab.research.google.com",
-            "midjourney.com", "stability.ai", "replicate.com"
+            # AI Assistants
+            "domain:openai.com", "domain:anthropic.com", "domain:claude.ai",
+            "domain:status.claude.com", "domain:chatgpt.com", "domain:chat.openai.com",
+            "domain:gemini.google.com", "domain:aistudio.google.com", "domain:labs.google",
+            "domain:poe.com", "domain:perplexity.ai", "domain:deepseek.com",
+            "domain:chat.deepseek.com", "domain:copilot.microsoft.com",
+            "domain:pi.ai", "domain:character.ai", "domain:chub.ai",
+            "domain:chat.qwen.ai",
+            # AI Development
+            "domain:huggingface.co", "domain:kaggle.com",
+            "domain:tensorflow.org", "domain:pytorch.org",
+            "domain:colab.research.google.com", "domain:replicate.com",
+            "domain:ollama.com", "domain:lmstudio.ai", "domain:cursor.com",
+            "domain:cursor.sh", "domain:codeium.com", "domain:together.ai",
+            "domain:groq.com", "domain:cohere.com", "domain:mistral.ai",
+            "domain:ai.google.dev", "domain:console.anthropic.com",
+            "domain:docs.anthropic.com", "domain:n8n.io",
+            # AI Art & Media
+            "domain:midjourney.com", "domain:stability.ai", "domain:civitai.com",
+            "domain:suno.com", "domain:suno.ai", "domain:udio.com",
+            "domain:elevenlabs.io", "domain:runwayml.com", "domain:kaiber.ai",
+            "domain:leonardo.ai", "domain:ideogram.ai", "domain:pika.art",
+            "domain:luma.ai", "domain:dreamstudio.ai", "domain:clipdrop.co",
+            "domain:nightcafe.studio", "domain:heygen.com", "domain:murf.ai",
+            "domain:hailuoai.video", "domain:napkin.ai",
+            "keyword:ai model", "keyword:llm", "keyword:large language",
+            "keyword:machine learning", "keyword:deep learning"
         ],
         "Cloud & Infrastructure": [
-            "aws.amazon.com", "console.aws.amazon.com", "azure.microsoft.com",
-            "cloud.google.com", "digitalocean.com", "linode.com", "vultr.com",
-            "heroku.com", "netlify.com", "vercel.com", "cloudflare.com"
+            "domain:aws.amazon.com", "domain:console.aws.amazon.com",
+            "domain:azure.microsoft.com", "domain:portal.azure.com",
+            "domain:cloud.google.com", "domain:digitalocean.com",
+            "domain:linode.com", "domain:vultr.com", "domain:hetzner.com",
+            "domain:cloudflare.com", "domain:dash.cloudflare.com",
+            "domain:namecheap.com", "domain:godaddy.com", "domain:domains.google.com",
+            "domain:squarespace.com", "domain:wordpress.com", "domain:wordpress.org",
+            "domain:cpanel.com", "domain:one.com", "domain:siteground.com",
+            "domain:hostinger.com", "domain:bluehost.com", "domain:dreamhost.com",
+            "keyword:docker", "keyword:kubernetes", "keyword:terraform",
+            "keyword:ansible", "keyword:vmware", "keyword:esxi", "keyword:proxmox"
         ],
         "News & Media": [
-            "cnn.com", "bbc.com", "reuters.com", "apnews.com", "nytimes.com",
-            "washingtonpost.com", "theguardian.com", "bloomberg.com", "techcrunch.com"
+            "domain:cnn.com", "domain:bbc.com", "domain:bbc.co.uk",
+            "domain:reuters.com", "domain:apnews.com", "domain:nytimes.com",
+            "domain:washingtonpost.com", "domain:theguardian.com",
+            "domain:bloomberg.com", "domain:techcrunch.com",
+            "domain:foxnews.com", "domain:nbcnews.com", "domain:cbsnews.com",
+            "domain:abcnews.go.com", "domain:npr.org", "domain:usatoday.com",
+            "domain:latimes.com", "domain:nypost.com", "domain:msn.com",
+            "domain:news.google.com", "domain:news.ycombinator.com",
+            "domain:breitbart.com", "domain:dailymail.co.uk", "domain:zerohedge.com",
+            "domain:infowars.com", "domain:newsmax.com", "domain:theblaze.com",
+            "domain:drudgereport.com", "domain:revolver.news",
+            "domain:thegatewaypundit.com", "domain:americanthinker.com",
+            "domain:theverge.com", "domain:wired.com", "domain:engadget.com",
+            "domain:vice.com", "domain:vox.com", "domain:slate.com",
+            "domain:salon.com", "domain:huffpost.com", "domain:politico.com",
+            "domain:thehill.com", "domain:axios.com", "domain:mashable.com",
+            "domain:thedailybeast.com", "domain:medium.com", "domain:substack.com",
+            "domain:libertylinks.io"
+        ],
+        "Weather & Meteorology": [
+            "domain:weather.com", "domain:weather.gov", "domain:noaa.gov",
+            "domain:nhc.noaa.gov", "domain:star.nesdis.noaa.gov",
+            "domain:tropicaltidbits.com", "domain:wunderground.com",
+            "domain:accuweather.com", "domain:windy.com", "domain:ventusky.com",
+            "domain:earth.nullschool.net", "domain:zoom.earth",
+            "domain:lightningmaps.org", "domain:spaghettimodels.com",
+            "keyword:weather", "keyword:forecast", "keyword:hurricane",
+            "keyword:tropical storm", "keyword:tornado", "keyword:radar",
+            "keyword:doppler", "keyword:severe weather"
         ],
         "Social Media": [
-            "twitter.com", "x.com", "facebook.com", "instagram.com", "linkedin.com",
-            "reddit.com", "tiktok.com", "pinterest.com", "discord.com", "mastodon.social"
-        ],
-        "Shopping & E-commerce": [
-            "amazon.com", "ebay.com", "walmart.com", "target.com", "bestbuy.com",
-            "etsy.com", "aliexpress.com", "shopify.com", "newegg.com"
-        ],
-        "Entertainment & Streaming": [
-            "youtube.com", "netflix.com", "hulu.com", "disneyplus.com", "hbomax.com",
-            "primevideo.com", "spotify.com", "twitch.tv", "crunchyroll.com"
-        ],
-        "Gaming": [
-            "steam.com", "steampowered.com", "epicgames.com", "gog.com", "itch.io",
-            "xbox.com", "playstation.com", "nintendo.com", "ign.com", "gamespot.com"
-        ],
-        "Finance & Banking": [
-            "chase.com", "bankofamerica.com", "wellsfargo.com", "paypal.com",
-            "venmo.com", "robinhood.com", "fidelity.com", "coinbase.com"
-        ],
-        "Education & Learning": [
-            "coursera.org", "udemy.com", "edx.org", "khanacademy.org", "udacity.com",
-            "codecademy.com", "freecodecamp.org", "duolingo.com", "masterclass.com"
-        ],
-        "Reference & Research": [
-            "wikipedia.org", "britannica.com", "merriam-webster.com", "dictionary.com",
-            "scholar.google.com", "arxiv.org", "pubmed.gov", "wolframalpha.com"
-        ],
-        "Travel & Transportation": [
-            "booking.com", "airbnb.com", "expedia.com", "kayak.com", "tripadvisor.com",
-            "uber.com", "lyft.com", "skyscanner.com", "hotels.com"
-        ],
-        "Food & Dining": [
-            "doordash.com", "ubereats.com", "grubhub.com", "instacart.com",
-            "yelp.com", "opentable.com", "allrecipes.com", "epicurious.com"
-        ],
-        "Health & Medical": [
-            "webmd.com", "mayoclinic.org", "healthline.com", "nih.gov", "cdc.gov",
-            "drugs.com", "zocdoc.com", "myfitnesspal.com", "strava.com"
-        ],
-        "Job Search & Career": [
-            "linkedin.com/jobs", "indeed.com", "glassdoor.com", "monster.com",
-            "upwork.com", "fiverr.com", "remoteok.com", "levels.fyi"
-        ],
-        "Real Estate": [
-            "zillow.com", "realtor.com", "redfin.com", "trulia.com", "apartments.com"
-        ],
-        "Automotive": [
-            "cars.com", "autotrader.com", "cargurus.com", "carmax.com", "kbb.com"
-        ],
-        "Sports": [
-            "espn.com", "sports.yahoo.com", "bleacherreport.com", "nba.com", "nfl.com"
+            "domain:twitter.com", "domain:x.com", "domain:nitter.net",
+            "domain:facebook.com", "domain:m.facebook.com", "domain:fb.com",
+            "domain:instagram.com", "domain:linkedin.com",
+            "domain:tiktok.com", "domain:pinterest.com", "domain:tumblr.com",
+            "domain:snapchat.com", "domain:threads.net",
+            "domain:bluesky.app", "domain:bsky.app",
+            "domain:mastodon.social", "domain:nextdoor.com"
         ],
         "Forums & Communities": [
-            "reddit.com/r", "quora.com", "medium.com", "substack.com",
-            "news.ycombinator.com", "discord.gg", "slack.com"
+            "domain:reddit.com", "domain:old.reddit.com", "domain:new.reddit.com",
+            "domain:quora.com", "domain:discord.com", "domain:discord.gg",
+            "domain:slack.com", "domain:telegram.org", "domain:t.me",
+            "domain:boards.4chan.org", "domain:boards.4channel.org",
+            "domain:4chan.org", "domain:4channel.org",
+            "domain:godlikeproductions.com",
+            "domain:forums.somethingawful.com", "domain:somethingawful.com",
+            "domain:kiwifarms.net", "domain:imgur.com",
+            "domain:voat.co", "domain:scored.co", "domain:communities.win",
+            "domain:gab.com", "domain:truthsocial.com", "domain:minds.com",
+            "domain:parler.com", "domain:gettr.com", "domain:ruqqus.com",
+            "domain:8ch.net", "domain:8kun.top"
+        ],
+        "Shopping & E-commerce": [
+            "domain:amazon.com", "domain:smile.amazon.com", "domain:camelcamelcamel.com",
+            "domain:ebay.com", "domain:walmart.com", "domain:target.com",
+            "domain:bestbuy.com", "domain:etsy.com", "domain:aliexpress.com",
+            "domain:shopify.com", "domain:newegg.com", "domain:bhphotovideo.com",
+            "domain:wish.com", "domain:temu.com", "domain:shein.com",
+            "domain:wayfair.com", "domain:homedepot.com", "domain:lowes.com",
+            "domain:costco.com", "domain:samsclub.com", "domain:ikea.com",
+            "domain:overstock.com", "domain:menards.com", "domain:harborfreight.com",
+            "domain:monoprice.com", "domain:kohls.com", "domain:macys.com",
+            "domain:nordstrom.com", "domain:zappos.com",
+            "domain:craigslist.org", "domain:offerup.com", "domain:mercari.com",
+            "domain:poshmark.com", "domain:swappa.com",
+            "domain:fedex.com", "domain:ups.com", "domain:usps.com",
+            "domain:cvs.com", "domain:walgreens.com",
+            # Firearms & Outdoor
+            "domain:gunbroker.com", "domain:guns.com", "domain:impactguns.com",
+            "domain:palmettostatearmory.com", "domain:budsgunshop.com",
+            "domain:classicfirearms.com", "domain:ammoseek.com",
+            "domain:midwayusa.com", "domain:brownells.com",
+            "domain:cheaperthandirt.com", "domain:sportsmansguide.com",
+            "keyword:firearm", "keyword:ammo", "keyword:holster"
+        ],
+        "Entertainment & Streaming": [
+            # Video Streaming
+            "domain:youtube.com", "domain:youtu.be", "domain:music.youtube.com",
+            "domain:netflix.com", "domain:hulu.com", "domain:disneyplus.com",
+            "domain:hbomax.com", "domain:max.com", "domain:primevideo.com",
+            "domain:peacocktv.com", "domain:paramountplus.com",
+            "domain:pluto.tv", "domain:tubi.tv", "domain:crackle.com",
+            "domain:vudu.com", "domain:dailymotion.com", "domain:vimeo.com",
+            # Live Streaming
+            "domain:twitch.tv", "domain:kick.com", "domain:rumble.com",
+            "domain:fishtank.live", "domain:dlive.tv", "domain:trovo.live",
+            "domain:bitwave.tv", "domain:censored.tv", "domain:cozy.tv",
+            "domain:bitchute.com", "domain:odysee.com", "domain:liveomg.com",
+            "domain:putchannel.com", "domain:patreon.com",
+            # Movies & TV
+            "domain:imdb.com", "domain:rottentomatoes.com", "domain:letterboxd.com",
+            "domain:justwatch.com", "domain:thetvdb.com", "domain:themoviedb.org",
+            "domain:trakt.tv", "domain:abetterqueue.com",
+            "domain:arc018.to", "domain:flixmomo.com",
+            # Music & Audio
+            "domain:spotify.com", "domain:open.spotify.com",
+            "domain:soundcloud.com", "domain:bandcamp.com",
+            "domain:last.fm", "domain:deezer.com", "domain:tidal.com",
+            "domain:music.apple.com", "domain:distrokid.com",
+            "domain:tothebestof.com", "domain:genius.com",
+            "domain:tunetidy.com", "domain:cduniverse.com",
+            "domain:crunchyroll.com",
+            "keyword:asmr"
+        ],
+        "Gaming": [
+            "domain:steam.com", "domain:steampowered.com", "domain:store.steampowered.com",
+            "domain:epicgames.com", "domain:gog.com", "domain:itch.io",
+            "domain:xbox.com", "domain:playstation.com", "domain:nintendo.com",
+            "domain:ign.com", "domain:gamespot.com", "domain:pcgamer.com",
+            "domain:kotaku.com", "domain:polygon.com",
+            "domain:curseforge.com", "domain:modrinth.com", "domain:minecraft.net",
+            "domain:mcprohosting.com", "domain:dev.bukkit.org",
+            "domain:roblox.com", "domain:ea.com", "domain:ubisoft.com"
+        ],
+        "Finance & Banking": [
+            "domain:chase.com", "domain:bankofamerica.com", "domain:wellsfargo.com",
+            "domain:paypal.com", "domain:venmo.com", "domain:robinhood.com",
+            "domain:fidelity.com", "domain:coinbase.com", "domain:mint.com",
+            "domain:creditkarma.com", "domain:turbotax.com",
+            "domain:irs.gov", "domain:stripe.com", "domain:square.com",
+            "domain:quickbooks.intuit.com", "domain:freshbooks.com",
+            "domain:gusto.com", "domain:paylocity.com",
+            "keyword:credit union", "keyword:banking"
+        ],
+        "Education & Learning": [
+            "domain:coursera.org", "domain:udemy.com", "domain:edx.org",
+            "domain:khanacademy.org", "domain:udacity.com", "domain:codecademy.com",
+            "domain:freecodecamp.org", "domain:duolingo.com", "domain:masterclass.com",
+            "domain:pluralsight.com", "domain:skillshare.com", "domain:lynda.com",
+            "domain:flatiron.com",
+            "keyword:certification", "keyword:practice test",
+            "keyword:comptia", "keyword:microsoft cert"
+        ],
+        "Reference & Research": [
+            "domain:wikipedia.org", "domain:en.wikipedia.org", "domain:britannica.com",
+            "domain:merriam-webster.com", "domain:dictionary.com",
+            "domain:scholar.google.com", "domain:arxiv.org", "domain:pubmed.gov",
+            "domain:wolframalpha.com", "domain:archive.org", "domain:web.archive.org",
+            "domain:biblegateway.com", "domain:quora.com",
+            # Flight & Ship Tracking
+            "domain:globe.airplanes.live", "domain:globe.adsbexchange.com",
+            "domain:flightradar24.com", "domain:flightaware.com",
+            "domain:planefinder.net", "domain:marinetraffic.com",
+            "domain:vesselfinder.com",
+            # Maps & Geo
+            "domain:maps.google.com", "domain:openstreetmap.org",
+            "domain:earth.google.com", "domain:darksitefinder.com",
+            "domain:justicemap.org",
+            # Search
+            "domain:duckduckgo.com", "domain:start.me",
+            "domain:translate.google.com"
+        ],
+        "Travel & Transportation": [
+            "domain:booking.com", "domain:airbnb.com", "domain:expedia.com",
+            "domain:kayak.com", "domain:tripadvisor.com", "domain:vrbo.com",
+            "domain:hotels.com", "domain:hotwire.com", "domain:priceline.com",
+            "domain:travelocity.com", "domain:orbitz.com",
+            "domain:uber.com", "domain:lyft.com", "domain:skyscanner.com",
+            "domain:southwest.com", "domain:united.com", "domain:delta.com",
+            "domain:aa.com", "domain:allegiantair.com", "domain:spiritairlines.com",
+            "domain:amtrak.com", "domain:greyhound.com"
+        ],
+        "Food & Dining": [
+            "domain:doordash.com", "domain:ubereats.com", "domain:grubhub.com",
+            "domain:instacart.com", "domain:yelp.com", "domain:opentable.com",
+            "domain:allrecipes.com", "domain:epicurious.com",
+            "keyword:recipe", "keyword:restaurant", "keyword:cooking"
+        ],
+        "Health & Medical": [
+            "domain:webmd.com", "domain:mayoclinic.org", "domain:healthline.com",
+            "domain:nih.gov", "domain:cdc.gov", "domain:who.int",
+            "domain:drugs.com", "domain:zocdoc.com", "domain:goodrx.com",
+            "domain:rxlist.com", "domain:medlineplus.gov",
+            "domain:myfitnesspal.com", "domain:strava.com",
+            "domain:cernerhealth.com", "domain:mychart.com",
+            "domain:myhealthrecord.com", "domain:clevelandclinic.org",
+            "domain:medicatechusa.com",
+            "keyword:dicom", "keyword:pacs", "keyword:x-ray", "keyword:radiology",
+            "keyword:patient portal", "keyword:mychart"
+        ],
+        "Job Search & Career": [
+            "domain:indeed.com", "domain:glassdoor.com", "domain:monster.com",
+            "domain:ziprecruiter.com", "domain:dice.com", "domain:simplyhired.com",
+            "domain:careerbuilder.com", "domain:roberthalf.com",
+            "domain:upwork.com", "domain:fiverr.com", "domain:freelancer.com",
+            "domain:governmentjobs.com", "domain:care.com",
+            "domain:kellyservices.us", "domain:tbe.taleo.net",
+            "domain:remoteok.com", "domain:levels.fyi",
+            "domain:linkedin.com/jobs",
+            "keyword:job opening", "keyword:careers at", "keyword:staffing",
+            "keyword:resume", "keyword:hiring"
+        ],
+        "Real Estate": [
+            "domain:zillow.com", "domain:realtor.com", "domain:redfin.com",
+            "domain:trulia.com", "domain:apartments.com", "domain:rent.com",
+            "domain:rocketmortgage.com", "domain:appfolio.com",
+            "keyword:real estate", "keyword:for rent", "keyword:apartment"
+        ],
+        "Automotive": [
+            "domain:cars.com", "domain:autotrader.com", "domain:cargurus.com",
+            "domain:carmax.com", "domain:kbb.com", "domain:edmunds.com",
+            "domain:truecar.com", "domain:vroom.com", "domain:carvana.com"
+        ],
+        "Sports": [
+            "domain:espn.com", "domain:sports.yahoo.com", "domain:bleacherreport.com",
+            "domain:nba.com", "domain:nfl.com", "domain:mlb.com", "domain:nhl.com",
+            "domain:cbssports.com", "domain:foxsports.com", "domain:theathletic.com"
         ],
         "Government & Legal": [
-            ".gov", "usa.gov", "irs.gov", "law.cornell.edu", "findlaw.com"
+            "regex:\\.gov(/|$)", "domain:usa.gov", "domain:irs.gov", "domain:ssa.gov",
+            "domain:cms.gov", "domain:sec.gov", "domain:fda.gov",
+            "domain:fcc.gov", "domain:ftc.gov",
+            "domain:law.cornell.edu", "domain:findlaw.com",
+            "domain:sunbiz.org", "domain:search.sunbiz.org",
+            "domain:myflorida.com", "domain:flhsmv.gov", "domain:floridajobs.org"
+        ],
+        "Downloads & Torrents": [
+            "domain:1337x.to", "domain:thepiratebay.org", "domain:rarbg.to",
+            "domain:nyaa.si", "domain:fitgirl-repacks.site",
+            "domain:thehouseofportable.com", "domain:filecr.com",
+            "domain:rutracker.org", "domain:thegeeks.bz", "domain:torrentgalaxy.to",
+            "domain:yts.mx", "domain:eztv.re", "domain:limetorrents.info",
+            "domain:forum.mobilism.me", "domain:mobilism.me",
+            "domain:mega.nz", "domain:mediafire.com", "domain:file-upload.org",
+            "domain:fcportables.com", "domain:massgrave.dev",
+            "keyword:torrent", "keyword:magnet", "keyword:seedbox",
+            "keyword:nulled", "keyword:crack", "keyword:warez"
+        ],
+        "Media Production & Design": [
+            # Video Equipment
+            "domain:teradek.com", "domain:blackmagicdesign.com",
+            "domain:obsproject.com", "domain:sbe.org",
+            # Graphics & Templates
+            "domain:gfxtra.com", "domain:gfxdrug.com", "domain:gfxdownload.com",
+            "domain:intro-hd.net", "domain:freepreset.net", "domain:freevideoeffect.com",
+            "domain:motionarray.com", "domain:envato.com", "domain:elements.envato.com",
+            "domain:prodesigntools.com", "domain:helpx.adobe.com", "domain:adobe.com",
+            "domain:creativecloud.adobe.com",
+            # Stock Media
+            "domain:pexels.com", "domain:unsplash.com", "domain:pixabay.com",
+            "domain:shutterstock.com", "domain:gettyimages.com",
+            "domain:videvo.net", "domain:artlist.io",
+            # Design Tools
+            "domain:dribbble.com", "domain:behance.net", "domain:99designs.com",
+            "domain:brandcrowd.com", "domain:looka.com",
+            "domain:freepik.com", "domain:flaticon.com", "domain:iconmonstr.com",
+            "domain:icons8.com", "domain:fontawesome.com",
+            "domain:dafont.com", "domain:fontsquirrel.com",
+            "domain:pngwing.com", "domain:canva.com", "domain:figma.com",
+            "keyword:after effects", "keyword:premiere pro", "keyword:stock footage",
+            "keyword:videohive", "keyword:motion graphic"
+        ],
+        "Software & Customization": [
+            # Windows Themes
+            "domain:vsthemes.org", "domain:deviantart.com", "domain:windhawk.net",
+            "domain:startallback.com", "domain:stardock.com", "domain:rainmeter.net",
+            "keyword:theme", "keyword:wallpaper", "keyword:dark mode",
+            # Applications
+            "domain:ninite.com", "domain:portableapps.com", "domain:portablefreeware.com",
+            "domain:majorgeeks.com", "domain:softpedia.com", "domain:filehippo.com",
+            "domain:alternativeto.net", "domain:wingetgui.com",
+            "domain:voidtools.com", "domain:freewaregenius.com",
+            "domain:mozilla.org", "domain:7-zip.org", "domain:notepad-plus-plus.org",
+            "domain:videolan.org", "domain:handbrake.fr", "domain:audacity.org",
+            "domain:gimp.org", "domain:inkscape.org", "domain:libreoffice.org"
+        ],
+        "Productivity & Tools": [
+            # Google Workspace
+            "domain:docs.google.com", "domain:drive.google.com",
+            "domain:sheets.google.com", "domain:slides.google.com",
+            "domain:keep.google.com", "domain:calendar.google.com",
+            "domain:sites.google.com", "domain:photos.google.com",
+            "domain:fonts.google.com",
+            # Email & Communication
+            "domain:mail.google.com", "domain:outlook.live.com",
+            "domain:outlook.office.com", "domain:login.live.com",
+            "domain:mail.yahoo.com", "domain:messages.google.com",
+            # Online Tools
+            "domain:notion.so", "domain:trello.com", "domain:asana.com",
+            "domain:airtable.com", "domain:feedly.com",
+            "domain:iloveimg.com", "domain:ilovepdf.com", "domain:ezgif.com",
+            "domain:cloudconvert.com",
+            "domain:hubspot.com"
         ],
     }
     
@@ -4617,7 +5005,7 @@ class CategoryManager:
                             cat.name = name
                             self.categories[name] = cat
             except Exception as e:
-                print(f"Error loading categories: {e}")
+                log.error(f"Error loading categories, resetting to defaults: {e}")
                 self._init_defaults()
         else:
             self._init_defaults()
@@ -4656,7 +5044,7 @@ class CategoryManager:
             with open(self.filepath, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
         except Exception as e:
-            print(f"Error saving categories: {e}")
+            log.error(f"Error saving categories: {e}")
     
     def categorize_url(self, url: str, title: str = "") -> str:
         """Categorize a URL using patterns"""
@@ -5200,27 +5588,27 @@ class BookmarkManager:
             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
         except Exception as e:
-            print(f"Error reading file: {e}")
+            log.error(f"Error reading file {filepath}: {e}")
             return 0, 0
-        
+
         soup = BeautifulSoup(content, 'html.parser')
         added = duplicates = 0
-        existing_urls = {bm.url for bm in self.bookmarks.values()}
+        existing_urls = {bm.url.rstrip('/').lower() for bm in self.bookmarks.values()}
         source = source_name or Path(filepath).name
-        
+
         for a_tag in soup.find_all('a'):
-            href = a_tag.get('href', '')
+            href = a_tag.get('href', '').strip()
             if not href or not href.startswith(('http://', 'https://')):
                 continue
-            
-            href = href.strip()
-            if href in existing_urls:
+
+            normalized = href.rstrip('/').lower()
+            if normalized in existing_urls:
                 duplicates += 1
                 continue
-            
-            title = a_tag.get_text(strip=True) or href
+
+            title = html_module.unescape(a_tag.get_text(strip=True) or href)
             category = self.category_manager.categorize_url(href, title)
-            
+
             bm = Bookmark(
                 id=None,
                 title=title[:500],
@@ -5231,12 +5619,12 @@ class BookmarkManager:
                 source_file=source
             )
             self.bookmarks[bm.id] = bm
-            existing_urls.add(href)
+            existing_urls.add(normalized)
             added += 1
-        
+
         if added > 0:
             self.save_bookmarks()
-        
+
         return added, duplicates
     
     def import_json_file(self, filepath: str) -> Tuple[int, int]:
@@ -5245,30 +5633,38 @@ class BookmarkManager:
             with open(filepath, 'r', encoding='utf-8') as f:
                 data = json.load(f)
         except Exception as e:
-            print(f"Error reading file: {e}")
+            log.error(f"Error reading JSON file {filepath}: {e}")
             return 0, 0
-        
+
         added = duplicates = 0
-        existing_urls = {bm.url for bm in self.bookmarks.values()}
-        
-        bookmarks_data = data.get("bookmarks", data.get("data", []))
-        if isinstance(data, list):
-            bookmarks_data = data
-        
+        existing_urls = {bm.url.rstrip('/').lower() for bm in self.bookmarks.values()}
+
+        bookmarks_data = data.get("bookmarks", data.get("data", [])) if isinstance(data, dict) else data
+        if not isinstance(bookmarks_data, list):
+            log.error(f"Invalid JSON structure in {filepath}")
+            return 0, 0
+
         for item in bookmarks_data:
-            url = item.get("url", "")
-            if not url or url in existing_urls:
+            if not isinstance(item, dict):
+                continue
+            url = item.get("url", "").strip()
+            if not url:
+                continue
+            if url.rstrip('/').lower() in existing_urls:
                 duplicates += 1
                 continue
-            
-            bm = Bookmark.from_dict(item)
-            self.bookmarks[bm.id] = bm
-            existing_urls.add(url)
-            added += 1
-        
+
+            try:
+                bm = Bookmark.from_dict(item)
+                self.bookmarks[bm.id] = bm
+                existing_urls.add(url.rstrip('/').lower())
+                added += 1
+            except Exception as e:
+                log.warning(f"Skipping invalid bookmark '{url[:80]}': {e}")
+
         if added > 0:
             self.save_bookmarks()
-        
+
         return added, duplicates
     
     def get_bookmarks_by_category(self, category: str, 
@@ -5285,8 +5681,8 @@ class BookmarkManager:
     def get_bookmarks_by_tag(self, tag: str) -> List[Bookmark]:
         """Get bookmarks with a specific tag"""
         tag_lower = tag.lower()
-        return [bm for bm in self.bookmarks.values() 
-                if any(tag_lower in t.lower() for t in bm.tags)]
+        return [bm for bm in self.bookmarks.values()
+                if any(tag_lower == t.lower() for t in bm.tags)]
     
     def get_all_bookmarks(self) -> List[Bookmark]:
         """Get all bookmarks"""
@@ -5455,7 +5851,7 @@ class BookmarkManager:
                     if bm.icon:
                         attrs += f' ICON="{bm.icon}"'
                     if bm.tags:
-                        attrs += f' TAGS="{",".join(bm.tags)}"'
+                        attrs += f' TAGS="{self._escape_html(",".join(bm.tags))}"'
                     f.write(f'        <DT><A {attrs}>{self._escape_html(bm.title)}</A>\n')
                 f.write('    </DL><p>\n')
             
@@ -5467,13 +5863,21 @@ class BookmarkManager:
             "version": 4,
             "exported_at": datetime.now().isoformat(),
             "app_version": APP_VERSION,
-            "categories": {name: cat.to_dict() 
+            "categories": {name: cat.to_dict()
                           for name, cat in self.category_manager.categories.items()},
             "tags": [tag.to_dict() for tag in self.tag_manager.tags.values()],
             "bookmarks": [bm.to_dict() for bm in self.bookmarks.values()]
         }
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        filepath = Path(filepath)
+        fd, temp_path = tempfile.mkstemp(dir=filepath.parent, suffix='.tmp', text=True)
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            os.replace(temp_path, filepath)
+        except Exception:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise
     
     def export_csv(self, filepath: str):
         """Export bookmarks to CSV format"""
@@ -5728,7 +6132,7 @@ class AIConfigManager:
             with open(self.filepath, 'w', encoding='utf-8') as f:
                 json.dump(self._config, f, indent=2)
         except Exception as e:
-            print(f"Error saving AI config: {e}")
+            log.error(f"Error saving AI config: {e}")
     
     def get_provider(self) -> str:
         return self._config.get("provider", "google")
