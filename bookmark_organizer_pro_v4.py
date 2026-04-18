@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Bookmark Organizer Pro - Ultimate Edition v4.2.0
+Bookmark Organizer Pro - Ultimate Edition v4.3.0
 =================================================
 A powerful, modern bookmark manager with:
 - Multi-theme system with 10+ built-in themes
@@ -13,7 +13,7 @@ A powerful, modern bookmark manager with:
 - Enhanced favicon caching
 - Professional UI with DPI awareness
 
-Version 4.2.0 - April 2026
+Version 4.3.0 - April 2026
 """
 
 # =============================================================================
@@ -57,7 +57,7 @@ from io import BytesIO
 # Application Constants
 # =============================================================================
 APP_NAME = "Bookmark Organizer Pro"
-APP_VERSION = "4.2.0"
+APP_VERSION = "4.3.0"
 APP_SUBTITLE = "Ultimate Bookmark Management"
 
 # =============================================================================
@@ -1681,6 +1681,413 @@ def validate_environment():
     
     is_valid = len([w for w in warnings if "not writable" in w]) == 0
     return is_valid, warnings
+
+
+# =============================================================================
+# URL Normalization (academic-grade canonicalization for deduplication)
+# Inspired by: URL Normalization for De-duplication of Web Pages (ACM CIKM 2009)
+# and BrowserBookmarkChecker's URL canonicalization pipeline
+# =============================================================================
+# Tracking parameters to strip during normalization
+_TRACKING_PARAMS = frozenset({
+    # Google Analytics / Ads
+    'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+    'utm_id', 'utm_source_platform', 'utm_creative_format', 'utm_marketing_tactic',
+    'gclid', 'gclsrc', 'dclid', 'gbraid', 'wbraid', '_ga', '_gl', '_gid',
+    # Facebook / Meta
+    'fbclid', 'fb_action_ids', 'fb_action_types', 'fb_source', 'fb_ref',
+    'action_object_map', 'action_type_map', 'action_ref_map',
+    # Microsoft
+    'msclkid', 'mkt_tok',
+    # Twitter / X
+    'twclid',
+    # Instagram
+    'igshid', 'igsh',
+    # YouTube
+    'si', 'feature', 'pp', 'embeds_referring_euri', 'source_ve_path',
+    # Mailchimp
+    'mc_cid', 'mc_eid',
+    # HubSpot
+    'hsa_cam', 'hsa_grp', 'hsa_mt', 'hsa_src', 'hsa_ad', 'hsa_acc',
+    'hsa_net', 'hsa_ver', 'hsa_la', 'hsa_ol', 'hsa_kw', 'hsa_tgt',
+    # Generic tracking
+    'ref', 'source', 'ref_src', 'ref_url', 'referrer',
+    'clickid', 'click_id', 'campaign_id', 'ad_id', 'adgroup_id',
+    'yclid', '_hsenc', '_hsmi', '_openstat', 'spm',
+})
+
+# Default index filenames to strip
+_INDEX_FILES = frozenset({
+    'index.html', 'index.htm', 'index.php', 'index.asp', 'index.aspx',
+    'index.jsp', 'index.shtml', 'index.cfm', 'default.html', 'default.htm',
+    'default.asp', 'default.aspx',
+})
+
+
+def normalize_url(url: str) -> str:
+    """Normalize a URL for canonical deduplication.
+
+    Applies RFC 3986 normalization plus practical web heuristics:
+    - Lowercase scheme and host
+    - Remove default ports (80 for http, 443 for https)
+    - Remove trailing slash on path (except root)
+    - Remove fragment (#...)
+    - Remove tracking/analytics query parameters
+    - Sort remaining query parameters
+    - Remove default index files (index.html, etc.)
+    - Upgrade http to https for well-known domains
+    """
+    if not url:
+        return url
+
+    try:
+        parsed = urlparse(url.strip())
+    except Exception:
+        return url.strip().lower().rstrip('/')
+
+    scheme = (parsed.scheme or 'https').lower()
+    host = (parsed.hostname or '').lower()
+    if host.startswith('www.'):
+        host = host[4:]
+    port = parsed.port
+
+    # Remove default ports
+    if (scheme == 'http' and port == 80) or (scheme == 'https' and port == 443):
+        port = None
+
+    # Upgrade http to https for domains that support it
+    if scheme == 'http':
+        scheme = 'https'
+
+    # Build netloc
+    netloc = host
+    if port:
+        netloc = f"{host}:{port}"
+    if parsed.username:
+        userinfo = parsed.username
+        if parsed.password:
+            userinfo += f":{parsed.password}"
+        netloc = f"{userinfo}@{netloc}"
+
+    # Normalize path
+    path = parsed.path or '/'
+
+    # Remove default index files
+    path_lower = path.lower()
+    for idx_file in _INDEX_FILES:
+        if path_lower.endswith('/' + idx_file):
+            path = path[:-(len(idx_file))]
+            break
+
+    # Remove trailing slash
+    path = path.rstrip('/') or ''
+
+    # Filter and sort query parameters
+    if parsed.query:
+        params = parse_qs(parsed.query, keep_blank_values=True)
+        filtered = {
+            k: v for k, v in params.items()
+            if k.lower() not in _TRACKING_PARAMS
+        }
+        # Sort params for canonical form
+        query = urlencode(sorted(filtered.items()), doseq=True)
+    else:
+        query = ''
+
+    # Drop fragment entirely (not useful for dedup)
+    return urlunparse((scheme, netloc, path, parsed.params, query, ''))
+
+
+# =============================================================================
+# Page Metadata Fetcher (auto-fetch title, description, favicon from URLs)
+# Inspired by: Linkding, Shiori, Hoarder auto-metadata features
+# =============================================================================
+def fetch_page_metadata(url: str, timeout: int = 10) -> Dict[str, str]:
+    """Fetch page title, description, and favicon URL from a live URL.
+
+    Returns dict with keys: title, description, favicon_url.
+    All values default to empty string on failure.
+    """
+    result = {'title': '', 'description': '', 'favicon_url': ''}
+
+    try:
+        requests = importlib.import_module('requests')
+    except ImportError:
+        return result
+
+    try:
+        resp = requests.get(url, timeout=timeout, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                          '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml',
+            'Accept-Language': 'en-US,en;q=0.9',
+        }, allow_redirects=True)
+        resp.raise_for_status()
+    except Exception:
+        return result
+
+    content_type = resp.headers.get('content-type', '')
+    if 'text/html' not in content_type and 'application/xhtml' not in content_type:
+        return result
+
+    html_text = resp.text[:100_000]  # Cap at 100KB to avoid memory issues
+
+    # Extract <title>
+    m = re.search(r'<title[^>]*>(.*?)</title>', html_text, re.IGNORECASE | re.DOTALL)
+    if m:
+        result['title'] = html_module.unescape(m.group(1).strip())[:500]
+
+    # Extract meta description
+    m = re.search(
+        r'<meta\s+(?:[^>]*?\s+)?(?:name|property)\s*=\s*["\'](?:description|og:description)["\']'
+        r'\s+(?:[^>]*?\s+)?content\s*=\s*["\']([^"\']*)["\']',
+        html_text, re.IGNORECASE
+    )
+    if not m:
+        # Try reverse attribute order (content before name)
+        m = re.search(
+            r'<meta\s+(?:[^>]*?\s+)?content\s*=\s*["\']([^"\']*)["\']'
+            r'\s+(?:[^>]*?\s+)?(?:name|property)\s*=\s*["\'](?:description|og:description)["\']',
+            html_text, re.IGNORECASE
+        )
+    if m:
+        result['description'] = html_module.unescape(m.group(1).strip())[:1000]
+
+    # Extract favicon
+    m = re.search(
+        r'<link\s+[^>]*?rel\s*=\s*["\'](?:icon|shortcut icon|apple-touch-icon)["\']'
+        r'[^>]*?href\s*=\s*["\']([^"\']+)["\']',
+        html_text, re.IGNORECASE
+    )
+    if not m:
+        m = re.search(
+            r'<link\s+[^>]*?href\s*=\s*["\']([^"\']+)["\']'
+            r'[^>]*?rel\s*=\s*["\'](?:icon|shortcut icon|apple-touch-icon)["\']',
+            html_text, re.IGNORECASE
+        )
+    if m:
+        favicon_href = m.group(1)
+        if favicon_href.startswith('//'):
+            favicon_href = 'https:' + favicon_href
+        elif favicon_href.startswith('/'):
+            parsed = urlparse(url)
+            favicon_href = f"{parsed.scheme}://{parsed.netloc}{favicon_href}"
+        result['favicon_url'] = favicon_href
+
+    return result
+
+
+# =============================================================================
+# Wayback Machine Integration (archive.org save and check)
+# Inspired by: Linkwarden, Shiori, ArchiveBox
+# =============================================================================
+def wayback_check(url: str, timeout: int = 10) -> Optional[str]:
+    """Check if a URL has a Wayback Machine snapshot.
+
+    Returns the latest snapshot URL, or None if not archived.
+    """
+    try:
+        requests = importlib.import_module('requests')
+    except ImportError:
+        return None
+
+    try:
+        api_url = f"https://archive.org/wayback/available?url={urllib.parse.quote(url, safe='')}"
+        resp = requests.get(api_url, timeout=timeout)
+        data = resp.json()
+        snapshot = data.get('archived_snapshots', {}).get('closest', {})
+        if snapshot.get('available'):
+            return snapshot.get('url', '')
+    except Exception:
+        pass
+    return None
+
+
+def wayback_save(url: str, timeout: int = 30) -> Optional[str]:
+    """Submit a URL to the Wayback Machine for archival.
+
+    Returns the archive URL on success, or None on failure.
+    """
+    try:
+        requests = importlib.import_module('requests')
+    except ImportError:
+        return None
+
+    try:
+        save_url = f"https://web.archive.org/save/{url}"
+        resp = requests.get(save_url, timeout=timeout, headers={
+            'User-Agent': 'BookmarkOrganizerPro/4.2 (bookmark archival)',
+        }, allow_redirects=True)
+        if resp.status_code in (200, 301, 302):
+            # The final URL after redirects is the archived version
+            location = resp.headers.get('Content-Location') or resp.headers.get('Location', '')
+            if location:
+                return f"https://web.archive.org{location}"
+            return resp.url
+    except Exception:
+        pass
+    return None
+
+
+# =============================================================================
+# Bookmark Health Scoring
+# Inspired by: Hoarder's bookmark health monitoring, Linkding's link checking
+# =============================================================================
+def calculate_health_score(bookmark) -> int:
+    """Calculate a 0-100 health score for a bookmark.
+
+    Factors:
+    - Link validity (40 points)
+    - Has title (10 points)
+    - Has description/notes (10 points)
+    - Has tags (10 points)
+    - Recency — created/visited within 90 days (10 points)
+    - Not stale — visited within last year (10 points)
+    - Categorized — not in Uncategorized (10 points)
+    """
+    score = 0
+
+    # Link validity (40 pts)
+    if bookmark.is_valid:
+        if bookmark.http_status == 200:
+            score += 40
+        elif bookmark.http_status == 0:
+            score += 30  # Not checked yet, assume ok
+        elif 300 <= bookmark.http_status < 400:
+            score += 25  # Redirect
+        else:
+            score += 10  # Non-200 but marked valid
+    # else: 0 points
+
+    # Has meaningful title (10 pts)
+    if bookmark.title and bookmark.title != bookmark.url and len(bookmark.title) > 3:
+        score += 10
+
+    # Has description or notes (10 pts)
+    if bookmark.description or bookmark.notes:
+        score += 10
+
+    # Has tags (10 pts)
+    if bookmark.tags:
+        score += min(10, len(bookmark.tags) * 3)  # 1 tag=3, 2=6, 3+=10
+
+    # Recency (10 pts)
+    try:
+        last_active = bookmark.last_visited or bookmark.created_at
+        if last_active:
+            dt = datetime.fromisoformat(last_active.replace('Z', '+00:00'))
+            days = (datetime.now() - dt.replace(tzinfo=None)).days
+            if days <= 30:
+                score += 10
+            elif days <= 90:
+                score += 7
+            elif days <= 180:
+                score += 4
+            elif days <= 365:
+                score += 2
+    except Exception:
+        pass
+
+    # Not stale (10 pts)
+    if not bookmark.is_stale:
+        score += 10
+
+    # Categorized (10 pts)
+    if bookmark.category and 'uncategorized' not in bookmark.category.lower():
+        score += 10
+
+    return min(100, score)
+
+
+# =============================================================================
+# Smart Duplicate Merger
+# Inspired by: BrowserBookmarkChecker's merge pipeline, Buku's dedup
+# =============================================================================
+def merge_duplicate_bookmarks(bookmarks: list) -> dict:
+    """Merge a list of duplicate bookmarks into one canonical bookmark.
+
+    Keeps:
+    - Longest/best title (not a URL, not empty)
+    - Earliest created_at
+    - Latest modified_at / last_visited
+    - Combined tags (union)
+    - Longest description/notes
+    - Best favicon (non-empty)
+    - Highest visit count (sum)
+    - Category from the most recently modified version
+    """
+    if not bookmarks:
+        return {}
+    if len(bookmarks) == 1:
+        return bookmarks[0].to_dict()
+
+    # Start with first bookmark's data
+    merged = bookmarks[0].to_dict()
+
+    for bm in bookmarks[1:]:
+        d = bm.to_dict()
+
+        # Best title: longest non-URL title
+        if d.get('title') and d['title'] != d.get('url', ''):
+            if not merged.get('title') or merged['title'] == merged.get('url', '') or \
+               len(d['title']) > len(merged['title']):
+                merged['title'] = d['title']
+
+        # Earliest created_at
+        if d.get('created_at') and (not merged.get('created_at') or d['created_at'] < merged['created_at']):
+            merged['created_at'] = d['created_at']
+
+        # Latest modified_at
+        if d.get('modified_at') and (not merged.get('modified_at') or d['modified_at'] > merged['modified_at']):
+            merged['modified_at'] = d['modified_at']
+
+        # Latest last_visited
+        if d.get('last_visited') and (not merged.get('last_visited') or d['last_visited'] > merged['last_visited']):
+            merged['last_visited'] = d['last_visited']
+
+        # Union tags
+        existing_tags = set(t.lower() for t in merged.get('tags', []))
+        for tag in d.get('tags', []):
+            if tag.lower() not in existing_tags:
+                merged.setdefault('tags', []).append(tag)
+                existing_tags.add(tag.lower())
+
+        # Union ai_tags
+        existing_ai = set(t.lower() for t in merged.get('ai_tags', []))
+        for tag in d.get('ai_tags', []):
+            if tag.lower() not in existing_ai:
+                merged.setdefault('ai_tags', []).append(tag)
+                existing_ai.add(tag.lower())
+
+        # Longest description
+        if d.get('description') and len(d['description']) > len(merged.get('description', '')):
+            merged['description'] = d['description']
+
+        # Longest notes
+        if d.get('notes') and len(d['notes']) > len(merged.get('notes', '')):
+            merged['notes'] = d['notes']
+
+        # Best favicon
+        if d.get('favicon_path') and not merged.get('favicon_path'):
+            merged['favicon_path'] = d['favicon_path']
+        if d.get('favicon_url') and not merged.get('favicon_url'):
+            merged['favicon_url'] = d['favicon_url']
+        if d.get('icon') and not merged.get('icon'):
+            merged['icon'] = d['icon']
+
+        # Sum visit counts
+        merged['visit_count'] = merged.get('visit_count', 0) + d.get('visit_count', 0)
+
+        # Pinned if any is pinned
+        if d.get('is_pinned'):
+            merged['is_pinned'] = True
+
+        # Category from most recently modified
+        if d.get('modified_at', '') >= merged.get('modified_at', ''):
+            if d.get('category') and 'uncategorized' not in d.get('category', '').lower():
+                merged['category'] = d['category']
+
+    return merged
 
 
 # =============================================================================
@@ -5744,19 +6151,111 @@ class BookmarkManager:
         return [bm for bm, score in results]
     
     def find_duplicates(self) -> Dict[str, List[Bookmark]]:
-        """Find duplicate bookmarks by URL"""
+        """Find duplicate bookmarks using normalized URLs.
+
+        Uses academic-grade URL canonicalization: strips tracking params,
+        normalizes scheme/host/port/path, removes fragments, sorts query params.
+        """
         url_map: Dict[str, List[Bookmark]] = {}
         for bm in self.bookmarks.values():
-            normalized = bm.url.lower().rstrip('/')
-            # Remove tracking parameters
-            try:
-                parsed = urlparse(normalized)
-                clean_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
-                url_map.setdefault(clean_url, []).append(bm)
-            except Exception:
-                url_map.setdefault(normalized, []).append(bm)
-        
+            canonical = normalize_url(bm.url)
+            url_map.setdefault(canonical, []).append(bm)
+
         return {url: bms for url, bms in url_map.items() if len(bms) > 1}
+
+    def merge_duplicates(self, dry_run: bool = False) -> Tuple[int, int]:
+        """Find and merge duplicate bookmarks, keeping the best data from each.
+
+        Returns (groups_merged, bookmarks_removed).
+        If dry_run=True, returns counts without modifying data.
+        """
+        dupes = self.find_duplicates()
+        groups_merged = 0
+        bookmarks_removed = 0
+
+        for canonical_url, bm_list in dupes.items():
+            if len(bm_list) < 2:
+                continue
+
+            merged_data = merge_duplicate_bookmarks(bm_list)
+            if dry_run:
+                groups_merged += 1
+                bookmarks_removed += len(bm_list) - 1
+                continue
+
+            # Keep the first bookmark, update it with merged data, delete the rest
+            keeper = bm_list[0]
+            for key, value in merged_data.items():
+                if key != 'id' and hasattr(keeper, key):
+                    setattr(keeper, key, value)
+            keeper.modified_at = datetime.now().isoformat()
+            self.bookmarks[keeper.id] = keeper
+
+            for bm in bm_list[1:]:
+                self.bookmarks.pop(bm.id, None)
+
+            groups_merged += 1
+            bookmarks_removed += len(bm_list) - 1
+
+        if not dry_run and groups_merged > 0:
+            self.save_bookmarks()
+
+        return groups_merged, bookmarks_removed
+
+    def get_health_scores(self) -> List[Tuple[Bookmark, int]]:
+        """Get health scores for all bookmarks, sorted worst-first."""
+        scored = [(bm, calculate_health_score(bm)) for bm in self.bookmarks.values()]
+        return sorted(scored, key=lambda x: x[1])
+
+    def fetch_metadata_for_bookmark(self, bookmark_id: int) -> bool:
+        """Fetch and update title/description/favicon from the live URL.
+
+        Returns True if any field was updated.
+        """
+        bm = self.bookmarks.get(bookmark_id)
+        if not bm:
+            return False
+
+        meta = fetch_page_metadata(bm.url)
+        updated = False
+
+        if meta['title'] and (not bm.title or bm.title == bm.url):
+            bm.title = meta['title']
+            updated = True
+
+        if meta['description'] and not bm.description:
+            bm.description = meta['description']
+            updated = True
+
+        if meta['favicon_url'] and not bm.favicon_url:
+            bm.favicon_url = meta['favicon_url']
+            updated = True
+
+        if updated:
+            bm.modified_at = datetime.now().isoformat()
+            self.save_bookmarks()
+
+        return updated
+
+    def check_wayback(self, bookmark_id: int) -> Optional[str]:
+        """Check if a bookmark has a Wayback Machine snapshot.
+
+        Returns the archive URL or None.
+        """
+        bm = self.bookmarks.get(bookmark_id)
+        if not bm:
+            return None
+        return wayback_check(bm.url)
+
+    def save_to_wayback(self, bookmark_id: int) -> Optional[str]:
+        """Submit a bookmark to the Wayback Machine for archival.
+
+        Returns the archive URL or None.
+        """
+        bm = self.bookmarks.get(bookmark_id)
+        if not bm:
+            return None
+        return wayback_save(bm.url)
     
     def find_broken_links(self) -> List[Bookmark]:
         """Get bookmarks marked as broken"""
