@@ -39,8 +39,9 @@ class XBELHandler:
         """Export bookmarks to XBEL format with atomic write."""
         # Group by category
         by_category: Dict[str, List[Bookmark]] = {}
-        for bm in bookmarks:
-            by_category.setdefault(bm.category, []).append(bm)
+        for bm in bookmarks or []:
+            category = str(getattr(bm, "category", "") or "Uncategorized / Needs Review").strip()
+            by_category.setdefault(category or "Uncategorized / Needs Review", []).append(bm)
 
         lines = [
             '<?xml version="1.0" encoding="UTF-8"?>',
@@ -58,28 +59,38 @@ class XBELHandler:
 
             for bm in bms:
                 added = ''
-                if bm.created_at:
+                if getattr(bm, "created_at", ""):
                     try:
                         dt = datetime.fromisoformat(bm.created_at.replace('Z', '+00:00'))
                         added = f' added="{dt.strftime("%Y-%m-%dT%H:%M:%S")}"'
                     except Exception:
                         pass
                 visited = ''
-                if bm.last_visited:
+                if getattr(bm, "last_visited", ""):
                     try:
                         dt = datetime.fromisoformat(bm.last_visited.replace('Z', '+00:00'))
                         visited = f' visited="{dt.strftime("%Y-%m-%dT%H:%M:%S")}"'
                     except Exception:
                         pass
 
-                lines.append(f'    <bookmark href="{_escape_xml(bm.url)}"{added}{visited}>')
-                lines.append(f'      <title>{_escape_xml(bm.title)}</title>')
+                url = str(getattr(bm, "url", "") or "").strip()
+                if not url:
+                    continue
+                title = str(getattr(bm, "title", "") or url)
+                lines.append(f'    <bookmark href="{_escape_xml(url)}"{added}{visited}>')
+                lines.append(f'      <title>{_escape_xml(title)}</title>')
 
                 desc_parts = []
-                if bm.description:
-                    desc_parts.append(bm.description)
-                if bm.tags:
-                    desc_parts.append(f'Tags: {", ".join(bm.tags)}')
+                description = str(getattr(bm, "description", "") or "").strip()
+                tags = [
+                    str(tag).strip()
+                    for tag in (getattr(bm, "tags", None) or [])
+                    if str(tag).strip()
+                ]
+                if description:
+                    desc_parts.append(description)
+                if tags:
+                    desc_parts.append(f'Tags: {", ".join(tags)}')
                 if desc_parts:
                     lines.append(f'      <desc>{_escape_xml("; ".join(desc_parts))}</desc>')
                 lines.append('    </bookmark>')
@@ -89,6 +100,7 @@ class XBELHandler:
         lines.append('</xbel>')
 
         filepath = Path(filepath)
+        filepath.parent.mkdir(parents=True, exist_ok=True)
         fd, temp_path = tempfile.mkstemp(dir=filepath.parent, suffix='.tmp', text=True)
         try:
             with os.fdopen(fd, 'w', encoding='utf-8') as f:
@@ -105,26 +117,35 @@ class XBELHandler:
         bookmarks = []
 
         try:
-            if Path(filepath).stat().st_size > 50_000_000:
+            filepath = Path(filepath)
+            if filepath.stat().st_size > 50_000_000:
                 log.error(f"XBEL file too large: {filepath}")
                 return []
 
-            tree = ET.parse(filepath)
-            root = tree.getroot()
+            xml_bytes = filepath.read_bytes()
+            if b"<!ENTITY" in xml_bytes.upper():
+                log.error(f"XBEL file contains XML entities and was rejected: {filepath}")
+                return []
+            root = ET.fromstring(xml_bytes)
 
             # Strip namespace if present
             ns = ''
             if root.tag.startswith('{'):
                 ns = root.tag[:root.tag.index('}') + 1]
 
-            def parse_folder(element, category="Imported from XBEL"):
+            def parse_folder(element, category="Imported from XBEL", is_root=False):
                 """Recursively parse folders and bookmarks."""
                 title_el = element.find(f'{ns}title')
-                if title_el is not None and title_el.text:
-                    category = title_el.text.strip()
+                if not is_root and title_el is not None and title_el.text:
+                    folder_title = title_el.text.strip()
+                    if folder_title:
+                        if category and category != "Imported from XBEL":
+                            category = f"{category} / {folder_title}"
+                        else:
+                            category = folder_title
 
                 for bm_el in element.findall(f'{ns}bookmark'):
-                    href = bm_el.get('href', '')
+                    href = str(bm_el.get('href', '') or '').strip()
                     if not href or not href.startswith(('http://', 'https://')):
                         continue
 
@@ -135,12 +156,15 @@ class XBELHandler:
                         else href
                     )
 
-                    bm = Bookmark(
-                        id=None,
-                        url=href,
-                        title=html_module.unescape(bm_title),
-                        category=category,
-                    )
+                    try:
+                        bm = Bookmark(
+                            id=None,
+                            url=href,
+                            title=html_module.unescape(bm_title),
+                            category=category,
+                        )
+                    except ValueError:
+                        continue
 
                     added = bm_el.get('added', '')
                     if added:
@@ -170,7 +194,7 @@ class XBELHandler:
                 for folder_el in element.findall(f'{ns}folder'):
                     parse_folder(folder_el, category)
 
-            parse_folder(root)
+            parse_folder(root, is_root=True)
 
         except Exception as e:
             log.error(f"Error importing XBEL: {e}")

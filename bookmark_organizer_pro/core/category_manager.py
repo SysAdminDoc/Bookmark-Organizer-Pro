@@ -95,6 +95,31 @@ def get_category_icon(category_name: str) -> str:
     return "📂"
 
 
+def _clean_patterns(patterns) -> List[str]:
+    """Normalize a pattern collection while preserving first-seen order."""
+    if isinstance(patterns, str):
+        raw_patterns = [patterns]
+    elif isinstance(patterns, (list, tuple, set)):
+        raw_patterns = patterns
+    else:
+        return []
+
+    cleaned = []
+    seen = set()
+    for pattern in raw_patterns:
+        if pattern is None:
+            continue
+        text = str(pattern).strip()
+        if not text:
+            continue
+        key = text.lower()
+        if key in seen:
+            continue
+        cleaned.append(text)
+        seen.add(key)
+    return cleaned
+
+
 class CategoryManager:
     """Manages bookmark categories with hierarchy support.
 
@@ -127,15 +152,13 @@ class CategoryManager:
                             # Legacy format: {name: [patterns]}
                             self.categories[normalized_name] = Category(
                                 name=normalized_name,
-                                patterns=[
-                                    str(p).strip() for p in data
-                                    if p is not None and str(p).strip()
-                                ],
+                                patterns=_clean_patterns(data),
                                 icon=get_category_icon(normalized_name),
                             )
                         else:
                             cat = Category.from_dict(data)
                             cat.name = normalized_name
+                            cat.patterns = _clean_patterns(cat.patterns)
                             if cat.parent == cat.name:
                                 cat.parent = ""
                             self.categories[normalized_name] = cat
@@ -183,14 +206,14 @@ class CategoryManager:
         for name, patterns in self.DEFAULT_CATEGORIES.items():
             self.categories[name] = Category(
                 name=name,
-                patterns=patterns,
+                patterns=_clean_patterns(patterns),
                 icon=get_category_icon(name),
             )
         self.save_categories()
 
     def _rebuild_patterns(self):
         """Recompile the PatternEngine from current categories."""
-        patterns_dict = {cat.full_path: cat.patterns for cat in self.categories.values()}
+        patterns_dict = {cat.full_path: _clean_patterns(cat.patterns) for cat in self.categories.values()}
         self.pattern_engine = PatternEngine(patterns_dict)
 
     def save_categories(self):
@@ -231,7 +254,7 @@ class CategoryManager:
             cat = Category(
                 name=normalized,
                 parent=parent,
-                patterns=patterns or [],
+                patterns=_clean_patterns(patterns or []),
                 icon=icon or get_category_icon(normalized),
             )
             self.categories[normalized] = cat
@@ -243,10 +266,8 @@ class CategoryManager:
     def remove_category(self, name: str) -> bool:
         """Remove a category and its descendants."""
         if name in self.categories and "Uncategorized" not in name:
-            children = self.get_children(name)
-            for child in children:
-                self.categories.pop(child, None)
-            del self.categories[name]
+            for category_name in [name] + self.get_descendants(name):
+                self.categories.pop(category_name, None)
             self.save_categories()
             self._rebuild_patterns()
             return True
@@ -301,7 +322,7 @@ class CategoryManager:
     def update_patterns(self, name: str, patterns: List[str]) -> bool:
         """Replace a category's patterns."""
         if name in self.categories:
-            self.categories[name].patterns = patterns
+            self.categories[name].patterns = _clean_patterns(patterns)
             self.save_categories()
             self._rebuild_patterns()
             return True
@@ -325,7 +346,7 @@ class CategoryManager:
 
     def get_patterns(self, name: str) -> List[str]:
         if name in self.categories:
-            return self.categories[name].patterns
+            return list(self.categories[name].patterns)
         return []
 
     def get_category(self, name: str) -> Optional[Category]:
@@ -340,6 +361,20 @@ class CategoryManager:
 
     def get_children(self, parent: str) -> List[str]:
         return [c.name for c in self.categories.values() if c.parent == parent]
+
+    def get_descendants(self, parent: str) -> List[str]:
+        """Return all descendant category names below parent."""
+        descendants = []
+        stack = list(self.get_children(parent))
+        seen = set()
+        while stack:
+            child = stack.pop()
+            if child in seen:
+                continue
+            seen.add(child)
+            descendants.append(child)
+            stack.extend(self.get_children(child))
+        return descendants
 
     def get_sorted_categories(self) -> List[str]:
         """Alphabetically sorted with 'Uncategorized' last."""
@@ -371,12 +406,18 @@ class CategoryManager:
     def merge_categories(self, source: str, target: str) -> bool:
         """Merge source into target: move children, combine patterns, delete source."""
         if source in self.categories and target in self.categories:
-            if source != target and "Uncategorized" not in source:
+            if (
+                source != target and
+                "Uncategorized" not in source and
+                not self._is_descendant(target, source)
+            ):
                 for cat in self.categories.values():
                     if cat.parent == source:
                         cat.parent = target
 
-                self.categories[target].patterns.extend(self.categories[source].patterns)
+                self.categories[target].patterns = _clean_patterns(
+                    self.categories[target].patterns + self.categories[source].patterns
+                )
                 del self.categories[source]
                 self.save_categories()
                 self._rebuild_patterns()

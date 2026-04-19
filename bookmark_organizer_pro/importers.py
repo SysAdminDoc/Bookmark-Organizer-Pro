@@ -15,6 +15,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple
+from urllib.parse import urlparse
 
 from .constants import DATA_DIR, IS_WINDOWS, IS_MAC
 from .logging_config import log
@@ -31,6 +32,20 @@ def _decode(text: str) -> str:
 def _escape_attr(text: str) -> str:
     """Escape text for XML/HTML attributes."""
     return html_module.escape(str(text or ""), quote=True)
+
+
+def _is_supported_web_url(url: str) -> bool:
+    """Return True for importable http(s) URLs with a real host."""
+    if not isinstance(url, str):
+        return False
+    value = url.strip()
+    if any(ch.isspace() or ord(ch) < 32 for ch in value):
+        return False
+    try:
+        parsed = urlparse(value)
+        return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+    except Exception:
+        return False
 
 
 class BrowserProfileImporter:
@@ -109,9 +124,12 @@ class BrowserProfileImporter:
 
             def process_node(node, path=""):
                 if node.get("type") == "url":
+                    url = _decode(str(node.get("url", "") or "")).strip()
+                    if not _is_supported_web_url(url):
+                        return
                     bm = Bookmark(
                         id=None,
-                        url=node.get("url", ""),
+                        url=url,
                         title=node.get("name", ""),
                         category=path or "Imported"
                     )
@@ -245,10 +263,13 @@ class PocketImporter:
 
             for match in matches:
                 url, timestamp, tags, title = match
+                url = _decode(url).strip()
+                if not _is_supported_web_url(url):
+                    continue
                 bm = Bookmark(
                     id=None,
-                    url=_decode(url),
-                    title=_decode(title).strip() or _decode(url),
+                    url=url,
+                    title=_decode(title).strip() or url,
                     category="Imported from Pocket"
                 )
                 try:
@@ -263,11 +284,12 @@ class PocketImporter:
                 simple_pattern = r'<a\s+href="([^"]+)"[^>]*>([^<]*)</a>'
                 matches = re.findall(simple_pattern, content, re.IGNORECASE)
                 for url, title in matches:
-                    if url.startswith(('http://', 'https://')):
+                    url = _decode(url).strip()
+                    if _is_supported_web_url(url):
                         bm = Bookmark(
                             id=None,
-                            url=_decode(url),
-                            title=_decode(title).strip() or _decode(url),
+                            url=url,
+                            title=_decode(title).strip() or url,
                             category="Imported from Pocket"
                         )
                         bookmarks.append(bm)
@@ -290,9 +312,12 @@ class RaindropImporter:
             with open(filepath, 'r', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
+                    url = str(row.get('url', row.get('link', '')) or '').strip()
+                    if not _is_supported_web_url(url):
+                        continue
                     bm = Bookmark(
                         id=None,
-                        url=row.get('url', row.get('link', '')),
+                        url=url,
                         title=row.get('title', ''),
                         category=row.get('folder', row.get('collection', 'Imported from Raindrop'))
                     )
@@ -307,8 +332,7 @@ class RaindropImporter:
                             bm.created_at = datetime.fromisoformat(created.replace('Z', '+00:00')).isoformat()
                         except Exception:
                             pass
-                    if bm.url:
-                        bookmarks.append(bm)
+                    bookmarks.append(bm)
 
         except Exception as e:
             log.error(f"Error importing Raindrop: {e}")
@@ -331,10 +355,13 @@ class RaindropImporter:
                 bm_pattern = r'<a\s+href="([^"]+)"[^>]*>([^<]*)</a>'
                 bm_matches = re.findall(bm_pattern, folder_content, re.IGNORECASE)
                 for url, title in bm_matches:
+                    url = _decode(url).strip()
+                    if not _is_supported_web_url(url):
+                        continue
                     bm = Bookmark(
                         id=None,
-                        url=_decode(url),
-                        title=_decode(title).strip() or _decode(url),
+                        url=url,
+                        title=_decode(title).strip() or url,
                         category=_decode(folder_name).strip()
                     )
                     bookmarks.append(bm)
@@ -408,7 +435,7 @@ class TextURLImporter:
 
             for url in urls:
                 url = url.strip().rstrip('.,;:!?')
-                if url:
+                if _is_supported_web_url(url):
                     bm = Bookmark(
                         id=None,
                         url=url,
@@ -447,11 +474,12 @@ class OPMLImporter:
                     url = attrs.get("xmlUrl") or attrs.get("htmlUrl") or attrs.get("url") or ""
                     title = attrs.get("text") or attrs.get("title") or url
 
-                    if url and url.startswith(('http://', 'https://')):
+                    if url and _is_supported_web_url(url):
+                        url = _decode(url).strip()
                         bookmarks.append(Bookmark(
                             id=None,
-                            url=_decode(url),
-                            title=_decode(title) or _decode(url),
+                            url=url,
+                            title=_decode(title) or url,
                             category=current_category,
                         ))
                     elif title:
@@ -474,11 +502,12 @@ class OPMLImporter:
             matches = re.findall(outline_pattern, content, re.IGNORECASE)
 
             for url, title in matches:
-                if url:
+                url = _decode(url).strip()
+                if _is_supported_web_url(url):
                     bm = Bookmark(
                         id=None,
-                        url=_decode(url),
-                        title=_decode(title) or _decode(url),
+                        url=url,
+                        title=_decode(title) or url,
                         category="Imported from OPML"
                     )
                     bookmarks.append(bm)
@@ -487,11 +516,12 @@ class OPMLImporter:
                 alt_pattern = r'<outline[^>]*text="([^"]*)"[^>]*(?:xmlUrl|htmlUrl)="([^"]*)"[^>]*/?\s*>'
                 matches = re.findall(alt_pattern, content, re.IGNORECASE)
                 for title, url in matches:
-                    if url:
+                    url = _decode(url).strip()
+                    if _is_supported_web_url(url):
                         bm = Bookmark(
                             id=None,
-                            url=_decode(url),
-                            title=_decode(title) or _decode(url),
+                            url=url,
+                            title=_decode(title) or url,
                             category="Imported from OPML"
                         )
                         bookmarks.append(bm)
@@ -525,7 +555,7 @@ class OneTabImporter:
                         url = line
                         title = line
 
-                    if url.startswith(('http://', 'https://')):
+                    if _is_supported_web_url(url):
                         bm = Bookmark(
                             id=None,
                             url=url,
@@ -579,7 +609,7 @@ class NetscapeBookmarkImporter:
                     url = _decode(bm_match.group(1))
                     title = _decode(bm_match.group(2)).strip()
 
-                    if url and url.startswith(('http://', 'https://')):
+                    if url and _is_supported_web_url(url):
                         add_date_match = re.search(r'ADD_DATE="(\d+)"', line, re.IGNORECASE)
 
                         bm = Bookmark(
