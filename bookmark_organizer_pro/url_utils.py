@@ -4,6 +4,7 @@ Redirect resolution, HTTPS upgrade, affiliate detection, canonical URL lookup.
 """
 
 import importlib
+import html as html_module
 import ipaddress
 import re
 import socket
@@ -187,25 +188,48 @@ class URLUtilities:
             response = requests.get(
                 url, timeout=10,
                 headers={'User-Agent': 'Mozilla/5.0'},
-                allow_redirects=False
+                allow_redirects=False,
+                stream=True,
             )
 
             try:
                 if response.status_code != 200:
                     return None
+                content_type = response.headers.get('content-type', '')
+                if content_type and 'text/html' not in content_type and 'application/xhtml' not in content_type:
+                    return None
+                try:
+                    content_length = int(response.headers.get('content-length', 0))
+                except (TypeError, ValueError):
+                    content_length = 0
+                if content_length > 2_000_000:
+                    return None
+                chunks = bytearray()
+                for chunk in response.iter_content(chunk_size=8192):
+                    if not chunk:
+                        continue
+                    chunks.extend(chunk)
+                    if len(chunks) >= 100_000:
+                        break
+                html_text = bytes(chunks[:100_000]).decode(
+                    response.encoding or 'utf-8',
+                    errors='replace',
+                )
                 match = re.search(
                     r'<link[^>]*rel=["\']canonical["\'][^>]*href=["\']([^"\']+)["\']',
-                    response.text, re.IGNORECASE
+                    html_text, re.IGNORECASE
                 )
                 if match:
-                    return match.group(1)
+                    canonical = urllib.parse.urljoin(url, html_module.unescape(match.group(1)))
+                    return canonical if URLUtilities._is_safe_url(canonical) else None
 
                 match = re.search(
                     r'<link[^>]*href=["\']([^"\']+)["\'][^>]*rel=["\']canonical["\']',
-                    response.text, re.IGNORECASE
+                    html_text, re.IGNORECASE
                 )
                 if match:
-                    return match.group(1)
+                    canonical = urllib.parse.urljoin(url, html_module.unescape(match.group(1)))
+                    return canonical if URLUtilities._is_safe_url(canonical) else None
             finally:
                 response.close()
         except Exception:

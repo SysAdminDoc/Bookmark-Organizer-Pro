@@ -62,6 +62,7 @@ def _is_untagged(bookmark) -> bool:
 
 def build_filter_counts(bookmarks: Sequence, now: Optional[datetime] = None) -> FilterCountsViewModel:
     """Build quick-filter counts from bookmark-like objects."""
+    bookmarks = list(bookmarks or [])
     now = now or datetime.now()
     week_ago = now - timedelta(days=7)
     return FilterCountsViewModel(
@@ -84,10 +85,16 @@ def build_collection_summary(
     current_category: Optional[str] = None,
 ) -> CollectionSummaryViewModel:
     """Build the summary strip state for the current library view."""
+    if not isinstance(stats, Mapping):
+        stats = {}
+    all_bookmarks = list(all_bookmarks or [])
+    visible_count = _safe_int(visible_count)
+    total_count = _safe_int(total_count)
+
     metrics = {
         "visible": visible_count,
-        "pinned": int(stats.get("pinned", 0) or 0),
-        "broken": int(stats.get("broken", 0) or 0),
+        "pinned": _safe_int(stats.get("pinned", 0)),
+        "broken": _safe_int(stats.get("broken", 0)),
         "untagged": sum(1 for bm in all_bookmarks if _is_untagged(bm)),
     }
 
@@ -114,9 +121,12 @@ def build_collection_summary(
         title = current_category
         detail = f"Showing {pluralize(visible_count, 'bookmark')} in this category."
     else:
+        category_counts = stats.get("category_counts", {})
+        if not isinstance(category_counts, Mapping):
+            category_counts = {}
         active_category_count = sum(
-            1 for count in stats.get("category_counts", {}).values()
-            if int(count or 0) > 0
+            1 for count in category_counts.values()
+            if _safe_int(count) > 0
         )
         category_phrase = pluralize(active_category_count, "category", "categories")
         title = "Library Overview"
@@ -125,3 +135,10 @@ def build_collection_summary(
         )
 
     return CollectionSummaryViewModel(title=title, detail=detail, metrics=metrics)
+
+
+def _safe_int(value: object) -> int:
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
