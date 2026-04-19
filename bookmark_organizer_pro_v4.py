@@ -106,6 +106,21 @@ from bookmark_organizer_pro import (
 
 log.info(f"Starting {APP_NAME} v{APP_VERSION}")
 
+
+def _atomic_json_write(filepath: Path, data, indent: int = 2):
+    """Write JSON atomically via temp file + os.replace."""
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_path = tempfile.mkstemp(dir=filepath.parent, suffix='.tmp', text=True)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=indent, ensure_ascii=False)
+        os.replace(temp_path, filepath)
+    except Exception:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        raise
+
+
 # =============================================================================
 # DPI AWARENESS - Windows High DPI support
 # =============================================================================
@@ -2421,9 +2436,7 @@ class ThemeManager:
                 pass
         
         settings["theme"] = self.current_theme.name
-        
-        with open(self.settings_file, 'w', encoding='utf-8') as f:
-            json.dump(settings, f, indent=2)
+        _atomic_json_write(self.settings_file, settings)
     
     def get_all_themes(self) -> Dict[str, ThemeInfo]:
         """Get all available themes"""
@@ -2610,8 +2623,7 @@ class TagManager:
             "tags": [tag.to_dict() for tag in self.tags.values()]
         }
         try:
-            with open(self.filepath, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2)
+            _atomic_json_write(self.filepath, data)
         except Exception as e:
             log.error(f"Error saving tags: {e}")
     
@@ -2680,353 +2692,6 @@ class TagManager:
         matches = [t.full_path for t in self.tags.values() 
                    if partial in t.name.lower()]
         return sorted(matches)[:limit]
-
-
-# =============================================================================
-# Enhanced Bookmark Data Model
-# =============================================================================
-
-
-# =============================================================================
-# Enhanced Favicon Manager with Multiple Sources
-# =============================================================================
-class FaviconManager:
-    """
-        Manages favicon downloading and caching.
-        
-        Handles asynchronous favicon downloading with caching,
-        retry logic, and fallback generation.
-        
-        Attributes:
-            cache_dir: Directory for cached favicons
-            failed_favicons: Set of URLs that failed to download
-            executor: ThreadPoolExecutor for async downloads
-            download_queue: Queue of pending downloads
-            _callbacks: Dict of completion callbacks
-        
-        Methods:
-            get_favicon(url, callback): Get favicon for URL
-            queue_bookmarks(bookmarks): Queue multiple downloads
-            clear_cache(): Clear favicon cache
-            shutdown(): Clean shutdown of executor
-        
-        Features:
-            - Asynchronous downloading with ThreadPoolExecutor
-            - Local file caching with hash-based filenames
-            - Fallback favicon generation with PIL
-            - Retry logic for failed downloads
-            - Progress tracking and callbacks
-        """
-    
-    FAVICON_SOURCES = [
-        "https://www.google.com/s2/favicons?domain={domain}&sz=64",
-        "https://icons.duckduckgo.com/ip3/{domain}.ico",
-        "https://api.faviconkit.com/{domain}/64",
-        "https://favicone.com/{domain}?s=64",
-        "https://icon.horse/icon/{domain}",
-        "https://www.faviconextractor.com/favicon/{domain}",
-        "https://{domain}/favicon.ico",
-        "https://{domain}/favicon.png",
-        "https://{domain}/apple-touch-icon.png",
-    ]
-    
-    # Common favicons bundled (as base64 or just tracked domains)
-    COMMON_DOMAINS = {
-        "github.com", "google.com", "youtube.com", "twitter.com", "x.com",
-        "facebook.com", "amazon.com", "reddit.com", "wikipedia.org",
-        "stackoverflow.com", "linkedin.com", "instagram.com", "netflix.com"
-    }
-    
-    def __init__(self):
-        self._download_queue: Set[str] = set()
-        self._lock = threading.Lock()
-        self._callbacks: Dict[str, List[Callable]] = {}
-        self._failed_domains: Set[str] = set()
-        self._placeholder_cache: Dict[str, Any] = {}
-        self._processed_domains: Set[str] = set()  # Track processed domains this session
-        self._load_failed_domains()
-    
-    def _load_failed_domains(self):
-        """Load failed domains from cache file"""
-        try:
-            if FAILED_FAVICONS_FILE.exists():
-                with open(FAILED_FAVICONS_FILE, 'r') as f:
-                    data = json.load(f)
-                    self._failed_domains = set(data.get('failed_domains', []))
-                    print(f"Loaded {len(self._failed_domains)} failed favicon domains from cache")
-        except Exception as e:
-            print(f"Error loading failed favicons cache: {e}")
-    
-    def _save_failed_domains(self):
-        """Save failed domains to cache file"""
-        try:
-            with open(FAILED_FAVICONS_FILE, 'w') as f:
-                json.dump({'failed_domains': list(self._failed_domains)}, f)
-        except Exception as e:
-            print(f"Error saving failed favicons cache: {e}")
-    
-    def mark_domain_failed(self, domain: str):
-        """Mark a domain as failed and save to cache"""
-        self._failed_domains.add(domain)
-        self._save_failed_domains()
-    
-    def clear_failed_domains(self):
-        """Clear all failed domains to allow retry"""
-        self._failed_domains.clear()
-        self._save_failed_domains()
-    
-    def get_failed_domains(self) -> Set[str]:
-        """Get set of failed domains"""
-        return self._failed_domains.copy()
-    
-    def is_domain_failed(self, domain: str) -> bool:
-        """Check if domain has failed before"""
-        return domain in self._failed_domains
-    
-    def remove_from_failed(self, domain: str):
-        """Remove a domain from failed list to allow retry"""
-        if domain in self._failed_domains:
-            self._failed_domains.discard(domain)
-            self._save_failed_domains()
-        
-    def get_cached_path(self, url: str) -> str:
-        """Get cached favicon path if it exists"""
-        try:
-            domain = urlparse(url).netloc
-            if not domain:
-                return ""
-            hash_name = hashlib.md5(domain.encode()).hexdigest() + ".png"
-            path = FAVICON_DIR / hash_name
-            if path.exists():
-                return str(path)
-        except Exception:
-            pass
-        return ""
-    
-    def get_placeholder_image(self, url: str, size: int = 16) -> Optional["Image.Image"]:
-        """Generate a placeholder image with first letter and domain color"""
-        if not HAS_PIL:
-            return None
-            
-        try:
-            domain = urlparse(url).netloc.replace("www.", "")
-            if not domain:
-                return None
-            
-            cache_key = f"{domain}_{size}"
-            if cache_key in self._placeholder_cache:
-                return self._placeholder_cache[cache_key]
-            
-            # Generate color from domain
-            colors = [
-                "#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7",
-                "#06b6d4", "#ec4899", "#f97316", "#84cc16", "#6366f1"
-            ]
-            hash_val = sum(ord(c) for c in domain)
-            bg_color = colors[hash_val % len(colors)]
-            
-            # Create image
-            img = Image.new('RGBA', (size, size), bg_color)
-            draw = ImageDraw.Draw(img)
-            
-            # Get first letter
-            letter = domain[0].upper() if domain else '?'
-            
-            # Draw letter (simple approach without custom font)
-            text_color = "#ffffff"
-            
-            # Calculate position for centered text
-            font_size = int(size * 0.6)
-            try:
-                font = ImageFont.truetype("arial.ttf", font_size)
-            except Exception:
-                font = ImageFont.load_default()
-            
-            # Get text bbox
-            bbox = draw.textbbox((0, 0), letter, font=font)
-            text_width = (bbox[2] - bbox[0]) if bbox else 0
-            text_height = bbox[3] - bbox[1]
-            
-            x = (size - text_width) // 2
-            y = (size - text_height) // 2 - bbox[1]
-            
-            draw.text((x, y), letter, fill=text_color, font=font)
-            
-            self._placeholder_cache[cache_key] = img
-            return img
-        except Exception as e:
-            return None
-    
-    def fetch_favicon(self, url: str, callback: Callable = None) -> None:
-        """Fetch favicon in background"""
-        if not url:
-            return
-        
-        # Check if already cached
-        cached = self.get_cached_path(url)
-        if cached:
-            if callback:
-                callback(url, cached)
-            return
-        
-        domain = urlparse(url).netloc
-        if domain in self._failed_domains:
-            return
-        
-        with self._lock:
-            if url in self._download_queue:
-                if callback:
-                    self._callbacks.setdefault(url, []).append(callback)
-                return
-            self._download_queue.add(url)
-            if callback:
-                self._callbacks[url] = [callback]
-        
-        thread = threading.Thread(target=self._worker, args=(url,), daemon=True)
-        thread.start()
-    
-    def _worker(self, url: str):
-        """Background worker to download favicon"""
-        path = None
-        try:
-            domain = urlparse(url).netloc
-            if not domain:
-                return
-            
-            for source_template in self.FAVICON_SOURCES:
-                try:
-                    source_url = source_template.format(domain=domain)
-                    resp = requests.get(source_url, timeout=5, headers={
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                    })
-                    
-                    if resp.status_code == 200 and len(resp.content) > 100:
-                        img_data = BytesIO(resp.content)
-                        img = Image.open(img_data)
-                        
-                        if img.mode != 'RGBA':
-                            img = img.convert('RGBA')
-                        
-                        # Save multiple sizes
-                        for size in [16, 32, 64]:
-                            resized = img.resize((size, size), Image.Resampling.LANCZOS)
-                            suffix = f"_{size}" if size != 16 else ""
-                            hash_name = hashlib.md5(domain.encode()).hexdigest() + suffix + ".png"
-                            save_path = FAVICON_DIR / hash_name
-                            resized.save(save_path, "PNG")
-                            if size == 16:
-                                path = str(save_path)
-                        break
-                except Exception:
-                    continue
-            
-            if not path:
-                self.mark_domain_failed(domain)
-                
-        except Exception:
-            pass
-        finally:
-            with self._lock:
-                if url in self._download_queue:
-                    self._download_queue.remove(url)
-                callbacks = self._callbacks.pop(url, [])
-            
-            for cb in callbacks:
-                try:
-                    if path:
-                        cb(url, path)
-                except Exception:
-                    pass
-    
-    def clear_cache(self):
-        """Clear the favicon cache"""
-        for f in FAVICON_DIR.glob("*.png"):
-            try:
-                f.unlink()
-            except Exception:
-                pass
-        self._failed_domains.clear()
-        self._placeholder_cache.clear()
-        self._processed_domains.clear()
-        self._save_failed_domains()
-    
-    def get_cache_size(self) -> Tuple[int, int]:
-        """Get cache size (file count, total bytes)"""
-        count = 0
-        total_bytes = 0
-        for f in FAVICON_DIR.glob("*.png"):
-            count += 1
-            total_bytes += f.stat().st_size
-        return count, total_bytes
-    
-    def refresh_favicon(self, url: str, callback: Callable = None):
-        """Force refresh a favicon"""
-        try:
-            domain = urlparse(url).netloc
-            hash_name = hashlib.md5(domain.encode()).hexdigest()
-            for f in FAVICON_DIR.glob(f"{hash_name}*.png"):
-                f.unlink()
-        except Exception:
-            pass
-        
-        domain = urlparse(url).netloc
-        self.remove_from_failed(domain)
-        self._processed_domains.discard(domain)
-        self.fetch_favicon(url, callback)
-    
-    def redownload_all_favicons(self, bookmarks: List, callback: Callable = None, 
-                                progress_callback: Callable = None):
-        """Redownload all favicons (runs in thread)"""
-        def worker():
-            # Clear cache first
-            for f in FAVICON_DIR.glob("*.png"):
-                try:
-                    f.unlink()
-                except Exception:
-                    pass
-            self._failed_domains.clear()
-            self._processed_domains.clear()
-            self._save_failed_domains()
-            
-            total = len(bookmarks)
-            for i, bm in enumerate(bookmarks):
-                url = bm.url if hasattr(bm, 'url') else bm.get('url', '')
-                if url:
-                    self.fetch_favicon(url, callback)
-                if progress_callback:
-                    progress_callback(i + 1, total)
-                time.sleep(0.1)  # Rate limit
-        
-        thread = threading.Thread(target=worker, daemon=True)
-        thread.start()
-        return thread
-    
-    def redownload_missing_favicons(self, bookmarks: List, callback: Callable = None,
-                                    progress_callback: Callable = None):
-        """Redownload only missing favicons (runs in thread)"""
-        def worker():
-            # Clear failed domains to retry them
-            self._failed_domains.clear()
-            self._save_failed_domains()
-            
-            # Find bookmarks without cached favicons
-            missing = []
-            for bm in bookmarks:
-                url = bm.url if hasattr(bm, 'url') else bm.get('url', '')
-                if url and not self.get_cached_path(url):
-                    missing.append(url)
-            
-            total = len(missing)
-            for i, url in enumerate(missing):
-                self.fetch_favicon(url, callback)
-                if progress_callback:
-                    progress_callback(i + 1, total)
-                time.sleep(0.1)  # Rate limit
-        
-        thread = threading.Thread(target=worker, daemon=True)
-        thread.start()
-        return thread
-
 
 
 # =============================================================================
@@ -3337,23 +3002,27 @@ class BookmarkManager:
         self.filepath = filepath
         self.storage = StorageManager(filepath)
         self.bookmarks: Dict[int, Bookmark] = OrderedDict()
+        self._lock = threading.Lock()
         self.search_engine = SearchEngine()
         self._load_bookmarks()
-    
+
     def _load_bookmarks(self):
         """Load all bookmarks from storage"""
-        self.bookmarks.clear()
-        for bm in self.storage.load():
-            self.bookmarks[bm.id] = bm
-    
+        with self._lock:
+            self.bookmarks.clear()
+            for bm in self.storage.load():
+                self.bookmarks[bm.id] = bm
+
     def reload(self):
         """Reload bookmarks from disk"""
         self._load_bookmarks()
-    
+
     def save_bookmarks(self):
-        """Save all bookmarks to storage"""
-        self.storage.save([bm.to_dict() for bm in self.bookmarks.values()])
-    
+        """Save all bookmarks to storage (thread-safe snapshot)"""
+        with self._lock:
+            snapshot = list(self.bookmarks.values())
+        self.storage.save([bm.to_dict() for bm in snapshot])
+
     def add_bookmark(self, bookmark: Bookmark, save: bool = True) -> Bookmark:
         """Add a new bookmark. Set save=False for batch operations."""
         self.bookmarks[bookmark.id] = bookmark
@@ -4615,7 +4284,7 @@ class GridView(tk.Frame, ThemedWidget):
                  on_select: Callable = None,
                  on_open: Callable = None,
                  on_context_menu: Callable = None,
-                 favicon_manager: FaviconManager = None):
+                 favicon_manager=None):
         theme = get_theme()
         super().__init__(parent, bg=theme.bg_primary)
         
@@ -5080,7 +4749,7 @@ class BookmarkListView(tk.Frame, ThemedWidget):
     
     def __init__(self, parent, on_select: Callable = None,
                  on_open: Callable = None, on_context_menu: Callable = None,
-                 favicon_manager: FaviconManager = None):
+                 favicon_manager=None):
         theme = get_theme()
         super().__init__(parent, bg=theme.bg_primary)
         
@@ -6258,7 +5927,7 @@ class BookmarkCard(tk.Frame, ThemedWidget):
     def __init__(self, parent, bookmark: Bookmark, 
                  on_click: Callable = None,
                  on_double_click: Callable = None,
-                 favicon_manager: FaviconManager = None):
+                 favicon_manager=None):
         theme = get_theme()
         super().__init__(parent, bg=theme.card_bg, cursor="hand2")
         
@@ -12599,252 +12268,6 @@ class AIIconSuggester:
         
         return suggestions[:count]
 
-
-# =============================================================================
-# Main entry point update for CLI support
-# =============================================================================
-
-
-# =============================================================================
-# OPTIMIZED FAVICON MANAGER (Non-blocking, CPU-friendly)
-# =============================================================================
-class OptimizedFaviconManager:
-    """
-    Optimized favicon manager with:
-    - Background downloading with rate limiting
-    - Queue-based processing
-    - CPU-friendly with sleep intervals
-    - Progress callbacks
-    - Lazy loading support
-    """
-    
-    CACHE_DIR = DATA_DIR / "favicons"
-    
-    # Sources for favicon fetching
-    FAVICON_SOURCES = [
-        "https://www.google.com/s2/favicons?domain={domain}&sz=32",
-        "https://icons.duckduckgo.com/ip3/{domain}.ico",
-        "https://api.faviconkit.com/{domain}/32",
-        "https://{domain}/favicon.ico",
-    ]
-    
-    def __init__(self):
-        self.CACHE_DIR.mkdir(exist_ok=True)
-        self._cache: Dict[str, Optional[str]] = {}
-        self._queue: queue.Queue = queue.Queue()
-        self._worker_thread: Optional[threading.Thread] = None
-        self._running = False
-        self._progress_callback: Optional[Callable] = None
-        self._on_favicon_ready: Optional[Callable] = None
-        self._total_queued = 0
-        self._completed = 0
-        self._failed = 0
-        
-        # Rate limiting
-        self._requests_per_second = 2  # Max 2 requests per second
-        self._last_request_time = 0
-        
-        # Load existing cache
-        self._load_cache_index()
-    
-    def _load_cache_index(self):
-        """Load index of cached favicons"""
-        for filepath in self.CACHE_DIR.glob("*.png"):
-            domain = filepath.stem
-            self._cache[domain] = str(filepath)
-        
-        for filepath in self.CACHE_DIR.glob("*.ico"):
-            domain = filepath.stem
-            if domain not in self._cache:
-                self._cache[domain] = str(filepath)
-    
-    def start_background_worker(self):
-        """Start the background favicon download worker"""
-        if self._running:
-            return
-        
-        self._running = True
-        self._worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
-        self._worker_thread.start()
-    
-    def stop_background_worker(self):
-        """Stop the background worker"""
-        self._running = False
-        if self._worker_thread:
-            self._queue.put(None)  # Signal to stop
-    
-    def _worker_loop(self):
-        """Background worker loop - processes favicon queue"""
-        while self._running:
-            try:
-                # Get next item with timeout (allows checking _running flag)
-                item = self._queue.get(timeout=0.5)
-                
-                if item is None:  # Stop signal
-                    break
-                
-                domain, bookmark_id = item
-                
-                # Rate limiting - sleep if needed
-                elapsed = time.time() - self._last_request_time
-                min_interval = 1.0 / self._requests_per_second
-                if elapsed < min_interval:
-                    time.sleep(min_interval - elapsed)
-                
-                # Download favicon
-                filepath = self._download_favicon(domain)
-                self._last_request_time = time.time()
-                
-                self._completed += 1
-                
-                if filepath:
-                    self._cache[domain] = filepath
-                    # Notify that favicon is ready
-                    if self._on_favicon_ready:
-                        try:
-                            self._on_favicon_ready(domain, filepath, bookmark_id)
-                        except Exception:
-                            pass
-                else:
-                    self._failed += 1
-                
-                # Update progress
-                if self._progress_callback:
-                    try:
-                        self._progress_callback(self._completed, self._total_queued, domain)
-                    except Exception:
-                        pass
-                
-                # Small sleep to prevent CPU hogging
-                time.sleep(0.05)
-                
-            except queue.Empty:
-                continue
-            except Exception as e:
-                self._failed += 1
-                time.sleep(0.1)
-    
-    def _download_favicon(self, domain: str) -> Optional[str]:
-        """Download favicon from multiple sources"""
-        for source_template in self.FAVICON_SOURCES:
-            try:
-                url = source_template.format(domain=domain)
-                
-                response = requests.get(
-                    url, 
-                    timeout=5,
-                    headers={'User-Agent': 'Mozilla/5.0'},
-                    stream=True  # Stream to avoid memory issues
-                )
-                
-                if response.status_code == 200:
-                    content_type = response.headers.get('content-type', '')
-                    
-                    # Determine extension
-                    if 'png' in content_type:
-                        ext = 'png'
-                    elif 'ico' in content_type or 'icon' in content_type:
-                        ext = 'ico'
-                    else:
-                        ext = 'png'
-                    
-                    filepath = self.CACHE_DIR / f"{domain}.{ext}"
-                    
-                    # Write in chunks to avoid memory issues
-                    with open(filepath, 'wb') as f:
-                        for chunk in response.iter_content(chunk_size=1024):
-                            f.write(chunk)
-                    
-                    return str(filepath)
-            except Exception:
-                continue
-        
-        return None
-    
-    def queue_favicon(self, domain: str, bookmark_id: int = 0, priority: bool = False):
-        """Add a favicon to the download queue"""
-        # Skip if already cached
-        if domain in self._cache:
-            if self._on_favicon_ready:
-                self._on_favicon_ready(domain, self._cache[domain], bookmark_id)
-            return
-        
-        self._total_queued += 1
-        
-        if priority:
-            # For priority, we'd need a priority queue - simplified here
-            self._queue.put((domain, bookmark_id))
-        else:
-            self._queue.put((domain, bookmark_id))
-    
-    def queue_bookmarks(self, bookmarks: List[Bookmark]):
-        """Queue all bookmarks for favicon download"""
-        # Get unique domains
-        domains_seen = set()
-        for bm in bookmarks:
-            if bm.domain not in domains_seen and bm.domain not in self._cache:
-                domains_seen.add(bm.domain)
-                self._queue.put((bm.domain, bm.id))
-                self._total_queued += 1
-    
-    def get_favicon_path(self, domain: str) -> Optional[str]:
-        """Get cached favicon path (non-blocking)"""
-        return self._cache.get(domain)
-    
-    def get_or_placeholder(self, domain: str) -> Tuple[str, bool]:
-        """
-        Get favicon path or generate placeholder.
-        Returns (path_or_placeholder_data, is_real_favicon)
-        """
-        if domain in self._cache:
-            return self._cache[domain], True
-        return self._generate_placeholder(domain), False
-    
-    def _generate_placeholder(self, domain: str) -> str:
-        """Generate a text-based placeholder (returns the letter and color)"""
-        letter = domain[0].upper() if domain else '?' if domain else "?"
-        # Generate consistent color from domain
-        colors = ["#58a6ff", "#3fb950", "#f0883e", "#a371f7", "#f778ba", "#79c0ff"]
-        color = colors[hash(domain) % len(colors)]
-        return f"placeholder:{letter}:{color}"
-    
-    def set_progress_callback(self, callback: Callable):
-        """Set callback for progress updates: callback(completed, total, current_domain)"""
-        self._progress_callback = callback
-    
-    def set_favicon_ready_callback(self, callback: Callable):
-        """Set callback when favicon is ready: callback(domain, filepath, bookmark_id)"""
-        self._on_favicon_ready = callback
-    
-    @property
-    def progress(self) -> Tuple[int, int, int]:
-        """Get progress: (completed, total, failed)"""
-        return self._completed, self._total_queued, self._failed
-    
-    @property
-    def is_downloading(self) -> bool:
-        """Check if downloads are in progress"""
-        return not self._queue.empty()
-    
-    def get_cache_stats(self) -> Dict:
-        """Get cache statistics"""
-        files = list(self.CACHE_DIR.glob("*"))
-        total_size = sum(f.stat().st_size for f in files if f.is_file())
-        
-        return {
-            "cached_count": len(self._cache),
-            "file_count": len(files),
-            "total_size_bytes": total_size,
-            "total_size_mb": round(total_size / (1024 * 1024), 2)
-        }
-    
-    def clear_cache(self):
-        """Clear all cached favicons"""
-        for f in self.CACHE_DIR.glob("*"):
-            f.unlink()
-        self._cache.clear()
-
-
 # =============================================================================
 # ENHANCED PROGRESS BAR WIDGET
 # =============================================================================
@@ -13498,16 +12921,38 @@ class HighSpeedFaviconManager:
         self._lock = threading.Lock()
         self._failed_domains: Set[str] = set()
         
+        self._max_cache_mb = 500  # Evict oldest when exceeded
+
         # Load existing cache and failed domains
         self._load_cache_index()
         self._load_failed_domains()
-    
+        self._evict_if_needed()
+
     def _load_cache_index(self):
         """Load index of cached favicons"""
         for filepath in self.CACHE_DIR.glob("*.*"):
             if filepath.suffix in ['.png', '.ico', '.jpg']:
                 domain = filepath.stem
                 self._cache[domain] = str(filepath)
+
+    def _evict_if_needed(self):
+        """Evict oldest cached favicons if disk usage exceeds limit."""
+        try:
+            files = list(self.CACHE_DIR.glob("*.*"))
+            total_bytes = sum(f.stat().st_size for f in files)
+            if total_bytes <= self._max_cache_mb * 1024 * 1024:
+                return
+            # Sort by modification time, oldest first
+            files.sort(key=lambda f: f.stat().st_mtime)
+            target = int(self._max_cache_mb * 1024 * 1024 * 0.8)
+            while total_bytes > target and files:
+                f = files.pop(0)
+                total_bytes -= f.stat().st_size
+                self._cache.pop(f.stem, None)
+                f.unlink(missing_ok=True)
+            log.info(f"Favicon cache evicted to {total_bytes // (1024*1024)}MB")
+        except Exception as e:
+            log.warning(f"Favicon cache eviction failed: {e}")
     
     def _load_failed_domains(self):
         """Load failed domains from file"""
@@ -13516,9 +12961,9 @@ class HighSpeedFaviconManager:
                 with open(self.FAILED_FILE, 'r') as f:
                     data = json.load(f)
                     self._failed_domains = set(data.get('failed_domains', []))
-                    print(f"Loaded {len(self._failed_domains)} failed favicon domains")
+                    log.debug(f"Loaded {len(self._failed_domains)} failed favicon domains")
         except Exception as e:
-            print(f"Error loading failed domains: {e}")
+            log.warning(f"Error loading failed domains: {e}")
     
     def _save_failed_domains(self):
         """Save failed domains to file"""
@@ -15643,9 +15088,13 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
 
         if self.count_label:
             n = len(bookmarks)
-            self.count_label.configure(
-                text=f"{n} bookmark{'s' if n != 1 else ''}"
-            )
+            total = len(self.bookmark_manager.bookmarks)
+            if n != total and total > 0:
+                self.count_label.configure(text=f"{n} of {total} bookmarks")
+            else:
+                self.count_label.configure(
+                    text=f"{n} bookmark{'s' if n != 1 else ''}"
+                )
 
         # Toggle empty state vs list view
         if hasattr(self, 'empty_state'):
@@ -16830,20 +16279,25 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         self._refresh_bookmark_list()
     
     def _delete_selected(self):
-        """Delete selected bookmarks"""
+        """Delete selected bookmarks with undo support"""
         if not self.selected_bookmarks:
             return
-        
+
         count = len(self.selected_bookmarks)
-        if not messagebox.askyesno("Delete", f"Delete {count} bookmark(s)?"):
-            return
-        
-        for bm_id in self.selected_bookmarks:
-            self.bookmark_manager.delete_bookmark(bm_id)
-        
+
+        if count >= 5:
+            if not messagebox.askyesno(
+                "Delete Bookmarks",
+                f"Delete {count} bookmarks?\n\nThis can be undone with Ctrl+Z."
+            ):
+                return
+
+        cmd = DeleteBookmarksCommand(self.bookmark_manager, list(self.selected_bookmarks))
+        self.command_stack.execute(cmd)
+
         self.selected_bookmarks.clear()
         self._refresh_all()
-        self._set_status(f"Deleted {count} bookmark(s)")
+        self._show_toast(f"Deleted {count} bookmark{'s' if count != 1 else ''} (Ctrl+Z to undo)", "info")
     
     def _on_files_dropped(self, filepaths: List[str]):
         """Handle dropped files for import with backup and auto-categorization"""
