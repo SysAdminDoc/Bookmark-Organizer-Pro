@@ -1,0 +1,174 @@
+"""URL manipulation and analysis utilities.
+
+Redirect resolution, HTTPS upgrade, affiliate detection, canonical URL lookup.
+"""
+
+import importlib
+import re
+import urllib.parse
+from typing import List, Optional, Tuple
+
+
+class URLUtilities:
+    """Various URL manipulation and analysis utilities"""
+
+    SHORTENERS = [
+        'bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'ow.ly', 'is.gd',
+        'buff.ly', 'j.mp', 'amzn.to', 'youtu.be', 'rb.gy', 'cutt.ly',
+        'short.io', 'rebrand.ly', 'bl.ink', 'snip.ly'
+    ]
+
+    AFFILIATE_PARAMS = [
+        'ref', 'affiliate', 'aff', 'partner', 'tag', 'camp', 'src',
+        'via', 'referral', 'ref_', 'aff_', 'associate', 'linkId'
+    ]
+
+    AFFILIATE_DOMAINS = [
+        'amzn.to', 'amazon.com/gp/product', 'amazon.com/dp',
+        'shareasale.com', 'commission-junction.com', 'rakuten.com',
+        'awin1.com', 'pepperjam.com', 'jdoqocy.com', 'tkqlhce.com'
+    ]
+
+    @staticmethod
+    def resolve_redirect(url: str, max_redirects: int = 5) -> Tuple[str, int]:
+        """Resolve URL redirects and return (final_url, redirect_count)."""
+        try:
+            requests = importlib.import_module('requests')
+        except ImportError:
+            return url, 0
+
+        redirect_count = 0
+        current_url = url
+
+        for _ in range(max_redirects):
+            try:
+                response = requests.head(
+                    current_url,
+                    allow_redirects=False,
+                    timeout=5,
+                    headers={'User-Agent': 'Mozilla/5.0'}
+                )
+
+                if response.status_code in (301, 302, 303, 307, 308):
+                    next_url = response.headers.get('Location', '')
+                    if next_url:
+                        if next_url.startswith('/'):
+                            parsed = urllib.parse.urlparse(current_url)
+                            next_url = f"{parsed.scheme}://{parsed.netloc}{next_url}"
+                        current_url = next_url
+                        redirect_count += 1
+                        continue
+                break
+            except Exception:
+                break
+
+        return current_url, redirect_count
+
+    @staticmethod
+    def is_shortened_url(url: str) -> bool:
+        """Check if URL is from a known shortener"""
+        try:
+            domain = urllib.parse.urlparse(url).netloc.lower()
+            return any(shortener in domain for shortener in URLUtilities.SHORTENERS)
+        except Exception:
+            return False
+
+    @staticmethod
+    def upgrade_to_https(url: str) -> str:
+        """Upgrade HTTP URL to HTTPS"""
+        if url.startswith('http://'):
+            return 'https://' + url[7:]
+        return url
+
+    @staticmethod
+    def check_https_available(url: str) -> bool:
+        """Check if HTTPS version of URL is available"""
+        if url.startswith('https://'):
+            return True
+
+        try:
+            requests = importlib.import_module('requests')
+        except ImportError:
+            return False
+
+        https_url = URLUtilities.upgrade_to_https(url)
+        try:
+            response = requests.head(https_url, timeout=5, allow_redirects=True)
+            return response.status_code < 400
+        except Exception:
+            return False
+
+    @staticmethod
+    def detect_affiliate_link(url: str) -> Tuple[bool, List[str]]:
+        """Detect if URL is an affiliate link. Returns (is_affiliate, reasons)."""
+        reasons = []
+
+        try:
+            parsed = urllib.parse.urlparse(url)
+            query_params = urllib.parse.parse_qs(parsed.query)
+
+            for param in URLUtilities.AFFILIATE_PARAMS:
+                if param in query_params or param.lower() in [p.lower() for p in query_params]:
+                    reasons.append(f"Contains '{param}' parameter")
+
+            domain = parsed.netloc.lower()
+            for aff_domain in URLUtilities.AFFILIATE_DOMAINS:
+                if aff_domain in url.lower():
+                    reasons.append(f"Uses affiliate domain: {aff_domain}")
+
+            if 'amazon' in domain and 'tag' in query_params:
+                reasons.append("Amazon Associate link")
+
+        except Exception:
+            pass
+
+        return len(reasons) > 0, reasons
+
+    @staticmethod
+    def clean_affiliate_link(url: str) -> str:
+        """Remove affiliate parameters from URL"""
+        try:
+            parsed = urllib.parse.urlparse(url)
+            query_params = urllib.parse.parse_qs(parsed.query)
+
+            clean_params = {
+                k: v for k, v in query_params.items()
+                if k.lower() not in [p.lower() for p in URLUtilities.AFFILIATE_PARAMS]
+            }
+
+            clean_query = urllib.parse.urlencode(clean_params, doseq=True)
+            return urllib.parse.urlunparse((
+                parsed.scheme, parsed.netloc, parsed.path,
+                parsed.params, clean_query, ''
+            ))
+        except Exception:
+            return url
+
+    @staticmethod
+    def get_canonical_url(url: str) -> Optional[str]:
+        """Try to get canonical URL from page"""
+        try:
+            requests = importlib.import_module('requests')
+            response = requests.get(
+                url, timeout=10,
+                headers={'User-Agent': 'Mozilla/5.0'}
+            )
+
+            if response.status_code == 200:
+                match = re.search(
+                    r'<link[^>]*rel=["\']canonical["\'][^>]*href=["\']([^"\']+)["\']',
+                    response.text, re.IGNORECASE
+                )
+                if match:
+                    return match.group(1)
+
+                match = re.search(
+                    r'<link[^>]*href=["\']([^"\']+)["\'][^>]*rel=["\']canonical["\']',
+                    response.text, re.IGNORECASE
+                )
+                if match:
+                    return match.group(1)
+        except Exception:
+            pass
+
+        return None
