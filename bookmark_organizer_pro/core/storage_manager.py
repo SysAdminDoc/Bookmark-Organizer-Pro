@@ -123,12 +123,17 @@ class StorageManager:
 
     def restore_backup(self, backup_name: str) -> bool:
         """Restore from a named backup file."""
-        backup_path = BACKUP_DIR / backup_name
+        # Path traversal guard: ensure backup_name stays within BACKUP_DIR
+        backup_path = (BACKUP_DIR / backup_name).resolve()
+        if not str(backup_path).startswith(str(BACKUP_DIR.resolve())):
+            log.error(f"Invalid backup name (path traversal blocked): {backup_name}")
+            return False
         if not backup_path.exists():
             log.error(f"Backup not found: {backup_name}")
             return False
         try:
-            shutil.copy2(backup_path, self.filepath)
+            with self._lock:
+                shutil.copy2(backup_path, self.filepath)
             return True
         except Exception as e:
             log.error(f"Failed to restore backup {backup_name}: {e}")

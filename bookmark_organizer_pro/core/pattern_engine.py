@@ -31,15 +31,18 @@ class PatternEngine:
         self.rules = []
         for category, patterns in categories.items():
             for p in patterns:
-                if not p or not p.strip():
+                if not isinstance(p, str) or not p.strip():
                     continue
                 rule = {"category": category, "raw": p}
                 p_stripped = p.strip()
 
                 try:
                     if p_stripped.startswith("regex:"):
+                        regex_str = p_stripped[6:]
+                        if len(regex_str) > 500:
+                            continue  # Skip overly long regex (ReDoS guard)
                         rule["type"] = "regex"
-                        rule["matcher"] = re.compile(p_stripped[6:], re.IGNORECASE)
+                        rule["matcher"] = re.compile(regex_str, re.IGNORECASE)
                     elif p_stripped.startswith("domain:"):
                         rule["type"] = "domain"
                         rule["matcher"] = p_stripped[7:].lower().strip()

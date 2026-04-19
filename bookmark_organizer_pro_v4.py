@@ -3168,15 +3168,17 @@ class DeleteBookmarksCommand(Command):
         for bid in self.ids:
             bm = self.manager.bookmarks.get(bid)
             if bm:
-                self.deleted_bookmarks[bid] = bm
+                # Store a copy (not a reference) so undo restores correct state
+                self.deleted_bookmarks[bid] = Bookmark.from_dict(bm.to_dict())
                 del self.manager.bookmarks[bid]
         self.manager.save_bookmarks()
-    
+
     def undo(self):
         for bid, bm in self.deleted_bookmarks.items():
-            self.manager.bookmarks[bid] = bm
+            if bid not in self.manager.bookmarks:
+                self.manager.bookmarks[bid] = bm
         self.manager.save_bookmarks()
-    
+
     def description(self) -> str:
         return f"Delete {len(self.ids)} bookmark(s)"
 

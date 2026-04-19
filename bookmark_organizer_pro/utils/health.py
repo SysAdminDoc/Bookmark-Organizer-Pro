@@ -94,6 +94,10 @@ def merge_duplicate_bookmarks(bookmarks: list) -> dict:
         return bookmarks[0].to_dict()
 
     merged = bookmarks[0].to_dict()
+    # Deep-copy mutable lists to prevent aliasing with the original Bookmark
+    merged['tags'] = list(merged.get('tags', []))
+    merged['ai_tags'] = list(merged.get('ai_tags', []))
+    merged['custom_data'] = dict(merged.get('custom_data', {}))
 
     for bm in bookmarks[1:]:
         d = bm.to_dict()
