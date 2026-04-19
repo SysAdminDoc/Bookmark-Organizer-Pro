@@ -54,14 +54,47 @@ class Category:
     def from_dict(cls, d) -> "Category":
         if isinstance(d, list):
             # Legacy format: just a pattern list
-            return cls(name="Unknown", patterns=d)
+            return cls(
+                name="Unknown",
+                patterns=[str(p).strip() for p in d if p is not None and str(p).strip()]
+            )
+        if not isinstance(d, dict):
+            return cls(name="Unknown")
+
+        def safe_str(value, default=""):
+            return str(value).strip() if value not in (None, "") else default
+
+        def safe_patterns(value):
+            if not isinstance(value, list):
+                return []
+            return [str(p).strip() for p in value if p is not None and str(p).strip()]
+
+        def safe_bool(value, default=False):
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                normalized = value.strip().lower()
+                if normalized in {"true", "1", "yes", "y", "on"}:
+                    return True
+                if normalized in {"false", "0", "no", "n", "off"}:
+                    return False
+            if isinstance(value, (int, float)):
+                return bool(value)
+            return default
+
+        def safe_int(value, default=0):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return default
+
         return cls(
-            name=d.get("name", ""),
-            parent=d.get("parent", ""),
-            patterns=d.get("patterns", []),
-            icon=d.get("icon", "📁"),
-            color=d.get("color", ""),
-            description=d.get("description", ""),
-            is_collapsed=d.get("is_collapsed", False),
-            sort_order=d.get("sort_order", 0),
+            name=safe_str(d.get("name")),
+            parent=safe_str(d.get("parent")),
+            patterns=safe_patterns(d.get("patterns", [])),
+            icon=safe_str(d.get("icon"), "📁"),
+            color=safe_str(d.get("color")),
+            description=safe_str(d.get("description")),
+            is_collapsed=safe_bool(d.get("is_collapsed", False)),
+            sort_order=safe_int(d.get("sort_order", 0)),
         )

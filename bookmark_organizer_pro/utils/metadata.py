@@ -62,26 +62,46 @@ def fetch_page_metadata(url: str, timeout: int = 10) -> Dict[str, str]:
     except ImportError:
         return result
 
+    resp = None
     try:
         resp = requests.get(url, timeout=timeout, headers={
             'User-Agent': _USER_AGENT,
             'Accept': 'text/html,application/xhtml+xml',
             'Accept-Language': 'en-US,en;q=0.9',
-        }, allow_redirects=True, stream=True)
+        }, allow_redirects=False, stream=True)
         resp.raise_for_status()
     except Exception:
+        if resp is not None:
+            resp.close()
         return result
 
     content_type = resp.headers.get('content-type', '')
     if 'text/html' not in content_type and 'application/xhtml' not in content_type:
+        resp.close()
         return result
 
     # Cap download size before reading body (defense against huge responses)
-    content_length = int(resp.headers.get('content-length', 0))
+    try:
+        content_length = int(resp.headers.get('content-length', 0))
+    except (TypeError, ValueError):
+        content_length = 0
     if content_length > 2_000_000:
+        resp.close()
         return result
 
-    html_text = resp.text[:100_000]
+    chunks = bytearray()
+    try:
+        for chunk in resp.iter_content(chunk_size=8192):
+            if not chunk:
+                continue
+            chunks.extend(chunk)
+            if len(chunks) >= 100_000:
+                break
+    finally:
+        resp.close()
+
+    encoding = resp.encoding or 'utf-8'
+    html_text = bytes(chunks[:100_000]).decode(encoding, errors='replace')
 
     # Extract <title>
     m = re.search(r'<title[^>]*>(.*?)</title>', html_text, re.IGNORECASE | re.DOTALL)
@@ -117,11 +137,7 @@ def fetch_page_metadata(url: str, timeout: int = 10) -> Dict[str, str]:
         )
     if m:
         favicon_href = m.group(1)
-        if favicon_href.startswith('//'):
-            favicon_href = 'https:' + favicon_href
-        elif favicon_href.startswith('/'):
-            parsed = urlparse(url)
-            favicon_href = f"{parsed.scheme}://{parsed.netloc}{favicon_href}"
+        favicon_href = urllib.parse.urljoin(url, favicon_href)
         # Only store http/https favicon URLs (block javascript:, data:, etc.)
         if favicon_href.startswith(('http://', 'https://')):
             result['favicon_url'] = favicon_href
@@ -137,6 +153,9 @@ def wayback_check(url: str, timeout: int = 10) -> Optional[str]:
     try:
         requests = importlib.import_module('requests')
     except ImportError:
+        return None
+
+    if not _is_safe_url(url):
         return None
 
     try:
@@ -159,6 +178,9 @@ def wayback_save(url: str, timeout: int = 30) -> Optional[str]:
     try:
         requests = importlib.import_module('requests')
     except ImportError:
+        return None
+
+    if not _is_safe_url(url):
         return None
 
     try:

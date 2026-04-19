@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -125,8 +126,12 @@ class AIConfigManager:
             try:
                 with open(self.filepath, 'r', encoding='utf-8') as f:
                     self._config = json.load(f)
-            except Exception:
-                pass
+                if not isinstance(self._config, dict):
+                    log.warning("AI config is not an object; using defaults")
+                    self._config = {}
+            except Exception as e:
+                log.warning(f"Could not load AI config: {e}")
+                self._config = {}
 
         self._config.setdefault("provider", "google")
         self._config.setdefault("model", "gemini-2.0-flash")
@@ -139,12 +144,79 @@ class AIConfigManager:
         self._config.setdefault("min_confidence", 0.5)
         self._config.setdefault("auto_apply", False)
         self._config.setdefault("suggest_tags", True)
+        self._normalize_config()
+
+    def _bounded_int(self, value, default: int, lower: int, upper: int) -> int:
+        try:
+            return max(lower, min(upper, int(value)))
+        except (TypeError, ValueError):
+            return default
+
+    def _bounded_float(self, value, default: float, lower: float, upper: float) -> float:
+        try:
+            return max(lower, min(upper, float(value)))
+        except (TypeError, ValueError):
+            return default
+
+    def _normalize_config(self):
+        """Normalize config loaded from disk before callers consume it."""
+        provider = str(self._config.get("provider", "google")).strip().lower()
+        if provider not in AI_PROVIDERS:
+            log.warning(f"Unknown AI provider '{provider}', falling back to Google")
+            provider = "google"
+        self._config["provider"] = provider
+
+        info = AI_PROVIDERS[provider]
+        model = str(self._config.get("model") or info.default_model).strip()
+        if provider != "ollama" and info.models and model not in info.models:
+            model = info.default_model
+        self._config["model"] = model
+
+        api_keys = self._config.get("api_keys", {})
+        if not isinstance(api_keys, dict):
+            api_keys = {}
+        self._config["api_keys"] = {
+            str(k): str(v) for k, v in api_keys.items()
+            if k in AI_PROVIDERS and v
+        }
+
+        self._config["batch_size"] = self._bounded_int(
+            self._config.get("batch_size"), 20, 5, 50
+        )
+        self._config["requests_per_minute"] = self._bounded_int(
+            self._config.get("requests_per_minute"), 30, 1, 120
+        )
+        self._config["min_confidence"] = self._bounded_float(
+            self._config.get("min_confidence"), 0.5, 0.0, 1.0
+        )
+        self._config["auto_create_categories"] = bool(self._config.get("auto_create_categories", True))
+        self._config["fetch_metadata"] = bool(self._config.get("fetch_metadata", False))
+        self._config["auto_apply"] = bool(self._config.get("auto_apply", False))
+        self._config["suggest_tags"] = bool(self._config.get("suggest_tags", True))
+
+        ollama_url = str(self._config.get("ollama_url") or "http://localhost:11434").strip().rstrip("/")
+        if not ollama_url.startswith(("http://", "https://")):
+            ollama_url = "http://localhost:11434"
+        self._config["ollama_url"] = ollama_url
 
     def save_config(self):
         """Save configuration to file"""
         try:
-            with open(self.filepath, 'w', encoding='utf-8') as f:
-                json.dump(self._config, f, indent=2)
+            self._normalize_config()
+            self.filepath.parent.mkdir(parents=True, exist_ok=True)
+            fd, temp_path = tempfile.mkstemp(
+                dir=self.filepath.parent, suffix='.tmp', text=True
+            )
+            try:
+                if os.name != "nt":
+                    os.fchmod(fd, 0o600)
+                with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                    json.dump(self._config, f, indent=2)
+                os.replace(temp_path, self.filepath)
+            except Exception:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                raise
         except Exception as e:
             log.error(f"Error saving AI config: {e}")
 
@@ -155,10 +227,10 @@ class AIConfigManager:
         return self._config.get("model", "gemini-2.0-flash")
 
     def get_batch_size(self) -> int:
-        return self._config.get("batch_size", 20)
+        return self._bounded_int(self._config.get("batch_size"), 20, 5, 50)
 
     def get_rate_limit(self) -> int:
-        return self._config.get("requests_per_minute", 30)
+        return self._bounded_int(self._config.get("requests_per_minute"), 30, 1, 120)
 
     def get_auto_create_categories(self) -> bool:
         return self._config.get("auto_create_categories", True)
@@ -170,7 +242,7 @@ class AIConfigManager:
         return self._config.get("ollama_url", "http://localhost:11434")
 
     def get_min_confidence(self) -> float:
-        return self._config.get("min_confidence", 0.5)
+        return self._bounded_float(self._config.get("min_confidence"), 0.5, 0.0, 1.0)
 
     def get_auto_apply(self) -> bool:
         return self._config.get("auto_apply", False)
@@ -188,23 +260,32 @@ class AIConfigManager:
         return key
 
     def set_provider(self, v):
-        self._config["provider"] = v
+        provider = str(v or "").strip().lower()
+        self._config["provider"] = provider if provider in AI_PROVIDERS else "google"
         self.save_config()
 
     def set_model(self, v):
-        self._config["model"] = v
+        self._config["model"] = str(v or "").strip()
         self.save_config()
 
     def set_api_key(self, provider: str, key: str):
-        self._config.setdefault("api_keys", {})[provider] = key
+        provider = str(provider or "").strip().lower()
+        if provider not in AI_PROVIDERS:
+            return
+        keys = self._config.setdefault("api_keys", {})
+        key = str(key or "").strip()
+        if key:
+            keys[provider] = key
+        else:
+            keys.pop(provider, None)
         self.save_config()
 
     def set_batch_size(self, v):
-        self._config["batch_size"] = max(5, min(50, v))
+        self._config["batch_size"] = self._bounded_int(v, 20, 5, 50)
         self.save_config()
 
     def set_rate_limit(self, v):
-        self._config["requests_per_minute"] = max(1, min(120, v))
+        self._config["requests_per_minute"] = self._bounded_int(v, 30, 1, 120)
         self.save_config()
 
     def set_auto_create_categories(self, v):
@@ -216,7 +297,7 @@ class AIConfigManager:
         self.save_config()
 
     def set_min_confidence(self, v):
-        self._config["min_confidence"] = max(0.0, min(1.0, float(v)))
+        self._config["min_confidence"] = self._bounded_float(v, 0.5, 0.0, 1.0)
         self.save_config()
 
     def set_auto_apply(self, v):

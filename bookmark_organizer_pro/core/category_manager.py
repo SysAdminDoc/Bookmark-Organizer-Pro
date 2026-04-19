@@ -1,6 +1,8 @@
 """Category manager with nesting, icon mapping, and pattern compilation."""
 
 import json
+import os
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -118,17 +120,28 @@ class CategoryManager:
 
                 if isinstance(raw, dict):
                     for name, data in raw.items():
+                        normalized_name = str(name).strip()
+                        if not normalized_name:
+                            continue
                         if isinstance(data, list):
                             # Legacy format: {name: [patterns]}
-                            self.categories[name] = Category(
-                                name=name,
-                                patterns=data,
-                                icon=get_category_icon(name),
+                            self.categories[normalized_name] = Category(
+                                name=normalized_name,
+                                patterns=[
+                                    str(p).strip() for p in data
+                                    if p is not None and str(p).strip()
+                                ],
+                                icon=get_category_icon(normalized_name),
                             )
                         else:
                             cat = Category.from_dict(data)
-                            cat.name = name
-                            self.categories[name] = cat
+                            cat.name = normalized_name
+                            if cat.parent == cat.name:
+                                cat.parent = ""
+                            self.categories[normalized_name] = cat
+                else:
+                    log.error(f"Invalid categories format in {self.filepath}; resetting to defaults")
+                    self._init_defaults()
             except Exception as e:
                 log.error(f"Error loading categories, resetting to defaults: {e}")
                 self._init_defaults()
@@ -142,10 +155,31 @@ class CategoryManager:
                 icon="📥",
             )
 
+        self._repair_parent_links()
         self._rebuild_patterns()
+
+    def _repair_parent_links(self):
+        """Clear missing or cyclic parent links loaded from disk."""
+        for name, cat in list(self.categories.items()):
+            if cat.parent and cat.parent not in self.categories:
+                log.warning(f"Clearing missing parent '{cat.parent}' from category '{name}'")
+                cat.parent = ""
+
+        for name, cat in list(self.categories.items()):
+            seen = {name}
+            current = cat.parent
+            while current:
+                if current in seen:
+                    log.warning(f"Breaking category cycle at '{name}'")
+                    cat.parent = ""
+                    break
+                seen.add(current)
+                parent = self.categories.get(current)
+                current = parent.parent if parent else ""
 
     def _init_defaults(self):
         """Initialize with the built-in default categories."""
+        self.categories.clear()
         for name, patterns in self.DEFAULT_CATEGORIES.items():
             self.categories[name] = Category(
                 name=name,
@@ -162,9 +196,19 @@ class CategoryManager:
     def save_categories(self):
         """Persist categories to disk."""
         try:
+            self.filepath.parent.mkdir(parents=True, exist_ok=True)
             data = {name: cat.to_dict() for name, cat in self.categories.items()}
-            with open(self.filepath, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            fd, temp_path = tempfile.mkstemp(
+                dir=self.filepath.parent, suffix='.tmp', text=True
+            )
+            try:
+                with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+                os.replace(temp_path, self.filepath)
+            except Exception:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                raise
         except Exception as e:
             log.error(f"Error saving categories: {e}")
 
@@ -179,14 +223,18 @@ class CategoryManager:
     def add_category(self, name: str, parent: str = "",
                      patterns: List[str] = None, icon: str = "") -> bool:
         """Add a new category."""
-        if name and name.strip() and name not in self.categories:
+        normalized = (name or "").strip()
+        parent = (parent or "").strip()
+        if normalized and normalized not in self.categories:
+            if parent and parent not in self.categories:
+                return False
             cat = Category(
-                name=name.strip(),
+                name=normalized,
                 parent=parent,
                 patterns=patterns or [],
-                icon=icon or get_category_icon(name),
+                icon=icon or get_category_icon(normalized),
             )
-            self.categories[name.strip()] = cat
+            self.categories[normalized] = cat
             self.save_categories()
             self._rebuild_patterns()
             return True
@@ -206,15 +254,16 @@ class CategoryManager:
 
     def rename_category(self, old_name: str, new_name: str) -> bool:
         """Rename a category and update all children's parent refs."""
+        new_name = (new_name or "").strip()
         if (old_name in self.categories and new_name and new_name.strip() and
                 new_name not in self.categories and "Uncategorized" not in old_name):
             cat = self.categories.pop(old_name)
-            cat.name = new_name.strip()
-            self.categories[new_name.strip()] = cat
+            cat.name = new_name
+            self.categories[new_name] = cat
 
             for child_cat in self.categories.values():
                 if child_cat.parent == old_name:
-                    child_cat.parent = new_name.strip()
+                    child_cat.parent = new_name
 
             self.save_categories()
             self._rebuild_patterns()
@@ -223,12 +272,30 @@ class CategoryManager:
 
     def move_category(self, name: str, new_parent: str) -> bool:
         """Reparent a category."""
+        new_parent = (new_parent or "").strip()
         if name in self.categories and "Uncategorized" not in name:
             if new_parent and new_parent not in self.categories:
                 return False
+            if new_parent == name or self._is_descendant(new_parent, name):
+                return False
             self.categories[name].parent = new_parent
             self.save_categories()
+            self._rebuild_patterns()
             return True
+        return False
+
+    def _is_descendant(self, possible_child: str, parent: str) -> bool:
+        """Return True if possible_child is already below parent in the tree."""
+        seen = set()
+        current = possible_child
+        while current:
+            if current == parent:
+                return True
+            if current in seen:
+                return True
+            seen.add(current)
+            cat = self.categories.get(current)
+            current = cat.parent if cat else ""
         return False
 
     def update_patterns(self, name: str, patterns: List[str]) -> bool:

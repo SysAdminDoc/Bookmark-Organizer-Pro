@@ -62,6 +62,9 @@ class URLUtilities:
 
         for _ in range(max_redirects):
             try:
+                if not URLUtilities._is_safe_url(current_url):
+                    break
+
                 response = requests.head(
                     current_url,
                     allow_redirects=False,
@@ -72,11 +75,9 @@ class URLUtilities:
                 if response.status_code in (301, 302, 303, 307, 308):
                     next_url = response.headers.get('Location', '')
                     if next_url:
-                        if next_url.startswith('/'):
-                            parsed = urllib.parse.urlparse(current_url)
-                            next_url = f"{parsed.scheme}://{parsed.netloc}{next_url}"
+                        next_url = urllib.parse.urljoin(current_url, next_url)
                         # Block non-http redirects (javascript:, data:, etc.)
-                        if not next_url.startswith(('http://', 'https://')):
+                        if not URLUtilities._is_safe_url(next_url):
                             break
                         current_url = next_url
                         redirect_count += 1
@@ -91,8 +92,9 @@ class URLUtilities:
     def is_shortened_url(url: str) -> bool:
         """Check if URL is from a known shortener"""
         try:
-            domain = urllib.parse.urlparse(url).netloc.lower()
-            return any(shortener in domain for shortener in URLUtilities.SHORTENERS)
+            domain = (urllib.parse.urlparse(url).hostname or '').lower()
+            return any(domain == shortener or domain.endswith("." + shortener)
+                       for shortener in URLUtilities.SHORTENERS)
         except Exception:
             return False
 
@@ -115,8 +117,10 @@ class URLUtilities:
             return False
 
         https_url = URLUtilities.upgrade_to_https(url)
+        if not URLUtilities._is_safe_url(https_url):
+            return False
         try:
-            response = requests.head(https_url, timeout=5, allow_redirects=True)
+            response = requests.head(https_url, timeout=5, allow_redirects=False)
             return response.status_code < 400
         except Exception:
             return False
@@ -172,9 +176,12 @@ class URLUtilities:
         """Try to get canonical URL from page"""
         try:
             requests = importlib.import_module('requests')
+            if not URLUtilities._is_safe_url(url):
+                return None
             response = requests.get(
                 url, timeout=10,
-                headers={'User-Agent': 'Mozilla/5.0'}
+                headers={'User-Agent': 'Mozilla/5.0'},
+                allow_redirects=False
             )
 
             if response.status_code == 200:

@@ -42,6 +42,8 @@ class SearchQuery:
             if end_idx > 0:
                 try:
                     pattern = query[1:end_idx]
+                    if len(pattern) > 250:
+                        return
                     self.regex_pattern = re.compile(pattern, re.IGNORECASE)
                     self.is_regex = True
                     return
@@ -80,12 +82,12 @@ class SearchQuery:
                 self.category_filters.append(token[4:])
             elif lower_token.startswith("before:"):
                 try:
-                    self.date_before = datetime.fromisoformat(token[7:])
+                    self.date_before = self._parse_date(token[7:])
                 except Exception:
                     pass
             elif lower_token.startswith("after:"):
                 try:
-                    self.date_after = datetime.fromisoformat(token[6:])
+                    self.date_after = self._parse_date(token[6:])
                 except Exception:
                     pass
             elif lower_token == "has:notes":
@@ -112,10 +114,18 @@ class SearchQuery:
             else:
                 self.text_terms.append(token.strip('"'))
 
+    @staticmethod
+    def _parse_date(value: str) -> datetime:
+        """Parse a date filter and normalize timezone-aware values."""
+        return datetime.fromisoformat(value.replace('Z', '+00:00')).replace(tzinfo=None)
+
     def matches(self, bookmark: Bookmark) -> bool:
         """Check if a bookmark matches this query"""
         if self.is_regex and self.regex_pattern:
-            searchable = f"{bookmark.title} {bookmark.url} {bookmark.notes} {' '.join(bookmark.tags)}"
+            searchable = (
+                f"{bookmark.title} {bookmark.url} {bookmark.notes} "
+                f"{' '.join(bookmark.tags)} {' '.join(getattr(bookmark, 'ai_tags', []))}"
+            )
             return bool(self.regex_pattern.search(searchable))
 
         for domain in self.domain_filters:
@@ -125,7 +135,8 @@ class SearchQuery:
 
         for tag in self.tag_filters:
             tag_lower = tag.lower()
-            if not any(tag_lower == t.lower() for t in bookmark.tags):
+            all_tags = list(bookmark.tags) + list(getattr(bookmark, "ai_tags", []))
+            if not any(tag_lower == t.lower() for t in all_tags):
                 return False
 
         for cat in self.category_filters:
@@ -152,7 +163,7 @@ class SearchQuery:
 
         if self.has_notes is True and not bookmark.notes:
             return False
-        if self.has_tags is True and not bookmark.tags:
+        if self.has_tags is True and not (bookmark.tags or getattr(bookmark, "ai_tags", [])):
             return False
         if self.is_pinned is True and not bookmark.is_pinned:
             return False
@@ -186,6 +197,7 @@ class SearchEngine:
     def search(self, bookmarks: List[Bookmark], query: str,
                fuzzy: bool = False) -> List[Tuple[Bookmark, float]]:
         """Search bookmarks with query. Returns (bookmark, relevance_score) tuples."""
+        query = str(query or "")
         if not query.strip():
             return [(bm, 1.0) for bm in bookmarks]
 
@@ -362,6 +374,7 @@ class FuzzySearchEngine:
     def search(self, bookmarks: List[Bookmark], query: str,
                fuzzy: bool = True, threshold: float = 0.6) -> List[Tuple[Bookmark, float]]:
         """Search bookmarks with optional fuzzy matching."""
+        query = str(query or "")
         if not query.strip():
             return [(bm, 1.0) for bm in bookmarks]
 
@@ -377,7 +390,10 @@ class FuzzySearchEngine:
         query_lower = query.lower()
 
         for bm in bookmarks:
-            searchable = f"{bm.title} {bm.url} {bm.notes} {' '.join(bm.tags)}"
+            searchable = (
+                f"{bm.title} {bm.url} {bm.notes} "
+                f"{' '.join(bm.tags)} {' '.join(getattr(bm, 'ai_tags', []))}"
+            )
 
             if query_lower in searchable.lower():
                 score = 1.0
@@ -413,7 +429,7 @@ class FuzzySearchEngine:
                         suggestions.add(word)
 
         for bm in bookmarks:
-            for tag in bm.tags:
+            for tag in list(bm.tags) + list(getattr(bm, "ai_tags", [])):
                 if partial_lower in tag.lower():
                     suggestions.add(f"#{tag}")
 

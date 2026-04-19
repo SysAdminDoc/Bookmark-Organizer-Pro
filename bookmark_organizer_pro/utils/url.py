@@ -61,16 +61,31 @@ def normalize_url(url: str) -> str:
     if not url:
         return url
 
+    raw = url.strip()
     try:
-        parsed = urlparse(url.strip())
+        parsed = urlparse(raw)
     except Exception:
-        return url.strip().lower().rstrip('/')
+        return raw.lower().rstrip('/')
+
+    if not parsed.scheme and not parsed.netloc:
+        if any(ch.isspace() for ch in raw):
+            return raw.lower().rstrip('/')
+        reparsed = urlparse(f"https://{raw}")
+        if reparsed.hostname:
+            parsed = reparsed
+        else:
+            return raw.lower().rstrip('/')
 
     scheme = (parsed.scheme or 'https').lower()
     host = (parsed.hostname or '').lower()
+    if not host:
+        return raw.lower().rstrip('/')
     if host.startswith('www.'):
         host = host[4:]
-    port = parsed.port
+    try:
+        port = parsed.port
+    except ValueError:
+        port = None
 
     # Remove default ports
     if (scheme == 'http' and port == 80) or (scheme == 'https' and port == 443):

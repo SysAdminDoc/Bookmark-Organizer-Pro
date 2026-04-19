@@ -15,7 +15,7 @@ A powerful, professional-grade bookmark manager with AI-powered categorization, 
 - **Multi-format Import**: HTML (Chrome, Firefox, Edge, Safari), JSON, CSV, OPML, TXT
 - **Nested Categories**: Hierarchical category organization with drag-and-drop
 - **Advanced Tagging**: User tags + AI-suggested tags with color coding
-- **Dual View Modes**: List view and responsive card grid view
+- **Premium List Workspace**: Dense, searchable bookmark table with zoom, command palette, and polished empty states
 - **Full-text Search**: Advanced syntax with filters, boolean operators, and highlighting
 - **Undo/Redo**: Full command history for all operations
 
@@ -152,9 +152,9 @@ react OR vue                       # Boolean OR
 
 ### AI Configuration
 
-1. Go to **Settings > AI Configuration**
+1. Open the **AI** toolbar menu and choose **AI Settings**
 2. Select a provider (OpenAI, Anthropic, Google, Groq, or Ollama)
-3. Enter your API key
+3. Enter your API key if the provider requires one
 4. Select a model
 5. Click **Test Connection** to verify
 6. Click **Save**
@@ -163,6 +163,12 @@ react OR vue                       # Boolean OR
 - **Groq**: Free tier available at [console.groq.com](https://console.groq.com)
 - **Google Gemini**: Free tier at [aistudio.google.com](https://aistudio.google.com)
 - **Ollama**: Run models locally (free, requires setup)
+
+### Safety Notes
+
+- Network tools skip private, localhost, and unsupported URL schemes to avoid leaking or fetching internal resources.
+- AI API keys are stored locally in `~/.bookmark_organizer/ai_config.json`; use environment variables if you prefer not to write keys into the app config file.
+- Imports, exports, settings, and category files are written defensively with atomic writes where supported.
 
 ### Theme Customization
 
@@ -565,4 +571,3 @@ codesign --deep --force --verify --verbose --sign "Developer ID" dist/BookmarkOr
 | `bookmark_organizer.ico` | Windows icon |
 | `bookmark_organizer.png` | Cross-platform icon |
 | `README.md` | This documentation |
-

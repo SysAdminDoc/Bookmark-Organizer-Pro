@@ -249,10 +249,10 @@ class DesignTokens:
     RADIUS_LG = 8
     
     # Component heights
-    BUTTON_HEIGHT = 32
-    INPUT_HEIGHT = 34
-    ROW_HEIGHT = 28
-    TREEVIEW_ROW_HEIGHT = 26
+    BUTTON_HEIGHT = 34
+    INPUT_HEIGHT = 36
+    ROW_HEIGHT = 32
+    TREEVIEW_ROW_HEIGHT = 32
     
     # Icon sizes
     ICON_SM = 16
@@ -260,8 +260,8 @@ class DesignTokens:
     ICON_LG = 24
     
     # Sidebar width
-    SIDEBAR_WIDTH = 240
-    SIDEBAR_MIN_WIDTH = 200
+    SIDEBAR_WIDTH = 320
+    SIDEBAR_MIN_WIDTH = 260
     
     # Animation durations (ms)
     ANIMATION_FAST = 100
@@ -1789,17 +1789,17 @@ class ThemeColors:
             from_dict(d): Create from dictionary
         """
     # Backgrounds
-    bg_dark: str = "#0d1117"
-    bg_primary: str = "#161b22"
-    bg_secondary: str = "#21262d"
-    bg_tertiary: str = "#30363d"
-    bg_hover: str = "#2d4a6f"
-    bg_card: str = "#1c2128"
+    bg_dark: str = "#0b0f14"
+    bg_primary: str = "#11161d"
+    bg_secondary: str = "#171d25"
+    bg_tertiary: str = "#222a35"
+    bg_hover: str = "#263244"
+    bg_card: str = "#151b23"
     
     # Text
-    text_primary: str = "#f0f6fc"
-    text_secondary: str = "#8b949e"
-    text_muted: str = "#484f58"
+    text_primary: str = "#f2f6fb"
+    text_secondary: str = "#b7c0cc"
+    text_muted: str = "#7d8590"
     text_link: str = "#58a6ff"
     
     # Accents
@@ -1813,18 +1813,18 @@ class ThemeColors:
     accent_orange: str = "#f0883e"
     
     # UI Elements
-    border: str = "#30363d"
-    border_muted: str = "#21262d"
+    border: str = "#2b333d"
+    border_muted: str = "#202832"
     border_active: str = "#58a6ff"
-    selection: str = "#264f78"
+    selection: str = "#1e3a5f"
     selected: str = "#1f6feb"
-    hover: str = "#30363d"
+    hover: str = "#263244"
     
     # Drag & Drop
     drag_target: str = "#238636"
     drag_target_bg: str = "#1c4428"
-    drop_zone: str = "#1a3a5c"
-    drop_zone_active: str = "#264f78"
+    drop_zone: str = "#152d47"
+    drop_zone_active: str = "#1e3a5f"
     drop_zone_border: str = "#58a6ff"
     
     # Status
@@ -1834,14 +1834,14 @@ class ThemeColors:
     status_info: str = "#58a6ff"
     
     # Scrollbar
-    scrollbar_bg: str = "#21262d"
-    scrollbar_thumb: str = "#484f58"
+    scrollbar_bg: str = "#171d25"
+    scrollbar_thumb: str = "#4b5563"
     scrollbar_thumb_hover: str = "#6e7681"
     
     # Cards & Grid
-    card_bg: str = "#161b22"
-    card_border: str = "#30363d"
-    card_hover: str = "#21262d"
+    card_bg: str = "#151b23"
+    card_border: str = "#2b333d"
+    card_hover: str = "#1b2330"
     
     # Special
     ai_accent: str = "#a371f7"
@@ -3810,13 +3810,20 @@ class Tooltip:
         tw.wm_overrideredirect(True)
         tw.wm_geometry(f"+{x}+{y}")
         
+        try:
+            tw.attributes("-topmost", True)
+            tw.attributes("-alpha", 0.96)
+        except Exception:
+            pass
+
         # Style the tooltip
-        frame = tk.Frame(tw, bg=theme.bg_dark, bd=1, relief=tk.SOLID)
+        frame = tk.Frame(tw, bg=theme.border, bd=0, padx=1, pady=1)
         frame.pack()
         
         label = tk.Label(
             frame, text=self.text, bg=theme.bg_dark, fg=theme.text_primary,
-            font=FONTS.small(), padx=8, pady=4, justify=tk.LEFT
+            font=FONTS.small(), padx=10, pady=6, justify=tk.LEFT,
+            wraplength=360
         )
         label.pack()
         
@@ -3888,29 +3895,38 @@ class ModernButton(tk.Frame, ThemedWidget):
         # Determine colors based on style
         if style == "primary":
             bg = bg or theme.accent_primary
-            hover_bg = hover_bg or theme.accent_primary
+            hover_bg = hover_bg or theme.selected
+            fg = fg or "#ffffff"
         elif style == "success":
             bg = bg or theme.accent_success
-            hover_bg = hover_bg or theme.accent_success
+            hover_bg = hover_bg or theme.status_success
+            fg = fg or "#ffffff"
         elif style == "danger":
             bg = bg or theme.accent_error
-            hover_bg = hover_bg or theme.accent_error
+            hover_bg = hover_bg or theme.status_error
+            fg = fg or "#ffffff"
         elif style == "warning":
             bg = bg or theme.accent_warning
-            hover_bg = hover_bg or theme.accent_warning
+            hover_bg = hover_bg or theme.status_warning
+            fg = fg or "#ffffff"
         else:
             bg = bg or theme.bg_secondary
             hover_bg = hover_bg or theme.bg_hover
+            fg = fg or theme.text_primary
         
-        fg = fg or theme.text_primary
-        
-        super().__init__(parent, bg=bg)
+        super().__init__(
+            parent, bg=bg, takefocus=1,
+            highlightthickness=1,
+            highlightbackground=theme.border_muted,
+            highlightcolor=theme.accent_primary
+        )
         self.command = command
         self.default_bg = bg
         self.hover_bg = hover_bg
         self.fg = fg
         self.state = state
         self.style = style
+        self.focus_bg = hover_bg
         
         # Icon + text
         display_text = f"{icon} {text}" if icon else text
@@ -3934,6 +3950,10 @@ class ModernButton(tk.Frame, ThemedWidget):
                 widget.bind("<Enter>", self._on_enter)
                 widget.bind("<Leave>", self._on_leave)
                 widget.bind("<Button-1>", self._on_click)
+            self.bind("<FocusIn>", self._on_focus_in)
+            self.bind("<FocusOut>", self._on_focus_out)
+            self.bind("<Return>", self._on_key_activate)
+            self.bind("<space>", self._on_key_activate)
     
     def _on_enter(self, e):
         if self.state == 'normal':
@@ -3944,18 +3964,35 @@ class ModernButton(tk.Frame, ThemedWidget):
         if self.state == 'normal':
             self.configure(bg=self.default_bg)
             self.label.configure(bg=self.default_bg)
+
+    def _on_focus_in(self, e):
+        if self.state == 'normal':
+            theme = get_theme()
+            self.configure(highlightbackground=theme.accent_primary)
+
+    def _on_focus_out(self, e):
+        if self.state == 'normal':
+            theme = get_theme()
+            self.configure(highlightbackground=theme.border_muted)
     
     def _on_click(self, e):
         if self.state == 'normal' and self.command:
             self.command()
+
+    def _on_key_activate(self, e):
+        self._on_click(e)
+        return "break"
     
     def set_state(self, state):
         self.state = state
         theme = get_theme()
         if state == 'normal':
             self.label.configure(fg=self.fg, cursor="hand2")
+            self.configure(highlightbackground=theme.border_muted)
         else:
             self.label.configure(fg=theme.text_muted, cursor="arrow")
+            self.configure(bg=theme.bg_secondary, highlightbackground=theme.border_muted)
+            self.label.configure(bg=theme.bg_secondary)
     
     def set_text(self, text):
         self.label.configure(text=text)
@@ -5133,7 +5170,11 @@ class CategorySidebar(tk.Frame, ThemedWidget):
             if self.category_manager.add_category(name.strip()):
                 self.refresh_categories()
             else:
-                messagebox.showerror("Error", "Category already exists")
+                messagebox.showerror(
+                    "Category Not Added",
+                    "That category already exists. Choose a unique category name.",
+                    parent=self
+                )
 
 
 
@@ -5163,7 +5204,7 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
         theme = get_theme()
         
         self.title("Theme Settings")
-        self.geometry("500x600")
+        self.geometry("540x640")
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
         self.grab_set()
@@ -5171,14 +5212,20 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
         set_dark_title_bar(self)
         
         # Header
-        header = tk.Frame(self, bg=theme.bg_dark, height=60)
+        header = tk.Frame(self, bg=theme.bg_dark, padx=22, pady=18)
         header.pack(fill=tk.X)
-        header.pack_propagate(False)
         
         tk.Label(
-            header, text="🎨 Theme Settings", bg=theme.bg_dark,
-            fg=theme.text_primary, font=FONTS.title(bold=False)
-        ).pack(side=tk.LEFT, padx=20, pady=15)
+            header, text="Theme settings", bg=theme.bg_dark,
+            fg=theme.text_primary, font=FONTS.title(bold=True)
+        ).pack(anchor="w")
+
+        tk.Label(
+            header,
+            text="Choose a built-in theme or create a custom look that fits your workspace.",
+            bg=theme.bg_dark, fg=theme.text_secondary,
+            font=FONTS.small(), wraplength=480, justify=tk.LEFT
+        ).pack(anchor="w", pady=(5, 0))
         
         # Main content
         content = tk.Frame(self, bg=theme.bg_primary)
@@ -5186,8 +5233,8 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
         
         # Current theme label
         tk.Label(
-            content, text="Select Theme:", bg=theme.bg_primary,
-            fg=theme.text_secondary, font=FONTS.body()
+            content, text="Theme library", bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.body(bold=True)
         ).pack(anchor="w", pady=(0, 10))
         
         # Theme list with canvas for scrolling
@@ -5220,6 +5267,11 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
             btn_frame, text="Import Theme", command=self._import_theme,
             icon="📥"
         ).pack(side=tk.LEFT, padx=(0, 10))
+
+        ModernButton(
+            btn_frame, text="Create Custom", command=self._create_custom_theme,
+            icon="✨"
+        ).pack(side=tk.LEFT)
         
         ModernButton(
             btn_frame, text="Close", command=self.destroy
@@ -5283,20 +5335,19 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
             
             # Select button
             if not is_selected:
-                select_btn = tk.Label(
-                    item_frame, text="Select", bg=theme.accent_primary,
-                    fg="#ffffff", font=FONTS.small(),
-                    padx=12, pady=4, cursor="hand2"
+                select_btn = ModernButton(
+                    item_frame, text="Select", command=lambda n=name: self._select_theme(n),
+                    style="primary", padx=12, pady=5, font=FONTS.small()
                 )
                 select_btn.pack(side=tk.RIGHT, padx=10)
-                select_btn.bind("<Button-1>", 
-                              lambda e, n=name: self._select_theme(n))
             
             # Hover effect
             def on_enter(e, f=item_frame):
                 if f.cget('bg') != theme.bg_tertiary:
                     f.configure(bg=theme.bg_hover)
                     for child in f.winfo_children():
+                        if isinstance(child, ModernButton):
+                            continue
                         if isinstance(child, tk.Frame):
                             for subchild in child.winfo_children():
                                 if isinstance(subchild, tk.Label):
@@ -5306,6 +5357,8 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
                 bg = theme.bg_tertiary if sel else theme.bg_secondary
                 f.configure(bg=bg)
                 for child in f.winfo_children():
+                    if isinstance(child, ModernButton):
+                        continue
                     if isinstance(child, tk.Frame):
                         for subchild in child.winfo_children():
                             if isinstance(subchild, tk.Label):
@@ -5329,10 +5382,24 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
         if filepath:
             theme = self.theme_manager.import_theme(filepath)
             if theme:
-                messagebox.showinfo("Success", f"Imported theme: {theme.display_name}")
+                messagebox.showinfo(
+                    "Theme Imported",
+                    f"Imported {theme.display_name}. You can select it from the theme library.",
+                    parent=self
+                )
                 self._populate_themes()
             else:
-                messagebox.showerror("Error", "Failed to import theme")
+                messagebox.showerror(
+                    "Theme Import Failed",
+                    "The selected file could not be imported as a theme. Check that it is a valid theme JSON file.",
+                    parent=self
+                )
+
+    def _create_custom_theme(self):
+        """Open the custom theme creator and refresh the theme list when it closes."""
+        dialog = ThemeCreatorDialog(self, self.theme_manager)
+        self.wait_window(dialog)
+        self._populate_themes()
     
     def center_window(self):
         """Center the dialog"""
@@ -5833,6 +5900,8 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
                 icon="🔗"
             ).pack(side=tk.LEFT)
         
+        self.bind("<Escape>", lambda e: self.destroy())
+        self.bind("<Control-Return>", lambda e: self._save())
         self.center_window()
         self.url_entry.focus_set()
     
@@ -5850,7 +5919,12 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
         title = self.title_var.get().strip()
         
         if not url:
-            messagebox.showerror("Error", "URL is required")
+            messagebox.showerror(
+                "URL required",
+                "Enter a bookmark URL before saving.",
+                parent=self
+            )
+            self.url_entry.focus_set()
             return
         
         if not url.startswith(('http://', 'https://')):
@@ -6194,36 +6268,50 @@ class CommandPalette(tk.Toplevel, ThemedWidget):
         
         self.title("")
         self.overrideredirect(True)
-        self.configure(bg=theme.bg_secondary)
+        self.configure(bg=theme.border)
         
         # Position in center top
-        self.geometry("500x400")
+        self.geometry("560x430")
         self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - 500) // 2
+        x = parent.winfo_rootx() + (parent.winfo_width() - 560) // 2
         y = parent.winfo_rooty() + 100
         self.geometry(f"+{x}+{y}")
         
         # Border
         self.configure(highlightbackground=theme.border, highlightthickness=1)
+
+        shell = tk.Frame(self, bg=theme.bg_secondary, padx=14, pady=14)
+        shell.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+
+        tk.Label(
+            shell, text="Command Palette", bg=theme.bg_secondary,
+            fg=theme.text_primary, font=FONTS.header(bold=True), anchor="w"
+        ).pack(fill=tk.X)
+
+        tk.Label(
+            shell, text="Type to filter actions. Use ↑/↓ and Enter.",
+            bg=theme.bg_secondary, fg=theme.text_secondary,
+            font=FONTS.small(), anchor="w"
+        ).pack(fill=tk.X, pady=(3, 12))
         
         # Search entry
         self.search_var = tk.StringVar()
         self.search_var.trace_add('write', self._filter)
         
         self.search_entry = tk.Entry(
-            self, textvariable=self.search_var,
-            bg=theme.bg_secondary, fg=theme.text_primary,
+            shell, textvariable=self.search_var,
+            bg=theme.bg_tertiary, fg=theme.text_primary,
             insertbackground=theme.text_primary, bd=0,
-            font=("Segoe UI", 12)
+            font=FONTS.custom(12)
         )
-        self.search_entry.pack(fill=tk.X, padx=15, pady=15)
+        self.search_entry.pack(fill=tk.X, ipady=9)
         self.search_entry.focus_set()
         
         # Separator
-        tk.Frame(self, bg=theme.border, height=1).pack(fill=tk.X)
+        tk.Frame(shell, bg=theme.border, height=1).pack(fill=tk.X, pady=(14, 8))
         
         # Commands list
-        self.list_frame = tk.Frame(self, bg=theme.bg_secondary)
+        self.list_frame = tk.Frame(shell, bg=theme.bg_secondary)
         self.list_frame.pack(fill=tk.BOTH, expand=True)
         
         self._render_commands()
@@ -6258,26 +6346,43 @@ class CommandPalette(tk.Toplevel, ThemedWidget):
         
         for widget in self.list_frame.winfo_children():
             widget.destroy()
+
+        if not self.filtered_commands:
+            tk.Label(
+                self.list_frame, text="No commands found",
+                bg=theme.bg_secondary, fg=theme.text_secondary,
+                font=FONTS.body(), pady=24
+            ).pack(fill=tk.X)
+            return
         
         for i, (name, shortcut, callback) in enumerate(self.filtered_commands[:10]):
             is_selected = i == self.selected_index
             
             item = tk.Frame(
                 self.list_frame,
-                bg=theme.selection if is_selected else theme.bg_secondary
+                bg=theme.bg_tertiary if is_selected else theme.bg_secondary,
+                highlightbackground=theme.accent_primary if is_selected else theme.bg_secondary,
+                highlightthickness=1
             )
-            item.pack(fill=tk.X, padx=5, pady=2)
+            item.pack(fill=tk.X, pady=2)
+
+            accent = tk.Frame(
+                item,
+                bg=theme.accent_primary if is_selected else item.cget('bg'),
+                width=3
+            )
+            accent.pack(side=tk.LEFT, fill=tk.Y)
             
             tk.Label(
                 item, text=name, bg=item.cget('bg'),
-                fg=theme.text_primary, font=FONTS.body(),
+                fg=theme.text_primary, font=FONTS.body(bold=is_selected),
                 anchor="w"
-            ).pack(side=tk.LEFT, padx=10, pady=8)
+            ).pack(side=tk.LEFT, padx=10, pady=9)
             
             if shortcut:
                 tk.Label(
                     item, text=shortcut, bg=item.cget('bg'),
-                    fg=theme.text_muted, font=("Consolas", 9)
+                    fg=theme.text_secondary, font=("Consolas", 9)
                 ).pack(side=tk.RIGHT, padx=10)
             
             item.bind("<Button-1>", lambda e, idx=i: self._select_and_execute(idx))
@@ -6428,10 +6533,12 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         self.result = None
         self.color_vars: Dict[str, tk.StringVar] = {}
         self.color_buttons: Dict[str, tk.Button] = {}
+        self.base_display_to_name: Dict[str, str] = {}
+        self.base_name_to_display: Dict[str, str] = {}
         
         theme = get_theme()
         
-        self.title("Theme Creator")
+        self.title("Create Custom Theme")
         self.geometry("700x650")
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
@@ -6446,7 +6553,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         
         tk.Label(
             header, text="🎨 Create Custom Theme", bg=theme.bg_dark,
-            fg=theme.text_primary, font=FONTS.title(bold=False)
+            fg=theme.text_primary, font=FONTS.title(bold=True)
         ).pack(side=tk.LEFT, padx=20, pady=15)
         
         # Main content with scrolling
@@ -6498,10 +6605,19 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
             fg=theme.text_secondary, font=FONTS.body()
         ).pack(side=tk.LEFT)
         
-        self.base_var = tk.StringVar(value=self.base_theme.name)
+        base_displays = []
+        for name, info in BUILT_IN_THEMES.items():
+            display = info.display_name or name
+            base_displays.append(display)
+            self.base_display_to_name[display] = name
+            self.base_name_to_display[name] = display
+
+        self.base_var = tk.StringVar(
+            value=self.base_name_to_display.get(self.base_theme.name, self.base_theme.name)
+        )
         base_combo = ttk.Combobox(
             base_frame, textvariable=self.base_var,
-            values=list(BUILT_IN_THEMES.keys()),
+            values=base_displays,
             state="readonly", width=25
         )
         base_combo.pack(side=tk.LEFT, padx=10)
@@ -6545,6 +6661,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         # Initialize colors from base theme
         self._load_base_colors()
         
+        self.bind("<Escape>", lambda e: self.destroy())
         self.center_window()
     
     def _create_color_section(self, parent, title: str, fields: List[Tuple[str, str]]):
@@ -6607,7 +6724,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
     
     def _on_base_change(self, e=None):
         """Handle base theme change"""
-        base_name = self.base_var.get()
+        base_name = self.base_display_to_name.get(self.base_var.get(), self.base_var.get())
         if base_name in BUILT_IN_THEMES:
             self.base_theme = BUILT_IN_THEMES[base_name]
             self._load_base_colors()
@@ -6672,7 +6789,11 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         """Create the custom theme"""
         name = self.name_var.get().strip()
         if not name:
-            messagebox.showerror("Error", "Please enter a theme name")
+            messagebox.showerror(
+                "Theme name required",
+                "Enter a clear name for this custom theme.",
+                parent=self
+            )
             return
         
         # Generate safe name
@@ -6680,25 +6801,44 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         
         # Collect color overrides
         overrides = {}
+        invalid_fields = []
         for field_name, var in self.color_vars.items():
             color = var.get()
             if re.match(r'^#[0-9A-Fa-f]{6}$', color):
                 overrides[field_name] = color
+            else:
+                invalid_fields.append(field_name)
+
+        if invalid_fields:
+            messagebox.showerror(
+                "Invalid colors",
+                "Use six-digit hex colors like #58a6ff before creating the theme.",
+                parent=self
+            )
+            return
         
         # Create the theme
         try:
             new_theme = self.theme_manager.create_custom_theme(
                 name=safe_name,
                 display_name=name,
-                base_theme=self.base_var.get(),
+                base_theme=self.base_display_to_name.get(self.base_var.get(), self.base_var.get()),
                 color_overrides=overrides
             )
             
             self.result = new_theme
-            messagebox.showinfo("Success", f"Theme '{name}' created successfully!")
+            messagebox.showinfo(
+                "Theme created",
+                f"Created '{name}'. You can select it from Theme Settings.",
+                parent=self
+            )
             self.destroy()
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to create theme: {e}")
+            messagebox.showerror(
+                "Theme not created",
+                f"Could not create this theme:\n\n{e}",
+                parent=self
+            )
     
     def center_window(self):
         """Center the dialog"""
@@ -8563,7 +8703,7 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         theme = get_theme()
         
         self.title("Add Bookmark")
-        self.geometry("500x320")
+        self.geometry("520x350")
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
         self.grab_set()
@@ -8571,10 +8711,23 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         # Make it appear centered and always on top
         self.attributes('-topmost', True)
         set_dark_title_bar(self)
+
+        header = tk.Frame(self, bg=theme.bg_dark)
+        header.pack(fill=tk.X)
+
+        tk.Label(
+            header, text="➕ Add Bookmark", bg=theme.bg_dark,
+            fg=theme.text_primary, font=FONTS.title(bold=True)
+        ).pack(anchor="w", padx=20, pady=(16, 3))
+
+        tk.Label(
+            header, text="Paste a URL. Title and favicon can be refined later.",
+            bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small()
+        ).pack(anchor="w", padx=20, pady=(0, 14))
         
         # URL field
         url_frame = tk.Frame(self, bg=theme.bg_primary)
-        url_frame.pack(fill=tk.X, padx=20, pady=(20, 10))
+        url_frame.pack(fill=tk.X, padx=20, pady=(18, 10))
         
         tk.Label(
             url_frame, text="🔗", bg=theme.bg_primary,
@@ -8620,7 +8773,10 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
             fg=theme.text_muted, font=("Segoe UI", 14)
         ).pack(side=tk.LEFT)
         
-        self.category_var = tk.StringVar(value=categories[0] if categories else "Uncategorized")
+        default_category = "Uncategorized / Needs Review"
+        if categories and default_category not in categories:
+            default_category = categories[0]
+        self.category_var = tk.StringVar(value=default_category)
         self.category_combo = ttk.Combobox(
             cat_frame, textvariable=self.category_var,
             values=categories, state="readonly"
@@ -8659,7 +8815,7 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         
         # Browse button
         browse_btn = tk.Label(
-            favicon_input_frame, text="📁 Browse", bg=theme.bg_secondary,
+            favicon_input_frame, text="Browse", bg=theme.bg_secondary,
             fg=theme.text_primary, font=FONTS.small(), padx=8, pady=3, cursor="hand2"
         )
         browse_btn.pack(side=tk.LEFT, padx=5)
@@ -8714,9 +8870,21 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         
         try:
             if path_or_url.startswith(('http://', 'https://')):
+                if not URLUtilities._is_safe_url(path_or_url):
+                    return
                 # Download from URL
-                resp = requests.get(path_or_url, timeout=5)
-                img = Image.open(BytesIO(resp.content))
+                resp = requests.get(path_or_url, timeout=5, allow_redirects=False, stream=True)
+                content = bytearray()
+                try:
+                    for chunk in resp.iter_content(chunk_size=8192):
+                        if not chunk:
+                            continue
+                        content.extend(chunk)
+                        if len(content) > 1_000_000:
+                            return
+                finally:
+                    resp.close()
+                img = Image.open(BytesIO(bytes(content)))
             else:
                 # Load from file
                 img = Image.open(path_or_url)
@@ -8743,8 +8911,30 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
             
             # Load image from URL or file
             if favicon_input.startswith(('http://', 'https://')):
-                resp = requests.get(favicon_input, timeout=10)
-                img = Image.open(BytesIO(resp.content))
+                if not URLUtilities._is_safe_url(favicon_input):
+                    messagebox.showerror(
+                        "Favicon Not Available",
+                        "Private or unsupported favicon URLs cannot be downloaded.",
+                        parent=self
+                    )
+                    return None
+                resp = requests.get(favicon_input, timeout=10, allow_redirects=False, stream=True)
+                content = bytearray()
+                try:
+                    for chunk in resp.iter_content(chunk_size=8192):
+                        if not chunk:
+                            continue
+                        content.extend(chunk)
+                        if len(content) > 1_000_000:
+                            messagebox.showerror(
+                                "Favicon Too Large",
+                                "Choose an image smaller than 1 MB.",
+                                parent=self
+                            )
+                            return None
+                finally:
+                    resp.close()
+                img = Image.open(BytesIO(bytes(content)))
             else:
                 img = Image.open(favicon_input)
             
@@ -8772,6 +8962,12 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         """Add the bookmark"""
         url = self.url_var.get().strip()
         if not url:
+            messagebox.showwarning(
+                "URL required",
+                "Enter a bookmark URL before adding it.",
+                parent=self
+            )
+            self.url_entry.focus_set()
             return
         
         if not url.startswith(('http://', 'https://')):
@@ -9894,6 +10090,9 @@ class WaybackMachine:
         Save a page to the Wayback Machine.
         Returns (success, archived_url or error_message)
         """
+        if not URLUtilities._is_safe_url(url):
+            return False, "Private or unsupported URLs are not sent to the Wayback Machine"
+
         try:
             response = requests.get(
                 WaybackMachine.SAVE_URL + url,
@@ -9925,6 +10124,9 @@ class WaybackMachine:
         Check if a URL is available in the Wayback Machine.
         Returns (is_available, archived_url, timestamp)
         """
+        if not URLUtilities._is_safe_url(url):
+            return False, None, None
+
         try:
             response = requests.get(
                 WaybackMachine.AVAILABILITY_URL,
@@ -9947,6 +10149,9 @@ class WaybackMachine:
     @staticmethod
     def get_snapshots(url: str, limit: int = 10) -> List[Dict[str, str]]:
         """Get list of available snapshots for a URL"""
+        if not URLUtilities._is_safe_url(url):
+            return []
+
         try:
             response = requests.get(
                 WaybackMachine.CDX_URL,
@@ -9996,14 +10201,42 @@ class LocalArchiver:
         Returns (success, filepath or error)
         """
         try:
+            if not URLUtilities._is_safe_url(bookmark.url):
+                return False, "Private or unsupported URLs cannot be archived"
+
             response = requests.get(
                 bookmark.url,
                 headers={'User-Agent': 'Mozilla/5.0'},
-                timeout=30
+                timeout=30,
+                allow_redirects=False,
+                stream=True
             )
             
             if response.status_code != 200:
+                response.close()
                 return False, f"Failed to fetch: {response.status_code}"
+
+            try:
+                content_length = int(response.headers.get("content-length", 0))
+            except (TypeError, ValueError):
+                content_length = 0
+            if content_length > 5_000_000:
+                response.close()
+                return False, "Page is too large to archive safely"
+
+            chunks = bytearray()
+            try:
+                for chunk in response.iter_content(chunk_size=16384):
+                    if not chunk:
+                        continue
+                    chunks.extend(chunk)
+                    if len(chunks) > 5_000_000:
+                        return False, "Page is too large to archive safely"
+            finally:
+                response.close()
+
+            encoding = response.encoding or "utf-8"
+            page_text = bytes(chunks).decode(encoding, errors="replace")
             
             # Create safe filename
             safe_title = re.sub(r'[^\w\s-]', '', bookmark.title)[:50]
@@ -10013,14 +10246,16 @@ class LocalArchiver:
             
             if format == "html":
                 # Save as HTML with embedded resources note
+                safe_url = html_module.escape(bookmark.url, quote=True)
+                safe_title_html = html_module.escape(bookmark.title, quote=True)
                 html_content = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="archived-from" content="{bookmark.url}">
+    <meta name="archived-from" content="{safe_url}">
     <meta name="archived-date" content="{datetime.now().isoformat()}">
-    <meta name="original-title" content="{bookmark.title}">
-    <title>{bookmark.title} (Archived)</title>
+    <meta name="original-title" content="{safe_title_html}">
+    <title>{safe_title_html} (Archived)</title>
     <style>
         .archive-banner {{
             background: #1a1a2e;
@@ -10040,10 +10275,10 @@ class LocalArchiver:
 </head>
 <body>
     <div class="archive-banner">
-        📦 Archived from <a href="{bookmark.url}">{bookmark.url}</a> 
+        📦 Archived from <a href="{safe_url}">{safe_url}</a>
         on {datetime.now().strftime('%Y-%m-%d %H:%M')}
     </div>
-    {response.text}
+    {page_text}
 </body>
 </html>"""
                 
@@ -10052,7 +10287,7 @@ class LocalArchiver:
             
             else:  # MHTML (simplified - full MHTML would need more work)
                 with open(filepath, 'w', encoding='utf-8') as f:
-                    f.write(response.text)
+                    f.write(page_text)
             
             # Update bookmark with archive path
             bookmark.local_archive_path = str(filepath)
@@ -10112,11 +10347,15 @@ class AISummarizer:
             return self._cache[cache_key]
         
         try:
+            if not URLUtilities._is_safe_url(bookmark.url):
+                return None
+
             # Fetch page content
             response = requests.get(
                 bookmark.url,
                 headers={'User-Agent': 'Mozilla/5.0'},
-                timeout=15
+                timeout=15,
+                allow_redirects=False
             )
             
             if response.status_code != 200:
@@ -10612,6 +10851,15 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         self.cat_vars: Dict[str, tk.BooleanVar] = {}
         categories = bookmark_manager.category_manager.get_sorted_categories()
         counts = bookmark_manager.get_category_counts()
+
+        if not categories:
+            tk.Label(
+                cat_inner,
+                text="No categories yet. Add or import bookmarks first.",
+                bg=theme.bg_secondary, fg=theme.text_secondary,
+                font=FONTS.body(), padx=10, pady=20,
+                justify=tk.LEFT
+            ).pack(anchor="w", fill=tk.X)
         
         for cat in categories:
             count = counts.get(cat, 0)
@@ -10662,13 +10910,123 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         """Select all or none"""
         for var in self.cat_vars.values():
             var.set(select)
+
+    def _bookmark_export_dict(self, bookmark: Bookmark) -> Dict[str, Any]:
+        """Serialize one bookmark according to selected export options."""
+        data = bookmark.to_dict()
+        if not self.include_tags_var.get():
+            data.pop("tags", None)
+            data.pop("ai_tags", None)
+        if not self.include_notes_var.get():
+            data.pop("notes", None)
+        if not self.include_metadata_var.get():
+            for key in (
+                "created_at", "updated_at", "modified_at", "visited_at",
+                "last_visited", "last_checked", "visit_count", "http_status",
+                "ai_confidence"
+            ):
+                data.pop(key, None)
+        return data
+
+    def _group_bookmarks(self, bookmarks: List[Bookmark]) -> Dict[str, List[Bookmark]]:
+        grouped: Dict[str, List[Bookmark]] = {}
+        for bm in bookmarks:
+            grouped.setdefault(bm.category or "Uncategorized", []).append(bm)
+        return grouped
+
+    def _export_selected_html(self, bookmarks: List[Bookmark], filepath: str):
+        grouped = self._group_bookmarks(bookmarks)
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write('<!DOCTYPE NETSCAPE-Bookmark-file-1>\n')
+            f.write('<!-- Exported by Bookmark Organizer Pro -->\n')
+            f.write('<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">\n')
+            f.write('<TITLE>Bookmarks</TITLE>\n<H1>Bookmarks</H1>\n<DL><p>\n')
+            for category in sorted(grouped):
+                f.write(f'    <DT><H3>{html_module.escape(category)}</H3>\n    <DL><p>\n')
+                for bm in grouped[category]:
+                    attrs = f'HREF="{html_module.escape(bm.url)}"'
+                    if self.include_metadata_var.get() and getattr(bm, "add_date", ""):
+                        attrs += f' ADD_DATE="{bm.add_date}"'
+                    if self.include_tags_var.get() and bm.tags:
+                        attrs += f' TAGS="{html_module.escape(",".join(bm.tags))}"'
+                    f.write(f'        <DT><A {attrs}>{html_module.escape(bm.title)}</A>\n')
+                    if self.include_notes_var.get() and bm.notes:
+                        f.write(f'        <DD>{html_module.escape(bm.notes)}\n')
+                f.write('    </DL><p>\n')
+            f.write('</DL><p>\n')
+
+    def _export_selected_json(self, bookmarks: List[Bookmark], filepath: str):
+        selected_categories = {bm.category for bm in bookmarks}
+        data = {
+            "version": 4,
+            "exported_at": datetime.now().isoformat(),
+            "app_version": APP_VERSION,
+            "categories": {
+                name: cat.to_dict()
+                for name, cat in self.bookmark_manager.category_manager.categories.items()
+                if name in selected_categories
+            },
+            "bookmarks": [self._bookmark_export_dict(bm) for bm in bookmarks],
+        }
+        if self.include_tags_var.get():
+            data["tags"] = [
+                tag.to_dict()
+                for tag in self.bookmark_manager.tag_manager.tags.values()
+            ]
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+    def _export_selected_csv(self, bookmarks: List[Bookmark], filepath: str):
+        columns = ["Title", "URL", "Category"]
+        if self.include_tags_var.get():
+            columns.append("Tags")
+        if self.include_notes_var.get():
+            columns.append("Notes")
+        if self.include_metadata_var.get():
+            columns.extend(["Created", "Visits", "Is Pinned"])
+
+        with open(filepath, "w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(columns)
+            for bm in bookmarks:
+                row = [bm.title, bm.url, bm.category]
+                if self.include_tags_var.get():
+                    row.append(",".join(bm.tags))
+                if self.include_notes_var.get():
+                    row.append(bm.notes)
+                if self.include_metadata_var.get():
+                    row.extend([bm.created_at, bm.visit_count, bm.is_pinned])
+                writer.writerow(row)
+
+    def _export_selected_markdown(self, bookmarks: List[Bookmark], filepath: str):
+        grouped = self._group_bookmarks(bookmarks)
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write("# Bookmarks\n\n")
+            f.write(f"Exported: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
+            f.write(f"Total: {len(bookmarks)} bookmarks\n\n---\n\n")
+            for category in sorted(grouped):
+                f.write(f"## {category}\n\n")
+                for bm in grouped[category]:
+                    f.write(f"- [{bm.title}]({bm.url})")
+                    if self.include_tags_var.get() and bm.tags:
+                        f.write(" " + " ".join(f"`{tag}`" for tag in bm.tags))
+                    f.write("\n")
+                    if self.include_notes_var.get() and bm.notes:
+                        f.write(f"  > {bm.notes}\n")
+                    if self.include_metadata_var.get():
+                        f.write(f"  - Added: {bm.created_at or 'Unknown'}; Visits: {bm.visit_count}\n")
+                f.write("\n")
     
     def _export(self):
         """Perform export"""
         selected_cats = [cat for cat, var in self.cat_vars.items() if var.get()]
         
         if not selected_cats:
-            messagebox.showwarning("Warning", "Please select at least one category")
+            messagebox.showwarning(
+                "Choose a category",
+                "Select at least one category to export.",
+                parent=self
+            )
             return
         
         # Get bookmarks from selected categories
@@ -10677,7 +11035,11 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
             bookmarks.extend(self.bookmark_manager.get_bookmarks_by_category(cat))
         
         if not bookmarks:
-            messagebox.showwarning("Warning", "No bookmarks to export")
+            messagebox.showwarning(
+                "Nothing to export",
+                "The selected categories do not contain any bookmarks.",
+                parent=self
+            )
             return
         
         # Ask for file location
@@ -10702,13 +11064,13 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         # Export
         try:
             if fmt == "html":
-                self.bookmark_manager.export_html(filepath)
+                self._export_selected_html(bookmarks, filepath)
             elif fmt == "json":
-                self.bookmark_manager.export_json(filepath)
+                self._export_selected_json(bookmarks, filepath)
             elif fmt == "csv":
-                self.bookmark_manager.export_csv(filepath)
+                self._export_selected_csv(bookmarks, filepath)
             elif fmt == "md":
-                self.bookmark_manager.export_markdown(filepath)
+                self._export_selected_markdown(bookmarks, filepath)
             elif fmt == "opml":
                 OPMLExporter.export(bookmarks, filepath)
             
@@ -10718,11 +11080,19 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
                 "count": len(bookmarks)
             }
             
-            messagebox.showinfo("Success", f"Exported {len(bookmarks)} bookmarks to {Path(filepath).name}")
+            messagebox.showinfo(
+                "Export complete",
+                f"Exported {len(bookmarks)} bookmark{'s' if len(bookmarks) != 1 else ''} to {Path(filepath).name}.",
+                parent=self
+            )
             self.destroy()
         
         except Exception as e:
-            messagebox.showerror("Error", f"Export failed: {e}")
+            messagebox.showerror(
+                "Export failed",
+                f"Could not export bookmarks:\n\n{e}",
+                parent=self
+            )
     
     def center_window(self):
         self.update_idletasks()
@@ -11420,19 +11790,36 @@ class ScreenshotCapture:
         consider using playwright, selenium, or a screenshot API.
         """
         try:
+            if not URLUtilities._is_safe_url(url):
+                return None
             # Try using a screenshot API service
-            api_url = f"https://image.thum.io/get/width/1280/crop/800/{url}"
+            api_url = (
+                "https://image.thum.io/get/width/1280/crop/800/"
+                f"{urllib.parse.quote(url, safe='')}"
+            )
             
-            response = requests.get(api_url, timeout=30)
+            response = requests.get(api_url, timeout=30, allow_redirects=False, stream=True)
             
             if response.status_code == 200:
+                content = bytearray()
+                try:
+                    for chunk in response.iter_content(chunk_size=16384):
+                        if not chunk:
+                            continue
+                        content.extend(chunk)
+                        if len(content) > 5_000_000:
+                            return None
+                finally:
+                    response.close()
+
                 filename = f"screenshot_{bookmark_id}.png"
                 filepath = self.SCREENSHOT_DIR / filename
                 
                 with open(filepath, 'wb') as f:
-                    f.write(response.content)
+                    f.write(content)
                 
                 return str(filepath)
+            response.close()
         except Exception:
             pass
         
@@ -11481,10 +11868,12 @@ class PDFExporter:
         This is a simplified version using weasyprint if available.
         """
         try:
+            if not URLUtilities._is_safe_url(url):
+                return None
             # Try to use weasyprint if available
             from weasyprint import HTML
             
-            response = requests.get(url, timeout=30)
+            response = requests.get(url, timeout=30, allow_redirects=False)
             if response.status_code != 200:
                 return None
             
@@ -11831,13 +12220,23 @@ Top Domains:
         broken = []
         for i, bm in enumerate(bookmarks):
             try:
-                response = requests.head(bm.url, timeout=5, allow_redirects=True)
-                if response.status_code >= 400:
-                    broken.append((bm, response.status_code))
+                if not URLUtilities._is_safe_url(bm.url):
+                    response = None
+                    status_code = 0
+                else:
+                    response = requests.head(
+                        bm.url,
+                        timeout=5,
+                        allow_redirects=False,
+                        headers={'User-Agent': 'Mozilla/5.0'}
+                    )
+                    status_code = response.status_code
+                if status_code >= 400 or status_code == 0:
+                    broken.append((bm, status_code))
                     bm.is_valid = False
                 else:
                     bm.is_valid = True
-                bm.http_status = response.status_code
+                bm.http_status = status_code
             except Exception:
                 broken.append((bm, 0))
                 bm.is_valid = False
@@ -11903,7 +12302,7 @@ class BookmarkAPI:
             def _send_json(self, data, status=200):
                 self.send_response(status)
                 self.send_header('Content-Type', 'application/json')
-                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('X-Content-Type-Options', 'nosniff')
                 self.end_headers()
                 self.wfile.write(json.dumps(data).encode())
             
@@ -11949,7 +12348,10 @@ class BookmarkAPI:
                     else:
                         # List bookmarks
                         category = params.get('category', [None])[0]
-                        limit = int(params.get('limit', [100])[0])
+                        try:
+                            limit = max(1, min(500, int(params.get('limit', [100])[0])))
+                        except (TypeError, ValueError):
+                            limit = 100
                         
                         if category:
                             bookmarks = bookmark_manager.get_bookmarks_by_category(category)
@@ -12004,7 +12406,14 @@ class BookmarkAPI:
                 path_parts, _ = self._parse_path()
                 
                 if path_parts[0] == 'bookmarks':
-                    content_length = int(self.headers.get('Content-Length', 0))
+                    try:
+                        content_length = int(self.headers.get('Content-Length', 0))
+                    except (TypeError, ValueError):
+                        self._send_json({"error": "Invalid Content-Length"}, 400)
+                        return
+                    if content_length <= 0 or content_length > 65_536:
+                        self._send_json({"error": "Request body is empty or too large"}, 413)
+                        return
                     body = self.rfile.read(content_length)
                     
                     try:
@@ -12013,14 +12422,24 @@ class BookmarkAPI:
                         if 'url' not in data:
                             self._send_json({"error": "URL required"}, 400)
                             return
+                        is_valid_url, error = validate_url(data['url'])
+                        if not is_valid_url:
+                            self._send_json({"error": error}, 400)
+                            return
+
+                        tags = data.get('tags', [])
+                        if isinstance(tags, str):
+                            tags = [t.strip() for t in tags.split(',') if t.strip()]
+                        elif not isinstance(tags, list):
+                            tags = []
                         
                         bookmark = Bookmark(
                             id=None,
-                            url=data['url'],
-                            title=data.get('title', data['url']),
-                            category=data.get('category', 'Uncategorized'),
-                            tags=data.get('tags', []),
-                            notes=data.get('notes', '')
+                            url=str(data['url']).strip(),
+                            title=str(data.get('title') or data['url'])[:500],
+                            category=str(data.get('category') or 'Uncategorized'),
+                            tags=[str(t).strip() for t in tags if str(t).strip()],
+                            notes=str(data.get('notes') or '')[:5000]
                         )
                         
                         bookmark_manager.add_bookmark(bookmark)
@@ -12047,16 +12466,14 @@ class BookmarkAPI:
                     self._send_json({"error": "Not found"}, 404)
             
             def do_OPTIONS(self):
-                self.send_response(200)
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.send_header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
-                self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+                self.send_response(204)
+                self.send_header('X-Content-Type-Options', 'nosniff')
                 self.end_headers()
             
             def log_message(self, format, *args):
                 pass  # Suppress logging
         
-        self._server = HTTPServer(('localhost', self.port), APIHandler)
+        self._server = HTTPServer(('127.0.0.1', self.port), APIHandler)
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
         self._thread.start()
         
@@ -12414,41 +12831,42 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
     
     def __init__(self, parent, on_files_dropped: Callable = None):
         theme = get_theme()
-        super().__init__(parent, bg=theme.bg_secondary, padx=20, pady=15)
+        super().__init__(parent, bg=theme.bg_secondary, padx=18, pady=16)
         
         self.on_files_dropped = on_files_dropped
         self._drag_active = False
+        self._compact = False
         
         self.configure(highlightbackground=theme.border, highlightthickness=2)
         
         # Icon
         self.icon_label = tk.Label(
             self, text="📥", bg=theme.bg_secondary,
-            font=("Segoe UI Emoji", 32)
+            fg=theme.accent_primary, font=("Segoe UI Emoji", 28)
         )
-        self.icon_label.pack(pady=(10, 5))
+        self.icon_label.pack(pady=(8, 5))
         
         # Main text
         self.main_label = tk.Label(
-            self, text="Drop Bookmark Files Here", bg=theme.bg_secondary,
-            fg=theme.text_primary, font=("Segoe UI", 11, "bold")
+            self, text="Import bookmark files", bg=theme.bg_secondary,
+            fg=theme.text_primary, font=FONTS.body(bold=True)
         )
         self.main_label.pack()
         
         # Supported formats
-        formats_text = "Supports: " + ", ".join(self.SUPPORTED_FORMATS.values())
+        formats_text = "HTML, JSON, CSV, OPML, or text URLs"
         self.formats_label = tk.Label(
             self, text=formats_text, bg=theme.bg_secondary,
-            fg=theme.text_muted, font=FONTS.small()
+            fg=theme.text_secondary, font=FONTS.small()
         )
-        self.formats_label.pack(pady=(5, 0))
+        self.formats_label.pack(pady=(5, 0), padx=4)
         
         # Browse button
         self.browse_btn = ModernButton(
-            self, text="Browse Files", icon="📁",
+            self, text="Browse Files",
             command=self._browse_files
         )
-        self.browse_btn.pack(pady=(15, 10))
+        self.browse_btn.pack(pady=(14, 6))
         
         # Bind events (note: true drag-drop requires tkinterdnd2 or similar)
         # For now, we'll use click-to-browse and simulated drop
@@ -12519,9 +12937,28 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
             self.browse_btn.label.configure(fg=theme.text_muted, cursor="arrow")
         else:
             self.icon_label.configure(text="📥")
-            self.main_label.configure(text="Drop Bookmark Files Here")
+            self.main_label.configure(
+                text="Import more bookmarks" if self._compact else "Import bookmark files"
+            )
             self.browse_btn.state = "normal"
             self.browse_btn.label.configure(fg=theme.text_primary, cursor="hand2")
+
+    def set_compact(self, compact: bool = True):
+        """Collapse the import affordance after the first successful import."""
+        self._compact = compact
+        if compact:
+            self.configure(padx=14, pady=10)
+            self.icon_label.pack_forget()
+            self.formats_label.pack_forget()
+            self.main_label.configure(text="Import more bookmarks")
+            self.browse_btn.set_text("Browse Files")
+            self.browse_btn.pack_configure(pady=(8, 4))
+        else:
+            self.configure(padx=18, pady=16)
+            self.icon_label.pack(pady=(8, 5), before=self.main_label)
+            self.formats_label.pack(pady=(5, 0), padx=4, after=self.main_label)
+            self.main_label.configure(text="Import bookmark files")
+            self.browse_btn.pack_configure(pady=(14, 6))
 
 
 
@@ -12960,7 +13397,10 @@ class HighSpeedFaviconManager:
             if self.FAILED_FILE.exists():
                 with open(self.FAILED_FILE, 'r') as f:
                     data = json.load(f)
-                    self._failed_domains = set(data.get('failed_domains', []))
+                    self._failed_domains = {
+                        d for d in (self._normalize_domain(x) for x in data.get('failed_domains', []))
+                        if d
+                    }
                     log.debug(f"Loaded {len(self._failed_domains)} failed favicon domains")
         except Exception as e:
             log.warning(f"Error loading failed domains: {e}")
@@ -12968,8 +13408,10 @@ class HighSpeedFaviconManager:
     def _save_failed_domains(self):
         """Save failed domains to file"""
         try:
-            with open(self.FAILED_FILE, 'w') as f:
-                json.dump({'failed_domains': list(self._failed_domains)}, f)
+            _atomic_json_write(
+                self.FAILED_FILE,
+                {'failed_domains': sorted(self._failed_domains)}
+            )
         except Exception as e:
             print(f"Error saving failed domains: {e}")
     
@@ -12985,13 +13427,29 @@ class HighSpeedFaviconManager:
     def get_cached_path(self, url: str) -> Optional[str]:
         """Get cached favicon path for a URL"""
         try:
-            domain = urlparse(url).netloc
+            domain = self._normalize_domain(urlparse(url).netloc)
             return self.get_cached(domain)
         except Exception:
             return None
+
+    def _normalize_domain(self, domain: str) -> str:
+        """Normalize a user/bookmark domain for cache keys and requests."""
+        raw = (domain or "").strip().lower()
+        if not raw:
+            return ""
+        parsed = urlparse(raw if "://" in raw else f"//{raw}")
+        hostname = (parsed.hostname or raw).strip(".").lower()
+        if not hostname or len(hostname) > 253:
+            return ""
+        if not re.match(r"^[a-z0-9.-]+$", hostname):
+            return ""
+        return hostname
     
     def get_cached(self, domain: str) -> Optional[str]:
         """Get cached favicon path (instant, non-blocking). Returns None for failed domains."""
+        domain = self._normalize_domain(domain)
+        if not domain:
+            return None
         cached = self._cache.get(domain)
         if cached == "FAILED":
             return None  # Don't return the placeholder marker
@@ -12999,6 +13457,7 @@ class HighSpeedFaviconManager:
     
     def is_cached(self, domain: str) -> bool:
         """Check if favicon is cached"""
+        domain = self._normalize_domain(domain)
         return domain in self._cache
     
     def download_async(self, domain: str, bookmark_id: int = 0):
@@ -13006,16 +13465,33 @@ class HighSpeedFaviconManager:
         Download favicon asynchronously.
         Returns immediately, calls callback when ready.
         """
-        # Skip if already cached or pending
-        if domain in self._cache or domain in self._pending:
-            if domain in self._cache and self._on_favicon_ready:
-                # Already cached - notify immediately
-                self._on_favicon_ready(domain, self._cache[domain], bookmark_id)
+        domain = self._normalize_domain(domain)
+        if not domain:
             return
-        
+
+        # Skip if already cached or pending
         with self._lock:
-            self._pending.add(domain)
-            self._total_queued += 1
+            if domain in self._pending:
+                cached = None
+                should_notify = False
+                should_submit = False
+            elif domain in self._cache:
+                # Already cached - notify immediately
+                cached = self._cache.get(domain)
+                should_notify = bool(cached and cached != "FAILED" and self._on_favicon_ready)
+                should_submit = False
+            else:
+                cached = None
+                should_notify = False
+                should_submit = True
+                self._pending.add(domain)
+                self._total_queued += 1
+
+        if should_notify:
+            self._on_favicon_ready(domain, cached, bookmark_id)
+            return
+        if not should_submit:
+            return
         
         # Submit to thread pool
         future = self._executor.submit(self._download_favicon, domain, bookmark_id)
@@ -13024,22 +13500,52 @@ class HighSpeedFaviconManager:
     def _download_favicon(self, domain: str, bookmark_id: int) -> Optional[str]:
         """Download favicon (runs in thread pool) with multiple fallback sources"""
         filepath = None
+        if not URLUtilities._is_safe_url(f"https://{domain}"):
+            with self._lock:
+                self._pending.discard(domain)
+                self._completed += 1
+                self._cache[domain] = "FAILED"
+                self._failed_domains.add(domain)
+                self._save_failed_domains()
+                completed = self._completed
+                total = self._total_queued
+            if self._progress_callback:
+                try:
+                    self._progress_callback(completed, total, domain)
+                except Exception:
+                    pass
+            return None
         
         for source_template in self.FAVICON_SOURCES:
             try:
                 url = source_template.format(domain=domain)
+                parsed_source = urlparse(url)
+                if parsed_source.hostname == domain and not URLUtilities._is_safe_url(url):
+                    continue
                 
                 response = requests.get(
                     url,
                     timeout=5,  # Slightly longer timeout for reliability
                     headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'},
+                    allow_redirects=False,
                     stream=True
                 )
                 
-                if response.status_code == 200 and len(response.content) > 100:
+                content = bytearray()
+                try:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if not chunk:
+                            continue
+                        content.extend(chunk)
+                        if len(content) > 1_000_000:
+                            break
+                finally:
+                    response.close()
+
+                if response.status_code == 200 and 100 < len(content) <= 1_000_000:
                     # Try to open as image to validate
                     try:
-                        img_data = BytesIO(response.content)
+                        img_data = BytesIO(bytes(content))
                         img = Image.open(img_data)
                         
                         # Convert and save as PNG
@@ -13050,7 +13556,8 @@ class HighSpeedFaviconManager:
                         if img.size[0] != 32 or img.size[1] != 32:
                             img = img.resize((32, 32), Image.Resampling.LANCZOS)
                         
-                        filepath = self.CACHE_DIR / f"{domain}.png"
+                        safe_domain = sanitize_filename(domain)
+                        filepath = self.CACHE_DIR / f"{safe_domain}.png"
                         img.save(filepath, "PNG")
                         filepath = str(filepath)
                         break
@@ -13059,9 +13566,10 @@ class HighSpeedFaviconManager:
                         content_type = response.headers.get('content-type', '')
                         ext = 'png' if 'png' in content_type else 'ico'
                         
-                        filepath = self.CACHE_DIR / f"{domain}.{ext}"
+                        safe_domain = sanitize_filename(domain)
+                        filepath = self.CACHE_DIR / f"{safe_domain}.{ext}"
                         with open(filepath, 'wb') as f:
-                            f.write(response.content)
+                            f.write(content)
                         filepath = str(filepath)
                         break
             except Exception as e:
@@ -13281,7 +13789,7 @@ class ThemeDropdown(tk.Frame):
     
     def __init__(self, parent, theme_manager: ThemeManager, on_change: Callable = None):
         theme = get_theme()
-        super().__init__(parent, bg=theme.bg_primary)
+        super().__init__(parent, bg=theme.bg_dark)
         
         self.theme_manager = theme_manager
         self.on_change = on_change
@@ -13455,23 +13963,24 @@ class CategoryManagementDialog(tk.Toplevel):
         
         self.title("Manage Categories")
         self.configure(bg=theme.bg_primary)
-        self.geometry("500x600")
+        self.geometry("560x660")
         self.transient(parent)
         self.grab_set()
+        set_dark_title_bar(self)
         
         # Header
-        header = tk.Frame(self, bg=theme.bg_secondary)
-        header.pack(fill=tk.X, padx=20, pady=20)
+        header = tk.Frame(self, bg=theme.bg_dark)
+        header.pack(fill=tk.X)
         
         tk.Label(
-            header, text="📁 Category Management", bg=theme.bg_secondary,
-            fg=theme.text_primary, font=FONTS.title(bold=False)
-        ).pack(anchor="w")
+            header, text="📁 Manage Categories", bg=theme.bg_dark,
+            fg=theme.text_primary, font=FONTS.title(bold=True)
+        ).pack(anchor="w", padx=22, pady=(18, 4))
         
         tk.Label(
-            header, text="Add, edit, or delete categories", bg=theme.bg_secondary,
-            fg=theme.text_muted, font=FONTS.body()
-        ).pack(anchor="w", pady=(4, 0))
+            header, text="Keep your collection structure clean and predictable.",
+            bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.body()
+        ).pack(anchor="w", padx=22, pady=(0, 18))
         
         # Add category section
         add_frame = tk.LabelFrame(
@@ -13491,10 +14000,10 @@ class CategoryManagementDialog(tk.Toplevel):
         self.new_cat_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10), ipady=5)
         self.new_cat_entry.insert(0, "New category name...")
         self.new_cat_entry.bind("<FocusIn>", lambda e: self._clear_placeholder())
+        self.new_cat_entry.bind("<Return>", lambda e: self._add_category())
         
-        add_btn = tk.Button(
-            add_inner, text="➕ Add", bg=theme.accent_success, fg="white",
-            font=FONTS.body(), relief=tk.FLAT, cursor="hand2",
+        add_btn = ModernButton(
+            add_inner, text="Add", style="success", icon="➕",
             command=self._add_category
         )
         add_btn.pack(side=tk.RIGHT)
@@ -13508,7 +14017,7 @@ class CategoryManagementDialog(tk.Toplevel):
         
         # Scrollable list
         canvas = tk.Canvas(list_frame, bg=theme.bg_primary, highlightthickness=0)
-        scrollbar = tk.Scrollbar(list_frame, orient=tk.VERTICAL, command=canvas.yview)
+        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=canvas.yview)
         self.cat_list_frame = tk.Frame(canvas, bg=theme.bg_primary)
         
         canvas.configure(yscrollcommand=scrollbar.set)
@@ -13520,12 +14029,16 @@ class CategoryManagementDialog(tk.Toplevel):
         
         self._populate_categories()
         
-        # Close button
-        tk.Button(
-            self, text="Close", bg=theme.bg_secondary, fg=theme.text_primary,
-            font=FONTS.body(), relief=tk.FLAT, cursor="hand2",
-            command=self.destroy, padx=20, pady=8
-        ).pack(pady=15)
+        footer = tk.Frame(self, bg=theme.bg_primary)
+        footer.pack(fill=tk.X, padx=20, pady=(0, 18))
+
+        ModernButton(
+            footer, text="Close", command=self.destroy,
+            padx=22, pady=9
+        ).pack(side=tk.RIGHT)
+
+        self.bind("<Escape>", lambda e: self.destroy())
+        self.center_window()
     
     def _clear_placeholder(self):
         if self.new_cat_entry.get() == "New category name...":
@@ -13540,6 +14053,16 @@ class CategoryManagementDialog(tk.Toplevel):
             widget.destroy()
         
         categories = self.category_manager.get_sorted_categories()
+
+        if not categories:
+            tk.Label(
+                self.cat_list_frame,
+                text="No categories yet. Create one above or import bookmarks to seed the list.",
+                bg=theme.bg_primary, fg=theme.text_secondary,
+                font=FONTS.body(), wraplength=460,
+                justify=tk.LEFT, padx=12, pady=18
+            ).pack(anchor="w", fill=tk.X)
+            return
         
         for cat_name in categories:
             cat = self.category_manager.categories.get(cat_name)
@@ -13549,19 +14072,24 @@ class CategoryManagementDialog(tk.Toplevel):
             # Count bookmarks in this category
             count = len(self.bookmark_manager.get_bookmarks_by_category(cat_name))
             
-            row = tk.Frame(self.cat_list_frame, bg=theme.bg_secondary)
+            row = tk.Frame(
+                self.cat_list_frame, bg=theme.bg_secondary,
+                highlightbackground=theme.border_muted,
+                highlightthickness=1
+            )
             row.pack(fill=tk.X, pady=2, padx=5)
             
             # Icon and name
             tk.Label(
                 row, text=f"{cat.icon} {cat_name}", bg=theme.bg_secondary,
-                fg=theme.text_primary, font=FONTS.body(), anchor="w"
-            ).pack(side=tk.LEFT, padx=10, pady=8)
+                fg=theme.text_primary, font=FONTS.body(bold=True), anchor="w"
+            ).pack(side=tk.LEFT, padx=(12, 8), pady=9)
             
             # Count badge
             tk.Label(
-                row, text=f"({count})", bg=theme.bg_secondary,
-                fg=theme.text_muted, font=FONTS.small()
+                row, text=f"{count} bookmark{'s' if count != 1 else ''}",
+                bg=theme.bg_secondary,
+                fg=theme.text_secondary, font=FONTS.small()
             ).pack(side=tk.LEFT)
             
             # Buttons
@@ -13594,7 +14122,11 @@ class CategoryManagementDialog(tk.Toplevel):
                 if self.on_change:
                     self.on_change()
             else:
-                messagebox.showerror("Error", "Category already exists or invalid name")
+                messagebox.showerror(
+                    "Category not added",
+                    "That category already exists or the name is not valid.",
+                    parent=self
+                )
     
     def _edit_category(self, old_name: str):
         """Edit category name"""
@@ -13606,6 +14138,7 @@ class CategoryManagementDialog(tk.Toplevel):
         dialog.geometry("350x150")
         dialog.transient(self)
         dialog.grab_set()
+        set_dark_title_bar(dialog)
         
         tk.Label(
             dialog, text="New name:", bg=theme.bg_primary,
@@ -13637,20 +14170,30 @@ class CategoryManagementDialog(tk.Toplevel):
             else:
                 dialog.destroy()
         
-        tk.Button(
+        ModernButton(
             dialog, text="Save", bg=theme.accent_primary, fg="white",
-            font=FONTS.body(), relief=tk.FLAT, command=save, padx=20
+            command=save, padx=24, pady=8, style="primary"
         ).pack(pady=15)
+        entry.bind("<Return>", lambda e: save())
+        dialog.bind("<Escape>", lambda e: dialog.destroy())
     
     def _delete_category(self, name: str):
         """Delete category and move bookmarks to Uncategorized"""
+        if name == "Uncategorized / Needs Review":
+            messagebox.showwarning(
+                "Category required",
+                "The default review category keeps uncategorized bookmarks recoverable and cannot be deleted.",
+                parent=self
+            )
+            return
+
         count = len(self.bookmark_manager.get_bookmarks_by_category(name))
         
         msg = f"Delete category '{name}'?"
         if count > 0:
             msg += f"\n\n{count} bookmark(s) will be moved to 'Uncategorized / Needs Review'."
         
-        if messagebox.askyesno("Delete Category", msg):
+        if messagebox.askyesno("Delete Category", msg, parent=self):
             # Move bookmarks to Uncategorized
             for bm in self.bookmark_manager.get_bookmarks_by_category(name):
                 bm.category = "Uncategorized / Needs Review"
@@ -13664,6 +14207,15 @@ class CategoryManagementDialog(tk.Toplevel):
             self._populate_categories()
             if self.on_change:
                 self.on_change()
+
+    def center_window(self):
+        """Center the dialog on screen."""
+        self.update_idletasks()
+        width = self.winfo_width()
+        height = self.winfo_height()
+        x = (self.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.winfo_screenheight() // 2) - (height // 2)
+        self.geometry(f'+{x}+{y}')
 
 
 # =============================================================================
@@ -13801,6 +14353,7 @@ class CustomFaviconDialog(tk.Toplevel):
         self.geometry("450x350")
         self.transient(parent)
         self.grab_set()
+        set_dark_title_bar(self)
         
         # Header
         tk.Label(
@@ -13845,10 +14398,9 @@ class CustomFaviconDialog(tk.Toplevel):
         self.new_preview.pack(side=tk.LEFT, padx=10, pady=10)
         
         # Select button
-        tk.Button(
-            self, text="📂 Select Favicon Image...", bg=theme.bg_secondary,
-            fg=theme.text_primary, font=FONTS.body(), relief=tk.FLAT,
-            command=self._select_favicon, padx=20, pady=8, cursor="hand2"
+        ModernButton(
+            self, text="Select Favicon Image", icon="📂",
+            command=self._select_favicon, padx=20, pady=8
         ).pack(pady=15)
         
         # Info
@@ -13863,17 +14415,18 @@ class CustomFaviconDialog(tk.Toplevel):
         btn_frame = tk.Frame(self, bg=theme.bg_primary)
         btn_frame.pack(pady=20)
         
-        tk.Button(
+        ModernButton(
             btn_frame, text="Apply", bg=theme.accent_primary, fg="white",
-            font=FONTS.body(), relief=tk.FLAT, command=self._apply,
-            padx=25, pady=8, cursor="hand2"
+            command=self._apply, padx=25, pady=8, style="primary"
         ).pack(side=tk.LEFT, padx=5)
         
-        tk.Button(
-            btn_frame, text="Cancel", bg=theme.bg_secondary, fg=theme.text_primary,
-            font=FONTS.body(), relief=tk.FLAT, command=self.destroy,
-            padx=25, pady=8, cursor="hand2"
+        ModernButton(
+            btn_frame, text="Cancel", command=self.destroy,
+            padx=25, pady=8
         ).pack(side=tk.LEFT, padx=5)
+
+        self.bind("<Escape>", lambda e: self.destroy())
+        self.center_window()
     
     def _select_favicon(self):
         """Select favicon image"""
@@ -13902,20 +14455,40 @@ class CustomFaviconDialog(tk.Toplevel):
     def _apply(self):
         """Apply custom favicon"""
         if not self.selected_favicon:
-            messagebox.showwarning("No Favicon", "Please select a favicon image first.")
+            messagebox.showwarning(
+                "Favicon required",
+                "Select an image before applying a custom favicon.",
+                parent=self
+            )
             return
         
         if FaviconWrapperGenerator.update_bookmark_with_wrapper(
             self.bookmark, self.selected_favicon
         ):
             self.bookmark_manager.update_bookmark(self.bookmark)
-            messagebox.showinfo("Success", "Custom favicon applied!\n\n"
-                              "The bookmark now uses a wrapper page with your icon.")
+            messagebox.showinfo(
+                "Custom favicon applied",
+                "The bookmark now uses a wrapper page with your selected icon.",
+                parent=self
+            )
             if self.on_update:
                 self.on_update()
             self.destroy()
         else:
-            messagebox.showerror("Error", "Failed to create favicon wrapper.")
+            messagebox.showerror(
+                "Favicon not applied",
+                "Could not create the favicon wrapper page.",
+                parent=self
+            )
+
+    def center_window(self):
+        """Center the dialog on screen."""
+        self.update_idletasks()
+        width = self.winfo_width()
+        height = self.winfo_height()
+        x = (self.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.winfo_screenheight() // 2) - (height // 2)
+        self.geometry(f'+{x}+{y}')
 
 
 # Need html module for escaping
@@ -13980,10 +14553,58 @@ class EmptyState(tk.Frame):
         # Hint text
         tk.Label(
             center,
-            text="Tip: You can also drag and drop bookmark files onto the sidebar.",
+            text="Tip: You can import browser exports from the sidebar or the Import menu.",
             bg=theme.bg_primary, fg=theme.text_muted,
             font=FONTS.small()
         ).pack(pady=(24, 0))
+
+
+class FilteredEmptyState(tk.Frame):
+    """Empty state shown when search or filters hide every bookmark."""
+
+    def __init__(self, parent, on_clear=None, on_add=None):
+        theme = get_theme()
+        super().__init__(parent, bg=theme.bg_primary)
+        self._on_clear = on_clear
+        self._on_add = on_add
+        self._build(theme)
+
+    def _build(self, theme):
+        center = tk.Frame(self, bg=theme.bg_primary)
+        center.place(relx=0.5, rely=0.42, anchor="center")
+
+        tk.Label(
+            center, text="🔎", bg=theme.bg_primary,
+            fg=theme.accent_primary, font=(FONTS.family, 42)
+        ).pack(pady=(0, 16))
+
+        tk.Label(
+            center, text="No matching bookmarks",
+            bg=theme.bg_primary, fg=theme.text_primary,
+            font=FONTS.custom(18, bold=True)
+        ).pack(pady=(0, 8))
+
+        tk.Label(
+            center,
+            text="Try a broader search, switch filters, or clear the current view.",
+            bg=theme.bg_primary, fg=theme.text_secondary,
+            font=FONTS.body(), justify="center", wraplength=420
+        ).pack(pady=(0, 24))
+
+        btn_row = tk.Frame(center, bg=theme.bg_primary)
+        btn_row.pack()
+
+        ModernButton(
+            btn_row, text="Clear View", style="primary",
+            command=self._on_clear, font=FONTS.body(bold=True),
+            padx=20, pady=10
+        ).pack(side=tk.LEFT, padx=6)
+
+        ModernButton(
+            btn_row, text="Add Bookmark",
+            command=self._on_add, font=FONTS.body(),
+            padx=20, pady=10
+        ).pack(side=tk.LEFT, padx=6)
 
 
 # =============================================================================
@@ -14110,7 +14731,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             _edit_bookmark(id): Edit existing bookmark
             _delete_selected(): Delete selected bookmarks
             _import_bookmarks(): Import from file
-            _export_bookmarks(): Export to file
+            _show_export_dialog(): Export to file
             _refresh_bookmark_list(): Refresh display
             _search(query): Perform search
             _show_settings(): Open settings dialog
@@ -14194,8 +14815,11 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         self.root.bind("<Control-i>", lambda e: self._show_import_dialog())
         self.root.bind("<Control-o>", lambda e: self._show_import_dialog())  # Also Ctrl+O
         self.root.bind("<Control-a>", lambda e: self._select_all_bookmarks())
-        self.root.bind("<Control-s>", lambda e: self._export_bookmarks())
+        self.root.bind("<Control-z>", lambda e: self._undo())
+        self.root.bind("<Control-y>", lambda e: self._redo())
+        self.root.bind("<Control-s>", lambda e: self._show_export_dialog())
         self.root.bind("<Control-e>", lambda e: self._edit_selected())
+        self.root.bind("<Control-p>", lambda e: self._show_command_palette())
         self.root.bind("<Escape>", lambda e: self._clear_search())
         self.root.bind("<F5>", lambda e: self._refresh_all())
         self.root.bind("<Delete>", lambda e: self._delete_selected())
@@ -14261,7 +14885,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         file_menu.add_command(label="New Bookmark", accelerator="Ctrl+N", command=self._add_bookmark)
         file_menu.add_separator()
         file_menu.add_command(label="Import...", accelerator="Ctrl+I", command=self._show_import_dialog)
-        file_menu.add_command(label="Export...", command=self._show_export_dialog)
+        file_menu.add_command(label="Export...", accelerator="Ctrl+S", command=self._show_export_dialog)
         file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self._on_close)
         menubar.add_cascade(label="File", menu=file_menu)
@@ -14277,7 +14901,8 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         # View menu
         view_menu = tk.Menu(menubar, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary)
         view_menu.add_command(label="List View", command=lambda: self._set_view_mode(ViewMode.LIST))
-        view_menu.add_command(label="Grid View", command=lambda: self._set_view_mode(ViewMode.GRID))
+        view_menu.add_separator()
+        view_menu.add_command(label="Command Palette", accelerator="Ctrl+P", command=self._show_command_palette)
         view_menu.add_separator()
         view_menu.add_command(label="Refresh", accelerator="F5", command=self._refresh_all)
         menubar.add_cascade(label="View", menu=view_menu)
@@ -14293,19 +14918,24 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         self.main_container.pack(fill=tk.BOTH, expand=True)
         
         # ===== HEADER / TOOLBAR =====
-        header = tk.Frame(self.main_container, bg=theme.bg_dark, height=70)
+        header = tk.Frame(self.main_container, bg=theme.bg_dark, height=76)
         header.pack(fill=tk.X)
         header.pack_propagate(False)
         
         # Logo
         tk.Label(
             header, text=f"📚 {APP_NAME}", bg=theme.bg_dark,
-            fg=theme.text_primary, font=FONTS.title(bold=False)
-        ).pack(side=tk.LEFT, padx=20, pady=15)
+            fg=theme.text_primary, font=FONTS.title(bold=True)
+        ).pack(side=tk.LEFT, padx=(24, 18), pady=18)
         
         # Search bar
-        search_frame = tk.Frame(header, bg=theme.bg_secondary)
-        search_frame.pack(side=tk.LEFT, padx=15, fill=tk.X, expand=True, pady=15)
+        search_frame = tk.Frame(
+            header, bg=theme.bg_secondary,
+            highlightbackground=theme.border,
+            highlightthickness=1
+        )
+        search_frame.pack(side=tk.LEFT, padx=(0, 18), fill=tk.X, expand=True, pady=16)
+        self.search_frame = search_frame
         
         tk.Label(
             search_frame, text="🔍", bg=theme.bg_secondary,
@@ -14321,12 +14951,14 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             insertbackground=theme.text_primary, bd=0,
             font=FONTS.body(), width=35
         )
-        self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=8, padx=5)
+        self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=9, padx=5)
         Tooltip(self.search_entry, "Search bookmarks by title, URL, category, or tags.\nSpecial filters: is:pinned, is:broken, is:recent, is:untagged, domain:xyz")
 
         # Placeholder text
         self._search_placeholder = "Search bookmarks... (Ctrl+F)"
+        self._suppress_search_callback = True
         self.search_entry.insert(0, self._search_placeholder)
+        self._suppress_search_callback = False
         self.search_entry.bind("<FocusIn>", self._on_search_focus_in)
         self.search_entry.bind("<FocusOut>", self._on_search_focus_out)
         
@@ -14337,6 +14969,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             relief=tk.FLAT, padx=4, pady=2
         )
         self.clear_search_btn.pack(side=tk.LEFT, padx=(5, 0))
+        self.clear_search_btn.pack_forget()
         
         def do_clear_search(event):
             # Clear search - handles everything
@@ -14352,7 +14985,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         
         # ===== TOOLBAR BUTTONS =====
         toolbar = tk.Frame(header, bg=theme.bg_dark)
-        toolbar.pack(side=tk.RIGHT, padx=15)
+        toolbar.pack(side=tk.RIGHT, padx=(0, 18))
         
         # Add button
         add_btn = ModernButton(
@@ -14411,7 +15044,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         # Zoom controls
         tk.Frame(toolbar, bg=theme.border, width=1, height=30).pack(side=tk.LEFT, padx=8)
         
-        zoom_frame = tk.Frame(toolbar, bg=theme.bg_primary)
+        zoom_frame = tk.Frame(toolbar, bg=theme.bg_dark)
         zoom_frame.pack(side=tk.LEFT, padx=3)
         
         self.zoom_level = 115  # Default slightly larger for high-DPI readability
@@ -14559,12 +15192,16 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         tree_scroll_y = ttk.Scrollbar(self.list_frame, orient="vertical", command=self.tree.yview)
         tree_scroll_x = ttk.Scrollbar(self.list_frame, orient="horizontal", command=self.tree.xview)
         self.tree.configure(yscrollcommand=tree_scroll_y.set, xscrollcommand=tree_scroll_x.set)
+        self.tree.tag_configure("oddrow", background=theme.bg_primary)
+        self.tree.tag_configure("evenrow", background=theme.bg_secondary)
+        self.tree.tag_configure("broken", foreground=theme.accent_error)
         
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         tree_scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
         
         # Tree bindings
         self.tree.bind("<Double-1>", self._on_item_double_click)
+        self.tree.bind("<Return>", lambda e: self._open_selected())
         self.tree.bind("<Button-3>", self._show_context_menu)
         self.tree.bind("<<TreeviewSelect>>", self._on_selection_change)
         
@@ -14576,6 +15213,11 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         self.empty_state = EmptyState(
             self.content_area,
             on_import=self._show_import_dialog,
+            on_add=self._add_bookmark
+        )
+        self.filtered_empty_state = FilteredEmptyState(
+            self.content_area,
+            on_clear=self._clear_search,
             on_add=self._add_bookmark
         )
 
@@ -14621,7 +15263,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         self.analytics_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
     
     def _refresh_analytics(self):
-        """Refresh analytics display - streamlined version"""
+        """Refresh analytics display with clear health and empty states."""
         theme = get_theme()
         
         # Clear existing
@@ -14629,117 +15271,176 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             widget.destroy()
         
         stats = self.bookmark_manager.get_statistics()
+        total = stats.get('total_bookmarks', 0)
         
         # Health Score
         health = self._calculate_health_score(stats)
         health_color = theme.accent_success if health >= 70 else (theme.accent_warning if health >= 40 else theme.accent_error)
+        health_label = "Excellent" if health >= 85 else ("Healthy" if health >= 70 else ("Needs review" if health >= 40 else "At risk"))
+
+        def section_label(text: str, top_pad: int = 14):
+            tk.Label(
+                self.analytics_frame, text=text, bg=theme.bg_secondary,
+                fg=theme.text_primary, font=FONTS.small(bold=True)
+            ).pack(anchor="w", pady=(top_pad, 6))
+
+        def empty_note(text: str):
+            tk.Label(
+                self.analytics_frame, text=text, bg=theme.bg_secondary,
+                fg=theme.text_secondary, font=FONTS.small(),
+                wraplength=280, justify=tk.LEFT
+            ).pack(anchor="w", pady=(2, 8))
         
         # Health card
-        health_card = tk.Frame(self.analytics_frame, bg=theme.bg_tertiary, padx=15, pady=10)
-        health_card.pack(fill=tk.X, pady=(0, 10))
+        health_card = tk.Frame(
+            self.analytics_frame, bg=theme.bg_tertiary,
+            padx=16, pady=14,
+            highlightbackground=theme.border, highlightthickness=1
+        )
+        health_card.pack(fill=tk.X, pady=(0, 12))
+
+        health_header = tk.Frame(health_card, bg=theme.bg_tertiary)
+        health_header.pack(fill=tk.X)
         
         tk.Label(
-            health_card, text="Health Score", bg=theme.bg_tertiary,
+            health_header, text="Collection health", bg=theme.bg_tertiary,
             fg=theme.text_secondary, font=FONTS.small()
-        ).pack(anchor="w")
+        ).pack(side=tk.LEFT)
+
+        tk.Label(
+            health_header, text=health_label, bg=theme.bg_tertiary,
+            fg=health_color, font=FONTS.small(bold=True)
+        ).pack(side=tk.RIGHT)
         
         tk.Label(
             health_card, text=f"{health}%", bg=theme.bg_tertiary,
-            fg=health_color, font=("Segoe UI", 24, "bold")
-        ).pack(anchor="w", pady=(3, 3))
+            fg=health_color, font=FONTS.custom(26, bold=True)
+        ).pack(anchor="w", pady=(4, 4))
         
         # Health bar
         bar_bg = tk.Frame(health_card, bg=theme.bg_primary, height=6)
-        bar_bg.pack(fill=tk.X, pady=(0, 3))
+        bar_bg.pack(fill=tk.X, pady=(0, 6))
         bar_fill = tk.Frame(bar_bg, bg=health_color, height=6)
         bar_fill.place(x=0, y=0, relheight=1.0, relwidth=health/100)
+
+        issue_parts = []
+        if stats.get('broken', 0):
+            issue_parts.append(f"{stats['broken']} broken")
+        if stats.get('uncategorized', 0):
+            issue_parts.append(f"{stats['uncategorized']} uncategorized")
+        if stats.get('duplicate_bookmarks', 0):
+            issue_parts.append(f"{stats['duplicate_bookmarks']} duplicate")
+
+        if total == 0:
+            summary = "Import or add bookmarks to start measuring collection quality."
+        elif issue_parts:
+            summary = "Review " + ", ".join(issue_parts) + " bookmark signals."
+        else:
+            summary = "No major collection issues detected."
+
+        tk.Label(
+            health_card, text=summary, bg=theme.bg_tertiary,
+            fg=theme.text_secondary, font=FONTS.small(),
+            wraplength=280, justify=tk.LEFT
+        ).pack(anchor="w")
         
         # Quick stats grid - streamlined (removed With Notes, Pinned, With Tags)
-        tk.Label(
-            self.analytics_frame, text="Overview", bg=theme.bg_secondary,
-            fg=theme.text_secondary, font=FONTS.small(bold=True)
-        ).pack(anchor="w", pady=(8, 5))
+        section_label("Overview", top_pad=6)
         
         stats_data = [
-            ("Total Bookmarks", stats['total_bookmarks'], theme.text_primary),
-            ("Categories", stats['total_categories'], theme.accent_primary),
-            ("Unique Tags", stats['total_tags'], theme.accent_purple),
-            ("Broken Links", stats['broken'], theme.accent_error),
-            ("Uncategorized", stats['uncategorized'], theme.accent_warning),
+            ("Bookmarks", total, theme.text_primary),
+            ("Categories", stats.get('total_categories', 0), theme.accent_primary),
+            ("Unique tags", stats.get('total_tags', 0), theme.accent_purple),
+            ("Broken links", stats.get('broken', 0), theme.accent_error),
+            ("Uncategorized", stats.get('uncategorized', 0), theme.accent_warning),
         ]
         
         for label, value, color in stats_data:
             row = tk.Frame(self.analytics_frame, bg=theme.bg_secondary)
-            row.pack(fill=tk.X, pady=2)
+            row.pack(fill=tk.X, pady=3)
             
             tk.Label(
                 row, text=label, bg=theme.bg_secondary,
-                fg=theme.text_muted, font=FONTS.tiny()
+                fg=theme.text_secondary, font=FONTS.small()
             ).pack(side=tk.LEFT)
             
             tk.Label(
                 row, text=str(value), bg=theme.bg_secondary,
-                fg=color, font=("Segoe UI", 9, "bold")
+                fg=color, font=FONTS.small(bold=True)
             ).pack(side=tk.RIGHT)
         
         # Top categories (compact) - clickable like domains
-        tk.Label(
-            self.analytics_frame, text="Top Categories", bg=theme.bg_secondary,
-            fg=theme.text_secondary, font=FONTS.small(bold=True)
-        ).pack(anchor="w", pady=(12, 5))
+        section_label("Top categories")
         
-        sorted_cats = sorted(stats['category_counts'].items(), key=lambda x: -x[1])[:5]
+        sorted_cats = [
+            item for item in sorted(
+                stats.get('category_counts', {}).items(),
+                key=lambda x: -x[1]
+            )
+            if item[1] > 0
+        ][:5]
         max_count = max(sorted_cats[0][1], 1) if sorted_cats else 1
         
+        if not sorted_cats:
+            empty_note("Categories will appear here once bookmarks are imported.")
+
         for cat, count in sorted_cats:
             cat_frame = tk.Frame(self.analytics_frame, bg=theme.bg_secondary, cursor="hand2")
-            cat_frame.pack(fill=tk.X, pady=2)
+            cat_frame.pack(fill=tk.X, pady=3)
+
+            top = tk.Frame(cat_frame, bg=theme.bg_secondary)
+            top.pack(fill=tk.X)
             
             cat_lbl = tk.Label(
-                cat_frame, text=cat[:16], bg=theme.bg_secondary,
-                fg=theme.accent_primary, font=("Segoe UI", 8, "underline"),
+                top, text=cat[:28], bg=theme.bg_secondary,
+                fg=theme.accent_primary, font=FONTS.small(),
                 cursor="hand2", anchor="w"
             )
             cat_lbl.pack(side=tk.LEFT)
             
             tk.Label(
-                cat_frame, text=str(count), bg=theme.bg_secondary,
-                fg=theme.text_muted, font=FONTS.tiny()
+                top, text=str(count), bg=theme.bg_secondary,
+                fg=theme.text_secondary, font=FONTS.small(bold=True)
             ).pack(side=tk.RIGHT)
+
+            bar = tk.Frame(cat_frame, bg=theme.bg_tertiary, height=3)
+            bar.pack(fill=tk.X, pady=(3, 0))
+            fill = tk.Frame(bar, bg=theme.accent_primary, height=3)
+            fill.place(x=0, y=0, relheight=1.0, relwidth=max(0.05, count / max_count))
             
             # Bind click to select category (like clicking in left panel)
-            for widget in [cat_frame, cat_lbl]:
+            for widget in [cat_frame, top, cat_lbl]:
                 widget.bind("<Button-1>", lambda e, c=cat: self._select_category(c))
                 widget.bind("<Enter>", lambda e, lbl=cat_lbl: lbl.configure(fg=theme.accent_success))
                 widget.bind("<Leave>", lambda e, lbl=cat_lbl: lbl.configure(fg=theme.accent_primary))
         
         # Top domains - show up to 20 (clickable for filtering)
-        top_domains = stats.get('top_domains', [])
+        top_domains = [(d, c) for d, c in stats.get('top_domains', []) if c > 0]
         num_domains = min(20, len(top_domains)) if len(top_domains) >= 20 else len(top_domains)
         
-        tk.Label(
-            self.analytics_frame, text=f"Top Domains ({num_domains})", bg=theme.bg_secondary,
-            fg=theme.text_secondary, font=FONTS.small(bold=True)
-        ).pack(anchor="w", pady=(12, 5))
+        section_label(f"Top domains ({num_domains})")
         
         # Create scrollable frame for domains if many
         domains_frame = tk.Frame(self.analytics_frame, bg=theme.bg_secondary)
         domains_frame.pack(fill=tk.X)
+
+        if not top_domains:
+            empty_note("Frequent domains will appear after bookmarks are added.")
         
         for domain, count in top_domains[:20]:
             row = tk.Frame(domains_frame, bg=theme.bg_secondary, cursor="hand2")
-            row.pack(fill=tk.X, pady=1)
+            row.pack(fill=tk.X, pady=2)
             
             domain_lbl = tk.Label(
-                row, text=domain[:20], bg=theme.bg_secondary,
-                fg=theme.accent_primary, font=("Segoe UI", 8, "underline"),
+                row, text=domain[:26], bg=theme.bg_secondary,
+                fg=theme.accent_primary, font=FONTS.small(),
                 cursor="hand2"
             )
             domain_lbl.pack(side=tk.LEFT)
             
             tk.Label(
                 row, text=str(count), bg=theme.bg_secondary,
-                fg=theme.text_muted, font=FONTS.tiny()
+                fg=theme.text_secondary, font=FONTS.small()
             ).pack(side=tk.RIGHT)
             
             # Bind click to filter by domain
@@ -14938,20 +15639,35 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         dialog = tk.Toplevel(self.root)
         dialog.title("Add Category")
         dialog.configure(bg=theme.bg_primary)
-        dialog.geometry("350x120")
+        dialog.geometry("380x170")
         dialog.transient(self.root)
         dialog.grab_set()
+        dialog.resizable(False, False)
+        set_dark_title_bar(dialog)
+        dialog.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - 380) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - 170) // 2
+        dialog.geometry(f"+{x}+{y}")
         
         tk.Label(
-            dialog, text="Category Name:", bg=theme.bg_primary,
-            fg=theme.text_primary, font=FONTS.body()
-        ).pack(pady=(20, 5))
+            dialog, text="Add category", bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.header(bold=True)
+        ).pack(anchor="w", padx=24, pady=(20, 2))
+
+        tk.Label(
+            dialog, text="Create a reusable destination for future bookmark organization.",
+            bg=theme.bg_primary, fg=theme.text_secondary,
+            font=FONTS.small(), wraplength=320, justify=tk.LEFT
+        ).pack(anchor="w", padx=24, pady=(0, 10))
         
         entry = tk.Entry(
             dialog, bg=theme.bg_secondary, fg=theme.text_primary,
-            font=FONTS.body(), relief=tk.FLAT, width=30
+            insertbackground=theme.text_primary,
+            font=FONTS.body(), relief=tk.FLAT, width=34,
+            highlightthickness=1, highlightbackground=theme.border_muted,
+            highlightcolor=theme.accent_primary
         )
-        entry.pack(pady=5, ipady=5)
+        entry.pack(anchor="w", padx=24, ipady=6)
         entry.focus_set()
         
         def add():
@@ -14962,16 +15678,21 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
                     self._refresh_category_list()
                     self._set_status(f"Added category: {name}")
                 else:
-                    messagebox.showerror("Error", "Category already exists or invalid name")
+                    messagebox.showerror(
+                        "Category Not Added",
+                        "Use a unique category name with at least one visible character.",
+                        parent=dialog
+                    )
             else:
                 dialog.destroy()
         
         entry.bind("<Return>", lambda e: add())
-        
-        tk.Button(
-            dialog, text="Add", bg=theme.accent_success, fg="white",
-            font=FONTS.body(), relief=tk.FLAT, command=add, padx=20
-        ).pack(pady=10)
+
+        actions = tk.Frame(dialog, bg=theme.bg_primary)
+        actions.pack(fill=tk.X, padx=24, pady=(14, 0))
+        ModernButton(actions, text="Add", command=add, style="success", padx=20, pady=7).pack(side=tk.RIGHT)
+        ModernButton(actions, text="Cancel", command=dialog.destroy, padx=16, pady=7).pack(side=tk.RIGHT, padx=(0, 8))
+        dialog.bind("<Escape>", lambda e: dialog.destroy())
     
     def _rename_category_dialog(self, old_name: str):
         """Show dialog to rename category"""
@@ -15056,6 +15777,8 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         else:
             bookmarks = self.bookmark_manager.get_all_bookmarks()
         
+        query = self.search_query.strip() if hasattr(self, 'search_query') and self.search_query else ""
+
         # Apply quick filter (takes priority over search)
         quick_filter = getattr(self, 'quick_filter', None)
         if quick_filter:
@@ -15071,23 +15794,25 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
                 bookmarks = [bm for bm in bookmarks if not bm.tags and not bm.ai_tags]
         else:
             # Apply search query only if no quick filter
-            query = self.search_query.strip() if hasattr(self, 'search_query') and self.search_query else ""
-            
             if query:
-                if query.startswith("domain:"):
-                    # Filter by domain
-                    domain_filter = query[7:].lower()
-                    bookmarks = [bm for bm in bookmarks if domain_filter in (bm.domain or "").lower()]
-                else:
-                    # Regular text search
+                try:
+                    bookmarks = self.bookmark_manager.search_bookmarks(
+                        query, category=self.current_category
+                    )
+                except Exception:
                     query_lower = query.lower()
-                    bookmarks = [bm for bm in bookmarks
-                                if query_lower in bm.title.lower() or
-                                   query_lower in bm.url.lower() or
-                                   query_lower in (bm.category or "").lower() or
-                                   query_lower in ' '.join(bm.tags).lower()]
+                    bookmarks = [
+                        bm for bm in bookmarks
+                        if query_lower in bm.title.lower() or
+                        query_lower in bm.url.lower() or
+                        query_lower in (bm.category or "").lower() or
+                        query_lower in ' '.join(bm.tags).lower()
+                    ]
         
-        bookmarks.sort(key=lambda b: (not b.is_pinned, b.title.lower()))
+        if query:
+            bookmarks.sort(key=lambda b: not b.is_pinned)
+        else:
+            bookmarks.sort(key=lambda b: (not b.is_pinned, b.title.lower()))
 
         if self.count_label:
             n = len(bookmarks)
@@ -15101,11 +15826,19 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
 
         # Toggle empty state vs list view
         if hasattr(self, 'empty_state'):
-            if len(bookmarks) == 0 and not getattr(self, 'search_query', ''):
+            total_bookmarks = len(self.bookmark_manager.get_all_bookmarks())
+            is_filtered_view = bool(query or quick_filter or self.current_category)
+            self.empty_state.pack_forget()
+            if hasattr(self, 'filtered_empty_state'):
+                self.filtered_empty_state.pack_forget()
+
+            if len(bookmarks) == 0 and total_bookmarks == 0:
                 self.list_frame.pack_forget()
                 self.empty_state.pack(fill=tk.BOTH, expand=True)
+            elif len(bookmarks) == 0 and is_filtered_view and hasattr(self, 'filtered_empty_state'):
+                self.list_frame.pack_forget()
+                self.filtered_empty_state.pack(fill=tk.BOTH, expand=True)
             else:
-                self.empty_state.pack_forget()
                 self.list_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
 
         if self.view_mode == ViewMode.LIST:
@@ -15119,13 +15852,18 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
 
     def _populate_list_view(self, bookmarks: List[Bookmark]):
         """Populate treeview with bookmarks"""
+        theme = get_theme()
+        self.tree.tag_configure("oddrow", background=theme.bg_primary, foreground=theme.text_primary)
+        self.tree.tag_configure("evenrow", background=theme.bg_secondary, foreground=theme.text_primary)
+        self.tree.tag_configure("broken", foreground=theme.accent_error)
+
         for item in self.tree.get_children():
             self.tree.delete(item)
         
         self._tree_items: Dict[int, str] = {}
         self._tree_domains: Dict[str, List[str]] = {}
         
-        for bm in bookmarks:
+        for index, bm in enumerate(bookmarks):
             # Build title with status indicators
             prefix = ""
             if bm.is_pinned:
@@ -15152,12 +15890,17 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             remaining = len(bm.tags) + len(bm.ai_tags) - len(all_tags)
             if remaining > 0:
                 tags_str += f" +{remaining}"
+
+            row_tags = ["evenrow" if index % 2 else "oddrow"]
+            if not bm.is_valid:
+                row_tags.append("broken")
             
             item_id = self.tree.insert(
                 "", "end",
                 iid=str(bm.id),
                 text="  ",  # Padding space
-                values=(title, bm.url[:45], bm.category, tags_str)
+                values=(title, bm.url[:45], bm.category, tags_str),
+                tags=tuple(row_tags)
             )
             
             self._tree_items[bm.id] = item_id
@@ -15241,7 +15984,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         FONTS.size_tiny = max(7, int(8 * scale))
 
         # Update treeview (has its own style system)
-        row_height = max(20, min(80, int(30 * scale)))
+        row_height = max(24, min(84, int(DesignTokens.TREEVIEW_ROW_HEIGHT * scale)))
         style = ttk.Style()
         style.configure("Treeview", rowheight=row_height, font=FONTS.body())
         style.configure("Treeview.Heading", font=FONTS.small(bold=True))
@@ -15277,6 +16020,9 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
     
     def _on_search_focus_in(self, e):
         """Clear placeholder when search entry gains focus"""
+        if hasattr(self, 'search_frame') and self.search_frame:
+            theme = get_theme()
+            self.search_frame.configure(highlightbackground=theme.accent_primary)
         if self.search_entry.get() == self._search_placeholder:
             self._suppress_search_callback = True
             self.search_entry.delete(0, tk.END)
@@ -15285,11 +16031,16 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
 
     def _on_search_focus_out(self, e):
         """Restore placeholder when search entry loses focus and is empty"""
+        if hasattr(self, 'search_frame') and self.search_frame:
+            theme = get_theme()
+            self.search_frame.configure(highlightbackground=theme.border)
         if not self.search_entry.get():
             self._suppress_search_callback = True
             self.search_entry.insert(0, self._search_placeholder)
             self._suppress_search_callback = False
             self.search_entry.configure(fg=get_theme().text_muted)
+            if hasattr(self, 'clear_search_btn') and self.clear_search_btn:
+                self.clear_search_btn.pack_forget()
 
     def _on_search_change(self, *args):
         """Handle search change with debounce"""
@@ -15303,8 +16054,16 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         val = self.search_var.get()
         # Ignore placeholder text as a real query
         if val == getattr(self, '_search_placeholder', ''):
+            if hasattr(self, 'clear_search_btn') and self.clear_search_btn:
+                self.clear_search_btn.pack_forget()
             return
         self.search_query = val
+        if hasattr(self, 'clear_search_btn') and self.clear_search_btn:
+            if val:
+                if not self.clear_search_btn.winfo_ismapped():
+                    self.clear_search_btn.pack(side=tk.LEFT, padx=(5, 0))
+            else:
+                self.clear_search_btn.pack_forget()
         
         # When user types in search, clear quick filter and reset filter buttons
         if self.search_query:
@@ -15340,6 +16099,8 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         self.quick_filter = None
         self.current_category = None
         self.active_filter = "All"
+        if hasattr(self, 'clear_search_btn') and self.clear_search_btn:
+            self.clear_search_btn.pack_forget()
         
         # Reset filter button highlighting
         theme = get_theme()
@@ -15382,6 +16143,8 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         if self.search_var:
             self.search_var.set(f"domain:{domain}")
         self.search_query = f"domain:{domain}"
+        if hasattr(self, 'clear_search_btn') and self.clear_search_btn and not self.clear_search_btn.winfo_ismapped():
+            self.clear_search_btn.pack(side=tk.LEFT, padx=(5, 0))
         
         # Reset suppress flag after a brief delay
         def reset_flag():
@@ -15404,6 +16167,8 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             self.search_var.set("")
         self.search_query = ""
         self.quick_filter = None
+        if hasattr(self, 'clear_search_btn') and self.clear_search_btn:
+            self.clear_search_btn.pack_forget()
         
         # Clear quick filter button highlighting
         theme = get_theme()
@@ -15451,6 +16216,8 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             self.search_entry.delete(0, tk.END)
         if self.search_var:
             self.search_var.set("")
+        if hasattr(self, 'clear_search_btn') and self.clear_search_btn:
+            self.clear_search_btn.pack_forget()
         
         # Set the quick filter type
         if filter_name == "All":
@@ -15503,6 +16270,11 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             self.search_entry.delete(0, tk.END)
             if text:
                 self.search_entry.insert(0, text)
+        if hasattr(self, 'clear_search_btn') and self.clear_search_btn:
+            if text and not self.clear_search_btn.winfo_ismapped():
+                self.clear_search_btn.pack(side=tk.LEFT, padx=(5, 0))
+            elif not text:
+                self.clear_search_btn.pack_forget()
         
         # Set StringVar - this will trigger trace but flag is set
         if self.search_var:
@@ -15536,6 +16308,32 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         bookmark.visit_count += 1
         bookmark.last_visited = datetime.now().isoformat()
         self.bookmark_manager.update_bookmark(bookmark)
+
+    def _show_command_palette(self, event=None):
+        """Open the keyboard command palette."""
+        commands = [
+            ("Add Bookmark", "Ctrl+N", self._add_bookmark),
+            ("Import Bookmarks", "Ctrl+I", self._show_import_dialog),
+            ("Export Bookmarks", "Ctrl+S", self._show_export_dialog),
+            ("Focus Search", "Ctrl+F", self._focus_search),
+            ("Clear Search and Filters", "Esc", self._clear_search),
+            ("Select All Bookmarks", "Ctrl+A", self._select_all_bookmarks),
+            ("Edit Selected Bookmark", "Ctrl+E", self._edit_selected),
+            ("Open Selected Bookmark", "Enter", self._open_selected),
+            ("Check All Links", "", self._check_all_links),
+            ("Find Duplicates", "", self._find_duplicates),
+            ("Clean Tracking Parameters", "", self._clean_urls),
+            ("Manage Categories", "", self._show_category_manager),
+            ("Full Analytics", "", self._show_analytics),
+            ("Theme Settings", "", lambda: ThemeSelectorDialog(self.root, get_theme_manager())),
+            ("AI Settings", "", self._show_ai_settings),
+            ("AI Categorize Selected", "", self._ai_categorize),
+            ("AI Suggest Tags", "", self._ai_suggest_tags),
+            ("Backup Now", "", self._backup_now),
+            ("Refresh", "F5", self._refresh_all),
+        ]
+        CommandPalette(self.root, commands)
+        return "break"
     
     def _show_context_menu(self, event):
         """Show context menu with Send To and Search Domain options"""
@@ -16006,14 +16804,19 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         bookmarks = self.bookmark_manager.get_all_bookmarks()
         
         if not bookmarks:
-            messagebox.showinfo("No Bookmarks", "No bookmarks to categorize.")
+            messagebox.showinfo(
+                "Nothing to Categorize",
+                "Import or add bookmarks before running automatic categorization.",
+                parent=self.root
+            )
+            self._set_status("Add bookmarks before categorizing")
             return
         
         result = messagebox.askyesno(
             "Categorize All Bookmarks",
-            f"This will re-categorize all {len(bookmarks)} bookmarks based on URL patterns.\n\n"
-            "Bookmarks will be assigned to categories based on domain matching.\n\n"
-            "Continue?"
+            f"Re-categorize {len(bookmarks)} bookmark(s) using your saved category patterns?\n\n"
+            "This updates categories based on URL and title matches.",
+            parent=self.root
         )
         
         if not result:
@@ -16111,7 +16914,11 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
                 categories_data = json.load(f)
             
             if not isinstance(categories_data, dict):
-                messagebox.showerror("Error", "Invalid categories file format. Expected JSON object.")
+                messagebox.showerror(
+                    "Categories Import Failed",
+                    "The selected file is not a categories JSON object. Choose a file whose top level contains category names.",
+                    parent=self.root
+                )
                 return
             
             # Merge with existing categories
@@ -16148,15 +16955,24 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
                 "Import Complete",
                 f"Imported {imported} new categories.\n"
                 f"Updated {updated} existing categories.\n"
-                f"Total categories: {len(self.category_manager.categories)}"
+                f"Total categories: {len(self.category_manager.categories)}",
+                parent=self.root
             )
             self._set_status(f"Imported {imported} categories, updated {updated}")
             
         except json.JSONDecodeError as e:
-            messagebox.showerror("Error", f"Invalid JSON format: {e}")
+            messagebox.showerror(
+                "Categories Import Failed",
+                f"The selected file is not valid JSON.\n\n{e}",
+                parent=self.root
+            )
         except Exception as e:
             traceback.print_exc()
-            messagebox.showerror("Error", f"Failed to import categories: {e}")
+            messagebox.showerror(
+                "Categories Import Failed",
+                f"Categories could not be imported.\n\n{e}",
+                parent=self.root
+            )
     
     def _on_theme_change(self, theme_name: str):
         """Handle theme change - apply live"""
@@ -16417,6 +17233,8 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
     def _on_import_done(self, added: int, dupes: int):
         """Handle import completion"""
         self.import_area.set_importing(False)
+        if added > 0:
+            self.import_area.set_compact(True)
         self._refresh_all()
         
         # Queue favicons for new bookmarks
@@ -16506,7 +17324,12 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         bookmarks = self.bookmark_manager.get_all_bookmarks()
         
         if not bookmarks:
-            messagebox.showinfo("No Bookmarks", "No bookmarks to check.")
+            messagebox.showinfo(
+                "Nothing to Check",
+                "Import or add bookmarks before running a link check.",
+                parent=self.root
+            )
+            self._set_status("Add bookmarks before checking links")
             return
         
         # Create progress frame with cancel button
@@ -16557,9 +17380,18 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
                 
                 bm = bookmarks[i]
                 try:
-                    response = requests.head(bm.url, timeout=5, allow_redirects=True)
-                    bm.http_status = response.status_code
-                    bm.is_valid = response.status_code < 400
+                    if not URLUtilities._is_safe_url(bm.url):
+                        bm.http_status = 0
+                        bm.is_valid = False
+                    else:
+                        response = requests.head(
+                            bm.url,
+                            timeout=5,
+                            allow_redirects=False,
+                            headers={'User-Agent': 'Mozilla/5.0'}
+                        )
+                        bm.http_status = response.status_code
+                        bm.is_valid = response.status_code < 400
                 except Exception:
                     bm.http_status = 0
                     bm.is_valid = False
@@ -16630,36 +17462,102 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         except Exception as e:
             print(f"Error creating AI client: {e}")
             return None
-    
-    def _ai_categorize(self):
-        """AI categorize selected bookmarks"""
-        # Check if AI is configured
-        if not self.ai_config.is_configured():
-            messagebox.showwarning("AI Not Configured", 
-                "Please configure AI settings first.\n\n"
-                "Go to AI menu → AI Settings to add an API key.")
-            return
-        
-        # Get selected bookmarks
+
+    def _ai_provider_name(self) -> str:
+        """Return the configured AI provider display name."""
+        provider = self.ai_config.get_provider()
+        info = AI_PROVIDERS.get(provider)
+        return info.display_name if info else provider.title()
+
+    def _ensure_ai_ready(self, action_name: str) -> bool:
+        """Prompt for AI setup when a feature requires a configured provider."""
+        if self.ai_config.is_configured():
+            return True
+
+        open_settings = messagebox.askyesno(
+            "Set Up AI",
+            f"{action_name} needs an AI provider before it can run.\n\n"
+            "Open AI settings now to choose a provider, model, and credential?",
+            parent=self.root
+        )
+        if open_settings:
+            self._show_ai_settings()
+        else:
+            self._set_status("AI setup is required before using assistant features")
+        return False
+
+    def _get_selected_bookmarks_for_action(self, title: str, message: str) -> List[Bookmark]:
+        """Return selected bookmarks or show a helpful empty-selection message."""
         selected = self.tree.selection()
         if not selected:
-            messagebox.showinfo("No Selection", "Please select bookmarks to categorize.")
-            return
-        
+            messagebox.showinfo(title, message, parent=self.root)
+            self._set_status("Select one or more bookmarks to continue")
+            return []
+
         bookmarks = []
         for item_id in selected:
             bm = self.bookmark_manager.get_bookmark(int(item_id))
             if bm:
                 bookmarks.append(bm)
+
+        if not bookmarks:
+            messagebox.showinfo(
+                "Selection Not Available",
+                "The selected rows are no longer available. Refresh the list and try again.",
+                parent=self.root
+            )
+            self._set_status("Selection could not be used")
+        return bookmarks
+
+    def _show_ai_client_error(self, action_name: str):
+        """Show a consistent AI connection/configuration failure message."""
+        messagebox.showerror(
+            "AI Connection Unavailable",
+            f"{action_name} could not start because the configured AI client could not be created.\n\n"
+            "Open AI settings to confirm the provider, model, and credential.",
+            parent=self.root
+        )
+        self._set_status("AI settings need attention")
+
+    def _extract_json_object_text(self, text: str) -> Optional[str]:
+        """Extract a JSON object from a provider response."""
+        if "```json" in text:
+            match = re.search(r"```json\s*([\s\S]*?)\s*```", text)
+            if match:
+                text = match.group(1)
+        elif "```" in text:
+            match = re.search(r"```\s*([\s\S]*?)\s*```", text)
+            if match:
+                text = match.group(1)
+
+        start = text.find('{')
+        end = text.rfind('}')
+        if start != -1 and end != -1 and end > start:
+            return text[start:end + 1]
+        return None
+
+    def _ai_categorize(self):
+        """AI categorize selected bookmarks"""
+        if not self._ensure_ai_ready("AI categorization"):
+            return
         
+        bookmarks = self._get_selected_bookmarks_for_action(
+            "Select Bookmarks",
+            "Select one or more bookmarks, then run AI categorization."
+        )
         if not bookmarks:
             return
         
         # Confirm action
-        if not messagebox.askyesno("AI Categorize", 
-            f"Categorize {len(bookmarks)} bookmark(s) using AI?\n\n"
-            f"Provider: {self.ai_config.get_provider()}\n"
-            f"Model: {self.ai_config.get_model()}"):
+        if not messagebox.askyesno(
+            "Categorize with AI",
+            f"Categorize {len(bookmarks)} bookmark(s) with AI?\n\n"
+            f"Provider: {self._ai_provider_name()}\n"
+            f"Model: {self.ai_config.get_model()}\n"
+            f"Minimum confidence: {int(self.ai_config.get_min_confidence() * 100)}%\n\n"
+            "Changes are applied only when the result meets your confidence threshold.",
+            parent=self.root
+        ):
             return
         
         # Run AI categorization
@@ -16673,47 +17571,69 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         dialog = tk.Toplevel(self.root)
         dialog.title("AI Categorization")
         dialog.configure(bg=theme.bg_primary)
-        dialog.geometry("450x250")
+        dialog.geometry("480x280")
         dialog.transient(self.root)
         dialog.grab_set()
         dialog.resizable(False, False)
+        set_dark_title_bar(dialog)
         
         # Center dialog
         dialog.update_idletasks()
-        x = self.root.winfo_x() + (self.root.winfo_width() - 450) // 2
-        y = self.root.winfo_y() + (self.root.winfo_height() - 250) // 2
+        x = self.root.winfo_x() + (self.root.winfo_width() - 480) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - 280) // 2
         dialog.geometry(f"+{x}+{y}")
         
         # Content
-        tk.Label(dialog, text="🤖 AI Categorization", bg=theme.bg_primary,
-                fg=theme.text_primary, font=FONTS.title(bold=False)).pack(pady=20)
+        content = tk.Frame(dialog, bg=theme.bg_primary, padx=28, pady=24)
+        content.pack(fill=tk.BOTH, expand=True)
+
+        tk.Label(
+            content, text="AI categorization", bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.title(bold=True)
+        ).pack(anchor="w")
+
+        tk.Label(
+            content,
+            text=f"Reviewing {len(bookmarks)} bookmark(s) with {self._ai_provider_name()}.",
+            bg=theme.bg_primary, fg=theme.text_secondary,
+            font=FONTS.small(), wraplength=420, justify=tk.LEFT
+        ).pack(anchor="w", pady=(4, 18))
         
-        status_label = tk.Label(dialog, text="Preparing...", bg=theme.bg_primary,
-                               fg=theme.text_secondary, font=FONTS.body())
-        status_label.pack(pady=10)
+        status_label = tk.Label(
+            content, text="Preparing request...", bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.body()
+        )
+        status_label.pack(anchor="w")
         
         # Progress bar frame
-        progress_frame = tk.Frame(dialog, bg=theme.bg_tertiary, height=20, width=350)
-        progress_frame.pack(pady=10)
+        progress_frame = tk.Frame(content, bg=theme.bg_tertiary, height=10)
+        progress_frame.pack(fill=tk.X, pady=(12, 10))
         progress_frame.pack_propagate(False)
         
-        progress_fill = tk.Frame(progress_frame, bg=theme.accent_primary, height=20)
+        progress_fill = tk.Frame(progress_frame, bg=theme.accent_primary, height=10)
         progress_fill.place(x=0, y=0, relheight=1.0, relwidth=0)
         
-        results_label = tk.Label(dialog, text="", bg=theme.bg_primary,
-                                fg=theme.text_muted, font=FONTS.small())
-        results_label.pack(pady=10)
+        results_label = tk.Label(
+            content, text="No changes have been applied yet.", bg=theme.bg_primary,
+            fg=theme.text_muted, font=FONTS.small()
+        )
+        results_label.pack(anchor="w")
         
         # Cancel flag
         self._ai_cancelled = False
         
         def cancel():
             self._ai_cancelled = True
-            dialog.destroy()
+            cancel_btn.set_state("disabled")
+            cancel_btn.set_text("Cancelling...")
+            status_label.configure(text="Cancelling after the current request finishes...")
+            self._set_status("Cancelling AI categorization...")
         
-        cancel_btn = tk.Button(dialog, text="Cancel", command=cancel,
-                              bg=theme.bg_secondary, fg=theme.text_primary)
-        cancel_btn.pack(pady=10)
+        footer = tk.Frame(dialog, bg=theme.bg_secondary, padx=20, pady=14)
+        footer.pack(fill=tk.X, side=tk.BOTTOM)
+        cancel_btn = ModernButton(footer, text="Cancel", command=cancel, style="default", padx=18, pady=7)
+        cancel_btn.pack(side=tk.RIGHT)
+        dialog.bind("<Escape>", lambda e: cancel())
         
         # Process in batches
         batch_size = self.ai_config.get_batch_size()
@@ -16728,9 +17648,17 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         def process_batch(start_idx):
             nonlocal total_processed, total_changed, all_results
             
-            if self._ai_cancelled or start_idx >= len(bookmarks):
+            if self._ai_cancelled:
+                if dialog.winfo_exists():
+                    dialog.destroy()
+                self._set_status(f"AI categorization cancelled after {total_processed} bookmark(s)")
+                return
+
+            if start_idx >= len(bookmarks):
                 # Done - apply results
-                dialog.destroy()
+                progress_fill.place(relwidth=1)
+                if dialog.winfo_exists():
+                    dialog.destroy()
                 self._apply_ai_results(bookmarks, all_results, total_changed)
                 return
             
@@ -16744,7 +17672,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             try:
                 client = self._get_ai_client()
                 if not client:
-                    messagebox.showerror("Error", "Failed to create AI client")
+                    self._show_ai_client_error("AI categorization")
                     dialog.destroy()
                     return
                 
@@ -16763,14 +17691,21 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
                             total_changed += 1
                 
                 total_processed = end_idx
-                results_label.configure(text=f"Processed: {total_processed}/{len(bookmarks)} | Changed: {total_changed}")
+                results_label.configure(
+                    text=f"{total_processed}/{len(bookmarks)} processed • {total_changed} category changes found"
+                )
                 
                 # Rate limiting delay
                 delay = int(60000 / self.ai_config.get_rate_limit())
                 dialog.after(delay, lambda: process_batch(end_idx))
                 
             except Exception as e:
-                messagebox.showerror("AI Error", f"Error during categorization:\n{str(e)[:200]}")
+                messagebox.showerror(
+                    "AI Categorization Failed",
+                    f"Categorization stopped before changes were applied.\n\n{str(e)[:240]}",
+                    parent=self.root
+                )
+                self._set_status("AI categorization failed")
                 dialog.destroy()
         
         # Start processing
@@ -16832,7 +17767,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         self._refresh_all()
         
         # Show summary
-        msg = f"AI Categorization Complete\n\n"
+        msg = "AI categorization is complete.\n\n"
         msg += f"Bookmarks processed: {len(bookmarks)}\n"
         msg += f"Categories changed: {applied}\n"
         if titles_changed > 0:
@@ -16840,27 +17775,18 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         if new_categories:
             msg += f"New categories created: {', '.join(new_categories)}\n"
         
-        messagebox.showinfo("AI Complete", msg)
+        messagebox.showinfo("AI Categorization Complete", msg, parent=self.root)
         self._set_status(f"AI categorized {applied} bookmarks, {titles_changed} titles improved")
     
     def _ai_suggest_tags(self):
         """AI suggest tags for selected bookmarks"""
-        if not self.ai_config.is_configured():
-            messagebox.showwarning("AI Not Configured", 
-                "Please configure AI settings first.")
+        if not self._ensure_ai_ready("AI tag suggestions"):
             return
         
-        selected = self.tree.selection()
-        if not selected:
-            messagebox.showinfo("No Selection", "Please select bookmarks for tag suggestions.")
-            return
-        
-        bookmarks = []
-        for item_id in selected:
-            bm = self.bookmark_manager.get_bookmark(int(item_id))
-            if bm:
-                bookmarks.append(bm)
-        
+        bookmarks = self._get_selected_bookmarks_for_action(
+            "Select Bookmarks",
+            "Select one or more bookmarks, then ask AI to suggest tags."
+        )
         if not bookmarks:
             return
         
@@ -16871,7 +17797,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         try:
             client = self._get_ai_client()
             if not client:
-                messagebox.showerror("Error", "Failed to create AI client")
+                self._show_ai_client_error("AI tag suggestions")
                 return
             
             # Prepare data
@@ -16896,39 +17822,41 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             self.bookmark_manager.save_bookmarks()
             self._refresh_bookmark_list()
             
-            messagebox.showinfo("Tags Generated", 
+            messagebox.showinfo(
+                "Tags Generated",
                 f"Generated AI tags for {tagged} bookmark(s).\n\n"
-                "Tags are stored in the 'AI Tags' field and can be merged with user tags.")
+                "AI tags stay separate from your manual tags until you choose to merge them.",
+                parent=self.root
+            )
             self._set_status(f"Generated tags for {tagged} bookmarks")
             
         except Exception as e:
-            messagebox.showerror("AI Error", f"Error generating tags:\n{str(e)[:200]}")
+            messagebox.showerror(
+                "Tag Suggestions Failed",
+                f"AI tag suggestions could not be completed.\n\n{str(e)[:240]}",
+                parent=self.root
+            )
             self._set_status("Tag generation failed")
     
     def _ai_summarize(self):
         """AI generate descriptions for selected bookmarks"""
-        if not self.ai_config.is_configured():
-            messagebox.showwarning("AI Not Configured", 
-                "Please configure AI settings first.")
+        if not self._ensure_ai_ready("AI summaries"):
             return
         
-        selected = self.tree.selection()
-        if not selected:
-            messagebox.showinfo("No Selection", "Please select bookmarks for summarization.")
-            return
-        
-        bookmarks = []
-        for item_id in selected:
-            bm = self.bookmark_manager.get_bookmark(int(item_id))
-            if bm:
-                bookmarks.append(bm)
-        
+        bookmarks = self._get_selected_bookmarks_for_action(
+            "Select Bookmarks",
+            "Select one or more bookmarks, then ask AI to write descriptions."
+        )
         if not bookmarks:
             return
         
         if len(bookmarks) > 10:
-            if not messagebox.askyesno("Large Selection", 
-                f"Summarizing {len(bookmarks)} bookmarks may take a while. Continue?"):
+            if not messagebox.askyesno(
+                "Summarize Selection",
+                f"Generate descriptions for {len(bookmarks)} bookmarks?\n\n"
+                "Large selections can take longer depending on your provider and rate limit.",
+                parent=self.root
+            ):
                 return
         
         self._set_status("Generating AI summaries...")
@@ -16937,7 +17865,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         try:
             client = self._get_ai_client()
             if not client:
-                messagebox.showerror("Error", "Failed to create AI client")
+                self._show_ai_client_error("AI summaries")
                 return
             
             # Build summary prompt
@@ -16992,19 +17920,9 @@ Respond with JSON: {{"summaries": [{{"url": "...", "description": "..."}}]}}"""
                 text = response.json()["response"]
             
             # Parse response
-            if "```json" in text:
-                match = re.search(r"```json\s*([\s\S]*?)\s*```", text)
-                if match:
-                    text = match.group(1)
-            elif "```" in text:
-                match = re.search(r"```\s*([\s\S]*?)\s*```", text)
-                if match:
-                    text = match.group(1)
-            
-            start = text.find('{')
-            end = text.rfind('}')
-            if start != -1 and end != -1:
-                data = json.loads(text[start:end+1])
+            json_text = self._extract_json_object_text(text)
+            if json_text:
+                data = json.loads(json_text)
                 summaries = data.get("summaries", [])
                 
                 # Apply summaries
@@ -17021,40 +17939,47 @@ Respond with JSON: {{"summaries": [{{"url": "...", "description": "..."}}]}}"""
                 self.bookmark_manager.save_bookmarks()
                 self._refresh_bookmark_list()
                 
-                messagebox.showinfo("Summaries Generated", 
-                    f"Generated descriptions for {updated} bookmark(s).")
+                messagebox.showinfo(
+                    "Descriptions Generated",
+                    f"Generated descriptions for {updated} bookmark(s).",
+                    parent=self.root
+                )
                 self._set_status(f"Generated {updated} summaries")
             else:
-                messagebox.showerror("Parse Error", "Could not parse AI response")
+                messagebox.showerror(
+                    "AI Response Not Applied",
+                    "The AI response was not valid JSON, so no bookmark descriptions were changed.",
+                    parent=self.root
+                )
+                self._set_status("Summary response could not be applied")
                 
         except Exception as e:
-            messagebox.showerror("AI Error", f"Error generating summaries:\n{str(e)[:200]}")
+            messagebox.showerror(
+                "Summary Generation Failed",
+                f"AI summaries could not be completed.\n\n{str(e)[:240]}",
+                parent=self.root
+            )
             self._set_status("Summary generation failed")
     
     def _ai_improve_titles(self):
         """AI improve bookmark titles to be more descriptive"""
-        if not self.ai_config.is_configured():
-            messagebox.showwarning("AI Not Configured", 
-                "Please configure AI settings first.")
+        if not self._ensure_ai_ready("AI title improvements"):
             return
         
-        selected = self.tree.selection()
-        if not selected:
-            messagebox.showinfo("No Selection", "Please select bookmarks to improve titles.")
-            return
-        
-        bookmarks = []
-        for item_id in selected:
-            bm = self.bookmark_manager.get_bookmark(int(item_id))
-            if bm:
-                bookmarks.append(bm)
-        
+        bookmarks = self._get_selected_bookmarks_for_action(
+            "Select Bookmarks",
+            "Select one or more bookmarks, then ask AI to suggest cleaner titles."
+        )
         if not bookmarks:
             return
         
         if len(bookmarks) > 20:
-            if not messagebox.askyesno("Large Selection", 
-                f"Improving titles for {len(bookmarks)} bookmarks may take a while. Continue?"):
+            if not messagebox.askyesno(
+                "Improve Titles",
+                f"Suggest title improvements for {len(bookmarks)} bookmarks?\n\n"
+                "You will preview the suggestions before anything is changed.",
+                parent=self.root
+            ):
                 return
         
         self._set_status("Improving bookmark titles with AI...")
@@ -17063,7 +17988,7 @@ Respond with JSON: {{"summaries": [{{"url": "...", "description": "..."}}]}}"""
         try:
             client = self._get_ai_client()
             if not client:
-                messagebox.showerror("Error", "Failed to create AI client")
+                self._show_ai_client_error("AI title improvements")
                 return
             
             # Build prompt for title improvement
@@ -17134,28 +18059,27 @@ Respond with ONLY valid JSON in this exact format:
                 text = response.json()["response"]
             
             # Parse response
-            if "```json" in text:
-                match = re.search(r"```json\s*([\s\S]*?)\s*```", text)
-                if match:
-                    text = match.group(1)
-            elif "```" in text:
-                match = re.search(r"```\s*([\s\S]*?)\s*```", text)
-                if match:
-                    text = match.group(1)
-            
-            start = text.find('{')
-            end = text.rfind('}')
-            if start != -1 and end != -1:
-                data = json.loads(text[start:end+1])
+            json_text = self._extract_json_object_text(text)
+            if json_text:
+                data = json.loads(json_text)
                 titles = data.get("titles", [])
                 
                 # Show preview dialog before applying
                 self._show_title_preview(bookmarks, titles)
             else:
-                messagebox.showerror("Parse Error", "Could not parse AI response")
+                messagebox.showerror(
+                    "AI Response Not Applied",
+                    "The AI response was not valid JSON, so no bookmark titles were changed.",
+                    parent=self.root
+                )
+                self._set_status("Title suggestions could not be applied")
                 
         except Exception as e:
-            messagebox.showerror("AI Error", f"Error improving titles:\n{str(e)[:200]}")
+            messagebox.showerror(
+                "Title Improvement Failed",
+                f"AI title suggestions could not be completed.\n\n{str(e)[:240]}",
+                parent=self.root
+            )
             self._set_status("Title improvement failed")
     
     def _show_title_preview(self, bookmarks: List[Bookmark], titles: List[Dict]):
@@ -17173,7 +18097,11 @@ Respond with ONLY valid JSON in this exact format:
                 changes.append((bm, new_title))
         
         if not changes:
-            messagebox.showinfo("No Changes", "AI did not suggest any title improvements.")
+            messagebox.showinfo(
+                "No Title Changes",
+                "AI did not suggest any title improvements for the selected bookmarks.",
+                parent=self.root
+            )
             return
         
         # Create preview dialog
@@ -17183,6 +18111,7 @@ Respond with ONLY valid JSON in this exact format:
         dialog.geometry("700x500")
         dialog.transient(self.root)
         dialog.grab_set()
+        set_dark_title_bar(dialog)
         
         # Center
         dialog.update_idletasks()
@@ -17194,10 +18123,16 @@ Respond with ONLY valid JSON in this exact format:
         header = tk.Frame(dialog, bg=theme.bg_secondary, padx=20, pady=15)
         header.pack(fill=tk.X)
         
-        tk.Label(header, text="✏️ Preview Title Changes", bg=theme.bg_secondary,
-                fg=theme.text_primary, font=FONTS.title(bold=False)).pack(anchor="w")
-        tk.Label(header, text=f"{len(changes)} titles will be updated", bg=theme.bg_secondary,
-                fg=theme.text_secondary, font=FONTS.small()).pack(anchor="w")
+        tk.Label(
+            header, text="Preview title changes", bg=theme.bg_secondary,
+            fg=theme.text_primary, font=FONTS.title(bold=True)
+        ).pack(anchor="w")
+        tk.Label(
+            header,
+            text=f"Review {len(changes)} suggested title update(s) before applying them.",
+            bg=theme.bg_secondary, fg=theme.text_secondary,
+            font=FONTS.small(), wraplength=640, justify=tk.LEFT
+        ).pack(anchor="w", pady=(4, 0))
         
         # Scrollable list of changes
         canvas = tk.Canvas(dialog, bg=theme.bg_primary, highlightthickness=0)
@@ -17231,13 +18166,19 @@ Respond with ONLY valid JSON in this exact format:
             tk.Label(text_frame, text=bm.domain, bg=theme.bg_tertiary,
                     fg=theme.text_muted, font=FONTS.tiny()).pack(anchor="w")
             
-            # Old title (strikethrough effect with color)
-            tk.Label(text_frame, text=f"Old: {bm.title[:60]}", bg=theme.bg_tertiary,
-                    fg=theme.accent_error, font=FONTS.small()).pack(anchor="w")
+            # Old title
+            tk.Label(
+                text_frame, text=f"Current: {bm.title[:90]}", bg=theme.bg_tertiary,
+                fg=theme.text_secondary, font=FONTS.small(),
+                wraplength=560, justify=tk.LEFT
+            ).pack(anchor="w")
             
             # New title
-            tk.Label(text_frame, text=f"New: {new_title[:60]}", bg=theme.bg_tertiary,
-                    fg=theme.accent_success, font=("Segoe UI", 9, "bold")).pack(anchor="w")
+            tk.Label(
+                text_frame, text=f"Suggested: {new_title[:90]}", bg=theme.bg_tertiary,
+                fg=theme.accent_success, font=FONTS.small(bold=True),
+                wraplength=560, justify=tk.LEFT
+            ).pack(anchor="w", pady=(2, 0))
         
         # Buttons
         btn_frame = tk.Frame(dialog, bg=theme.bg_secondary, pady=15)
@@ -17255,7 +18196,11 @@ Respond with ONLY valid JSON in this exact format:
             self._refresh_bookmark_list()
             dialog.destroy()
             
-            messagebox.showinfo("Titles Updated", f"Updated {applied} bookmark title(s).")
+            messagebox.showinfo(
+                "Titles Updated",
+                f"Updated {applied} bookmark title(s).",
+                parent=self.root
+            )
             self._set_status(f"Updated {applied} titles")
         
         def select_all():
@@ -17266,21 +18211,11 @@ Respond with ONLY valid JSON in this exact format:
             for _, _, var in check_vars:
                 var.set(False)
         
-        tk.Label(btn_frame, text="Select All", bg=theme.bg_tertiary, fg=theme.text_primary,
-                font=FONTS.small(), padx=10, pady=5, cursor="hand2").pack(side=tk.LEFT, padx=10)
-        btn_frame.winfo_children()[-1].bind("<Button-1>", lambda e: select_all())
-        
-        tk.Label(btn_frame, text="Select None", bg=theme.bg_tertiary, fg=theme.text_primary,
-                font=FONTS.small(), padx=10, pady=5, cursor="hand2").pack(side=tk.LEFT)
-        btn_frame.winfo_children()[-1].bind("<Button-1>", lambda e: select_none())
-        
-        tk.Label(btn_frame, text="Apply Selected", bg=theme.accent_success, fg="white",
-                font=("Segoe UI", 10, "bold"), padx=20, pady=8, cursor="hand2").pack(side=tk.RIGHT, padx=20)
-        btn_frame.winfo_children()[-1].bind("<Button-1>", lambda e: apply_changes())
-        
-        tk.Label(btn_frame, text="Cancel", bg=theme.bg_tertiary, fg=theme.text_primary,
-                font=FONTS.body(), padx=15, pady=8, cursor="hand2").pack(side=tk.RIGHT)
-        btn_frame.winfo_children()[-1].bind("<Button-1>", lambda e: dialog.destroy())
+        ModernButton(btn_frame, text="Select all", command=select_all, padx=12, pady=6).pack(side=tk.LEFT, padx=(20, 8))
+        ModernButton(btn_frame, text="Select none", command=select_none, padx=12, pady=6).pack(side=tk.LEFT)
+        ModernButton(btn_frame, text="Apply selected", command=apply_changes, style="success", padx=20, pady=8).pack(side=tk.RIGHT, padx=20)
+        ModernButton(btn_frame, text="Cancel", command=dialog.destroy, padx=16, pady=8).pack(side=tk.RIGHT)
+        dialog.bind("<Escape>", lambda e: dialog.destroy())
     
     def _show_ai_settings(self):
         """Show AI settings dialog"""
@@ -17289,37 +18224,43 @@ Respond with ONLY valid JSON in this exact format:
         dialog = tk.Toplevel(self.root)
         dialog.title("AI Settings")
         dialog.configure(bg=theme.bg_primary)
-        dialog.geometry("500x550")
+        dialog.geometry("560x660")
+        dialog.minsize(520, 560)
         dialog.transient(self.root)
         dialog.grab_set()
+        set_dark_title_bar(dialog)
         
         # Center dialog
         dialog.update_idletasks()
-        x = self.root.winfo_x() + (self.root.winfo_width() - 500) // 2
-        y = self.root.winfo_y() + (self.root.winfo_height() - 550) // 2
+        x = self.root.winfo_x() + (self.root.winfo_width() - 560) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - 660) // 2
         dialog.geometry(f"+{x}+{y}")
         
         # Header
-        header = tk.Frame(dialog, bg=theme.bg_secondary, padx=20, pady=15)
+        header = tk.Frame(dialog, bg=theme.bg_secondary, padx=24, pady=18)
         header.pack(fill=tk.X)
         
         tk.Label(
-            header, text="🤖 AI Provider Settings", bg=theme.bg_secondary,
-            fg=theme.text_primary, font=FONTS.title(bold=False)
+            header, text="AI settings", bg=theme.bg_secondary,
+            fg=theme.text_primary, font=FONTS.title(bold=True)
         ).pack(anchor="w")
         
         tk.Label(
-            header, text="Configure AI providers for categorization and tagging", 
-            bg=theme.bg_secondary, fg=theme.text_secondary, font=FONTS.small()
+            header,
+            text="Choose the provider and pacing used for categorization, tags, descriptions, and title cleanup.",
+            bg=theme.bg_secondary, fg=theme.text_secondary,
+            font=FONTS.small(), wraplength=500, justify=tk.LEFT
         ).pack(anchor="w", pady=(5, 0))
         
         # Scrollable content
-        content_frame = tk.Frame(dialog, bg=theme.bg_primary)
-        content_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        scroll_area = ScrollableFrame(dialog, bg=theme.bg_primary)
+        scroll_area.pack(fill=tk.BOTH, expand=True)
+        content_frame = tk.Frame(scroll_area.inner, bg=theme.bg_primary, padx=24, pady=16)
+        content_frame.pack(fill=tk.BOTH, expand=True)
         
         # Provider selection
         tk.Label(
-            content_frame, text="Provider:", bg=theme.bg_primary,
+            content_frame, text="Provider", bg=theme.bg_primary,
             fg=theme.text_primary, font=("Segoe UI", 10, "bold")
         ).pack(anchor="w", pady=(10, 5))
         
@@ -17345,25 +18286,37 @@ Respond with ONLY valid JSON in this exact format:
         
         # Model selection
         tk.Label(
-            content_frame, text="Model:", bg=theme.bg_primary,
+            content_frame, text="Model", bg=theme.bg_primary,
             fg=theme.text_primary, font=("Segoe UI", 10, "bold")
         ).pack(anchor="w", pady=(15, 5))
         
         model_var = tk.StringVar(value=self.ai_config.get_model())
-        model_combo = ttk.Combobox(content_frame, textvariable=model_var, state="readonly", width=35)
-        model_combo.pack(anchor="w", pady=5)
+        model_combo = ttk.Combobox(content_frame, textvariable=model_var, state="readonly", width=44)
+        model_combo.pack(anchor="w", pady=5, ipady=3)
         
         # API Key
         tk.Label(
-            content_frame, text="API Key:", bg=theme.bg_primary,
+            content_frame, text="API key", bg=theme.bg_primary,
             fg=theme.text_primary, font=("Segoe UI", 10, "bold")
         ).pack(anchor="w", pady=(15, 5))
+
+        tk.Label(
+            content_frame,
+            text="Stored locally in this app. Ollama does not require a cloud API key.",
+            bg=theme.bg_primary, fg=theme.text_muted,
+            font=FONTS.tiny(), wraplength=480, justify=tk.LEFT
+        ).pack(anchor="w", pady=(0, 5))
         
         api_key_var = tk.StringVar(value=self.ai_config.get_api_key())
         api_entry = tk.Entry(
             content_frame, textvariable=api_key_var, show="•",
             bg=theme.bg_secondary, fg=theme.text_primary,
-            font=FONTS.body(), relief=tk.FLAT, width=45
+            insertbackground=theme.text_primary,
+            disabledbackground=theme.bg_tertiary,
+            disabledforeground=theme.text_muted,
+            font=FONTS.body(), relief=tk.FLAT, width=48,
+            highlightthickness=1, highlightbackground=theme.border_muted,
+            highlightcolor=theme.accent_primary
         )
         api_entry.pack(anchor="w", ipady=5, pady=5)
         
@@ -17371,23 +18324,19 @@ Respond with ONLY valid JSON in this exact format:
         def toggle_key():
             if api_entry.cget('show') == '•':
                 api_entry.configure(show='')
-                show_btn.configure(text="Hide")
+                show_btn.set_text("Hide key")
             else:
                 api_entry.configure(show='•')
-                show_btn.configure(text="Show")
+                show_btn.set_text("Show key")
         
-        show_btn = tk.Label(
-            content_frame, text="Show", bg=theme.accent_primary, fg="white",
-            font=FONTS.tiny(), padx=8, pady=2, cursor="hand2"
-        )
+        show_btn = ModernButton(content_frame, text="Show key", command=toggle_key, padx=10, pady=4, font=FONTS.tiny())
         show_btn.pack(anchor="w", pady=2)
-        show_btn.bind("<Button-1>", lambda e: toggle_key())
         
         # Ollama server URL field
         ollama_frame = tk.Frame(content_frame, bg=theme.bg_primary)
 
         tk.Label(
-            ollama_frame, text="Ollama Server URL:", bg=theme.bg_primary,
+            ollama_frame, text="Ollama server URL", bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.small(bold=True)
         ).pack(anchor="w", pady=(0, 3))
 
@@ -17395,7 +18344,10 @@ Respond with ONLY valid JSON in this exact format:
         ollama_url_entry = tk.Entry(
             ollama_frame, textvariable=ollama_url_var,
             bg=theme.bg_secondary, fg=theme.text_primary,
-            font=FONTS.body(), relief=tk.FLAT, width=40
+            insertbackground=theme.text_primary,
+            font=FONTS.body(), relief=tk.FLAT, width=46,
+            highlightthickness=1, highlightbackground=theme.border_muted,
+            highlightcolor=theme.accent_primary
         )
         ollama_url_entry.pack(anchor="w", ipady=4, pady=2)
 
@@ -17418,18 +18370,17 @@ Respond with ONLY valid JSON in this exact format:
                             model_var.set(models[0])
                         self._show_toast(f"Found {len(models)} Ollama models", "success")
                     else:
-                        self._show_toast("Ollama running but no models installed.\nRun: ollama pull llama3.2", "warning")
+                        self._show_toast("Ollama is running, but no models are installed. Run: ollama pull llama3.2", "warning")
                 else:
-                    self._show_toast("Ollama not responding", "error")
+                    self._show_toast("Ollama did not respond at that URL", "error")
             except Exception as e:
-                self._show_toast(f"Cannot reach Ollama at {url}\n{str(e)[:60]}", "error")
+                self._show_toast(f"Cannot reach Ollama at {url}: {str(e)[:80]}", "error")
 
-        detect_btn = tk.Label(
-            ollama_frame, text="🔍 Detect Models", bg=theme.accent_primary, fg="white",
-            font=FONTS.tiny(), padx=10, pady=3, cursor="hand2"
+        detect_btn = ModernButton(
+            ollama_frame, text="Detect models", command=detect_ollama_models,
+            style="primary", padx=12, pady=5, font=FONTS.tiny()
         )
         detect_btn.pack(anchor="w", pady=(5, 0))
-        detect_btn.bind("<Button-1>", lambda e: detect_ollama_models())
 
         # Update models when provider changes
         def on_provider_change(*args):
@@ -17450,15 +18401,12 @@ Respond with ONLY valid JSON in this exact format:
                 ollama_frame.pack_forget()
                 api_entry.configure(state="normal")
 
-        provider_var.trace_add('write', on_provider_change)
-        on_provider_change()  # Initialize
-        
         # Batch size and rate limit
         settings_frame = tk.Frame(content_frame, bg=theme.bg_primary)
         settings_frame.pack(fill=tk.X, pady=(15, 5))
         
         tk.Label(
-            settings_frame, text="Batch Size:", bg=theme.bg_primary,
+            settings_frame, text="Batch size", bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.small()
         ).grid(row=0, column=0, sticky="w", pady=5)
         
@@ -17467,13 +18415,16 @@ Respond with ONLY valid JSON in this exact format:
         batch_spin.grid(row=0, column=1, padx=10, pady=5)
         
         tk.Label(
-            settings_frame, text="Rate Limit (req/min):", bg=theme.bg_primary,
+            settings_frame, text="Rate limit (req/min)", bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.small()
         ).grid(row=1, column=0, sticky="w", pady=5)
         
         rate_var = tk.IntVar(value=self.ai_config.get_rate_limit())
         rate_spin = ttk.Spinbox(settings_frame, from_=1, to=120, textvariable=rate_var, width=8)
         rate_spin.grid(row=1, column=1, padx=10, pady=5)
+
+        provider_var.trace_add('write', on_provider_change)
+        on_provider_change()  # Initialize after dependent fields are packed
         
         # Test connection button
         def test_connection():
@@ -17483,8 +18434,10 @@ Respond with ONLY valid JSON in this exact format:
             
             # Validate API key is provided (except for Ollama)
             if not key and provider != "ollama":
-                messagebox.showwarning("Missing API Key", 
-                    f"Please enter an API key for {provider}.\n\n"
+                provider_label = AI_PROVIDERS.get(provider).display_name if provider in AI_PROVIDERS else provider
+                messagebox.showwarning(
+                    "API Key Required",
+                    f"Enter an API key for {provider_label} before testing the connection.\n\n"
                     "You can get an API key from:\n"
                     "• OpenAI: platform.openai.com/api-keys\n"
                     "• Anthropic: console.anthropic.com/settings/keys\n"
@@ -17508,9 +18461,17 @@ Respond with ONLY valid JSON in this exact format:
                 success, message = client.test_connection()
                 
                 if success:
-                    messagebox.showinfo("Connection Test", f"✅ Success!\n\n{message}", parent=dialog)
+                    messagebox.showinfo(
+                        "Connection Successful",
+                        f"{self._ai_provider_name()} responded successfully.\n\n{message}",
+                        parent=dialog
+                    )
                 else:
-                    messagebox.showerror("Connection Test", f"❌ Failed\n\n{message}", parent=dialog)
+                    messagebox.showerror(
+                        "Connection Failed",
+                        f"The provider responded, but the connection test did not pass.\n\n{message}",
+                        parent=dialog
+                    )
             except Exception as e:
                 error_msg = str(e)
                 # Provide helpful hints based on error
@@ -17522,7 +18483,11 @@ Respond with ONLY valid JSON in this exact format:
                 elif "quota" in error_msg.lower() or "rate" in error_msg.lower():
                     hint = "\n\nHint: You may have exceeded your API quota or rate limit."
                 
-                messagebox.showerror("Connection Test", f"❌ Error\n\n{error_msg[:300]}{hint}", parent=dialog)
+                messagebox.showerror(
+                    "Connection Failed",
+                    f"The connection test could not be completed.\n\n{error_msg[:300]}{hint}",
+                    parent=dialog
+                )
             finally:
                 # Restore original values
                 self.ai_config._config["provider"] = old_provider
@@ -17532,15 +18497,14 @@ Respond with ONLY valid JSON in this exact format:
                 elif provider in self.ai_config._config.get("api_keys", {}):
                     del self.ai_config._config["api_keys"][provider]
         
-        test_btn = tk.Label(
-            content_frame, text="🔌 Test Connection", bg=theme.accent_primary, fg="white",
-            font=FONTS.small(), padx=15, pady=5, cursor="hand2"
+        test_btn = ModernButton(
+            content_frame, text="Test connection", command=test_connection,
+            style="primary", padx=16, pady=7
         )
         test_btn.pack(anchor="w", pady=(15, 5))
-        test_btn.bind("<Button-1>", lambda e: test_connection())
         
         # Buttons
-        btn_frame = tk.Frame(dialog, bg=theme.bg_secondary, pady=15)
+        btn_frame = tk.Frame(dialog, bg=theme.bg_secondary, padx=20, pady=15)
         btn_frame.pack(fill=tk.X, side=tk.BOTTOM)
         
         def save():
@@ -17558,19 +18522,13 @@ Respond with ONLY valid JSON in this exact format:
             dialog.destroy()
             self._show_toast("AI settings saved", "success")
         
-        save_btn = tk.Label(
-            btn_frame, text="Save", bg=theme.accent_success, fg="white",
-            font=("Segoe UI", 10, "bold"), padx=25, pady=8, cursor="hand2"
-        )
-        save_btn.pack(side=tk.RIGHT, padx=20)
-        save_btn.bind("<Button-1>", lambda e: save())
+        save_btn = ModernButton(btn_frame, text="Save settings", command=save, style="success", padx=22, pady=8)
+        save_btn.pack(side=tk.RIGHT)
         
-        cancel_btn = tk.Label(
-            btn_frame, text="Cancel", bg=theme.bg_tertiary, fg=theme.text_primary,
-            font=FONTS.body(), padx=20, pady=8, cursor="hand2"
-        )
-        cancel_btn.pack(side=tk.RIGHT)
-        cancel_btn.bind("<Button-1>", lambda e: dialog.destroy())
+        cancel_btn = ModernButton(btn_frame, text="Cancel", command=dialog.destroy, padx=18, pady=8)
+        cancel_btn.pack(side=tk.RIGHT, padx=(0, 10))
+        dialog.bind("<Escape>", lambda e: dialog.destroy())
+        dialog.bind("<Control-Return>", lambda e: save())
     
     def _show_analytics(self):
         """Show full analytics"""
@@ -17589,7 +18547,12 @@ Respond with ONLY valid JSON in this exact format:
     
     def _clear_favicon_cache(self):
         """Clear favicon cache"""
-        if messagebox.askyesno("Clear Cache", "Clear all cached favicons?"):
+        if messagebox.askyesno(
+            "Clear Favicon Cache",
+            "Clear all cached favicons?\n\n"
+            "Bookmarks are kept. Icons will be downloaded again when needed.",
+            parent=self.root
+        ):
             self.favicon_manager.clear_cache()
             self._refresh_all()
             self._set_status("Favicon cache cleared")
@@ -17598,13 +18561,19 @@ Respond with ONLY valid JSON in this exact format:
         """Redownload all favicons"""
         bookmarks = self.bookmark_manager.get_all_bookmarks()
         if not bookmarks:
-            messagebox.showinfo("No Bookmarks", "No bookmarks to fetch favicons for.")
+            messagebox.showinfo(
+                "No Favicons to Fetch",
+                "Import or add bookmarks before downloading favicons.",
+                parent=self.root
+            )
+            self._set_status("Add bookmarks before fetching favicons")
             return
         
         result = messagebox.askyesno(
             "Redownload Favicons",
-            f"This will redownload favicons for all {len(bookmarks)} bookmarks.\n\n"
-            "This may take a while. Continue?"
+            f"Redownload favicons for all {len(bookmarks)} bookmark(s)?\n\n"
+            "This clears cached icons first and may take a little while.",
+            parent=self.root
         )
         if not result:
             return
@@ -17616,18 +18585,32 @@ Respond with ONLY valid JSON in this exact format:
         """Redownload only missing favicons"""
         bookmarks = self.bookmark_manager.get_all_bookmarks()
         if not bookmarks:
-            messagebox.showinfo("No Bookmarks", "No bookmarks to fetch favicons for.")
+            messagebox.showinfo(
+                "No Favicons to Fetch",
+                "Import or add bookmarks before downloading favicons.",
+                parent=self.root
+            )
+            self._set_status("Add bookmarks before fetching favicons")
             return
         
         # Count missing
         missing_count = sum(1 for bm in bookmarks if not self.favicon_manager.get_cached(bm.domain))
         failed_count = len(self.favicon_manager.get_failed_domains())
+        if missing_count == 0 and failed_count == 0:
+            messagebox.showinfo(
+                "Favicons Up to Date",
+                "Every bookmark already has a cached favicon.",
+                parent=self.root
+            )
+            self._set_status("Favicons are up to date")
+            return
         
         result = messagebox.askyesno(
             "Redownload Missing Favicons",
-            f"Found approximately {missing_count} bookmarks without cached favicons.\n"
+            f"Found approximately {missing_count} bookmark(s) without cached favicons.\n"
             f"Previously failed domains: {failed_count}\n\n"
-            "This will retry all missing favicons. Continue?"
+            "Retry missing and previously failed favicon downloads?",
+            parent=self.root
         )
         if not result:
             return
@@ -17721,7 +18704,12 @@ Respond with ONLY valid JSON in this exact format:
     def _show_custom_favicon_dialog(self):
         """Show custom favicon dialog for selected bookmark"""
         if not self.selected_bookmarks:
-            messagebox.showinfo("Select Bookmark", "Please select a bookmark first.")
+            messagebox.showinfo(
+                "Select a Bookmark",
+                "Select one bookmark before choosing a custom favicon.",
+                parent=self.root
+            )
+            self._set_status("Select one bookmark to customize its favicon")
             return
         
         bm_id = list(self.selected_bookmarks)[0]
