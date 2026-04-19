@@ -11,6 +11,7 @@ import os
 import re
 import shutil
 import tempfile
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -431,6 +432,41 @@ class OPMLImporter:
         bookmarks = []
 
         try:
+            path = Path(filepath)
+            if path.stat().st_size > 50_000_000:
+                log.error(f"OPML file too large: {filepath}")
+                return []
+
+            def tag_name(element):
+                return element.tag.rsplit('}', 1)[-1].lower()
+
+            def walk(element, category: str = "Imported from OPML"):
+                current_category = category
+                if tag_name(element) == "outline":
+                    attrs = element.attrib
+                    url = attrs.get("xmlUrl") or attrs.get("htmlUrl") or attrs.get("url") or ""
+                    title = attrs.get("text") or attrs.get("title") or url
+
+                    if url and url.startswith(('http://', 'https://')):
+                        bookmarks.append(Bookmark(
+                            id=None,
+                            url=_decode(url),
+                            title=_decode(title) or _decode(url),
+                            category=current_category,
+                        ))
+                    elif title:
+                        current_category = _decode(title).strip() or current_category
+
+                for child in list(element):
+                    walk(child, current_category)
+
+            try:
+                root = ET.parse(filepath).getroot()
+                walk(root)
+                return bookmarks
+            except ET.ParseError:
+                bookmarks.clear()
+
             with open(filepath, 'r', encoding='utf-8') as f:
                 content = f.read()
 

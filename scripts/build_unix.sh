@@ -1,8 +1,9 @@
 #!/bin/bash
 # Build script for macOS/Linux
-# Usage: ./build_unix.sh
+# Usage: ./scripts/build_unix.sh
 
 set -e
+cd "$(dirname "$0")/.."
 
 echo "============================================"
 echo "Bookmark Organizer Pro - Unix Build"
@@ -28,7 +29,7 @@ pip3 install beautifulsoup4 requests Pillow pystray --quiet 2>/dev/null || true
 # Build
 echo ""
 echo "Building executable..."
-pyinstaller bookmark_organizer.spec --clean
+pyinstaller packaging/bookmark_organizer.spec --clean --noconfirm
 
 echo ""
 echo "============================================"
@@ -39,5 +40,5 @@ echo ""
 
 # macOS: Create app bundle
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    echo "Note: For macOS app bundle, edit spec file to enable BUNDLE section"
+    echo "Note: For macOS app bundle, edit packaging/bookmark_organizer.spec to enable BUNDLE section"
 fi

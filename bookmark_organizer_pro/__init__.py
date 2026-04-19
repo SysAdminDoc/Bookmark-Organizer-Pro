@@ -35,6 +35,11 @@ from .utils import (
     fetch_page_metadata, wayback_check, wayback_save,
     # health & merging
     calculate_health_score, merge_duplicate_bookmarks,
+    # dependency/runtime helpers
+    DependencyManager,
+    ResourceManager, atomic_json_write, csv_safe_cell,
+    get_user_friendly_error, open_external_url, run_with_timeout,
+    validate_environment,
 )
 from .core import (
     PatternEngine, StorageManager, CategoryManager,
@@ -83,6 +88,10 @@ __all__ = [
     "normalize_url", "TRACKING_PARAMS",
     "fetch_page_metadata", "wayback_check", "wayback_save",
     "calculate_health_score", "merge_duplicate_bookmarks",
+    "DependencyManager",
+    "ResourceManager", "atomic_json_write", "csv_safe_cell",
+    "get_user_friendly_error", "open_external_url", "run_with_timeout",
+    "validate_environment",
     # Core managers
     "PatternEngine", "StorageManager", "CategoryManager",
     "CATEGORY_ICONS", "get_category_icon",

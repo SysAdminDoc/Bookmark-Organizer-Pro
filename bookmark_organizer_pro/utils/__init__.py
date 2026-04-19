@@ -10,6 +10,16 @@ from .validators import validate_url, validate_path
 from .url import normalize_url, TRACKING_PARAMS
 from .metadata import fetch_page_metadata, wayback_check, wayback_save
 from .health import calculate_health_score, merge_duplicate_bookmarks
+from .dependencies import DependencyManager
+from .runtime import (
+    ResourceManager,
+    atomic_json_write,
+    csv_safe_cell,
+    get_user_friendly_error,
+    open_external_url,
+    run_with_timeout,
+    validate_environment,
+)
 
 __all__ = [
     # safe.py
@@ -25,4 +35,10 @@ __all__ = [
     "fetch_page_metadata", "wayback_check", "wayback_save",
     # health.py
     "calculate_health_score", "merge_duplicate_bookmarks",
+    # dependencies.py
+    "DependencyManager",
+    # runtime.py
+    "ResourceManager", "atomic_json_write", "csv_safe_cell",
+    "get_user_friendly_error", "open_external_url", "run_with_timeout",
+    "validate_environment",
 ]

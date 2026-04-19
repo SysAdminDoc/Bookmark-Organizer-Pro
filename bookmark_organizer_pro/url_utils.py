@@ -38,12 +38,13 @@ class URLUtilities:
             parsed = urllib.parse.urlparse(url)
             if parsed.scheme not in ('http', 'https'):
                 return False
-            hostname = parsed.hostname or ''
-            if not hostname or hostname in ('localhost', '0.0.0.0'):
+            hostname = (parsed.hostname or '').strip().rstrip('.').lower()
+            if not hostname or hostname in ('localhost', '0.0.0.0', '::'):
                 return False
-            for info in socket.getaddrinfo(hostname, None, socket.AF_UNSPEC):
+            ascii_host = hostname.encode("idna").decode("ascii")
+            for info in socket.getaddrinfo(ascii_host, None, socket.AF_UNSPEC):
                 ip = ipaddress.ip_address(info[4][0])
-                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                if ip.is_multicast or ip.is_unspecified or not ip.is_global:
                     return False
             return True
         except Exception:
@@ -74,6 +75,7 @@ class URLUtilities:
 
                 if response.status_code in (301, 302, 303, 307, 308):
                     next_url = response.headers.get('Location', '')
+                    response.close()
                     if next_url:
                         next_url = urllib.parse.urljoin(current_url, next_url)
                         # Block non-http redirects (javascript:, data:, etc.)
@@ -82,6 +84,7 @@ class URLUtilities:
                         current_url = next_url
                         redirect_count += 1
                         continue
+                response.close()
                 break
             except Exception:
                 break
@@ -121,7 +124,10 @@ class URLUtilities:
             return False
         try:
             response = requests.head(https_url, timeout=5, allow_redirects=False)
-            return response.status_code < 400
+            try:
+                return response.status_code < 400
+            finally:
+                response.close()
         except Exception:
             return False
 
@@ -184,7 +190,9 @@ class URLUtilities:
                 allow_redirects=False
             )
 
-            if response.status_code == 200:
+            try:
+                if response.status_code != 200:
+                    return None
                 match = re.search(
                     r'<link[^>]*rel=["\']canonical["\'][^>]*href=["\']([^"\']+)["\']',
                     response.text, re.IGNORECASE
@@ -198,6 +206,8 @@ class URLUtilities:
                 )
                 if match:
                     return match.group(1)
+            finally:
+                response.close()
         except Exception:
             pass
 

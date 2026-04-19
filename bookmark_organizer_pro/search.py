@@ -17,6 +17,8 @@ class SearchQuery:
     def __init__(self, raw_query: str = ""):
         self.raw_query = raw_query
         self.text_terms: List[str] = []
+        self.or_terms: List[str] = []
+        self.excluded_terms: List[str] = []
         self.domain_filters: List[str] = []
         self.tag_filters: List[str] = []
         self.category_filters: List[str] = []
@@ -67,8 +69,17 @@ class SearchQuery:
         if current_token:
             tokens.append(current_token)
 
+        next_is_or = False
         for token in tokens:
             lower_token = token.lower()
+
+            if lower_token == "and":
+                continue
+            if lower_token == "or":
+                if self.text_terms:
+                    self.or_terms.append(self.text_terms.pop())
+                next_is_or = True
+                continue
 
             if lower_token.startswith("domain:"):
                 self.domain_filters.append(token[7:].lower())
@@ -112,7 +123,14 @@ class SearchQuery:
                 except Exception:
                     pass
             else:
-                self.text_terms.append(token.strip('"'))
+                term = token.strip('"')
+                if term.startswith("-") and len(term) > 1:
+                    self.excluded_terms.append(term[1:])
+                elif next_is_or:
+                    self.or_terms.append(term)
+                    next_is_or = False
+                else:
+                    self.text_terms.append(term)
 
     @staticmethod
     def _parse_date(value: str) -> datetime:
@@ -177,11 +195,18 @@ class SearchQuery:
         if self.min_visits is not None and bookmark.visit_count < self.min_visits:
             return False
 
-        if self.text_terms:
-            searchable = f"{bookmark.title} {bookmark.url} {bookmark.notes} {bookmark.description}".lower()
-            for term in self.text_terms:
-                if term.lower() not in searchable:
-                    return False
+        searchable = f"{bookmark.title} {bookmark.url} {bookmark.notes} {bookmark.description}".lower()
+
+        for term in self.excluded_terms:
+            if term.lower() in searchable:
+                return False
+
+        if self.or_terms and not any(term.lower() in searchable for term in self.or_terms):
+            return False
+
+        for term in self.text_terms:
+            if term.lower() not in searchable:
+                return False
 
         return True
 
@@ -217,7 +242,7 @@ class SearchEngine:
         """Calculate relevance score for a bookmark"""
         score = 1.0
 
-        for term in query.text_terms:
+        for term in query.text_terms + query.or_terms:
             term_lower = term.lower()
             if term_lower in bookmark.title.lower():
                 score += 2.0

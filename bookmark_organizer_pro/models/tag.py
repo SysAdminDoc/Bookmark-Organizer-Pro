@@ -56,14 +56,28 @@ class Tag:
             "icon": self.icon,
             "parent": self.parent,
             "created_at": self.created_at,
+            "bookmark_count": self.bookmark_count,
         }
 
     @classmethod
     def from_dict(cls, d: Dict) -> "Tag":
+        if not isinstance(d, dict):
+            d = {}
+
+        def safe_str(value, default=""):
+            return str(value).strip() if value not in (None, "") else default
+
+        def safe_count(value):
+            try:
+                return max(0, int(value))
+            except (TypeError, ValueError):
+                return 0
+
         return cls(
-            name=d.get("name", ""),
-            color=d.get("color", ""),
-            icon=d.get("icon", ""),
-            parent=d.get("parent", ""),
-            created_at=d.get("created_at", ""),
+            name=safe_str(d.get("name")),
+            color=safe_str(d.get("color")),
+            icon=safe_str(d.get("icon")),
+            parent=safe_str(d.get("parent")),
+            created_at=safe_str(d.get("created_at")),
+            bookmark_count=safe_count(d.get("bookmark_count", 0)),
         )

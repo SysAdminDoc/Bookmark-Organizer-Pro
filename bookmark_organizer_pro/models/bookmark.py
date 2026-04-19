@@ -74,7 +74,8 @@ class Bookmark:
     @property
     def domain(self) -> str:
         try:
-            return urlparse(self.url).netloc.replace("www.", "")
+            hostname = urlparse(self.url).hostname or ""
+            return hostname.lower().removeprefix("www.")
         except Exception:
             return ""
 

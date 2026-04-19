@@ -2,6 +2,25 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## Unreleased
+
+### Changed
+- **Repository organization**: moved source assets to `assets/`, build helpers to
+  `scripts/`, PyInstaller metadata to `packaging/`, and added
+  `docs/REPOSITORY_STRUCTURE.md` as the canonical layout guide.
+- **Build hygiene**: PyInstaller, local build scripts, CI, and README build
+  instructions now use `packaging/bookmark_organizer.spec`; generated
+  `build/`, `dist/`, pytest cache, and bytecode outputs are ignored and safe to
+  delete.
+- **Developer workflow**: added `.gitattributes`, pytest configuration, a safe
+  `scripts/clean_workspace.py` cleanup helper, and architecture notes that make
+  the next `main.py` extractions explicit.
+- **Architecture cleanup**: moved dependency discovery/install logic and shared
+  runtime helpers out of `main.py` into package utilities, keeping the desktop
+  entry point focused on UI orchestration.
+- **Dead-code cleanup**: removed unused legacy dialog and dictionary helpers
+  from `main.py`.
+
 ## [v5.2.2] - 2026-04-19
 
 ### Changed — Reliability & UX Hardening Pass
