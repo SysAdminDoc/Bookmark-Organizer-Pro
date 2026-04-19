@@ -1,6 +1,8 @@
 @echo off
 REM Build script for Windows
-REM Usage: build_windows.bat
+REM Usage: scripts\build_windows.bat
+
+cd /d "%~dp0.."
 
 echo ============================================
 echo Bookmark Organizer Pro - Windows Build
@@ -28,7 +30,7 @@ pip install beautifulsoup4 requests Pillow pystray --quiet
 REM Build
 echo.
 echo Building executable...
-pyinstaller bookmark_organizer.spec --clean
+pyinstaller packaging\bookmark_organizer.spec --clean --noconfirm
 
 if errorlevel 1 (
     echo.
@@ -42,5 +44,3 @@ echo BUILD SUCCESSFUL
 echo ============================================
 echo Executable: dist\BookmarkOrganizerPro.exe
 echo.
-
-pause

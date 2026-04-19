@@ -3,7 +3,7 @@
 PyInstaller spec file for Bookmark Organizer Pro
 
 Usage:
-    pyinstaller bookmark_organizer.spec
+    pyinstaller packaging/bookmark_organizer.spec --clean --noconfirm
 
 This will create a standalone executable in the 'dist' folder.
 
@@ -15,9 +15,8 @@ Options:
     --windowed: No console window (default for GUI)
 """
 
-import sys
-import os
 from pathlib import Path
+import sys
 
 # =============================================================================
 # CONFIGURATION
@@ -27,10 +26,13 @@ APP_NAME = "Bookmark Organizer Pro"
 APP_VERSION = "5.2.2"
 SCRIPT_NAME = "main.py"
 ICON_FILE = "bookmark_organizer.ico"
+PNG_ICON_FILE = "bookmark_organizer.png"
 
-# Determine the base path
-BASE_PATH = Path(SPEC).parent if 'SPEC' in dir() else Path('.')
-SCRIPT_PATH = BASE_PATH / SCRIPT_NAME
+SPEC_DIR = Path(SPECPATH).resolve()
+ROOT_DIR = SPEC_DIR.parent
+ASSETS_DIR = ROOT_DIR / "assets"
+SCRIPT_PATH = ROOT_DIR / SCRIPT_NAME
+VERSION_INFO_FILE = SPEC_DIR / "version_info.txt"
 
 # =============================================================================
 # ANALYSIS
@@ -77,15 +79,13 @@ hidden_imports = [
     'pystray',
 ]
 
-# Data files to include
-datas = [
-    # Include icon file if it exists
-]
-
-# Check for icon file
-icon_path = BASE_PATH / ICON_FILE
-if icon_path.exists():
-    datas.append((str(icon_path), '.'))
+# Data files to include. Keep bundled runtime assets under the same
+# "assets/" folder used by local development.
+datas = []
+for asset_name in (ICON_FILE, PNG_ICON_FILE):
+    asset_path = ASSETS_DIR / asset_name
+    if asset_path.exists():
+        datas.append((str(asset_path), "assets"))
 
 # Binary files to include
 binaries = []
@@ -108,7 +108,7 @@ excludes = [
 
 a = Analysis(
     [str(SCRIPT_PATH)],
-    pathex=[str(BASE_PATH)],
+    pathex=[str(ROOT_DIR)],
     binaries=binaries,
     datas=datas,
     hiddenimports=hidden_imports,
@@ -136,8 +136,13 @@ pyz = PYZ(
 # EXECUTABLE
 # =============================================================================
 
-# Icon path for executable
+icon_path = ASSETS_DIR / ICON_FILE
 exe_icon = str(icon_path) if icon_path.exists() else None
+version_info = (
+    str(VERSION_INFO_FILE)
+    if sys.platform.startswith("win") and VERSION_INFO_FILE.exists()
+    else None
+)
 
 exe = EXE(
     pyz,
@@ -159,8 +164,7 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=exe_icon,
-    # Version info (Windows)
-    version_info=None,  # Can add version_info.txt file
+    version_info=version_info,
 )
 
 # =============================================================================

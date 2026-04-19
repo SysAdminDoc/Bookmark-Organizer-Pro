@@ -29,17 +29,18 @@ def _is_safe_url(url: str) -> bool:
         parsed = urlparse(url)
         if parsed.scheme not in ('http', 'https'):
             return False
-        hostname = parsed.hostname or ''
+        hostname = (parsed.hostname or '').strip().rstrip('.').lower()
         if not hostname:
             return False
         # Block obvious private names
-        if hostname in ('localhost', '0.0.0.0', '[::]'):
+        if hostname in ('localhost', '0.0.0.0', '::'):
             return False
         # Resolve and check IP
-        for info in socket.getaddrinfo(hostname, None, socket.AF_UNSPEC):
+        ascii_host = hostname.encode("idna").decode("ascii")
+        for info in socket.getaddrinfo(ascii_host, None, socket.AF_UNSPEC):
             addr = info[4][0]
             ip = ipaddress.ip_address(addr)
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            if ip.is_multicast or ip.is_unspecified or not ip.is_global:
                 return False
         return True
     except Exception:

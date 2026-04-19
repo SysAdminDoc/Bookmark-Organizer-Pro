@@ -72,7 +72,7 @@ class PatternEngine:
 
         try:
             parsed = urlparse(url)
-            domain = parsed.netloc.lower().replace('www.', '')
+            domain = (parsed.hostname or "").lower().removeprefix("www.")
             path = parsed.path.lower()
         except Exception:
             domain = path = ""
