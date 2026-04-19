@@ -2,6 +2,43 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v4.9.0] - 2026-04-18
+
+### Changed -- Premium UX Polish Pass
+
+**Empty State**
+- Beautiful centered empty state when 0 bookmarks exist: large icon, heading,
+  subtitle, two CTA buttons (Import Bookmarks / Add Bookmark), and a tip about
+  drag-and-drop. Replaces the previous blank treeview.
+- Empty state auto-hides when bookmarks are loaded, auto-shows when all removed.
+
+**Toast Notification System**
+- New `ToastNotification` class: non-blocking, auto-dismissing, stacking toasts
+  that appear top-right with colored icon strips (success=green, error=red,
+  warning=amber, info=blue).
+- Import completion, link check results, and duplicate check feedback now use
+  toasts instead of modal `messagebox.showinfo()` dialogs.
+
+**Category Sidebar**
+- Category items now use frame-based rows with separate name label and count
+  badge (pill-style, `bg_tertiary` background).
+- Hover effect applies to the entire row including the count badge.
+- Count badges only shown when count > 0 (cleaner zero state).
+
+**Font Consistency**
+- Replaced all hardcoded `("Segoe UI", ...)` font references with the
+  centralized `FONTS` system (FONTS.header, FONTS.small, FONTS.body).
+- Search icon, clear button, sidebar headers, treeview headings all unified.
+
+**Build Metadata**
+- Author: "Bookmark Organizer Team" -> "SysAdminDoc"
+- Website: placeholder URL -> actual GitHub repo URL
+- Build date: "January 2026" -> "April 2026"
+
+### Fixed
+- `Image.Image` type hints quoted to prevent `AttributeError` when Pillow is
+  not yet imported at class definition time (startup crash on fresh installs).
+
 ## [v4.8.0] - 2026-04-18
 
 ### Changed — Categorization Coverage Expansion Phase 3
