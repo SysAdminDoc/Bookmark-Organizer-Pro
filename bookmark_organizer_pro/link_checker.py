@@ -53,16 +53,15 @@ class LinkChecker:
                         break
 
                     bookmark = futures[future]
-                    try:
-                        is_valid, status_code = future.result()
-                        bookmark.is_valid = is_valid
-                        bookmark.http_status = status_code
-                        bookmark.last_checked = datetime.now().isoformat()
-                    except Exception:
-                        bookmark.is_valid = False
-                        bookmark.http_status = 0
-
                     with self._lock:
+                        try:
+                            is_valid, status_code = future.result()
+                            bookmark.is_valid = is_valid
+                            bookmark.http_status = status_code
+                            bookmark.last_checked = datetime.now().isoformat()
+                        except Exception:
+                            bookmark.is_valid = False
+                            bookmark.http_status = 0
                         self._checked += 1
                         if progress_callback:
                             progress_callback(self._checked, self._total, bookmark)
