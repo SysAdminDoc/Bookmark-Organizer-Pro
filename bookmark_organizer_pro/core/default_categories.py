@@ -1,8 +1,7 @@
-"""Default categorization patterns - 1,583 patterns across 32 categories.
+"""Default categorization patterns across 32 categories.
 
-Built from real-world bookmark analysis of 5,000+ bookmarks. Covers 800+ popular
-domains. Achieves 84.3% auto-categorization coverage on real bookmark exports.
-Pattern types supported: plain, domain:, keyword:, regex:, path:, title:.
+Built from real-world bookmark analysis of 5,000+ bookmarks. Covers 1,200+ popular
+domains. Pattern types supported: plain, domain:, keyword:, regex:, path:, title:.
 """
 
 DEFAULT_CATEGORIES = {
@@ -43,7 +42,9 @@ DEFAULT_CATEGORIES = {
         "domain:signal.org", "domain:haveibeenpwned.com", "domain:privacyguides.org",
         "domain:privacytools.io", "domain:virustotal.com", "domain:keepassxc.org",
         "domain:tails.boum.org", "domain:whonix.org",
-        "keyword:vpn", "keyword:privacy", "keyword:encrypt"
+        "keyword:vpn", "keyword:privacy", "keyword:encrypt",
+        "keyword:password manager", "keyword:two-factor", "keyword:2fa",
+        "keyword:data breach", "keyword:identity theft",
     ],
     "Self-Hosted & Homelab": [
         "domain:pfsense.org", "domain:opnsense.org", "domain:proxmox.com",
@@ -52,7 +53,14 @@ DEFAULT_CATEGORIES = {
         "domain:sonarr.tv", "domain:radarr.video", "domain:nextcloud.com",
         "domain:pi-hole.net", "domain:portainer.io", "domain:emby.media",
         "domain:cockpit-project.org", "domain:homer-dashboard.com",
-        "domain:wireguard.com", "domain:tailscale.com", "domain:zerotier.com"
+        "domain:wireguard.com", "domain:tailscale.com", "domain:zerotier.com",
+        "domain:linuxserver.io", "domain:selfhosted.show",
+        "domain:awesome-selfhosted.net", "domain:selfh.st",
+        "domain:paperless-ngx.com", "domain:immich.app",
+        "domain:freshrss.org", "domain:miniflux.app",
+        "domain:vaultwarden.github.io", "domain:authelia.com",
+        "keyword:self-hosted", "keyword:homelab", "keyword:home server",
+        "keyword:docker compose", "keyword:media server",
     ],
     "SysAdmin & IT": [
         # Windows & Group Policy
@@ -245,6 +253,12 @@ DEFAULT_CATEGORIES = {
         "keyword:userscript", "keyword:tampermonkey", "keyword:greasemonkey",
         "keyword:api documentation", "keyword:sdk", "keyword:github repo",
         "keyword:pull request", "keyword:pry request",
+        "keyword:npm package", "keyword:pip install",
+        "keyword:source code", "keyword:open source",
+        "keyword:changelog", "keyword:release notes",
+        "keyword:bug report", "keyword:issue tracker",
+        "keyword:code snippet", "keyword:boilerplate",
+        "keyword:framework", "keyword:library",
     ],
     "AI & Machine Learning": [
         # AI Assistants
@@ -306,7 +320,9 @@ DEFAULT_CATEGORIES = {
         "domain:cpanel.com", "domain:one.com", "domain:siteground.com",
         "domain:hostinger.com", "domain:bluehost.com", "domain:dreamhost.com",
         "keyword:docker", "keyword:kubernetes", "keyword:terraform",
-        "keyword:ansible", "keyword:vmware", "keyword:esxi", "keyword:proxmox"
+        "keyword:ansible", "keyword:vmware", "keyword:esxi", "keyword:proxmox",
+        "keyword:aws", "keyword:azure", "keyword:cloud hosting",
+        "keyword:cdn", "keyword:ssl certificate", "keyword:domain name",
     ],
     "News & Media": [
         "domain:cnn.com", "domain:bbc.com", "domain:bbc.co.uk",
@@ -347,6 +363,13 @@ DEFAULT_CATEGORIES = {
         # Personal blogs / authors (common unknown)
         "domain:todaywillbedifferent.com",
         "domain:brittanyanneauthor.com",
+        # Podcast / newsletter platforms (news context)
+        "domain:rss.com", "domain:feedburner.google.com",
+        # Additional news keywords
+        "keyword:breaking news", "keyword:headlines",
+        "keyword:press release", "keyword:editorial",
+        "keyword:opinion piece", "keyword:investigat",
+        "keyword:latest news", "keyword:news update",
     ],
     "Weather & Meteorology": [
         "domain:weather.com", "domain:weather.gov", "domain:noaa.gov",
@@ -372,7 +395,20 @@ DEFAULT_CATEGORIES = {
         "domain:tiktok.com", "domain:pinterest.com", "domain:tumblr.com",
         "domain:snapchat.com", "domain:threads.net",
         "domain:bluesky.app", "domain:bsky.app",
-        "domain:mastodon.social", "domain:nextdoor.com"
+        "domain:mastodon.social", "domain:nextdoor.com",
+        # Messaging / chat
+        "domain:whatsapp.com", "domain:web.whatsapp.com",
+        "domain:web.telegram.org", "domain:signal.org",
+        # Photo / video social
+        "domain:flickr.com", "domain:500px.com", "domain:vsco.co",
+        "domain:lemon8-app.com", "domain:bereal.com",
+        # Niche social
+        "domain:reddit.com/user", "domain:about.me",
+        "domain:linktree.com", "domain:linktr.ee",
+        "domain:carrd.co", "domain:bio.link",
+        # Keywords
+        "keyword:social media", "keyword:followers", "keyword:influencer",
+        "keyword:social network",
     ],
     "Forums & Communities": [
         "domain:reddit.com", "domain:old.reddit.com", "domain:new.reddit.com",
@@ -397,6 +433,8 @@ DEFAULT_CATEGORIES = {
         "domain:tapatalk.com", "domain:proboards.com",
         "domain:forums.redflagdeals.com", "domain:slickdeals.net",
         "keyword:discussion forum", "keyword:subreddit",
+        "keyword:community", "keyword:message board",
+        "keyword:comments", "keyword:thread",
     ],
     "Shopping & E-commerce": [
         "domain:amazon.com", "domain:smile.amazon.com", "domain:camelcamelcamel.com",
@@ -439,6 +477,10 @@ DEFAULT_CATEGORIES = {
         "domain:gotsmoke.com", "domain:smokershub.com",
         "keyword:firearm", "keyword:ammo", "keyword:holster",
         "keyword:for sale", "keyword:buy online", "keyword:discount",
+        "keyword:coupon", "keyword:promo code", "keyword:deal",
+        "keyword:price compare", "keyword:free shipping",
+        "keyword:add to cart", "keyword:checkout",
+        "keyword:order tracking", "keyword:returns policy",
     ],
     "Entertainment & Streaming": [
         # Video Streaming
@@ -494,6 +536,17 @@ DEFAULT_CATEGORIES = {
         "domain:looperman.com", "domain:splice.com",
         "domain:beatstars.com", "domain:freesound.org",
         "keyword:asmr", "keyword:playlist", "keyword:instrumental",
+        # Podcasts
+        "domain:podcasts.apple.com", "domain:overcast.fm",
+        "domain:pocketcasts.com", "domain:castbox.fm",
+        "domain:podbean.com", "domain:anchor.fm", "domain:buzzsprout.com",
+        "domain:transistor.fm", "domain:simplecast.com",
+        # Comics / manga / anime
+        "domain:webtoons.com", "domain:mangadex.org", "domain:myanimelist.net",
+        "domain:anilist.co", "domain:comixology.com",
+        "keyword:podcast", "keyword:episode", "keyword:stream",
+        "keyword:watch online", "keyword:movie", "keyword:tv show",
+        "keyword:anime", "keyword:manga", "keyword:webtoon",
     ],
     "Gaming": [
         "domain:steam.com", "domain:steampowered.com", "domain:store.steampowered.com",
@@ -512,6 +565,14 @@ DEFAULT_CATEGORIES = {
         "domain:gamivo.com", "domain:cdkeys.com", "domain:g2a.com",
         "domain:speedrun.com", "domain:twitchmetrics.net",
         "domain:howlongtobeat.com", "domain:backloggd.com",
+        # Additional
+        "domain:nexusmods.com", "domain:moddb.com", "domain:gamebanana.com",
+        "domain:eurogamer.net", "domain:gamesradar.com", "domain:destructoid.com",
+        "domain:rockpapershotgun.com", "domain:escapistmagazine.com",
+        "domain:rawg.io", "domain:opencritic.com", "domain:metacritic.com",
+        "domain:retrogames.cc", "domain:emulator.online",
+        "keyword:game mod", "keyword:cheat code", "keyword:walkthrough",
+        "keyword:gameplay", "keyword:esports", "keyword:game pass",
     ],
     "Finance & Banking": [
         "domain:chase.com", "domain:bankofamerica.com", "domain:wellsfargo.com",
@@ -548,13 +609,40 @@ DEFAULT_CATEGORIES = {
         "keyword:stock price", "keyword:commodities", "keyword:oil price",
     ],
     "Education & Learning": [
+        # MOOCs / online learning
         "domain:coursera.org", "domain:udemy.com", "domain:edx.org",
         "domain:khanacademy.org", "domain:udacity.com", "domain:codecademy.com",
         "domain:freecodecamp.org", "domain:duolingo.com", "domain:masterclass.com",
         "domain:pluralsight.com", "domain:skillshare.com", "domain:lynda.com",
-        "domain:flatiron.com",
+        "domain:flatiron.com", "domain:brilliant.org", "domain:datacamp.com",
+        "domain:treehouse.com", "domain:linkedin.com/learning",
+        "domain:learning.linkedin.com",
+        # Language learning
+        "domain:babbel.com", "domain:busuu.com", "domain:memrise.com",
+        "domain:rosettastone.com", "domain:italki.com",
+        # Textbooks / study tools
+        "domain:chegg.com", "domain:bartleby.com", "domain:studylib.net",
+        "domain:quizlet.com", "domain:brainly.com", "domain:sparknotes.com",
+        "domain:cliffsnotes.com", "domain:openstax.org",
+        "domain:gutenberg.org", "domain:libgen.is", "domain:zlibrary.org",
+        # University / .edu catch-all
+        "regex:\\.edu(/|$)",
+        "domain:mit.edu", "domain:stanford.edu", "domain:harvard.edu",
+        "domain:cornell.edu", "domain:berkeley.edu",
+        # K-12 / tutoring
+        "domain:ixl.com", "domain:prodigygame.com", "domain:mathway.com",
+        "domain:symbolab.com", "domain:desmos.com",
+        "domain:wyzant.com", "domain:tutor.com",
+        # Certification / professional
+        "domain:comptia.org", "domain:cisco.com/c/en/us/training-events",
+        "domain:aws.amazon.com/certification",
+        "domain:testout.com", "domain:cbtnuggets.com",
+        # Keywords
         "keyword:certification", "keyword:practice test",
-        "keyword:comptia", "keyword:microsoft cert"
+        "keyword:comptia", "keyword:microsoft cert",
+        "keyword:online course", "keyword:study guide",
+        "keyword:learn ", "keyword:tutorial", "keyword:how to ",
+        "keyword:textbook", "keyword:homework", "keyword:syllabus",
     ],
     "Reference & Research": [
         "domain:wikipedia.org", "domain:en.wikipedia.org", "domain:britannica.com",
@@ -588,6 +676,14 @@ DEFAULT_CATEGORIES = {
         "domain:tineye.com",  # reverse image search
         # User's generic Google account / profile
         "domain:myaccount.google.com", "domain:accounts.google.com",
+        # Additional reference
+        "domain:worldometers.info", "domain:numbeo.com",
+        "domain:timeanddate.com", "domain:convertunits.com",
+        "domain:unitconversion.org", "domain:calculator.net",
+        "domain:stackexchange.com",
+        "keyword:definition", "keyword:meaning of",
+        "keyword:encyclopedia", "keyword:wiki", "keyword:lookup",
+        "keyword:calculator", "keyword:converter", "keyword:translate",
     ],
     "Travel & Transportation": [
         "domain:booking.com", "domain:airbnb.com", "domain:expedia.com",
@@ -606,13 +702,52 @@ DEFAULT_CATEGORIES = {
         "domain:ihg.com", "domain:marriott.com", "domain:hilton.com",
         "domain:hyatt.com", "domain:choicehotels.com",
         "domain:momondo.com", "domain:google.com/flights",
+        # Car rental
+        "domain:enterprise.com", "domain:hertz.com", "domain:avis.com",
+        "domain:budget.com", "domain:nationalcar.com", "domain:turo.com",
+        # Cruises
+        "domain:royalcaribbean.com", "domain:carnival.com", "domain:ncl.com",
+        "domain:princess.com", "domain:celebritycruises.com",
+        # Public transit / rideshare
+        "domain:transit.app", "domain:moovitapp.com",
         "keyword:flights to", "keyword:hotel booking",
+        "keyword:road trip", "keyword:vacation rental",
+        "keyword:travel guide", "keyword:cruise",
     ],
     "Food & Dining": [
+        # Delivery / ordering
         "domain:doordash.com", "domain:ubereats.com", "domain:grubhub.com",
-        "domain:instacart.com", "domain:yelp.com", "domain:opentable.com",
-        "domain:allrecipes.com", "domain:epicurious.com",
-        "keyword:recipe", "keyword:restaurant", "keyword:cooking"
+        "domain:instacart.com", "domain:seamless.com", "domain:postmates.com",
+        "domain:gopuff.com", "domain:hungryroot.com",
+        # Reviews / reservations
+        "domain:yelp.com", "domain:opentable.com", "domain:resy.com",
+        "domain:tripadvisor.com/restaurants",
+        # Recipes & cooking
+        "domain:allrecipes.com", "domain:epicurious.com", "domain:food.com",
+        "domain:foodnetwork.com", "domain:simplyrecipes.com",
+        "domain:seriouseats.com", "domain:bonappetit.com",
+        "domain:tasteodhome.com", "domain:delish.com",
+        "domain:cookinglight.com", "domain:thekitchn.com",
+        "domain:budgetbytes.com", "domain:skinnytaste.com",
+        "domain:minimalistbaker.com", "domain:damndelicious.net",
+        "domain:tasty.co", "domain:sallysbakingaddiction.com",
+        # Grocery / meal kits
+        "domain:kroger.com", "domain:publix.com", "domain:heb.com",
+        "domain:safeway.com", "domain:albertsons.com", "domain:aldi.us",
+        "domain:traderjoes.com", "domain:wegmans.com",
+        "domain:hellofresh.com", "domain:blueapron.com",
+        "domain:freshly.com", "domain:factor75.com",
+        # Drinks
+        "domain:untappd.com", "domain:vivino.com", "domain:totalwine.com",
+        "domain:drizly.com", "domain:wine.com",
+        # Fast food / chains
+        "domain:mcdonalds.com", "domain:chipotle.com",
+        "domain:chickfila.com", "domain:dominos.com", "domain:papajohns.com",
+        "domain:starbucks.com", "domain:dunkindonuts.com",
+        # Keywords
+        "keyword:recipe", "keyword:restaurant", "keyword:cooking",
+        "keyword:meal prep", "keyword:food delivery", "keyword:takeout",
+        "keyword:grocery", "keyword:menu", "keyword:nutrition facts",
     ],
     "Health & Medical": [
         "domain:webmd.com", "domain:mayoclinic.org", "domain:healthline.com",
@@ -649,6 +784,10 @@ DEFAULT_CATEGORIES = {
         "keyword:dicom", "keyword:pacs", "keyword:x-ray", "keyword:radiology",
         "keyword:patient portal", "keyword:mychart", "keyword:imaging",
         "keyword:medical record", "keyword:prescription",
+        "keyword:symptoms", "keyword:diagnosis", "keyword:treatment",
+        "keyword:health insurance", "keyword:pharmacy",
+        "keyword:fitness", "keyword:workout", "keyword:exercise",
+        "keyword:mental health", "keyword:therapy", "keyword:wellness",
     ],
     "Job Search & Career": [
         "domain:indeed.com", "domain:glassdoor.com", "domain:monster.com",
@@ -691,16 +830,69 @@ DEFAULT_CATEGORIES = {
         "keyword:real estate", "keyword:for rent", "keyword:apartment",
         "keyword:condo for", "keyword:house for", "keyword:mortgage",
         "keyword:home value", "keyword:zestimate",
+        "keyword:property tax", "keyword:home inspection",
+        "keyword:closing cost", "keyword:hoa",
     ],
     "Automotive": [
+        # Buying / selling
         "domain:cars.com", "domain:autotrader.com", "domain:cargurus.com",
         "domain:carmax.com", "domain:kbb.com", "domain:edmunds.com",
-        "domain:truecar.com", "domain:vroom.com", "domain:carvana.com"
+        "domain:truecar.com", "domain:vroom.com", "domain:carvana.com",
+        "domain:carfax.com", "domain:autotempest.com", "domain:autolist.com",
+        # Brands
+        "domain:toyota.com", "domain:ford.com", "domain:honda.com",
+        "domain:chevrolet.com", "domain:bmw.com", "domain:mercedes-benz.com",
+        "domain:hyundai.com", "domain:kia.com", "domain:subaru.com",
+        "domain:tesla.com", "domain:rivian.com", "domain:nissan.com",
+        "domain:dodge.com", "domain:jeep.com", "domain:ram.com",
+        "domain:gmc.com", "domain:buick.com", "domain:cadillac.com",
+        # Reviews / news
+        "domain:caranddriver.com", "domain:motortrend.com", "domain:jalopnik.com",
+        "domain:thedrive.com", "domain:roadandtrack.com", "domain:autoblog.com",
+        "domain:carbuzz.com", "domain:torquenews.com",
+        "domain:electrek.co", "domain:insideevs.com",
+        # Parts / repair
+        "domain:rockauto.com", "domain:autozone.com", "domain:oreillyauto.com",
+        "domain:advanceautoparts.com", "domain:napaonline.com",
+        "domain:repairpal.com", "domain:yourmechanic.com",
+        "domain:1aauto.com", "domain:fcpeuro.com",
+        # Insurance / registration
+        "domain:dmv.org", "domain:geico.com/auto",
+        # Keywords
+        "keyword:car repair", "keyword:auto parts", "keyword:vehicle recall",
+        "keyword:oil change", "keyword:car insurance", "keyword:vin check",
+        "keyword:car review", "keyword:test drive", "keyword:mpg",
     ],
     "Sports": [
+        # Major sports networks
         "domain:espn.com", "domain:sports.yahoo.com", "domain:bleacherreport.com",
+        "domain:cbssports.com", "domain:foxsports.com", "domain:theathletic.com",
+        "domain:sbnation.com", "domain:deadspin.com", "domain:barstoolsports.com",
+        "domain:si.com", "domain:sportingnews.com", "domain:nbcsports.com",
+        # Pro leagues
         "domain:nba.com", "domain:nfl.com", "domain:mlb.com", "domain:nhl.com",
-        "domain:cbssports.com", "domain:foxsports.com", "domain:theathletic.com"
+        "domain:mls.com", "domain:pga.com", "domain:lpga.com",
+        "domain:nascar.com", "domain:formula1.com", "domain:f1.com",
+        "domain:ufc.com", "domain:sherdog.com", "domain:wwe.com",
+        "domain:ncaa.com", "domain:ncaa.org",
+        # Soccer / international
+        "domain:goal.com", "domain:transfermarkt.com", "domain:whoscored.com",
+        "domain:premierleague.com", "domain:fifa.com", "domain:uefa.com",
+        "domain:flashscore.com", "domain:sofascore.com",
+        # Fantasy & betting
+        "domain:draftkings.com", "domain:fanduel.com", "domain:bet365.com",
+        "domain:bovada.lv", "domain:betmgm.com", "domain:caesars.com",
+        "domain:pointsbet.com", "domain:mybookie.ag",
+        # Stats & reference
+        "domain:pro-football-reference.com", "domain:basketball-reference.com",
+        "domain:baseball-reference.com", "domain:hockey-reference.com",
+        "domain:statmuse.com", "domain:covers.com",
+        # Fitness / running
+        "domain:runnersworld.com", "domain:bicycling.com",
+        "domain:swimswam.com", "domain:letsrun.com",
+        "keyword:sports scores", "keyword:game recap", "keyword:standings",
+        "keyword:fantasy football", "keyword:fantasy basketball",
+        "keyword:sportsbook", "keyword:point spread",
     ],
     "Government & Legal": [
         "regex:\\.gov(/|$)", "domain:usa.gov", "domain:irs.gov", "domain:ssa.gov",
@@ -716,6 +908,12 @@ DEFAULT_CATEGORIES = {
         "domain:legalzoom.com", "domain:avvo.com",
         # International
         "domain:gov.uk", "domain:canada.ca", "domain:gov.au",
+        # State / local government
+        "domain:state.fl.us", "domain:state.oh.us",
+        "domain:myfloridalicense.com", "domain:ohio.gov",
+        "keyword:government", "keyword:federal", "keyword:legislation",
+        "keyword:court case", "keyword:public record", "keyword:tax filing",
+        "keyword:social security", "keyword:voter registration",
     ],
     "Downloads & Torrents": [
         "domain:1337x.to", "domain:thepiratebay.org", "domain:rarbg.to",
