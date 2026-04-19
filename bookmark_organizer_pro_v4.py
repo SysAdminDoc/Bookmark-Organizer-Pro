@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Bookmark Organizer Pro - Ultimate Edition v5.0.0
+Bookmark Organizer Pro - Ultimate Edition v5.2.0
 =================================================
 A powerful, modern bookmark manager with:
 - Modular architecture: backend in `bookmark_organizer_pro` package
@@ -14,7 +14,7 @@ A powerful, modern bookmark manager with:
 - Enhanced favicon caching
 - Professional UI with DPI awareness
 
-Version 5.0.0 - April 2026
+Version 5.2.0 - April 2026
 """
 
 # =============================================================================
@@ -14442,7 +14442,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         content.pack(fill=tk.BOTH, expand=True)
         
         # ----- LEFT SIDEBAR (Scrollable) -----
-        left_sidebar = tk.Frame(content, bg=theme.bg_secondary, width=280)
+        left_sidebar = tk.Frame(content, bg=theme.bg_secondary, width=320)
         left_sidebar.pack(side=tk.LEFT, fill=tk.Y)
         left_sidebar.pack_propagate(False)
         
@@ -14583,7 +14583,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         self.list_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
 
         # ----- RIGHT SIDEBAR (Scrollable) - ANALYTICS -----
-        right_sidebar = tk.Frame(content, bg=theme.bg_secondary, width=300)
+        right_sidebar = tk.Frame(content, bg=theme.bg_secondary, width=360)
         right_sidebar.pack(side=tk.RIGHT, fill=tk.Y)
         right_sidebar.pack_propagate(False)
         
