@@ -7,6 +7,29 @@ from typing import Dict, List, Optional
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 
+def _clean_tag_list(value) -> List[str]:
+    """Normalize tag-like input while preserving first-seen casing."""
+    if isinstance(value, str):
+        raw_values = value.split(",")
+    elif isinstance(value, (list, tuple, set)):
+        raw_values = value
+    else:
+        return []
+
+    cleaned = []
+    seen = set()
+    for item in raw_values:
+        text = str(item or "").strip()
+        if not text:
+            continue
+        key = text.lower()
+        if key in seen:
+            continue
+        cleaned.append(text)
+        seen.add(key)
+    return cleaned
+
+
 @dataclass
 class Bookmark:
     """A single bookmark with all metadata.
@@ -62,14 +85,19 @@ class Bookmark:
     def __post_init__(self):
         if self.id is None:
             self.id = int.from_bytes(os.urandom(8), 'big')
+        self.url = str(self.url or "").strip()
+        if not self.url:
+            raise ValueError("Bookmark URL is required")
+        self.title = str(self.title or self.url)
+        self.category = str(self.category or "Uncategorized / Needs Review")
         if not self.created_at:
             self.created_at = datetime.now().isoformat()
         if not self.modified_at:
             self.modified_at = self.created_at
-        if isinstance(self.tags, str):
-            self.tags = [t.strip() for t in self.tags.split(",") if t.strip()]
-        if isinstance(self.ai_tags, str):
-            self.ai_tags = [t.strip() for t in self.ai_tags.split(",") if t.strip()]
+        self.tags = _clean_tag_list(self.tags)
+        self.ai_tags = _clean_tag_list(self.ai_tags)
+        if not isinstance(self.custom_data, dict):
+            self.custom_data = {}
 
     @property
     def domain(self) -> str:
@@ -93,7 +121,7 @@ class Bookmark:
     def age_days(self) -> int:
         try:
             created = datetime.fromisoformat(self.created_at.replace('Z', '+00:00'))
-            return (datetime.now() - created.replace(tzinfo=None)).days
+            return max(0, (datetime.now() - created.replace(tzinfo=None)).days)
         except Exception:
             return 0
 
@@ -109,7 +137,8 @@ class Bookmark:
             return True
 
     def add_tag(self, tag: str):
-        if tag and tag not in self.tags:
+        tag = str(tag or "").strip()
+        if tag and tag.lower() not in {existing.lower() for existing in self.tags}:
             self.tags.append(tag)
             self.modified_at = datetime.now().isoformat()
 
@@ -121,6 +150,7 @@ class Bookmark:
     def record_visit(self):
         self.visit_count += 1
         self.last_visited = datetime.now().isoformat()
+        self.modified_at = self.last_visited
 
     def clean_url(self) -> str:
         """URL with tracking parameters removed."""
@@ -144,23 +174,28 @@ class Bookmark:
         return {
             "id": self.id, "url": self.url, "title": self.title,
             "category": self.category, "parent_category": self.parent_category,
-            "tags": self.tags, "notes": self.notes, "description": self.description,
+            "tags": list(self.tags), "notes": self.notes, "description": self.description,
             "created_at": self.created_at, "modified_at": self.modified_at,
             "add_date": self.add_date, "last_visited": self.last_visited,
             "visit_count": self.visit_count, "favicon_path": self.favicon_path,
             "favicon_url": self.favicon_url, "icon": self.icon,
             "screenshot_path": self.screenshot_path, "ai_confidence": self.ai_confidence,
-            "ai_tags": self.ai_tags, "source_file": self.source_file,
+            "ai_tags": list(self.ai_tags), "source_file": self.source_file,
             "last_checked": self.last_checked, "is_valid": self.is_valid,
             "http_status": self.http_status, "is_pinned": self.is_pinned,
             "is_archived": self.is_archived, "reading_time": self.reading_time,
             "word_count": self.word_count, "language": self.language,
-            "custom_data": self.custom_data
+            "custom_data": dict(self.custom_data)
         }
 
     @classmethod
     def from_dict(cls, d: Dict) -> "Bookmark":
-        url = str(d.get("url", "")).strip()
+        if not isinstance(d, dict):
+            raise ValueError("Bookmark data must be an object")
+        raw_url = d.get("url", "")
+        if not isinstance(raw_url, str):
+            raise ValueError("Bookmark URL must be a string")
+        url = raw_url.strip()
         if not url:
             raise ValueError("Bookmark URL is required")
 
@@ -200,11 +235,7 @@ class Bookmark:
             return default
 
         def safe_list(v):
-            if isinstance(v, list):
-                return [str(x).strip() for x in v if str(x).strip()]
-            if isinstance(v, str):
-                return [t.strip() for t in v.split(",") if t.strip()]
-            return []
+            return _clean_tag_list(v)
 
         return cls(
             id=safe_optional_int(d.get("id")),
@@ -235,5 +266,5 @@ class Bookmark:
             reading_time=safe_int(d.get("reading_time", 0)),
             word_count=safe_int(d.get("word_count", 0)),
             language=str(d.get("language") or ""),
-            custom_data=d.get("custom_data") if isinstance(d.get("custom_data"), dict) else {},
+            custom_data=dict(d.get("custom_data")) if isinstance(d.get("custom_data"), dict) else {},
         )

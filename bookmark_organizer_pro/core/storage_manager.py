@@ -96,9 +96,15 @@ class StorageManager:
             else:
                 log.warning(f"Unexpected data format in {self.filepath}")
                 return []
+            if not isinstance(items, list):
+                log.warning(f"Unexpected bookmark data shape in {self.filepath}")
+                return []
 
             bookmarks = []
             for item in items:
+                if not isinstance(item, dict):
+                    log.warning("Skipping non-object bookmark entry")
+                    continue
                 try:
                     bookmarks.append(Bookmark.from_dict(item))
                 except Exception as e:
