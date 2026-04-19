@@ -1,8 +1,8 @@
-# Bookmark Organizer Pro v5.2.0
+# Bookmark Organizer Pro v5.2.1
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, and advanced organization features.
 
-![Version](https://img.shields.io/badge/version-5.2.0-blue.svg)
+![Version](https://img.shields.io/badge/version-5.2.1-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.8+-3776AB.svg?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
@@ -68,7 +68,7 @@ git clone https://github.com/SysAdminDoc/Bookmark-Organizer-Pro.git
 cd Bookmark-Organizer-Pro
 
 # Run the application
-python bookmark_organizer_pro_v4.py
+python main.py
 ```
 
 On first run, the application will:
@@ -257,10 +257,10 @@ Enable debug logging:
 ```bash
 # Windows
 set BOOKMARK_DEBUG=1
-python bookmark_organizer_pro_v4.py
+python main.py
 
 # macOS/Linux
-BOOKMARK_DEBUG=1 python bookmark_organizer_pro_v4.py
+BOOKMARK_DEBUG=1 python main.py
 ```
 
 Log file location: `~/.bookmark_organizer/logs/bookmark_organizer.log`
@@ -297,28 +297,28 @@ rmdir /s %USERPROFILE%\.bookmark_organizer
 
 ```bash
 # Add a bookmark
-python bookmark_organizer_pro_v4.py add "https://example.com" --title "Example" --category "General"
+python main.py add "https://example.com" --title "Example" --category "General"
 
 # Search bookmarks
-python bookmark_organizer_pro_v4.py search "python tutorial"
+python main.py search "python tutorial"
 
 # Export bookmarks
-python bookmark_organizer_pro_v4.py export --format html --output bookmarks.html
+python main.py export --format html --output bookmarks.html
 
 # Import bookmarks
-python bookmark_organizer_pro_v4.py import bookmarks.html
+python main.py import bookmarks.html
 
 # List categories
-python bookmark_organizer_pro_v4.py categories
+python main.py categories
 
 # Show statistics
-python bookmark_organizer_pro_v4.py stats
+python main.py stats
 ```
 
 ### Python API
 
 ```python
-from bookmark_organizer_pro_v4 import (
+from bookmark_organizer_pro import (
     BookmarkManager,
     CategoryManager,
     TagManager,
@@ -373,6 +373,10 @@ MIT License - see LICENSE file for details.
 - Built with Python and Tkinter
 
 ## Version History
+
+### v5.2.1 (April 2026)
+- Repo cleanup: renamed `bookmark_organizer_pro_v4.py` → `main.py`. The `_v4` suffix was misleading legacy from the v4.x line. The modular `bookmark_organizer_pro/` package is the canonical backend; `main.py` is the UI entry point that imports from it.
+- Build spec / version_info metadata updated to reflect current version.
 
 ### v5.2.0 (April 2026)
 - Fixed HTML entity display bug — imported bookmark titles like "Love, Death &amp; Robots" now correctly display "Love, Death & Robots"
@@ -552,7 +556,8 @@ codesign --deep --force --verify --verbose --sign "Developer ID" dist/BookmarkOr
 
 | File | Description |
 |------|-------------|
-| `bookmark_organizer_pro_v4.py` | Main application script |
+| `main.py` | UI entry point (Tk app). Imports backend from `bookmark_organizer_pro/` |
+| `bookmark_organizer_pro/` | Modular backend package (models, core, utils, importers, AI, search, link checker, URL utils) |
 | `bookmark_organizer.spec` | PyInstaller build specification |
 | `build_windows.bat` | Windows build script |
 | `build_unix.sh` | macOS/Linux build script |
