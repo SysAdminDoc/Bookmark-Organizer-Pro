@@ -45,6 +45,22 @@ from .core import (
     PatternEngine, StorageManager, CategoryManager,
     CATEGORY_ICONS, get_category_icon,
 )
+from .commands import (
+    AddBookmarksCommand, BulkCategorizeCommand, Command, CommandStack,
+    DeleteBookmarksCommand, MoveBookmarksCommand, TagBookmarksCommand,
+)
+from .cli import BookmarkCLI
+from .managers import BookmarkManager, TagManager
+from .services import (
+    AIBatchProcessor, AICostTracker, AIIconSuggester, AISummarizer, AITagSuggester,
+    BackupScheduler, BookmarkAPI, CategoryColorManager, Collection, CollectionManager,
+    FaviconWrapperGenerator, FontManager, FrequentlyUsedManager, HighSpeedFaviconManager,
+    IconLibrary,
+    LocalArchiver, PDFExporter, ScreenshotCapture,
+    SemanticDuplicateDetector, WaybackMachine,
+    SettingsProfile, SettingsProfileManager, SmartTagManager, SmartTagRule,
+    VersionHistory,
+)
 from .io_formats import XBELHandler
 from .ai import (
     ensure_package, AIProviderInfo, AI_PROVIDERS,
@@ -95,6 +111,19 @@ __all__ = [
     # Core managers
     "PatternEngine", "StorageManager", "CategoryManager",
     "CATEGORY_ICONS", "get_category_icon",
+    "BookmarkManager", "TagManager",
+    # Commands
+    "AddBookmarksCommand", "BulkCategorizeCommand", "Command", "CommandStack",
+    "DeleteBookmarksCommand", "MoveBookmarksCommand", "TagBookmarksCommand",
+    "BookmarkCLI",
+    # Services
+    "AIBatchProcessor", "AICostTracker", "AIIconSuggester", "AISummarizer", "AITagSuggester",
+    "BackupScheduler", "BookmarkAPI", "CategoryColorManager", "Collection", "CollectionManager",
+    "FaviconWrapperGenerator", "FontManager", "FrequentlyUsedManager", "HighSpeedFaviconManager",
+    "IconLibrary", "LocalArchiver", "PDFExporter", "ScreenshotCapture",
+    "SemanticDuplicateDetector", "WaybackMachine",
+    "SettingsProfile", "SettingsProfileManager", "SmartTagManager", "SmartTagRule",
+    "VersionHistory",
     # I/O formats
     "XBELHandler",
     # AI

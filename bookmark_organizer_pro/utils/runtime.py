@@ -58,7 +58,11 @@ def open_external_url(url: str, opener: Optional[Callable[[str], bool]] = None) 
         log.warning(f"Blocked opening invalid URL '{url[:80]}': {error}")
         return False
     opener = opener or webbrowser.open
-    return bool(opener(url))
+    try:
+        return bool(opener(url))
+    except Exception as e:
+        log.warning(f"Could not open URL '{url[:80]}': {e}")
+        return False
 
 
 def get_user_friendly_error(exception: Exception) -> str:
@@ -151,13 +155,16 @@ def validate_environment():
 
 def run_with_timeout(func, timeout_seconds: float, default=None):
     """Run a no-argument function with a timeout."""
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(func)
-        try:
-            return future.result(timeout=timeout_seconds)
-        except concurrent.futures.TimeoutError:
-            log.warning(f"Function timed out after {timeout_seconds}s")
-            return default
-        except Exception as e:
-            log.error(f"Function error: {e}")
-            return default
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(func)
+    try:
+        return future.result(timeout=timeout_seconds)
+    except concurrent.futures.TimeoutError:
+        future.cancel()
+        log.warning(f"Function timed out after {timeout_seconds}s")
+        return default
+    except Exception as e:
+        log.error(f"Function error: {e}")
+        return default
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)

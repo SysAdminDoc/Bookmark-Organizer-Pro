@@ -16,7 +16,10 @@ class LinkChecker:
 
     def __init__(self, callback: Callable = None, max_workers: int = 10):
         self.callback = callback
-        self.max_workers = max_workers
+        try:
+            self.max_workers = max(1, min(32, int(max_workers)))
+        except (TypeError, ValueError):
+            self.max_workers = 10
         self._executor: Optional[ThreadPoolExecutor] = None
         self._running = False
         self._checked = 0
@@ -29,6 +32,7 @@ class LinkChecker:
         if self._running:
             return
 
+        bookmarks = list(bookmarks or [])
         self._running = True
         self._checked = 0
         self._total = len(bookmarks)
@@ -65,8 +69,10 @@ class LinkChecker:
                             bookmark.is_valid = False
                             bookmark.http_status = 0
                         self._checked += 1
-                        if progress_callback:
-                            progress_callback(self._checked, self._total, bookmark)
+                        checked = self._checked
+                        total = self._total
+                    if progress_callback:
+                        progress_callback(checked, total, bookmark)
         finally:
             self._running = False
             self._executor = None

@@ -330,6 +330,43 @@ class AIClient:
     def test_connection(self) -> Tuple[bool, str]:
         raise NotImplementedError
 
+    @staticmethod
+    def _safe_confidence(value, default: float = 0.5) -> float:
+        try:
+            return min(1.0, max(0.0, float(value)))
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _clean_tags(value) -> List[str]:
+        if isinstance(value, str):
+            raw_tags = value.split(",")
+        elif isinstance(value, list):
+            raw_tags = value
+        else:
+            return []
+
+        cleaned = []
+        seen = set()
+        for tag in raw_tags:
+            text = re.sub(r"\s+", "-", str(tag or "").strip().lower())
+            if not text:
+                continue
+            if text in seen:
+                continue
+            cleaned.append(text[:40])
+            seen.add(text)
+        return cleaned
+
+    @staticmethod
+    def _optional_text(value) -> Optional[str]:
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not text or text.lower() in {"none", "null", "n/a"}:
+            return None
+        return text
+
     def _parse_response(self, text: str, original: List[Dict]) -> List[Dict]:
         """Parse AI response into structured results"""
         try:
@@ -350,44 +387,60 @@ class AIClient:
             if start != -1 and end != -1:
                 json_str = cleaned_text[start:end+1]
                 data = json.loads(json_str)
-                results = data.get("results", [])
             else:
                 data = json.loads(cleaned_text)
+
+            if isinstance(data, dict):
                 results = data.get("results", [])
+            elif isinstance(data, list):
+                results = data
+            else:
+                results = []
 
             cleaned = []
             for r in results:
-                if "url" in r and "category" in r:
-                    cleaned.append({
-                        "url": r["url"],
-                        "category": str(r["category"]).strip(),
-                        "confidence": min(1.0, max(0.0, float(r.get("confidence", 0.5)))),
-                        "new_category": bool(r.get("new_category", False)),
-                        "tags": r.get("tags", []),
-                        "reasoning": r.get("reasoning", "")
-                    })
+                if not isinstance(r, dict) or "url" not in r or "category" not in r:
+                    continue
+                category = str(r.get("category") or "").strip()
+                url = str(r.get("url") or "").strip()
+                if not url or not category:
+                    continue
+                cleaned.append({
+                    "url": url,
+                    "category": category[:120],
+                    "confidence": self._safe_confidence(r.get("confidence", 0.5)),
+                    "new_category": bool(r.get("new_category", False)),
+                    "tags": self._clean_tags(r.get("tags", [])),
+                    "reasoning": str(r.get("reasoning") or "").strip()[:1000],
+                    "suggested_title": self._optional_text(r.get("suggested_title")),
+                })
 
             found_urls = {r["url"] for r in cleaned}
             for bm in original:
-                if bm["url"] not in found_urls:
+                url = str(bm.get("url") or "").strip()
+                if url and url not in found_urls:
                     cleaned.append({
-                        "url": bm["url"],
+                        "url": url,
                         "category": "Uncategorized / Needs Review",
                         "confidence": 0.0,
                         "new_category": False,
-                        "tags": []
+                        "tags": [],
+                        "reasoning": "",
+                        "suggested_title": None,
                     })
 
             return cleaned
         except Exception as e:
             log.error(f"JSON Parse Error: {e}")
             return [{
-                "url": bm["url"],
+                "url": str(bm.get("url") or ""),
                 "category": "Uncategorized / Needs Review",
                 "confidence": 0.0,
                 "new_category": False,
-                "tags": []
-            } for bm in original]
+                "tags": [],
+                "reasoning": "",
+                "suggested_title": None,
+            } for bm in original if bm.get("url")]
 
     def _build_prompt(self, bookmarks: List[Dict], categories: List[str],
                      allow_new: bool, suggest_tags: bool) -> str:
