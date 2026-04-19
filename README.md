@@ -1,8 +1,8 @@
-# Bookmark Organizer Pro v4.10.0
+# Bookmark Organizer Pro v5.0.0
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, and advanced organization features.
 
-![Version](https://img.shields.io/badge/version-4.10.0-blue.svg)
+![Version](https://img.shields.io/badge/version-5.0.0-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.8+-3776AB.svg?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
@@ -48,7 +48,7 @@ A powerful, professional-grade bookmark manager with AI-powered categorization, 
 - **Page Metadata Fetch**: Auto-fetch title, description, and favicon from live URLs
 - **Wayback Machine Integration**: Check archive.org for snapshots, submit pages for archival
 - **URL Normalization**: RFC 3986 canonicalization for precise deduplication
-- **1,960+ Categorization Patterns**: 32 categories covering 1,200+ popular domains
+- **4,200+ Categorization Patterns**: 32 categories covering 3,400+ domains with 768 keyword fallbacks
 - **Redirect Detection**: Link checker detects and offers to fix redirected URLs
 - **Batch Metadata Refresh**: Multi-threaded re-fetch of all bookmark titles/descriptions
 - **Random Bookmark**: Rediscover forgotten bookmarks
@@ -373,6 +373,22 @@ MIT License - see LICENSE file for details.
 - Built with Python and Tkinter
 
 ## Version History
+
+### v5.0.0 (April 2026)
+- 4,224 categorization patterns (3,405 domains + 768 keywords) — up from 1,963 (+115%)
+- Researched top 3,000 websites via Cloudflare Radar, Similarweb, Tranco, and 11 parallel research agents
+- All 32 categories at 23+ patterns, average 132 per category
+- Security hardening: SSRF protection, path traversal guards, open redirect blocking, thread-safe BookmarkManager
+- Premium UX: empty state, toast notifications, search placeholder, theme display names, drag-drop collapse
+- 37-test suite covering Bookmark model, PatternEngine, URL normalization, SearchQuery, fuzzy match
+- Removed 3,800+ lines of dead code (2 unused app classes, 2 unused FaviconManager classes, duplicate methods)
+- GitHub Actions CI/CD for PyInstaller builds on Windows/macOS/Linux
+- Import from Browser: auto-detect Chrome/Firefox/Edge/Brave profiles
+- Atomic JSON writes for settings/tags persistence
+- Favicon cache eviction (500MB limit)
+- Fixed broken keyboard shortcuts (Ctrl+A, F5, Delete were never registered)
+- Fixed custom theme persistence (ThemeManager load order bug)
+- requirements.txt for standard pip workflows
 
 ### v4.10.0 (April 2026)
 - Removed 2,558 lines of dead code (BookmarkOrganizerApp + EnhancedBookmarkOrganizerApp)
