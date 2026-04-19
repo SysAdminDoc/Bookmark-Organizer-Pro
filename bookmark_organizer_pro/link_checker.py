@@ -5,8 +5,10 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Callable, List, Optional, Tuple
+from urllib.parse import urljoin
 
 from .models import Bookmark
+from .url_utils import URLUtilities
 
 
 class LinkChecker:
@@ -75,25 +77,64 @@ class LinkChecker:
         """Check a single URL. Detects redirects and stores final URL."""
         try:
             requests = importlib.import_module('requests')
-            response = requests.head(
-                bookmark.url,
-                timeout=10,
-                allow_redirects=True,
-                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-            )
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            current_url = bookmark.url
+            redirects = []
+            response = None
 
-            if response.history and response.url != bookmark.url:
-                bookmark.custom_data['redirect_url'] = response.url
-                bookmark.custom_data['redirect_count'] = len(response.history)
-                bookmark.custom_data['redirect_chain'] = (
-                    ' -> '.join(r.url for r in response.history[:5])
+            for _ in range(6):
+                if not URLUtilities._is_safe_url(current_url):
+                    return False, 0
+
+                response = requests.head(
+                    current_url,
+                    timeout=10,
+                    allow_redirects=False,
+                    headers=headers
                 )
+
+                if response.status_code in (405, 403):
+                    response.close()
+                    response = requests.get(
+                        current_url,
+                        timeout=10,
+                        allow_redirects=False,
+                        stream=True,
+                        headers=headers
+                    )
+
+                if response.status_code in (301, 302, 303, 307, 308):
+                    location = response.headers.get('Location', '')
+                    response.close()
+                    if not location:
+                        break
+                    next_url = urljoin(current_url, location)
+                    if not URLUtilities._is_safe_url(next_url):
+                        return False, 0
+                    redirects.append(next_url)
+                    current_url = next_url
+                    continue
+                break
+
+            status_code = response.status_code if response is not None else 0
+            if response is not None:
+                response.close()
+
+            if status_code in (301, 302, 303, 307, 308):
+                return False, status_code
+
+            if redirects and current_url != bookmark.url:
+                bookmark.custom_data['redirect_url'] = current_url
+                bookmark.custom_data['redirect_count'] = len(redirects)
+                bookmark.custom_data['redirect_chain'] = ' -> '.join(redirects[:5])
             elif 'redirect_url' in bookmark.custom_data:
                 bookmark.custom_data.pop('redirect_url', None)
                 bookmark.custom_data.pop('redirect_count', None)
                 bookmark.custom_data.pop('redirect_chain', None)
 
-            return response.status_code < 400, response.status_code
+            return status_code < 400, status_code
         except Exception as e:
             exc_type = type(e).__name__
             if 'Timeout' in exc_type:
