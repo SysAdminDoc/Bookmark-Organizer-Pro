@@ -7,8 +7,10 @@ Netscape/Mozilla HTML, plain text URLs.
 import csv
 import html as html_module
 import json
+import os
 import re
 import shutil
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -23,6 +25,11 @@ def _decode(text: str) -> str:
     if not text:
         return text or ""
     return html_module.unescape(text)
+
+
+def _escape_attr(text: str) -> str:
+    """Escape text for XML/HTML attributes."""
+    return html_module.escape(str(text or ""), quote=True)
 
 
 class BrowserProfileImporter:
@@ -146,10 +153,15 @@ class BrowserProfileImporter:
 
         import sqlite3
 
-        temp_db = DATA_DIR / "temp_places.sqlite"
+        fd, temp_name = tempfile.mkstemp(
+            prefix="places_", suffix=".sqlite", dir=DATA_DIR
+        )
+        os.close(fd)
+        temp_db = Path(temp_name)
         shutil.copy2(places_db, temp_db)
 
         bookmarks = []
+        conn = None
 
         try:
             conn = sqlite3.connect(str(temp_db))
@@ -198,12 +210,19 @@ class BrowserProfileImporter:
                         pass
                 bookmarks.append(bm)
 
-            conn.close()
         except Exception as e:
             log.error(f"Error importing Firefox bookmarks: {e}")
         finally:
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
             if temp_db.exists():
-                temp_db.unlink()
+                try:
+                    temp_db.unlink()
+                except OSError as e:
+                    log.warning(f"Could not remove temporary Firefox import DB {temp_db}: {e}")
 
         return bookmarks
 
@@ -343,18 +362,18 @@ class OPMLExporter:
             '<?xml version="1.0" encoding="UTF-8"?>',
             '<opml version="2.0">',
             '  <head>',
-            f'    <title>{title}</title>',
+            f'    <title>{_escape_attr(title)}</title>',
             f'    <dateCreated>{datetime.now().isoformat()}</dateCreated>',
             '  </head>',
             '  <body>',
         ]
 
         for category, cat_bookmarks in sorted(by_category.items()):
-            cat_escaped = category.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
+            cat_escaped = _escape_attr(category)
             lines.append(f'    <outline text="{cat_escaped}" title="{cat_escaped}">')
             for bm in cat_bookmarks:
-                title_escaped = bm.title.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
-                url_escaped = bm.url.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
+                title_escaped = _escape_attr(bm.title)
+                url_escaped = _escape_attr(bm.url)
                 lines.append(f'      <outline type="link" text="{title_escaped}" title="{title_escaped}" xmlUrl="{url_escaped}" htmlUrl="{url_escaped}"/>')
             lines.append('    </outline>')
 
