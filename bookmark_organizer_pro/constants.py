@@ -5,7 +5,7 @@ from pathlib import Path
 
 # Application metadata
 APP_NAME = "Bookmark Organizer Pro"
-APP_VERSION = "4.9.0"
+APP_VERSION = "4.10.0"
 APP_SUBTITLE = "Ultimate Bookmark Management"
 
 # Paths
