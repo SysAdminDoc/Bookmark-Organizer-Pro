@@ -24,7 +24,7 @@ from pathlib import Path
 # =============================================================================
 
 APP_NAME = "Bookmark Organizer Pro"
-APP_VERSION = "5.2.1"
+APP_VERSION = "5.2.2"
 SCRIPT_NAME = "main.py"
 ICON_FILE = "bookmark_organizer.ico"
 
