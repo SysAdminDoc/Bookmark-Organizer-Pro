@@ -1,8 +1,8 @@
-# Bookmark Organizer Pro v5.0.0
+# Bookmark Organizer Pro v5.2.0
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, and advanced organization features.
 
-![Version](https://img.shields.io/badge/version-5.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-5.2.0-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.8+-3776AB.svg?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
@@ -373,6 +373,19 @@ MIT License - see LICENSE file for details.
 - Built with Python and Tkinter
 
 ## Version History
+
+### v5.2.0 (April 2026)
+- Fixed HTML entity display bug — imported bookmark titles like "Love, Death &amp; Robots" now correctly display "Love, Death & Robots"
+- `html.unescape()` applied to titles, URLs, folder names, and tags in all HTML-parsing importers (Netscape, Pocket, Raindrop, OPML)
+- Right sidebar Analytics panel widened 300 → 360px to prevent clipping at 115% default zoom
+- Left sidebar widened 280 → 320px for consistent breathing room
+- Zoom scaling now applies to ALL text (Tk named fonts + custom FONTS) so default launch is no longer cramped
+
+### v5.1.0 (April 2026)
+- Ollama local LLM support — server URL field + auto-detect models in AI settings
+- Ollama model catalog expanded: llama3.3, qwen3, phi4, gemma3, deepseek-r1, mixtral, codellama, command-r
+- Default zoom bumped 100% → 115% for better readability on high-DPI displays
+- Centralized FONTS dataclass now respects zoom multiplier
 
 ### v5.0.0 (April 2026)
 - 4,224 categorization patterns (3,405 domains + 768 keywords) — up from 1,963 (+115%)
