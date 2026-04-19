@@ -7,7 +7,7 @@ A powerful, professional-grade bookmark manager with AI-powered categorization, 
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-![Bookmark Organizer Pro Screenshot](screenshot.png)
+![Bookmark Organizer Pro Screenshot](assets/screenshot.png)
 
 ## Features
 
@@ -501,20 +501,20 @@ pip install beautifulsoup4 requests Pillow pystray
 **Windows:**
 ```batch
 # Using spec file (recommended)
-pyinstaller bookmark_organizer.spec --clean
+pyinstaller packaging/bookmark_organizer.spec --clean --noconfirm
 
 # Or use the build script
-build_windows.bat
+scripts\build_windows.bat
 ```
 
 **macOS/Linux:**
 ```bash
 # Using spec file (recommended)
-pyinstaller bookmark_organizer.spec --clean
+pyinstaller packaging/bookmark_organizer.spec --clean --noconfirm
 
 # Or use the build script
-chmod +x build_unix.sh
-./build_unix.sh
+chmod +x scripts/build_unix.sh
+./scripts/build_unix.sh
 ```
 
 ### Build Output
@@ -526,7 +526,7 @@ The executable will be created in the `dist/` folder:
 
 ### Customizing the Build
 
-Edit `bookmark_organizer.spec` to customize:
+Edit `packaging/bookmark_organizer.spec` to customize:
 
 ```python
 # Single file vs folder
@@ -553,9 +553,8 @@ The spec file already excludes unnecessary packages. For smaller builds:
 ### Icon Files
 
 The distribution includes these icon files:
-- `bookmark_organizer.ico` - Windows executable icon
-- `bookmark_organizer.png` - Cross-platform icon (256x256)
-- `icon_32.png` through `icon_256.png` - Various sizes
+- `assets/bookmark_organizer.ico` - Windows executable icon
+- `assets/bookmark_organizer.png` - Cross-platform icon (256x256)
 
 ### Code Signing (Optional)
 
@@ -575,10 +574,12 @@ codesign --deep --force --verify --verbose --sign "Developer ID" dist/BookmarkOr
 |------|-------------|
 | `main.py` | UI entry point (Tk app). Imports backend from `bookmark_organizer_pro/` |
 | `bookmark_organizer_pro/` | Modular backend package (models, core, utils, importers, AI, search, link checker, URL utils) |
-| `bookmark_organizer.spec` | PyInstaller build specification |
-| `build_windows.bat` | Windows build script |
-| `build_unix.sh` | macOS/Linux build script |
-| `version_info.txt` | Windows version metadata |
-| `bookmark_organizer.ico` | Windows icon |
-| `bookmark_organizer.png` | Cross-platform icon |
+| `assets/` | Source-controlled app icons and README screenshot |
+| `packaging/bookmark_organizer.spec` | PyInstaller build specification |
+| `packaging/version_info.txt` | Windows version metadata |
+| `scripts/build_windows.bat` | Windows build script |
+| `scripts/build_unix.sh` | macOS/Linux build script |
+| `scripts/clean_workspace.py` | Removes generated caches/build output |
+| `docs/REPOSITORY_STRUCTURE.md` | Repository layout guide |
+| `docs/ARCHITECTURE.md` | Architecture boundaries and refactor map |
 | `README.md` | This documentation |

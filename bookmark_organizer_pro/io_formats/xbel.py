@@ -105,6 +105,10 @@ class XBELHandler:
         bookmarks = []
 
         try:
+            if Path(filepath).stat().st_size > 50_000_000:
+                log.error(f"XBEL file too large: {filepath}")
+                return []
+
             tree = ET.parse(filepath)
             root = tree.getroot()
 

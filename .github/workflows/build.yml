@@ -30,7 +30,7 @@ jobs:
           pip install pyinstaller
 
       - name: Build executable
-        run: pyinstaller bookmark_organizer.spec --clean
+        run: pyinstaller packaging/bookmark_organizer.spec --clean --noconfirm
 
       - name: Rename artifact (Windows)
         if: runner.os == 'Windows'

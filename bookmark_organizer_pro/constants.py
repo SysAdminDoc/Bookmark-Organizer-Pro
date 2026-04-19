@@ -1,5 +1,6 @@
 """Application constants and path configuration."""
 
+import os
 import platform
 from pathlib import Path
 
@@ -9,21 +10,26 @@ APP_VERSION = "5.2.2"
 APP_SUBTITLE = "Ultimate Bookmark Management"
 
 # Paths
-APP_DIR = Path.home() / ".bookmark_organizer"
-APP_DIR.mkdir(exist_ok=True)
+#
+# README documents BOOKMARK_DATA_DIR as the supported override. Resolve it here
+# once so every manager writes to the same location, including logs and caches.
+_data_dir_override = os.environ.get("BOOKMARK_DATA_DIR", "").strip()
+APP_DIR = Path(_data_dir_override).expanduser() if _data_dir_override else Path.home() / ".bookmark_organizer"
+APP_DIR = APP_DIR.resolve()
+APP_DIR.mkdir(parents=True, exist_ok=True)
 
 FAVICON_DIR = APP_DIR / "favicons"
-FAVICON_DIR.mkdir(exist_ok=True)
+FAVICON_DIR.mkdir(parents=True, exist_ok=True)
 CACHE_DIR = APP_DIR / "cache"
-CACHE_DIR.mkdir(exist_ok=True)
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
 BACKUP_DIR = APP_DIR / "backups"
-BACKUP_DIR.mkdir(exist_ok=True)
+BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 THEMES_DIR = APP_DIR / "themes"
-THEMES_DIR.mkdir(exist_ok=True)
+THEMES_DIR.mkdir(parents=True, exist_ok=True)
 SCREENSHOTS_DIR = APP_DIR / "screenshots"
-SCREENSHOTS_DIR.mkdir(exist_ok=True)
+SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
 LOGS_DIR = APP_DIR / "logs"
-LOGS_DIR.mkdir(exist_ok=True)
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 DATA_DIR = APP_DIR
 MASTER_BOOKMARKS_FILE = DATA_DIR / "master_bookmarks.json"
