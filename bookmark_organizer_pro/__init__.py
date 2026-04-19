@@ -41,6 +41,22 @@ from .core import (
     CATEGORY_ICONS, get_category_icon,
 )
 from .io_formats import XBELHandler
+from .ai import (
+    ensure_package, AIProviderInfo, AI_PROVIDERS,
+    AIConfigManager, AIClient, OpenAIClient, AnthropicClient,
+    GoogleClient, GroqClient, OllamaClient, create_ai_client,
+)
+from .search import (
+    SearchQuery, SearchEngine, FuzzySearchEngine,
+    levenshtein_distance, fuzzy_match,
+)
+from .importers import (
+    BrowserProfileImporter, PocketImporter, RaindropImporter,
+    OPMLExporter, TextURLImporter, OPMLImporter,
+    OneTabImporter, NetscapeBookmarkImporter,
+)
+from .link_checker import LinkChecker
+from .url_utils import URLUtilities
 
 __version__ = APP_VERSION
 
@@ -72,4 +88,19 @@ __all__ = [
     "CATEGORY_ICONS", "get_category_icon",
     # I/O formats
     "XBELHandler",
+    # AI
+    "ensure_package", "AIProviderInfo", "AI_PROVIDERS",
+    "AIConfigManager", "AIClient", "OpenAIClient", "AnthropicClient",
+    "GoogleClient", "GroqClient", "OllamaClient", "create_ai_client",
+    # Search
+    "SearchQuery", "SearchEngine", "FuzzySearchEngine",
+    "levenshtein_distance", "fuzzy_match",
+    # Importers
+    "BrowserProfileImporter", "PocketImporter", "RaindropImporter",
+    "OPMLExporter", "TextURLImporter", "OPMLImporter",
+    "OneTabImporter", "NetscapeBookmarkImporter",
+    # Link checker
+    "LinkChecker",
+    # URL utilities
+    "URLUtilities",
 ]

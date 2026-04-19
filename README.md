@@ -1,8 +1,9 @@
-# Bookmark Organizer Pro v4.6.0
+# Bookmark Organizer Pro v4.7.0
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, and advanced organization features.
 
-![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
+![Version](https://img.shields.io/badge/version-4.7.0-blue.svg)
+![Python](https://img.shields.io/badge/Python-3.8+-3776AB.svg?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
@@ -61,8 +62,8 @@ A powerful, professional-grade bookmark manager with AI-powered categorization, 
 
 ```bash
 # Clone or download the repository
-git clone https://github.com/yourusername/bookmark-organizer-pro.git
-cd bookmark-organizer-pro
+git clone https://github.com/SysAdminDoc/Bookmark-Organizer-Pro.git
+cd Bookmark-Organizer-Pro
 
 # Run the application
 python bookmark_organizer_pro_v4.py
@@ -370,6 +371,13 @@ MIT License - see LICENSE file for details.
 - Built with Python and Tkinter
 
 ## Version History
+
+### v4.7.0 (April 2026)
+- Modular extraction phase 2: AI providers, search engine, importers, link checker, URL utilities extracted to package (~2,010 lines moved)
+- Main file reduced from 22,924 to 20,914 lines
+- Package now exports 83 public names
+- Fixed README clone URL and added version badge
+- Fixed .gitignore (removed *.spec exclusion blocking PyInstaller spec)
 
 ### v4.6.0 (April 2026)
 - Expanded categorization from 150 to 894 patterns across 32 categories
