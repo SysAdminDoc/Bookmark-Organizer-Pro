@@ -2382,8 +2382,8 @@ class ThemeManager:
         self.current_theme: ThemeInfo = BUILT_IN_THEMES["github_dark"]
         self.custom_themes: Dict[str, ThemeInfo] = {}
         self._theme_change_callbacks: List[Callable] = []
+        self._load_custom_themes()  # Must load before settings (settings references custom themes)
         self._load_settings()
-        self._load_custom_themes()
     
     def _load_settings(self):
         """Load theme preference from settings"""
@@ -2616,8 +2616,14 @@ class TagManager:
             log.error(f"Error saving tags: {e}")
     
     def add_tag(self, name: str, color: str = "", parent: str = "") -> Tag:
-        """Add a new tag"""
+        """Add a new tag (validates name is non-empty)"""
+        if not name or not str(name).strip():
+            log.warning("Attempted to add tag with empty name")
+            return None
+        name = str(name).strip()[:50]  # Cap length
         tag = Tag(name=name, color=color, parent=parent)
+        if tag.full_path in self.tags:
+            return self.tags[tag.full_path]  # Return existing instead of duplicate
         self.tags[tag.full_path] = tag
         self.save_tags()
         return tag
@@ -14746,31 +14752,21 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         self.root.bind("<F5>", lambda e: self._refresh_all())
         self.root.bind("<Delete>", lambda e: self._delete_selected())
     
-    def _focus_search(self, event=None):
-        """Focus the search entry and select all text"""
-        if hasattr(self, 'search_entry') and self.search_entry:
-            self.search_entry.focus_set()
-            self.search_entry.select_range(0, tk.END)
-        return "break"
-        self.root.bind("<Control-A>", lambda e: self._select_all_bookmarks())
-        self.root.bind("<F5>", lambda e: self._refresh_all())
-        self.root.bind("<Delete>", lambda e: self._delete_selected())
-    
-    def _focus_search(self, event=None):
-        """Focus the search entry and select all text"""
-        if hasattr(self, 'search_entry') and self.search_entry:
-            self.search_entry.focus_set()
-            self.search_entry.select_range(0, tk.END)
-        return "break"
-        
         # Window events
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
-        
+
         # Try to enable window-wide drag-drop
         self._try_enable_window_dnd()
-        
+
         # Start analytics polling (update every 30 seconds)
         self._start_analytics_polling()
+
+    def _focus_search(self, event=None):
+        """Focus the search entry and select all text"""
+        if hasattr(self, 'search_entry') and self.search_entry:
+            self.search_entry.focus_set()
+            self.search_entry.select_range(0, tk.END)
+        return "break"
     
     def _setup_styles(self):
         """Configure ttk styles"""
@@ -16899,8 +16895,9 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
                                 else:
                                     total_dupes += 1
                     except Exception as e:
-                        print(f"Import error for {filepath}: {e}")
-                        traceback.print_exc()
+                        log.error(f"Import error for {filepath}: {e}")
+                        self.root.after(0, lambda err=e: self._show_toast(
+                            f"Error importing file: {str(err)[:80]}", "error"))
                 
                 # Save all bookmarks after batch import
                 self.bookmark_manager.save_bookmarks()
@@ -16910,8 +16907,9 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
                     self._save_import_backup(imported_bookmarks)
                     
             except Exception as e:
-                print(f"Import thread error: {e}")
-                traceback.print_exc()
+                log.error(f"Import thread error: {e}")
+                self.root.after(0, lambda err=e: self._show_toast(
+                    f"Import failed: {str(err)[:80]}", "error"))
             finally:
                 # Always call completion handler
                 self.root.after(0, lambda: self._on_import_done(total_added, total_dupes))
@@ -18384,308 +18382,3 @@ def show_styled_menu(parent, button_widget, items: List[Tuple[str, Callable]]):
     y = button_widget.winfo_rooty() + button_widget.winfo_height() + 2
     
     return StyledDropdownMenu(parent, items, x, y)
-
-
-
-
-# =============================================================================
-# ENHANCED DRAG & DROP SUPPORT
-# =============================================================================
-class EnhancedDragDropArea(tk.Frame, ThemedWidget):
-    """
-    Enhanced drag & drop area with better visual feedback and 
-    support for dropping multiple files.
-    """
-    
-    SUPPORTED_EXTENSIONS = {'.html', '.htm', '.json', '.csv', '.opml', '.txt'}
-    
-    def __init__(self, parent, on_files_dropped: Callable = None, compact: bool = False):
-        theme = get_theme()
-        super().__init__(parent, bg=theme.bg_secondary)
-        
-        self.on_files_dropped = on_files_dropped
-        self.compact = compact
-        self._is_importing = False
-        
-        # Border styling
-        self.configure(
-            highlightbackground=theme.border,
-            highlightthickness=2,
-            highlightcolor=theme.accent_primary
-        )
-        
-        # Content frame
-        content = tk.Frame(self, bg=theme.bg_secondary)
-        content.pack(fill=tk.BOTH, expand=True, padx=15, pady=12)
-        
-        if compact:
-            # Compact mode - single line
-            row = tk.Frame(content, bg=theme.bg_secondary)
-            row.pack(fill=tk.X)
-            
-            tk.Label(
-                row, text="📥", bg=theme.bg_secondary,
-                font=("Segoe UI Emoji", 16)
-            ).pack(side=tk.LEFT, padx=(0, 8))
-            
-            tk.Label(
-                row, text="Drop bookmark files here or", 
-                bg=theme.bg_secondary, fg=theme.text_secondary,
-                font=FONTS.body()
-            ).pack(side=tk.LEFT)
-            
-            self.browse_link = tk.Label(
-                row, text="browse", bg=theme.bg_secondary,
-                fg=theme.accent_primary, font=("Segoe UI", 10, "underline"),
-                cursor="hand2"
-            )
-            self.browse_link.pack(side=tk.LEFT, padx=(5, 0))
-            self.browse_link.bind("<Button-1>", lambda e: self._browse_files())
-        else:
-            # Full mode
-            self.icon_label = tk.Label(
-                content, text="📥", bg=theme.bg_secondary,
-                font=("Segoe UI Emoji", 36)
-            )
-            self.icon_label.pack(pady=(5, 8))
-            
-            self.title_label = tk.Label(
-                content, text="Drop Bookmark Files Here",
-                bg=theme.bg_secondary, fg=theme.text_primary,
-                font=FONTS.header()
-            )
-            self.title_label.pack()
-            
-            self.subtitle_label = tk.Label(
-                content, text="or click to browse",
-                bg=theme.bg_secondary, fg=theme.text_muted,
-                font=FONTS.small()
-            )
-            self.subtitle_label.pack(pady=(2, 8))
-            
-            # Supported formats
-            formats = "HTML • JSON • CSV • OPML • TXT"
-            self.formats_label = tk.Label(
-                content, text=formats,
-                bg=theme.bg_secondary, fg=theme.text_muted,
-                font=FONTS.tiny()
-            )
-            self.formats_label.pack()
-            
-            # Progress indicator (hidden by default)
-            self.progress_frame = tk.Frame(content, bg=theme.bg_secondary)
-            
-            self.progress_label = tk.Label(
-                self.progress_frame, text="Importing...",
-                bg=theme.bg_secondary, fg=theme.text_secondary,
-                font=FONTS.body()
-            )
-            self.progress_label.pack()
-            
-            self.progress_bar = tk.Frame(
-                self.progress_frame, bg=theme.bg_tertiary, height=4
-            )
-            self.progress_bar.pack(fill=tk.X, pady=(5, 0))
-            
-            self.progress_fill = tk.Frame(self.progress_bar, bg=theme.accent_primary, height=4)
-            self.progress_fill.place(x=0, y=0, relheight=1.0, relwidth=0)
-        
-        # Make entire area clickable
-        self._bind_click_recursive(self)
-        
-        # Hover effects
-        self.bind("<Enter>", self._on_enter)
-        self.bind("<Leave>", self._on_leave)
-        
-        # Try to enable native drag-drop if available
-        self._try_enable_native_dnd()
-    
-    def _bind_click_recursive(self, widget):
-        """Bind click to widget and all children"""
-        widget.bind("<Button-1>", lambda e: self._browse_files() if not self._is_importing else None)
-        for child in widget.winfo_children():
-            self._bind_click_recursive(child)
-    
-    def _on_enter(self, e):
-        """Mouse enter - highlight"""
-        if not self._is_importing:
-            theme = get_theme()
-            self.configure(highlightbackground=theme.accent_primary)
-    
-    def _on_leave(self, e):
-        """Mouse leave - reset"""
-        if not self._is_importing:
-            theme = get_theme()
-            self.configure(highlightbackground=theme.border)
-    
-    def _try_enable_native_dnd(self):
-        """Try to enable native drag-drop support"""
-        try:
-            # Try tkinterdnd2 if available
-            from tkinterdnd2 import DND_FILES, TkinterDnD
-            
-            # Register as drop target
-            self.drop_target_register(DND_FILES)
-            self.dnd_bind('<<Drop>>', self._on_native_drop)
-            self.dnd_bind('<<DragEnter>>', self._on_drag_enter)
-            self.dnd_bind('<<DragLeave>>', self._on_drag_leave)
-            
-            print("Native drag-drop enabled via tkinterdnd2")
-        except ImportError:
-            # tkinterdnd2 not available - use fallback
-            pass
-    
-    def _on_native_drop(self, event):
-        """Handle native file drop"""
-        files = self._parse_drop_data(event.data)
-        if files:
-            self._process_files(files)
-    
-    def _on_drag_enter(self, event):
-        """Handle drag enter"""
-        theme = get_theme()
-        self.configure(highlightbackground=theme.accent_success, highlightthickness=3)
-        if hasattr(self, 'title_label'):
-            self.title_label.configure(text="Drop to Import!")
-    
-    def _on_drag_leave(self, event):
-        """Handle drag leave"""
-        theme = get_theme()
-        self.configure(highlightbackground=theme.border, highlightthickness=2)
-        if hasattr(self, 'title_label'):
-            self.title_label.configure(text="Drop Bookmark Files Here")
-    
-    def _parse_drop_data(self, data: str) -> List[str]:
-        """Parse dropped file data"""
-        files = []
-        
-        # Handle different formats
-        if '{' in data:
-            # Tcl list format: {path with spaces} {another path}
-            files = re.findall(r'\{([^}]+)\}', data)
-        else:
-            # Space-separated paths
-            files = data.split()
-        
-        # Filter to supported extensions
-        valid_files = []
-        for f in files:
-            f = f.strip()
-            ext = Path(f).suffix.lower()
-            if ext in self.SUPPORTED_EXTENSIONS:
-                valid_files.append(f)
-        
-        return valid_files
-    
-    def _browse_files(self):
-        """Open file browser"""
-        if self._is_importing:
-            return
-        
-        filetypes = [
-            ("All Bookmark Files", "*.html *.htm *.json *.csv *.opml *.txt"),
-            ("HTML Files", "*.html *.htm"),
-            ("JSON Files", "*.json"),
-            ("CSV Files", "*.csv"),
-            ("OPML Files", "*.opml"),
-            ("Text Files", "*.txt"),
-            ("All Files", "*.*"),
-        ]
-        
-        files = filedialog.askopenfilenames(
-            title="Select Bookmark Files to Import",
-            filetypes=filetypes
-        )
-        
-        if files:
-            self._process_files(list(files))
-    
-    def _process_files(self, filepaths: List[str]):
-        """Process selected/dropped files"""
-        valid_files = []
-        
-        for filepath in filepaths:
-            ext = Path(filepath).suffix.lower()
-            if ext in self.SUPPORTED_EXTENSIONS:
-                valid_files.append(filepath)
-        
-        if valid_files and self.on_files_dropped:
-            self.on_files_dropped(valid_files)
-        elif not valid_files and filepaths:
-            messagebox.showwarning(
-                "Unsupported Files",
-                f"None of the {len(filepaths)} files are supported formats.\n\n" +
-                "Supported: HTML, JSON, CSV, OPML, TXT"
-            )
-    
-    def set_importing(self, is_importing: bool, progress: float = 0):
-        """Set importing state with progress"""
-        theme = get_theme()
-        self._is_importing = is_importing
-        
-        if not self.compact:
-            if is_importing:
-                self.icon_label.configure(text="⏳")
-                self.title_label.configure(text="Importing...")
-                self.subtitle_label.pack_forget()
-                self.formats_label.pack_forget()
-                self.progress_frame.pack(pady=(5, 0))
-                self.progress_fill.place(relwidth=progress)
-                self.configure(highlightbackground=theme.accent_warning)
-            else:
-                self.icon_label.configure(text="📥")
-                self.title_label.configure(text="Drop Bookmark Files Here")
-                self.progress_frame.pack_forget()
-                self.subtitle_label.pack(pady=(2, 8))
-                self.formats_label.pack()
-                self.configure(highlightbackground=theme.border)
-    
-    def set_progress(self, progress: float, message: str = None):
-        """Update import progress"""
-        if not self.compact and self._is_importing:
-            self.progress_fill.place(relwidth=min(1.0, progress))
-            if message:
-                self.progress_label.configure(text=message)
-    
-    def show_success(self, count: int):
-        """Show success message briefly, then collapse"""
-        if not self.compact:
-            theme = get_theme()
-            self.icon_label.configure(text="✅")
-            self.title_label.configure(text=f"Imported {count} bookmarks!")
-            self.configure(highlightbackground=theme.accent_success)
-
-            # After showing success, collapse to save sidebar space
-            def _collapse():
-                self.set_importing(False)
-                self._collapse_after_import()
-            self.after(2500, _collapse)
-
-    def _collapse_after_import(self):
-        """Collapse the import area to a small bar after successful import"""
-        theme = get_theme()
-        for widget in self.winfo_children():
-            widget.pack_forget()
-
-        collapsed = tk.Frame(self, bg=theme.bg_secondary, cursor="hand2")
-        collapsed.pack(fill=tk.X, padx=8, pady=4)
-
-        lbl = tk.Label(
-            collapsed, text="📥 Import more...",
-            bg=theme.bg_secondary, fg=theme.text_muted,
-            font=FONTS.small(), cursor="hand2", pady=4
-        )
-        lbl.pack(fill=tk.X)
-
-        def _expand(e=None):
-            collapsed.destroy()
-            self.set_importing(False)  # Rebuild full UI
-        lbl.bind("<Button-1>", _expand)
-        collapsed.bind("<Button-1>", _expand)
-
-
-
-
-
-
-
