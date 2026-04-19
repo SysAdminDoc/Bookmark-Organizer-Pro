@@ -9,7 +9,9 @@ Inspired by Linkding, Shiori, Hoarder, Linkwarden, ArchiveBox.
 
 import html as html_module
 import importlib
+import ipaddress
 import re
+import socket
 import urllib.parse
 from typing import Dict, Optional
 from urllib.parse import urlparse
@@ -21,6 +23,29 @@ _USER_AGENT = (
 )
 
 
+def _is_safe_url(url: str) -> bool:
+    """Block requests to private/internal networks (SSRF protection)."""
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ('http', 'https'):
+            return False
+        hostname = parsed.hostname or ''
+        if not hostname:
+            return False
+        # Block obvious private names
+        if hostname in ('localhost', '0.0.0.0', '[::]'):
+            return False
+        # Resolve and check IP
+        for info in socket.getaddrinfo(hostname, None, socket.AF_UNSPEC):
+            addr = info[4][0]
+            ip = ipaddress.ip_address(addr)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                return False
+        return True
+    except Exception:
+        return False
+
+
 def fetch_page_metadata(url: str, timeout: int = 10) -> Dict[str, str]:
     """Fetch page title, description, and favicon URL from a live URL.
 
@@ -28,6 +53,9 @@ def fetch_page_metadata(url: str, timeout: int = 10) -> Dict[str, str]:
     All values default to empty string on failure.
     """
     result = {'title': '', 'description': '', 'favicon_url': ''}
+
+    if not _is_safe_url(url):
+        return result
 
     try:
         requests = importlib.import_module('requests')
@@ -39,7 +67,7 @@ def fetch_page_metadata(url: str, timeout: int = 10) -> Dict[str, str]:
             'User-Agent': _USER_AGENT,
             'Accept': 'text/html,application/xhtml+xml',
             'Accept-Language': 'en-US,en;q=0.9',
-        }, allow_redirects=True)
+        }, allow_redirects=True, stream=True)
         resp.raise_for_status()
     except Exception:
         return result
@@ -48,7 +76,12 @@ def fetch_page_metadata(url: str, timeout: int = 10) -> Dict[str, str]:
     if 'text/html' not in content_type and 'application/xhtml' not in content_type:
         return result
 
-    html_text = resp.text[:100_000]  # Cap to avoid memory issues
+    # Cap download size before reading body (defense against huge responses)
+    content_length = int(resp.headers.get('content-length', 0))
+    if content_length > 2_000_000:
+        return result
+
+    html_text = resp.text[:100_000]
 
     # Extract <title>
     m = re.search(r'<title[^>]*>(.*?)</title>', html_text, re.IGNORECASE | re.DOTALL)
@@ -70,7 +103,7 @@ def fetch_page_metadata(url: str, timeout: int = 10) -> Dict[str, str]:
     if m:
         result['description'] = html_module.unescape(m.group(1).strip())[:1000]
 
-    # Extract favicon
+    # Extract favicon — only accept safe schemes
     m = re.search(
         r'<link\s+[^>]*?rel\s*=\s*["\'](?:icon|shortcut icon|apple-touch-icon)["\']'
         r'[^>]*?href\s*=\s*["\']([^"\']+)["\']',
@@ -89,7 +122,9 @@ def fetch_page_metadata(url: str, timeout: int = 10) -> Dict[str, str]:
         elif favicon_href.startswith('/'):
             parsed = urlparse(url)
             favicon_href = f"{parsed.scheme}://{parsed.netloc}{favicon_href}"
-        result['favicon_url'] = favicon_href
+        # Only store http/https favicon URLs (block javascript:, data:, etc.)
+        if favicon_href.startswith(('http://', 'https://')):
+            result['favicon_url'] = favicon_href
 
     return result
 

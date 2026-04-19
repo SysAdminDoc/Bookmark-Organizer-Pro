@@ -308,7 +308,10 @@ class AIClient:
 
     def _build_prompt(self, bookmarks: List[Dict], categories: List[str],
                      allow_new: bool, suggest_tags: bool) -> str:
-        """Build the prompt for categorization"""
+        """Build the prompt for categorization (capped to prevent token overflow)."""
+        # Cap bookmark count to prevent oversized prompts (API token limits)
+        if len(bookmarks) > 50:
+            bookmarks = bookmarks[:50]
         cats_str = ', '.join(f'"{c}"' for c in categories[:50])
 
         tags_instruction = ""

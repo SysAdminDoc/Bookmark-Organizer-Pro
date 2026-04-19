@@ -4,7 +4,9 @@ Redirect resolution, HTTPS upgrade, affiliate detection, canonical URL lookup.
 """
 
 import importlib
+import ipaddress
 import re
+import socket
 import urllib.parse
 from typing import List, Optional, Tuple
 
@@ -28,6 +30,24 @@ class URLUtilities:
         'shareasale.com', 'commission-junction.com', 'rakuten.com',
         'awin1.com', 'pepperjam.com', 'jdoqocy.com', 'tkqlhce.com'
     ]
+
+    @staticmethod
+    def _is_safe_url(url: str) -> bool:
+        """Block requests to private/internal networks (SSRF protection)."""
+        try:
+            parsed = urllib.parse.urlparse(url)
+            if parsed.scheme not in ('http', 'https'):
+                return False
+            hostname = parsed.hostname or ''
+            if not hostname or hostname in ('localhost', '0.0.0.0'):
+                return False
+            for info in socket.getaddrinfo(hostname, None, socket.AF_UNSPEC):
+                ip = ipaddress.ip_address(info[4][0])
+                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                    return False
+            return True
+        except Exception:
+            return False
 
     @staticmethod
     def resolve_redirect(url: str, max_redirects: int = 5) -> Tuple[str, int]:
@@ -55,6 +75,9 @@ class URLUtilities:
                         if next_url.startswith('/'):
                             parsed = urllib.parse.urlparse(current_url)
                             next_url = f"{parsed.scheme}://{parsed.netloc}{next_url}"
+                        # Block non-http redirects (javascript:, data:, etc.)
+                        if not next_url.startswith(('http://', 'https://')):
+                            break
                         current_url = next_url
                         redirect_count += 1
                         continue
