@@ -14181,6 +14181,9 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         self._create_main_layout()
         self._create_status_bar()
         
+        # Apply initial zoom (scales all fonts for readability)
+        self._apply_zoom()
+
         # Load data
         self._load_and_display_data()
         
@@ -14411,7 +14414,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         zoom_frame = tk.Frame(toolbar, bg=theme.bg_primary)
         zoom_frame.pack(side=tk.LEFT, padx=3)
         
-        self.zoom_level = 100  # 100% default
+        self.zoom_level = 115  # Default slightly larger for high-DPI readability
         self.zoom_min = 75
         self.zoom_max = 200
         
@@ -15221,39 +15224,47 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             return "break"  # Prevent normal scrolling
     
     def _apply_zoom(self):
-        """Apply current zoom level to tree view"""
-        theme = get_theme()
-        
+        """Apply zoom to ALL UI text via the global FONTS system"""
+        global FONTS
+
         # Update zoom label
         if self.zoom_label:
             self.zoom_label.configure(text=f"{self.zoom_level}%")
-        
-        # Calculate row height based on zoom (base is 30 at 100%)
-        base_row_height = 30
-        row_height = int(base_row_height * (self.zoom_level / 100))
-        row_height = max(20, min(80, row_height))  # Clamp between 20-80
-        
-        # Calculate font size based on zoom (base is 10 at 100%)
-        base_font_size = 10
-        font_size = int(base_font_size * (self.zoom_level / 100))
-        font_size = max(8, min(18, font_size))  # Clamp between 8-18
-        
-        # Update treeview style - use "Treeview" which is the default style
+
+        scale = self.zoom_level / 100.0
+
+        # Scale the global FONTS config (base sizes at 100%)
+        FONTS.size_title = max(12, int(16 * scale))
+        FONTS.size_header = max(10, int(12 * scale))
+        FONTS.size_body = max(8, int(10 * scale))
+        FONTS.size_small = max(7, int(9 * scale))
+        FONTS.size_tiny = max(7, int(8 * scale))
+
+        # Update treeview (has its own style system)
+        row_height = max(20, min(80, int(30 * scale)))
         style = ttk.Style()
-        style.configure(
-            "Treeview",
-            rowheight=row_height,
-            font=("Segoe UI", font_size)
-        )
-        style.configure(
-            "Treeview.Heading",
-            font=("Segoe UI", font_size, "bold")
-        )
-        
-        # Force tree to update
-        if self.tree:
-            self.tree.update_idletasks()
-        
+        style.configure("Treeview", rowheight=row_height, font=FONTS.body())
+        style.configure("Treeview.Heading", font=FONTS.small(bold=True))
+
+        # Update ALL tk default fonts so every widget picks up the change
+        import tkinter.font as tkfont
+        for font_name in ("TkDefaultFont", "TkTextFont", "TkMenuFont"):
+            try:
+                f = tkfont.nametofont(font_name)
+                f.configure(family=FONTS.family, size=FONTS.size_body)
+            except Exception:
+                pass
+        try:
+            tkfont.nametofont("TkHeadingFont").configure(
+                family=FONTS.family, size=FONTS.size_small, weight="bold"
+            )
+        except Exception:
+            pass
+
+        # Force all widgets to redraw
+        if self.root:
+            self.root.update_idletasks()
+
         self._set_status(f"Zoom: {self.zoom_level}%")
     
     def _select_all_bookmarks(self):
@@ -17372,6 +17383,54 @@ Respond with ONLY valid JSON in this exact format:
         show_btn.pack(anchor="w", pady=2)
         show_btn.bind("<Button-1>", lambda e: toggle_key())
         
+        # Ollama server URL field
+        ollama_frame = tk.Frame(content_frame, bg=theme.bg_primary)
+
+        tk.Label(
+            ollama_frame, text="Ollama Server URL:", bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.small(bold=True)
+        ).pack(anchor="w", pady=(0, 3))
+
+        ollama_url_var = tk.StringVar(value=self.ai_config.get_ollama_url())
+        ollama_url_entry = tk.Entry(
+            ollama_frame, textvariable=ollama_url_var,
+            bg=theme.bg_secondary, fg=theme.text_primary,
+            font=FONTS.body(), relief=tk.FLAT, width=40
+        )
+        ollama_url_entry.pack(anchor="w", ipady=4, pady=2)
+
+        tk.Label(
+            ollama_frame, text="Default: http://localhost:11434",
+            bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.tiny()
+        ).pack(anchor="w")
+
+        # Detect Ollama models button
+        def detect_ollama_models():
+            url = ollama_url_var.get().strip().rstrip('/')
+            try:
+                import requests as req
+                resp = req.get(f"{url}/api/tags", timeout=5)
+                if resp.status_code == 200:
+                    models = [m["name"] for m in resp.json().get("models", [])]
+                    if models:
+                        model_combo['values'] = models
+                        if model_var.get() not in models:
+                            model_var.set(models[0])
+                        self._show_toast(f"Found {len(models)} Ollama models", "success")
+                    else:
+                        self._show_toast("Ollama running but no models installed.\nRun: ollama pull llama3.2", "warning")
+                else:
+                    self._show_toast("Ollama not responding", "error")
+            except Exception as e:
+                self._show_toast(f"Cannot reach Ollama at {url}\n{str(e)[:60]}", "error")
+
+        detect_btn = tk.Label(
+            ollama_frame, text="🔍 Detect Models", bg=theme.accent_primary, fg="white",
+            font=FONTS.tiny(), padx=10, pady=3, cursor="hand2"
+        )
+        detect_btn.pack(anchor="w", pady=(5, 0))
+        detect_btn.bind("<Button-1>", lambda e: detect_ollama_models())
+
         # Update models when provider changes
         def on_provider_change(*args):
             provider = provider_var.get()
@@ -17382,7 +17441,15 @@ Respond with ONLY valid JSON in this exact format:
                     model_var.set(info.default_model)
                 # Update API key field
                 api_key_var.set(self.ai_config.get_api_key(provider))
-        
+
+            # Show/hide Ollama-specific fields
+            if provider == "ollama":
+                ollama_frame.pack(fill=tk.X, pady=(10, 5), before=settings_frame)
+                api_entry.configure(state="disabled")
+            else:
+                ollama_frame.pack_forget()
+                api_entry.configure(state="normal")
+
         provider_var.trace_add('write', on_provider_change)
         on_provider_change()  # Initialize
         
@@ -17482,9 +17549,14 @@ Respond with ONLY valid JSON in this exact format:
             self.ai_config.set_api_key(provider_var.get(), api_key_var.get())
             self.ai_config.set_batch_size(batch_var.get())
             self.ai_config.set_rate_limit(rate_var.get())
+            # Save Ollama URL if using Ollama
+            if provider_var.get() == "ollama":
+                url = ollama_url_var.get().strip().rstrip('/')
+                if url:
+                    self.ai_config._config["ollama_url"] = url
             self.ai_config.save_config()
             dialog.destroy()
-            self._set_status("AI settings saved")
+            self._show_toast("AI settings saved", "success")
         
         save_btn = tk.Label(
             btn_frame, text="Save", bg=theme.accent_success, fg="white",
