@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Bookmark Organizer Pro - Ultimate Edition v4.8.0
+Bookmark Organizer Pro - Ultimate Edition v4.9.0
 =================================================
 A powerful, modern bookmark manager with:
 - Modular architecture: backend in `bookmark_organizer_pro` package
@@ -14,7 +14,7 @@ A powerful, modern bookmark manager with:
 - Enhanced favicon caching
 - Professional UI with DPI awareness
 
-Version 4.8.0 - April 2026
+Version 4.9.0 - April 2026
 """
 
 # =============================================================================
@@ -1242,11 +1242,11 @@ def validate_environment():
 APP_ICON_BASE64 = """iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAABz0lEQVR4nO2bSXICMQxFnVTOAAtYwak4IadKVmGRXIKsXNWleJA1urHtsHW//4W9JRSEAQr82Y52eF0eWI/+/v4MqlNdZIRwT20DFEZVFI4RNoI0cE0hUOkjBAZxFI4hGvEO7cAT/ES87MM8Baf4dRBis8swkuMbolhA1rif74/R4cjcTxfm8dHTBjaAjOv/JaROtlNcO+gDdjL6mew9aIM2Jv4DKbuD4lBStzulG/Vud9o3zucLs9WU4we0Dq41+hDWjoiAbUDr7L6mZqe5RNQ7I7U1Z/lr3AL+IuwfALCAO8CvPlnwKt1fwjUFwnwnFz6fIFCJMC7AG/cDMjx994Gyyege0FEitZKw2PUix8UzAyAoraiLQVDlt8CbgbkVfdc/ZQKBlg9meFFnA4DXA3wjn9KkYCyAVZ9gHNpi0JJl1sCsvjj+WpuxJaqAVopqAnWNqGmxzQBPZEeSWgaIJkCrDiNLeF+c5QiyCoNXQO4KeAIkTChVz8qARQTpKIseReoBHoLjJggHV+Kmdh6xXuA5t7VGFv0OcFZUHtOcHRwD9SfFN0yUxqoC8PqAbOkgVMHuwl6m8CdP94YkRgEsuw7Q5Bl3xqrMeN7g0GwOH9PBaSF+GcDqAAAAABJRU5ErkJggg=="""
 
 # Build information
-BUILD_DATE = "January 2026"
-BUILD_TYPE = "Release"  # or "Development"
+BUILD_DATE = "April 2026"
+BUILD_TYPE = "Release"
 COPYRIGHT_YEAR = "2026"
-AUTHOR = "Bookmark Organizer Team"
-WEBSITE = "https://github.com/bookmark-organizer-pro"
+AUTHOR = "SysAdminDoc"
+WEBSITE = "https://github.com/SysAdminDoc/Bookmark-Organizer-Pro"
 LICENSE = "MIT License"
 
 
@@ -5100,7 +5100,7 @@ class BookmarkListView(tk.Frame, ThemedWidget):
         style.configure("Bookmark.Treeview.Heading",
             background=self.theme.bg_secondary,
             foreground=self.theme.text_primary,
-            font=("Segoe UI", 9, "bold")
+            font=FONTS.small(bold=True)
         )
         style.map("Bookmark.Treeview",
             background=[("selected", self.theme.selection)],
@@ -6064,7 +6064,7 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
         if bookmark and (bookmark.ai_tags or bookmark.ai_confidence > 0 or bookmark.description):
             ai_frame = tk.LabelFrame(
                 content, text="🤖 AI Data", bg=theme.bg_primary,
-                fg=theme.text_secondary, font=("Segoe UI", 9, "bold"),
+                fg=theme.text_secondary, font=FONTS.small(bold=True),
                 relief=tk.FLAT, bd=1
             )
             ai_frame.grid(row=10, column=0, columnspan=2, sticky="ew", pady=(0, 15))
@@ -11580,7 +11580,7 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
         # Close button
         close_btn = tk.Label(
             self.header, text="✕", bg=theme.bg_tertiary,
-            fg=theme.text_muted, font=("Segoe UI", 12),
+            fg=theme.text_muted, font=FONTS.header(bold=False),
             cursor="hand2", padx=15
         )
         close_btn.pack(side=tk.RIGHT)
@@ -13128,7 +13128,7 @@ class EmojiPicker(tk.Toplevel, ThemedWidget):
             # Category header
             tk.Label(
                 self.emoji_frame, text=category, bg=theme.bg_primary,
-                fg=theme.text_secondary, font=("Segoe UI", 9, "bold"),
+                fg=theme.text_secondary, font=FONTS.small(bold=True),
                 anchor="w"
             ).pack(fill=tk.X, padx=10, pady=(10, 5))
             
@@ -14828,7 +14828,7 @@ class MiniAnalyticsDashboard(tk.Frame, ThemedWidget):
         
         self.refresh_btn = tk.Label(
             header, text="↻", bg=theme.bg_tertiary,
-            fg=theme.text_muted, font=("Segoe UI", 12),
+            fg=theme.text_muted, font=FONTS.header(bold=False),
             cursor="hand2", padx=10
         )
         self.refresh_btn.pack(side=tk.RIGHT)
@@ -14900,7 +14900,7 @@ class MiniAnalyticsDashboard(tk.Frame, ThemedWidget):
         # Top categories chart (mini)
         tk.Label(
             self.stats_frame, text="Top Categories", bg=theme.bg_secondary,
-            fg=theme.text_secondary, font=("Segoe UI", 9, "bold"),
+            fg=theme.text_secondary, font=FONTS.small(bold=True),
             anchor="w"
         ).pack(fill=tk.X, pady=(15, 5))
         
@@ -15110,7 +15110,7 @@ class EnhancedBookmarkOrganizerApp(ThemedWidget):
             background=theme.bg_secondary,
             foreground=theme.text_primary,
             borderwidth=0,
-            font=("Segoe UI", 9, "bold")
+            font=FONTS.small(bold=True)
         )
         
         style.map(
@@ -15190,7 +15190,7 @@ class EnhancedBookmarkOrganizerApp(ThemedWidget):
         
         tk.Label(
             search_frame, text="🔍", bg=theme.bg_secondary,
-            fg=theme.text_muted, font=("Segoe UI", 12)
+            fg=theme.text_muted, font=FONTS.header(bold=False)
         ).pack(side=tk.LEFT, padx=(10, 5))
         
         self.search_var = tk.StringVar()
@@ -15241,7 +15241,7 @@ class EnhancedBookmarkOrganizerApp(ThemedWidget):
         
         tk.Label(
             filters_frame, text="Quick Filters", bg=theme.bg_secondary,
-            fg=theme.text_secondary, font=("Segoe UI", 9, "bold")
+            fg=theme.text_secondary, font=FONTS.small(bold=True)
         ).pack(anchor="w", pady=(5, 5))
         
         self.filter_buttons = {}
@@ -15264,7 +15264,7 @@ class EnhancedBookmarkOrganizerApp(ThemedWidget):
         
         tk.Label(
             cat_header, text="Categories", bg=theme.bg_secondary,
-            fg=theme.text_secondary, font=("Segoe UI", 9, "bold")
+            fg=theme.text_secondary, font=FONTS.small(bold=True)
         ).pack(side=tk.LEFT)
         
         # Category list with scroll
@@ -17020,6 +17020,166 @@ class CustomFaviconDialog(tk.Toplevel):
 # Need html module for escaping
 
 
+# =============================================================================
+# EMPTY STATE - Shown when no bookmarks exist
+# =============================================================================
+class EmptyState(tk.Frame):
+    """Beautiful empty state with icon, message, and call-to-action buttons."""
+
+    def __init__(self, parent, on_import=None, on_add=None):
+        theme = get_theme()
+        super().__init__(parent, bg=theme.bg_primary)
+        self._on_import = on_import
+        self._on_add = on_add
+        self._build(theme)
+
+    def _build(self, theme):
+        # Center container
+        center = tk.Frame(self, bg=theme.bg_primary)
+        center.place(relx=0.5, rely=0.42, anchor="center")
+
+        # Large icon
+        tk.Label(
+            center, text="📑", bg=theme.bg_primary,
+            font=(FONTS.family, 48)
+        ).pack(pady=(0, 16))
+
+        # Heading
+        tk.Label(
+            center, text="No bookmarks yet",
+            bg=theme.bg_primary, fg=theme.text_primary,
+            font=FONTS.custom(18, bold=True)
+        ).pack(pady=(0, 8))
+
+        # Subtitle
+        tk.Label(
+            center, text="Import your bookmarks from a browser export\nor add them one at a time.",
+            bg=theme.bg_primary, fg=theme.text_secondary,
+            font=FONTS.body(), justify="center"
+        ).pack(pady=(0, 28))
+
+        # CTA buttons row
+        btn_row = tk.Frame(center, bg=theme.bg_primary)
+        btn_row.pack()
+
+        import_btn = ModernButton(
+            btn_row, text="Import Bookmarks", icon="📥",
+            style="primary", command=self._on_import,
+            font=FONTS.body(bold=True), padx=20, pady=10
+        )
+        import_btn.pack(side=tk.LEFT, padx=6)
+
+        add_btn = ModernButton(
+            btn_row, text="Add Bookmark", icon="➕",
+            command=self._on_add,
+            font=FONTS.body(), padx=20, pady=10
+        )
+        add_btn.pack(side=tk.LEFT, padx=6)
+
+        # Hint text
+        tk.Label(
+            center,
+            text="Tip: You can also drag and drop bookmark files onto the sidebar.",
+            bg=theme.bg_primary, fg=theme.text_muted,
+            font=FONTS.small()
+        ).pack(pady=(24, 0))
+
+
+# =============================================================================
+# TOAST NOTIFICATION - Non-blocking feedback
+# =============================================================================
+class ToastNotification(tk.Toplevel):
+    """Elegant non-blocking toast notification that auto-dismisses."""
+
+    _active_toasts: list = []
+
+    def __init__(self, parent, message: str, style: str = "info",
+                 duration: int = 3500):
+        super().__init__(parent)
+        self.overrideredirect(True)
+        self.attributes("-topmost", True)
+        try:
+            self.attributes("-alpha", 0.95)
+        except Exception:
+            pass
+
+        theme = get_theme()
+
+        # Style config
+        styles = {
+            "success": (theme.accent_success, "#ffffff", "✓"),
+            "error": (theme.accent_error, "#ffffff", "✕"),
+            "warning": (theme.accent_warning, "#ffffff", "⚠"),
+            "info": (theme.accent_primary, "#ffffff", "ℹ"),
+        }
+        bg, fg, icon = styles.get(style, styles["info"])
+
+        # Build toast
+        frame = tk.Frame(self, bg=bg, padx=2, pady=2)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        inner = tk.Frame(frame, bg=theme.bg_dark)
+        inner.pack(fill=tk.BOTH, expand=True)
+
+        # Icon strip
+        tk.Label(
+            inner, text=icon, bg=bg, fg=fg,
+            font=FONTS.custom(12, bold=True), padx=12, pady=10
+        ).pack(side=tk.LEFT, fill=tk.Y)
+
+        # Message
+        tk.Label(
+            inner, text=message, bg=theme.bg_dark,
+            fg=theme.text_primary, font=FONTS.body(),
+            padx=14, pady=10, wraplength=350, justify="left"
+        ).pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Close button
+        close_lbl = tk.Label(
+            inner, text="✕", bg=theme.bg_dark,
+            fg=theme.text_muted, font=FONTS.small(),
+            cursor="hand2", padx=10
+        )
+        close_lbl.pack(side=tk.RIGHT, fill=tk.Y)
+        close_lbl.bind("<Button-1>", lambda e: self._dismiss())
+
+        # Position: top-right of parent, stacked below existing toasts
+        self.update_idletasks()
+        pw = parent.winfo_width()
+        px = parent.winfo_rootx()
+        py = parent.winfo_rooty()
+        tw = min(self.winfo_reqwidth(), 420)
+        th = self.winfo_reqheight()
+
+        offset_y = sum(t.winfo_height() + 6 for t in ToastNotification._active_toasts
+                       if t.winfo_exists())
+        x = px + pw - tw - 20
+        y = py + 80 + offset_y
+        self.geometry(f"{tw}x{th}+{x}+{y}")
+
+        ToastNotification._active_toasts.append(self)
+
+        # Auto-dismiss
+        self._after_id = self.after(duration, self._dismiss)
+
+    def _dismiss(self):
+        try:
+            self.after_cancel(self._after_id)
+        except Exception:
+            pass
+        if self in ToastNotification._active_toasts:
+            ToastNotification._active_toasts.remove(self)
+        try:
+            self.destroy()
+        except Exception:
+            pass
+
+    @classmethod
+    def show(cls, parent, message: str, style: str = "info", duration: int = 3500):
+        """Convenience method to show a toast."""
+        return cls(parent, message, style, duration)
+
+
 class FinalBookmarkOrganizerApp(ThemedWidget):
     """
         Main application class with full feature set.
@@ -17186,7 +17346,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             background=theme.bg_secondary,
             foreground=theme.text_primary,
             borderwidth=0,
-            font=("Segoe UI", 9, "bold")
+            font=FONTS.small(bold=True)
         )
         
         style.map(
@@ -17255,7 +17415,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         
         tk.Label(
             search_frame, text="🔍", bg=theme.bg_secondary,
-            fg=theme.text_muted, font=("Segoe UI", 12)
+            fg=theme.text_muted, font=FONTS.header(bold=False)
         ).pack(side=tk.LEFT, padx=(10, 5))
         
         self.search_var = tk.StringVar()
@@ -17273,7 +17433,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         # Clear search button (X) - more visible styling
         self.clear_search_btn = tk.Label(
             search_frame, text="  ✕  ", bg=theme.bg_tertiary,
-            fg=theme.text_secondary, font=("Segoe UI", 11, "bold"), cursor="hand2",
+            fg=theme.text_secondary, font=FONTS.body(bold=True), cursor="hand2",
             relief=tk.FLAT, padx=4, pady=2
         )
         self.clear_search_btn.pack(side=tk.LEFT, padx=(5, 0))
@@ -17402,7 +17562,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         
         tk.Label(
             filters_frame, text="Quick Filters", bg=theme.bg_secondary,
-            fg=theme.text_secondary, font=("Segoe UI", 9, "bold")
+            fg=theme.text_secondary, font=FONTS.small(bold=True)
         ).pack(anchor="w", pady=(5, 5))
         
         self.filter_buttons = {}
@@ -17448,7 +17608,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         
         tk.Label(
             cat_header, text="Categories", bg=theme.bg_secondary,
-            fg=theme.text_secondary, font=("Segoe UI", 9, "bold")
+            fg=theme.text_secondary, font=FONTS.small(bold=True)
         ).pack(side=tk.LEFT)
         
         # Categories list
@@ -17511,10 +17671,17 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         # Ctrl+Scroll zoom binding
         self.tree.bind("<Control-MouseWheel>", self._on_mousewheel_zoom)
         self.list_frame.bind("<Control-MouseWheel>", self._on_mousewheel_zoom)
-        
+
+        # Empty state (shown when no bookmarks exist)
+        self.empty_state = EmptyState(
+            self.content_area,
+            on_import=self._show_import_dialog,
+            on_add=self._add_bookmark
+        )
+
         # Show list view by default
         self.list_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
-        
+
         # ----- RIGHT SIDEBAR (Scrollable) - ANALYTICS -----
         right_sidebar = tk.Frame(content, bg=theme.bg_secondary, width=300)
         right_sidebar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -17590,7 +17757,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         # Quick stats grid - streamlined (removed With Notes, Pinned, With Tags)
         tk.Label(
             self.analytics_frame, text="Overview", bg=theme.bg_secondary,
-            fg=theme.text_secondary, font=("Segoe UI", 9, "bold")
+            fg=theme.text_secondary, font=FONTS.small(bold=True)
         ).pack(anchor="w", pady=(8, 5))
         
         stats_data = [
@@ -17618,7 +17785,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         # Top categories (compact) - clickable like domains
         tk.Label(
             self.analytics_frame, text="Top Categories", bg=theme.bg_secondary,
-            fg=theme.text_secondary, font=("Segoe UI", 9, "bold")
+            fg=theme.text_secondary, font=FONTS.small(bold=True)
         ).pack(anchor="w", pady=(12, 5))
         
         sorted_cats = sorted(stats['category_counts'].items(), key=lambda x: -x[1])[:5]
@@ -17652,7 +17819,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         
         tk.Label(
             self.analytics_frame, text=f"Top Domains ({num_domains})", bg=theme.bg_secondary,
-            fg=theme.text_secondary, font=("Segoe UI", 9, "bold")
+            fg=theme.text_secondary, font=FONTS.small(bold=True)
         ).pack(anchor="w", pady=(12, 5))
         
         # Create scrollable frame for domains if many
@@ -17793,22 +17960,50 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         for cat in categories:
             count = counts.get(cat, 0)
             icon = get_category_icon(cat)
-            
-            btn = tk.Label(
-                self.categories_frame,
-                text=f"{icon} {cat} ({count})",
-                bg=theme.bg_secondary if cat != self.current_category else theme.selection,
-                fg=theme.text_primary, font=FONTS.body(),
-                cursor="hand2", anchor="w", padx=10, pady=6
+            is_selected = (cat == self.current_category)
+            bg = theme.selection if is_selected else theme.bg_secondary
+
+            row = tk.Frame(
+                self.categories_frame, bg=bg, cursor="hand2"
             )
-            btn.pack(fill=tk.X, pady=1)
-            
-            btn.bind("<Button-1>", lambda e, c=cat: self._select_category(c))
-            btn.bind("<Button-3>", lambda e, c=cat: self._show_category_context_menu(e, c))
-            btn.bind("<Enter>", lambda e, b=btn, c=cat:
-                    b.configure(bg=theme.bg_hover) if c != self.current_category else None)
-            btn.bind("<Leave>", lambda e, b=btn, c=cat:
-                    b.configure(bg=theme.bg_secondary) if c != self.current_category else None)
+            row.pack(fill=tk.X, pady=1)
+
+            name_lbl = tk.Label(
+                row, text=f"{icon} {cat}",
+                bg=bg, fg=theme.text_primary,
+                font=FONTS.body(), anchor="w", padx=10, pady=5
+            )
+            name_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+            if count > 0:
+                count_lbl = tk.Label(
+                    row, text=str(count),
+                    bg=theme.bg_tertiary, fg=theme.text_secondary,
+                    font=FONTS.tiny(), padx=6, pady=1
+                )
+                count_lbl.pack(side=tk.RIGHT, padx=(0, 10), pady=5)
+            else:
+                count_lbl = None
+
+            for w in [row, name_lbl] + ([count_lbl] if count_lbl else []):
+                w.bind("<Button-1>", lambda e, c=cat: self._select_category(c))
+                w.bind("<Button-3>", lambda e, c=cat: self._show_category_context_menu(e, c))
+
+            def on_enter(e, r=row, n=name_lbl, cl=count_lbl, c=cat):
+                if c != self.current_category:
+                    for w in [r, n] + ([cl] if cl else []):
+                        w.configure(bg=theme.bg_hover)
+            def on_leave(e, r=row, n=name_lbl, cl=count_lbl, c=cat):
+                if c != self.current_category:
+                    bg_ = theme.bg_secondary
+                    for w in [r, n]:
+                        w.configure(bg=bg_)
+                    if cl:
+                        cl.configure(bg=theme.bg_tertiary)
+
+            for w in [row, name_lbl] + ([count_lbl] if count_lbl else []):
+                w.bind("<Enter>", on_enter)
+                w.bind("<Leave>", on_leave)
         
         # Also bind right-click on empty space for "Add Category"
         self.categories_frame.bind("<Button-3>", self._show_add_category_menu)
@@ -17993,15 +18188,31 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
                                    query_lower in ' '.join(bm.tags).lower()]
         
         bookmarks.sort(key=lambda b: (not b.is_pinned, b.title.lower()))
-        
+
         if self.count_label:
-            self.count_label.configure(text=f"{len(bookmarks)} bookmarks")
-        
+            n = len(bookmarks)
+            self.count_label.configure(
+                text=f"{n} bookmark{'s' if n != 1 else ''}"
+            )
+
+        # Toggle empty state vs list view
+        if hasattr(self, 'empty_state'):
+            if len(bookmarks) == 0 and not getattr(self, 'search_query', ''):
+                self.list_frame.pack_forget()
+                self.empty_state.pack(fill=tk.BOTH, expand=True)
+            else:
+                self.empty_state.pack_forget()
+                self.list_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
+
         if self.view_mode == ViewMode.LIST:
             self._populate_list_view(bookmarks)
         else:
             self._populate_grid_view(bookmarks)
-    
+
+    def _show_toast(self, message: str, style: str = "info"):
+        """Show a non-blocking toast notification."""
+        ToastNotification.show(self.root, message, style)
+
     def _populate_list_view(self, bookmarks: List[Bookmark]):
         """Populate treeview with bookmarks"""
         for item in self.tree.get_children():
@@ -19276,7 +19487,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         self._set_status(f"Imported {added} bookmarks ({dupes} duplicates skipped)")
         
         if added > 0 or dupes > 0:
-            messagebox.showinfo("Import Complete", f"Imported {added} bookmarks\n{dupes} duplicates skipped")
+            self._show_toast(f"Imported {added} bookmarks ({dupes} duplicates skipped)", "success")
     
     def _show_import_dialog(self):
         """Show import dialog"""
@@ -19376,7 +19587,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
                 self._set_status(f"{status}: Found {broken_count[0]} broken links")
                 self._refresh_all()
                 if not self._link_check_cancelled:
-                    messagebox.showinfo("Link Check Complete", f"Checked {checked_count[0]} links\nFound {broken_count[0]} broken")
+                    self._show_toast(f"Checked {checked_count[0]} links, found {broken_count[0]} broken", "success" if broken_count[0] == 0 else "warning")
         
         # Start checking
         self.root.after(100, check_links_batch)
@@ -19386,7 +19597,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         dupes = self.bookmark_manager.find_duplicates()
         
         if not dupes:
-            messagebox.showinfo("No Duplicates", "No duplicates found!")
+            self._show_toast("No duplicate bookmarks found", "success")
             return
         
         # dupes is Dict[str, List[Bookmark]] - use values()
