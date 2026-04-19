@@ -2,6 +2,32 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v4.8.0] - 2026-04-18
+
+### Changed — Categorization Coverage Expansion Phase 3
+Expanded DEFAULT_CATEGORIES from 1,583 → **1,963 patterns** (+380, +24%).
+
+**Categories expanded:**
+| Category | Before | After | Added |
+|----------|--------|-------|-------|
+| Sports | 10 | 60 | Pro leagues, fantasy, betting, stats, soccer |
+| Automotive | 9 | 60 | 15 brands, parts stores, reviews, EV sites |
+| Food & Dining | 11 | 62 | Recipes, grocery chains, meal kits, delivery |
+| Education | 17 | 64 | MOOCs, .edu catch-all, textbooks, K-12, certs |
+| Social Media | 17 | 36 | Messaging, photo social, link-in-bio |
+| Gaming | 39 | 58 | Mod sites, retro, reviews, keywords |
+| Entertainment | 107 | 130 | Podcasts, anime/manga, streaming keywords |
+| Travel | 37 | 54 | Car rental, cruises, keywords |
+| Reference | 53 | 68 | Calculators, converters, keywords |
+| + 10 more cats | — | — | Keyword fallbacks added |
+
+**Keyword fallback additions (~100):**
+Added `keyword:` patterns to 20+ categories that previously relied only on
+domain matching. Covers: shopping intent (coupon, promo code, deal), health
+(symptoms, treatment, fitness), education (how to, learn, study guide),
+entertainment (podcast, stream, anime), government (legislation, public
+record), development (open source, npm package, source code), and more.
+
 ## [v4.7.0] - 2026-04-18
 
 ### Changed — Modular Extraction Phase 2
