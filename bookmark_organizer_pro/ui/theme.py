@@ -21,6 +21,7 @@ from bookmark_organizer_pro.logging_config import log
 
 
 _THEME_NAME_PATTERN = re.compile(r"[^A-Za-z0-9_.-]+")
+_HEX_COLOR_PATTERN = re.compile(r"^#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$")
 
 
 @dataclass
@@ -98,8 +99,9 @@ class ThemeColors:
             return cls()
 
         fields = cls.__dataclass_fields__
+        defaults = cls()
         values = {
-            key: str(value)
+            key: _sanitize_color_value(value, getattr(defaults, key))
             for key, value in data.items()
             if key in fields and value is not None
         }
@@ -336,6 +338,11 @@ def _sanitize_theme_name(value: object, fallback: str = "custom") -> str:
     text = str(value or "").strip()
     text = _THEME_NAME_PATTERN.sub("_", text).strip("._-")
     return (text or fallback)[:80]
+
+
+def _sanitize_color_value(value: object, fallback: str) -> str:
+    text = str(value or "").strip()
+    return text if _HEX_COLOR_PATTERN.match(text) else fallback
 
 
 def _coerce_bool(value: object, default: bool = False) -> bool:

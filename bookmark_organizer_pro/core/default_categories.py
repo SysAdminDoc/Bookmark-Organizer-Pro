@@ -34,7 +34,7 @@ DEFAULT_CATEGORIES = {
         "localhost", "127.0.0.1", "192.168.", "10.0.", "172.16.", ".local",
         ".internal", ".lan", ":3000", ":8080", ":8443", ":9090", ":5000",
         "/admin", "/dashboard", "admin.", "dashboard.", "internal.", "intranet.",
-        "domain:pfsense", "domain:opnsense", "domain:unifi"
+        "domain:pfsense", "domain:opnsense", "domain:unifi",
     
         # Category-focused deep research (pass 3)
         "domain:retool.com",

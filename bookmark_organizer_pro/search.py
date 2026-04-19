@@ -15,7 +15,7 @@ class SearchQuery:
     """
 
     def __init__(self, raw_query: str = ""):
-        self.raw_query = raw_query
+        self.raw_query = str(raw_query or "")
         self.text_terms: List[str] = []
         self.or_terms: List[str] = []
         self.excluded_terms: List[str] = []
@@ -34,8 +34,8 @@ class SearchQuery:
         self.is_regex: bool = False
         self.regex_pattern: Optional[re.Pattern] = None
 
-        if raw_query:
-            self._parse(raw_query)
+        if self.raw_query:
+            self._parse(self.raw_query)
 
     def _parse(self, query: str):
         """Parse the query string into structured filters"""
@@ -82,15 +82,25 @@ class SearchQuery:
                 continue
 
             if lower_token.startswith("domain:"):
-                self.domain_filters.append(token[7:].lower())
+                value = token[7:].strip().lower().removeprefix("www.")
+                if value:
+                    self.domain_filters.append(value)
             elif lower_token.startswith("tag:"):
-                self.tag_filters.append(token[4:])
+                value = token[4:].strip()
+                if value:
+                    self.tag_filters.append(value)
             elif token.startswith("#"):
-                self.tag_filters.append(token[1:])
+                value = token[1:].strip()
+                if value:
+                    self.tag_filters.append(value)
             elif lower_token.startswith("category:"):
-                self.category_filters.append(token[9:])
+                value = token[9:].strip()
+                if value:
+                    self.category_filters.append(value)
             elif lower_token.startswith("cat:"):
-                self.category_filters.append(token[4:])
+                value = token[4:].strip()
+                if value:
+                    self.category_filters.append(value)
             elif lower_token.startswith("before:"):
                 try:
                     self.date_before = self._parse_date(token[7:])
@@ -117,9 +127,11 @@ class SearchQuery:
                 try:
                     val = token[7:]
                     if val.startswith(">"):
-                        self.min_visits = int(val[1:])
+                        parsed = int(val[1:])
                     else:
-                        self.min_visits = int(val)
+                        parsed = int(val)
+                    if parsed >= 0:
+                        self.min_visits = parsed
                 except Exception:
                     pass
             else:
@@ -277,7 +289,10 @@ class SearchEngine:
         self._search_history.clear()
 
     def save_search(self, name: str, query: str):
-        self._saved_searches[name] = query
+        name = str(name or "").strip()
+        query = str(query or "").strip()
+        if name and query:
+            self._saved_searches[name] = query
 
     def get_saved_searches(self) -> Dict[str, str]:
         return self._saved_searches.copy()
@@ -353,8 +368,15 @@ def levenshtein_distance(s1: str, s2: str) -> int:
 
 def fuzzy_match(query: str, text: str, threshold: float = 0.6) -> Tuple[bool, float]:
     """Check if query fuzzy matches text. Returns (matches, similarity_score)."""
-    query = query.lower()
-    text = text.lower()
+    query = str(query or "").lower()
+    text = str(text or "").lower()
+    try:
+        threshold = max(0.0, min(1.0, float(threshold)))
+    except (TypeError, ValueError):
+        threshold = 0.6
+
+    if not query.strip() or not text.strip():
+        return False, 0.0
 
     if query in text:
         return True, 1.0
@@ -407,6 +429,11 @@ class FuzzySearchEngine:
             self._search_history.insert(0, query)
             self._search_history = self._search_history[:50]
 
+        try:
+            threshold = max(0.0, min(1.0, float(threshold)))
+        except (TypeError, ValueError):
+            threshold = 0.6
+
         if any(x in query for x in [':', '#', '/', 'is:', 'has:']):
             parsed = SearchQuery(query)
             return [(bm, 1.0) for bm in bookmarks if parsed.matches(bm)]
@@ -440,7 +467,11 @@ class FuzzySearchEngine:
     def get_suggestions(self, partial: str, bookmarks: List[Bookmark], limit: int = 5) -> List[str]:
         """Get search suggestions based on partial input"""
         suggestions = set()
-        partial_lower = partial.lower()
+        partial_lower = str(partial or "").lower()
+        try:
+            limit = max(1, min(50, int(limit)))
+        except (TypeError, ValueError):
+            limit = 5
 
         for hist in self._search_history:
             if partial_lower in hist.lower():

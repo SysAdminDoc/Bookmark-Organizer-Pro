@@ -1,6 +1,7 @@
 """URL and path validation utilities."""
 
 import re
+import ipaddress
 from pathlib import Path, PureWindowsPath
 from typing import Tuple
 from urllib.parse import urlparse
@@ -33,11 +34,13 @@ def validate_url(url: str) -> Tuple[bool, str]:
             hostname = parsed.hostname
             if not hostname:
                 return False, "URL must include a host name"
+            try:
+                parsed.port
+            except ValueError:
+                return False, "URL port is malformed"
             if len(hostname) > 253:
                 return False, "Host name is too long"
-            try:
-                hostname.encode("idna").decode("ascii")
-            except UnicodeError:
+            if not _is_valid_hostname(hostname):
                 return False, "Host name is malformed"
 
         if scheme == "file" and not (parsed.netloc or parsed.path):
@@ -45,6 +48,29 @@ def validate_url(url: str) -> Tuple[bool, str]:
         return True, ""
     except Exception as e:
         return False, f"URL parsing error: {str(e)}"
+
+
+def _is_valid_hostname(hostname: str) -> bool:
+    """Validate DNS names while allowing IPv4/IPv6 literals."""
+    host = str(hostname or "").strip()
+    if not host:
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        pass
+
+    try:
+        ascii_host = host.encode("idna").decode("ascii").rstrip(".")
+    except UnicodeError:
+        return False
+    if not ascii_host or len(ascii_host) > 253:
+        return False
+
+    labels = ascii_host.split(".")
+    label_pattern = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
+    return all(label_pattern.match(label or "") for label in labels)
 
 
 def validate_path(path_str: str, must_exist: bool = False) -> Tuple[bool, str]:

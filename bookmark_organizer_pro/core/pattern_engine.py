@@ -11,6 +11,7 @@ Supports multiple pattern types:
 """
 
 import re
+from collections.abc import Iterable
 from typing import Dict, List, Optional
 from urllib.parse import urlparse
 
@@ -29,49 +30,81 @@ class PatternEngine:
     def compile_patterns(self, categories: Dict[str, List[str]]):
         """Compile all patterns into rules."""
         self.rules = []
+        if not isinstance(categories, dict):
+            return
+
         for category, patterns in categories.items():
-            for p in patterns:
+            if isinstance(patterns, str):
+                pattern_iterable: Iterable = [patterns]
+            elif isinstance(patterns, Iterable):
+                pattern_iterable = patterns
+            else:
+                continue
+
+            for p in pattern_iterable:
                 if not isinstance(p, str) or not p.strip():
                     continue
                 rule = {"category": category, "raw": p}
                 p_stripped = p.strip()
+                p_lower = p_stripped.lower()
 
                 try:
-                    if p_stripped.startswith("regex:"):
+                    if p_lower.startswith("regex:"):
                         regex_str = p_stripped[6:]
-                        if len(regex_str) > 500:
+                        if not regex_str or len(regex_str) > 500:
                             continue  # Skip overly long regex (ReDoS guard)
                         rule["type"] = "regex"
                         rule["matcher"] = re.compile(regex_str, re.IGNORECASE)
-                    elif p_stripped.startswith("domain:"):
+                    elif p_lower.startswith("domain:"):
+                        matcher = p_stripped[7:].lower().strip().rstrip(".").removeprefix("www.")
+                        if not matcher:
+                            continue
                         rule["type"] = "domain"
-                        rule["matcher"] = p_stripped[7:].lower().strip()
-                    elif p_stripped.startswith("path:"):
+                        rule["matcher"] = matcher
+                    elif p_lower.startswith("path:"):
+                        matcher = p_stripped[5:].lower().strip()
+                        if not matcher:
+                            continue
                         rule["type"] = "path"
-                        rule["matcher"] = p_stripped[5:].lower().strip()
-                    elif p_stripped.startswith("keyword:"):
+                        rule["matcher"] = matcher
+                    elif p_lower.startswith("keyword:"):
+                        matcher = p_stripped[8:].lower().strip()
+                        if not matcher:
+                            continue
                         rule["type"] = "keyword"
-                        rule["matcher"] = p_stripped[8:].lower().strip()
-                    elif p_stripped.startswith("title:"):
+                        rule["matcher"] = matcher
+                    elif p_lower.startswith("title:"):
+                        matcher = p_stripped[6:].lower().strip()
+                        if not matcher:
+                            continue
                         rule["type"] = "title"
-                        rule["matcher"] = p_stripped[6:].lower().strip()
-                    elif p_stripped.startswith("ext:"):
+                        rule["matcher"] = matcher
+                    elif p_lower.startswith("ext:"):
+                        matcher = p_stripped[4:].lower().strip().lstrip(".")
+                        if not matcher:
+                            continue
                         rule["type"] = "extension"
-                        rule["matcher"] = p_stripped[4:].lower().strip()
+                        rule["matcher"] = matcher
                     else:
+                        matcher = p_stripped.lower()
+                        if not matcher:
+                            continue
                         rule["type"] = "plain"
-                        rule["matcher"] = p_stripped.lower()
+                        rule["matcher"] = matcher
                     self.rules.append(rule)
                 except re.error:
                     pass
 
     def match(self, url: str, title: str = "") -> Optional[str]:
         """Return the first matching category for the given URL/title, or None."""
-        url_lower = url.lower()
-        title_lower = (title or "").lower()
+        url_text = str(url or "")
+        title_text = str(title or "")
+        url_lower = url_text.lower()
+        title_lower = title_text.lower()
 
         try:
-            parsed = urlparse(url)
+            parse_target = url_text if "://" in url_text else f"https://{url_text}"
+            parsed = urlparse(parse_target)
             domain = (parsed.hostname or "").lower().removeprefix("www.")
             path = parsed.path.lower()
         except Exception:
@@ -94,7 +127,7 @@ class PatternEngine:
                     if path.endswith(f".{matcher}"):
                         return rule["category"]
                 elif rtype == "regex":
-                    if matcher.search(url) or matcher.search(title or ""):
+                    if matcher.search(url_text) or matcher.search(title_text):
                         return rule["category"]
                 elif rtype == "plain":
                     if matcher in domain or matcher in url_lower or matcher in title_lower:

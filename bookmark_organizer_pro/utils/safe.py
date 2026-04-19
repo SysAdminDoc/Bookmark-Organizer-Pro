@@ -68,8 +68,16 @@ def truncate_string(s: str, max_length: int, suffix: str = "...") -> str:
     """Safely truncate a string to maximum length."""
     if not s or not isinstance(s, str):
         return ""
+    try:
+        max_length = int(max_length)
+    except (TypeError, ValueError):
+        return ""
+    if max_length <= 0:
+        return ""
     if len(s) <= max_length:
         return s
+    if len(suffix) >= max_length:
+        return suffix[:max_length]
     return s[:max_length - len(suffix)] + suffix
 
 

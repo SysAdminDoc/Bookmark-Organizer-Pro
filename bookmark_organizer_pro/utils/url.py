@@ -58,10 +58,12 @@ def normalize_url(url: str) -> str:
     - Remove default index files (index.html, etc.)
     - Upgrade http to https
     """
-    if not url:
-        return url
+    if url is None:
+        return ""
 
-    raw = url.strip()
+    raw = str(url).strip()
+    if not raw:
+        return ""
     try:
         parsed = urlparse(raw)
     except Exception:
@@ -99,11 +101,6 @@ def normalize_url(url: str) -> str:
     netloc = host
     if port:
         netloc = f"{host}:{port}"
-    if parsed.username:
-        userinfo = parsed.username
-        if parsed.password:
-            userinfo += f":{parsed.password}"
-        netloc = f"{userinfo}@{netloc}"
 
     # Normalize path
     path = parsed.path or '/'

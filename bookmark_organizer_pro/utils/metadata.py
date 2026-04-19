@@ -159,6 +159,7 @@ def wayback_check(url: str, timeout: int = 10) -> Optional[str]:
     if not _is_safe_url(url):
         return None
 
+    resp = None
     try:
         api_url = f"https://archive.org/wayback/available?url={urllib.parse.quote(url, safe='')}"
         resp = requests.get(api_url, timeout=timeout)
@@ -168,6 +169,9 @@ def wayback_check(url: str, timeout: int = 10) -> Optional[str]:
             return snapshot.get('url', '')
     except Exception:
         pass
+    finally:
+        if resp is not None:
+            resp.close()
     return None
 
 
@@ -184,6 +188,7 @@ def wayback_save(url: str, timeout: int = 30) -> Optional[str]:
     if not _is_safe_url(url):
         return None
 
+    resp = None
     try:
         save_url = f"https://web.archive.org/save/{url}"
         resp = requests.get(save_url, timeout=timeout, headers={
@@ -196,4 +201,7 @@ def wayback_save(url: str, timeout: int = 30) -> Optional[str]:
             return resp.url
     except Exception:
         pass
+    finally:
+        if resp is not None:
+            resp.close()
     return None
