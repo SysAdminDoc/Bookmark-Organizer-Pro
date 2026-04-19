@@ -2797,7 +2797,7 @@ class FaviconManager:
             pass
         return ""
     
-    def get_placeholder_image(self, url: str, size: int = 16) -> Optional[Image.Image]:
+    def get_placeholder_image(self, url: str, size: int = 16) -> Optional["Image.Image"]:
         """Generate a placeholder image with first letter and domain color"""
         if not HAS_PIL:
             return None
@@ -4962,7 +4962,7 @@ class SystemTrayManager:
             except Exception:
                 pass
     
-    def _create_icon(self) -> Image.Image:
+    def _create_icon(self) -> "Image.Image":
         """Create the tray icon image"""
         size = 64
         img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
@@ -6414,7 +6414,7 @@ class SystemTray:
         self._tray = None
         self._icon = None
     
-    def create_icon(self) -> Optional[Image.Image]:
+    def create_icon(self) -> Optional["Image.Image"]:
         """Create a tray icon"""
         if not HAS_PIL:
             return None
