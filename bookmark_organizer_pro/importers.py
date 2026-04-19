@@ -128,6 +128,14 @@ class BrowserProfileImporter:
         if not places_db.exists():
             return []
 
+        # Guard against oversized or corrupt files
+        try:
+            if places_db.stat().st_size > 500_000_000:  # 500MB limit
+                log.error(f"Firefox places.sqlite too large: {places_db.stat().st_size} bytes")
+                return []
+        except OSError:
+            return []
+
         import sqlite3
 
         temp_db = DATA_DIR / "temp_places.sqlite"
@@ -165,11 +173,15 @@ class BrowserProfileImporter:
 
             for row in cursor.fetchall():
                 title, url, date_added, folder_path = row
+                cat = "Imported"
+                if folder_path and isinstance(folder_path, str):
+                    parts = folder_path.split('/')
+                    cat = parts[-1] if parts[-1] else "Imported"
                 bm = Bookmark(
                     id=None,
                     url=url or "",
                     title=title or url or "",
-                    category=folder_path.split('/')[-1] if folder_path else "Imported"
+                    category=cat
                 )
                 if date_added:
                     try:
