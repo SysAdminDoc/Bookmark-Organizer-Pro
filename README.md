@@ -1,8 +1,8 @@
-# Bookmark Organizer Pro v4.8.0
+# Bookmark Organizer Pro v4.9.0
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, and advanced organization features.
 
-![Version](https://img.shields.io/badge/version-4.8.0-blue.svg)
+![Version](https://img.shields.io/badge/version-4.9.0-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.8+-3776AB.svg?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
@@ -373,6 +373,15 @@ MIT License - see LICENSE file for details.
 - Built with Python and Tkinter
 
 ## Version History
+
+### v4.9.0 (April 2026)
+- Premium UX polish pass
+- Empty state: Beautiful centered empty state with icon, heading, and CTA buttons when no bookmarks exist
+- Toast notifications: Non-blocking toast system replacing modal messageboxes for import/export/link-check feedback
+- Category sidebar: Count badges separated from names, proper frame-based hover on full row
+- Font consistency: Replaced all hardcoded "Segoe UI" font references with centralized FONTS system
+- Fixed Image.Image type hint crash when Pillow not installed
+- Build metadata: Corrected author/website to SysAdminDoc/GitHub
 
 ### v4.8.0 (April 2026)
 - Expanded categorization from 1,583 to 1,963 patterns (+380)
