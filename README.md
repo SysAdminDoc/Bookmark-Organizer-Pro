@@ -1,8 +1,8 @@
-# Bookmark Organizer Pro v4.9.0
+# Bookmark Organizer Pro v4.10.0
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, and advanced organization features.
 
-![Version](https://img.shields.io/badge/version-4.9.0-blue.svg)
+![Version](https://img.shields.io/badge/version-4.10.0-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.8+-3776AB.svg?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
@@ -373,6 +373,15 @@ MIT License - see LICENSE file for details.
 - Built with Python and Tkinter
 
 ## Version History
+
+### v4.10.0 (April 2026)
+- Removed 2,558 lines of dead code (BookmarkOrganizerApp + EnhancedBookmarkOrganizerApp)
+- Added `requirements.txt` for standard pip/venv workflows
+- Added GitHub Actions CI/CD (PyInstaller builds for Windows/macOS/Linux on tag push)
+- Import from Browser: detect and import directly from Chrome, Firefox, Edge, Brave profiles
+- Search placeholder text ("Search bookmarks... Ctrl+F") with focus/blur behavior
+- Theme dropdown shows display names (e.g., "GitHub Dark") instead of internal keys
+- Drag-drop import area collapses to "Import more..." link after first successful import
 
 ### v4.9.0 (April 2026)
 - Premium UX polish pass
