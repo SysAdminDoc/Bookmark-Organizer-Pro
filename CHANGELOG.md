@@ -2,6 +2,35 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v5.2.2] - 2026-04-19
+
+### Changed — Reliability & UX Hardening Pass
+Large audit across backend and UI. 14 files touched, 2,116 insertions, 633
+deletions.
+
+- **Data/config validation** — stricter input validation across AI configs,
+  bookmark and category models, and search queries. Defensive `from_dict`
+  paths reject malformed payloads without crashing the app.
+- **Atomic persistence** — storage writes hardened against partial writes and
+  concurrent access; safer path handling.
+- **Network safety** — additional SSRF and open-redirect guards in
+  `url_utils`, `utils/metadata`, and `link_checker`. Timeouts and bounds
+  tightened.
+- **Import/export escaping** — importers re-audited for entity handling and
+  field sanitization across all supported formats.
+- **Category repair** — `CategoryManager` now recovers from corrupted or
+  inconsistent category trees instead of failing to load.
+- **Search edge cases** — query parser hardened against malformed tokens and
+  pathological inputs.
+- **Premium UI feedback paths** — UI reliably surfaces success/error state
+  through the embedded log/toast paths instead of silent failures.
+- **Regression coverage** — `tests/test_core.py` expanded (+166 lines)
+  covering the new hardening paths.
+
+### Build
+- Version bumped to 5.2.2 across `main.py`, `bookmark_organizer_pro/constants.py`,
+  `bookmark_organizer.spec`, and `version_info.txt`.
+
 ## [v5.2.1] - 2026-04-19
 
 ### Changed
