@@ -7,6 +7,8 @@ A powerful, professional-grade bookmark manager with AI-powered categorization, 
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
+![Bookmark Organizer Pro Screenshot](screenshot.png)
+
 ## Features
 
 ### Core Features
