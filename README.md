@@ -1,8 +1,8 @@
-# Bookmark Organizer Pro v4.7.0
+# Bookmark Organizer Pro v4.8.0
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, and advanced organization features.
 
-![Version](https://img.shields.io/badge/version-4.7.0-blue.svg)
+![Version](https://img.shields.io/badge/version-4.8.0-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.8+-3776AB.svg?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
@@ -46,7 +46,7 @@ A powerful, professional-grade bookmark manager with AI-powered categorization, 
 - **Page Metadata Fetch**: Auto-fetch title, description, and favicon from live URLs
 - **Wayback Machine Integration**: Check archive.org for snapshots, submit pages for archival
 - **URL Normalization**: RFC 3986 canonicalization for precise deduplication
-- **892+ Categorization Patterns**: 32 categories covering 500+ popular domains
+- **1,960+ Categorization Patterns**: 32 categories covering 1,200+ popular domains
 - **Redirect Detection**: Link checker detects and offers to fix redirected URLs
 - **Batch Metadata Refresh**: Multi-threaded re-fetch of all bookmark titles/descriptions
 - **Random Bookmark**: Rediscover forgotten bookmarks
@@ -371,6 +371,15 @@ MIT License - see LICENSE file for details.
 - Built with Python and Tkinter
 
 ## Version History
+
+### v4.8.0 (April 2026)
+- Expanded categorization from 1,583 to 1,963 patterns (+380)
+- Sports: 10 → 60 patterns (leagues, betting, fantasy, stats)
+- Automotive: 9 → 60 patterns (brands, parts, reviews, repair)
+- Food & Dining: 11 → 62 patterns (recipes, grocery, delivery, chains)
+- Education: 17 → 64 patterns (MOOCs, textbooks, .edu catch-all, K-12)
+- Social Media: 17 → 36 patterns (messaging, photo/video social)
+- Added 100+ keyword fallbacks across all categories for long-tail coverage
 
 ### v4.7.0 (April 2026)
 - Modular extraction phase 2: AI providers, search engine, importers, link checker, URL utilities extracted to package (~2,010 lines moved)
