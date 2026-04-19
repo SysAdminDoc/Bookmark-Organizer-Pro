@@ -1,8 +1,8 @@
-# Bookmark Organizer Pro v5.2.1
+# Bookmark Organizer Pro v5.2.2
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, and advanced organization features.
 
-![Version](https://img.shields.io/badge/version-5.2.1-blue.svg)
+![Version](https://img.shields.io/badge/version-5.2.2-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.8+-3776AB.svg?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
@@ -379,6 +379,17 @@ MIT License - see LICENSE file for details.
 - Built with Python and Tkinter
 
 ## Version History
+
+### v5.2.2 (April 2026)
+- Reliability & UX hardening pass across 14 files
+- Stricter data/config validation and defensive model `from_dict`
+- Atomic persistence and safer path handling in storage
+- Extra SSRF / open-redirect guards in network paths
+- Hardened import/export escaping across all formats
+- Category tree auto-repair on load
+- Search query parser hardened against malformed input
+- UI feedback paths surface errors via log/toast instead of failing silently
+- Expanded regression test coverage (`tests/test_core.py` +166 lines)
 
 ### v5.2.1 (April 2026)
 - Repo cleanup: renamed `bookmark_organizer_pro_v4.py` → `main.py`. The `_v4` suffix was misleading legacy from the v4.x line. The modular `bookmark_organizer_pro/` package is the canonical backend; `main.py` is the UI entry point that imports from it.
