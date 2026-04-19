@@ -2,6 +2,31 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v4.10.0] - 2026-04-18
+
+### Removed
+- **2,558 lines of dead code**: `BookmarkOrganizerApp` (1,566 lines) and
+  `EnhancedBookmarkOrganizerApp` (992 lines) — neither was instantiated.
+  `FinalBookmarkOrganizerApp` is the sole production class.
+- Main file: 21,127 → 18,569 lines.
+
+### Added
+- **`requirements.txt`**: Standard dependency file for pip/venv workflows.
+- **GitHub Actions CI/CD** (`.github/workflows/build.yml`): PyInstaller builds
+  for Windows/macOS/Linux triggered on tag push and manual dispatch. Auto-uploads
+  release artifacts.
+- **Import from Browser**: Import button now shows a menu with "Import from
+  File..." plus auto-detected browsers (Chrome, Firefox, Edge, Brave). Imports
+  bookmarks directly from the browser's profile data.
+- **Search placeholder text**: "Search bookmarks... (Ctrl+F)" shown in muted
+  text, clears on focus, restores on blur if empty.
+
+### Changed
+- **Theme dropdown**: Shows display names (e.g., "GitHub Dark") with dark/light
+  indicators and active checkmark instead of raw internal keys.
+- **Drag-drop import area**: Collapses to a compact "Import more..." link after
+  first successful import, saving sidebar space.
+
 ## [v4.9.0] - 2026-04-18
 
 ### Changed -- Premium UX Polish Pass

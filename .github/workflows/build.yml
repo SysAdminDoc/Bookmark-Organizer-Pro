@@ -1,0 +1,62 @@
+name: Build
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build executable
+        run: pyinstaller bookmark_organizer.spec --clean
+
+      - name: Rename artifact (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          mv dist/BookmarkOrganizerPro.exe dist/BookmarkOrganizerPro-Windows.exe
+
+      - name: Rename artifact (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mv dist/BookmarkOrganizerPro dist/BookmarkOrganizerPro-Linux
+          chmod +x dist/BookmarkOrganizerPro-Linux
+
+      - name: Rename artifact (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mv dist/BookmarkOrganizerPro dist/BookmarkOrganizerPro-macOS
+          chmod +x dist/BookmarkOrganizerPro-macOS
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BookmarkOrganizerPro-${{ runner.os }}
+          path: dist/BookmarkOrganizerPro-*
+
+      - name: Upload to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: gh release upload ${{ github.ref_name }} dist/BookmarkOrganizerPro-* --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
