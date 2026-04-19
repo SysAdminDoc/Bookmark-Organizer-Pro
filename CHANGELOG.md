@@ -2,6 +2,38 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v4.7.0] - 2026-04-18
+
+### Changed — Modular Extraction Phase 2
+Extracted ~2,010 lines from the 22,924-line main file into 5 new package modules:
+
+**New modules:**
+```
+bookmark_organizer_pro/
+├── ai.py           # AI providers: OpenAI, Anthropic, Google, Groq, Ollama
+│                   #   AIConfigManager, AIClient hierarchy, ensure_package
+├── search.py       # SearchQuery, SearchEngine, FuzzySearchEngine
+│                   #   levenshtein_distance, fuzzy_match
+├── importers.py    # BrowserProfileImporter (Chrome/Firefox/Edge/Brave)
+│                   #   PocketImporter, RaindropImporter, OPMLExporter
+│                   #   TextURLImporter, OPMLImporter, OneTabImporter
+│                   #   NetscapeBookmarkImporter
+├── link_checker.py # LinkChecker with redirect detection
+└── url_utils.py    # URLUtilities (redirect resolver, HTTPS upgrade,
+                    #   affiliate detection, canonical URL)
+```
+
+**Migration impact:**
+- Main file: 22,924 → 20,914 lines (~2,010 lines extracted)
+- Package exports: 57 → 83 public names
+- Zero behavioral changes — all imports resolved via package
+
+### Fixed
+- README clone URL (was `yourusername`, now `SysAdminDoc`)
+- `.gitignore` removed `*.spec` that was blocking PyInstaller spec tracking
+- AI client `print()` calls replaced with `log.error()`
+- Importer `print()` calls replaced with `log.error()`
+
 ## [v4.6.0] - 2026-04-18
 
 ### Changed — Massive Categorization Coverage Expansion
