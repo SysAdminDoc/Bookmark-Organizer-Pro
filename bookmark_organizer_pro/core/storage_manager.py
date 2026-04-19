@@ -61,9 +61,14 @@ class StorageManager:
     def _create_backup(self):
         """Create a timestamped backup; rotate to keep only 10."""
         try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
             backup_name = f"{self.filepath.stem}_{timestamp}.json"
             backup_path = BACKUP_DIR / backup_name
+            counter = 1
+            while backup_path.exists():
+                backup_path = BACKUP_DIR / f"{self.filepath.stem}_{timestamp}_{counter}.json"
+                counter += 1
             shutil.copy2(self.filepath, backup_path)
 
             backups = sorted(BACKUP_DIR.glob(f"{self.filepath.stem}_*.json"))
