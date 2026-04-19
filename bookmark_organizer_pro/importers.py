@@ -5,6 +5,7 @@ Netscape/Mozilla HTML, plain text URLs.
 """
 
 import csv
+import html as html_module
 import json
 import re
 import shutil
@@ -15,6 +16,13 @@ from typing import Dict, List, Tuple
 from .constants import DATA_DIR, IS_WINDOWS, IS_MAC
 from .logging_config import log
 from .models import Bookmark
+
+
+def _decode(text: str) -> str:
+    """Decode HTML entities in text. Safe for None/empty."""
+    if not text:
+        return text or ""
+    return html_module.unescape(text)
 
 
 class BrowserProfileImporter:
@@ -219,8 +227,8 @@ class PocketImporter:
                 url, timestamp, tags, title = match
                 bm = Bookmark(
                     id=None,
-                    url=url,
-                    title=title.strip() or url,
+                    url=_decode(url),
+                    title=_decode(title).strip() or _decode(url),
                     category="Imported from Pocket"
                 )
                 try:
@@ -228,7 +236,7 @@ class PocketImporter:
                 except Exception:
                     pass
                 if tags:
-                    bm.tags = [t.strip() for t in tags.split(',') if t.strip()]
+                    bm.tags = [_decode(t).strip() for t in tags.split(',') if t.strip()]
                 bookmarks.append(bm)
 
             if not bookmarks:
@@ -238,8 +246,8 @@ class PocketImporter:
                     if url.startswith(('http://', 'https://')):
                         bm = Bookmark(
                             id=None,
-                            url=url,
-                            title=title.strip() or url,
+                            url=_decode(url),
+                            title=_decode(title).strip() or _decode(url),
                             category="Imported from Pocket"
                         )
                         bookmarks.append(bm)
@@ -305,9 +313,9 @@ class RaindropImporter:
                 for url, title in bm_matches:
                     bm = Bookmark(
                         id=None,
-                        url=url,
-                        title=title.strip() or url,
-                        category=folder_name.strip()
+                        url=_decode(url),
+                        title=_decode(title).strip() or _decode(url),
+                        category=_decode(folder_name).strip()
                     )
                     bookmarks.append(bm)
 
@@ -414,8 +422,8 @@ class OPMLImporter:
                 if url:
                     bm = Bookmark(
                         id=None,
-                        url=url,
-                        title=title or url,
+                        url=_decode(url),
+                        title=_decode(title) or _decode(url),
                         category="Imported from OPML"
                     )
                     bookmarks.append(bm)
@@ -427,8 +435,8 @@ class OPMLImporter:
                     if url:
                         bm = Bookmark(
                             id=None,
-                            url=url,
-                            title=title or url,
+                            url=_decode(url),
+                            title=_decode(title) or _decode(url),
                             category="Imported from OPML"
                         )
                         bookmarks.append(bm)
@@ -498,7 +506,7 @@ class NetscapeBookmarkImporter:
 
                 folder_match = re.search(r'<H3[^>]*>([^<]+)</H3>', line, re.IGNORECASE)
                 if folder_match:
-                    folder_name = folder_match.group(1).strip()
+                    folder_name = _decode(folder_match.group(1)).strip()
                     folder_stack.append(current_folder)
                     current_folder = folder_name
                     continue
@@ -513,8 +521,8 @@ class NetscapeBookmarkImporter:
                     line, re.IGNORECASE
                 )
                 if bm_match:
-                    url = bm_match.group(1)
-                    title = bm_match.group(2).strip()
+                    url = _decode(bm_match.group(1))
+                    title = _decode(bm_match.group(2)).strip()
 
                     if url and url.startswith(('http://', 'https://')):
                         add_date_match = re.search(r'ADD_DATE="(\d+)"', line, re.IGNORECASE)
@@ -535,7 +543,7 @@ class NetscapeBookmarkImporter:
 
                         tags_match = re.search(r'TAGS="([^"]*)"', line, re.IGNORECASE)
                         if tags_match:
-                            tags = tags_match.group(1)
+                            tags = _decode(tags_match.group(1))
                             bm.tags = [t.strip() for t in tags.split(',') if t.strip()]
 
                         bookmarks.append(bm)
