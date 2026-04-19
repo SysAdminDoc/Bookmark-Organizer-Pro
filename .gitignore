@@ -1,12 +1,43 @@
+# Python bytecode
 __pycache__/
 *.py[cod]
 *$py.class
-*.egg-info/
-dist/
-build/
-*.egg
+
+# Virtual environments and local secrets
 .env
+.env.*
+!.env.example
 .venv/
 venv/
+env/
+
+# Test, coverage, and type-check caches
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Build and packaging output
+build/
+dist/
+*.egg-info/
+*.egg
+*.manifest
+
+# Local application/runtime output
+.bookmark_organizer/
+*.log
+*.tmp
 *.bak
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+
+# Local assistant/project notes
 CLAUDE.md

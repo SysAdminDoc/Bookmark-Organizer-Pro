@@ -21,7 +21,6 @@ Version 5.2.2 - April 2026
 # IMPORTS - Core Python
 # =============================================================================
 import multiprocessing
-import subprocess
 import sys
 import os
 import platform
@@ -40,7 +39,6 @@ import csv
 import urllib.parse
 import shutil
 import tempfile
-import importlib
 import logging
 import traceback
 import ctypes
@@ -53,6 +51,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 import base64
 from io import BytesIO
+
+SOURCE_ROOT = Path(__file__).resolve().parent
+BUNDLE_ROOT = Path(getattr(sys, "_MEIPASS", SOURCE_ROOT))
+ASSETS_DIR = BUNDLE_ROOT / "assets"
 
 # =============================================================================
 # Package Imports
@@ -76,6 +78,9 @@ from bookmark_organizer_pro import (
     safe_divide, safe_json_loads, safe_json_dumps, safe_get_domain,
     safe_invoke_callback, safe_slice, clamp, truncate_string,
     sanitize_filename, validate_config,
+    # Runtime helpers
+    ResourceManager, atomic_json_write, csv_safe_cell, get_user_friendly_error,
+    open_external_url, run_with_timeout, validate_environment,
     # Validators
     validate_url, validate_path,
     # URL normalization + metadata + health (v4.3+)
@@ -103,22 +108,43 @@ from bookmark_organizer_pro import (
     # URL utilities (v4.7+)
     URLUtilities,
 )
+from bookmark_organizer_pro.ui import (
+    FONTS,
+    DesignTokens,
+    DENSITY_SETTINGS,
+    DEFAULT_CATEGORY,
+    FAVICON_PLACEHOLDER,
+    DensityManager,
+    DisplayDensity,
+    ReportGenerator as BaseReportGenerator,
+    SystemThemeDetector,
+    TITLE_PLACEHOLDER,
+    ThemeColors,
+    ThemeInfo,
+    ThemeManager,
+    build_collection_summary,
+    build_filter_counts,
+    check_and_install_dependencies,
+    display_or_fallback,
+    format_compact_count,
+    make_keyboard_activatable,
+    pluralize,
+    pick_default_category,
+    prepare_quick_add_payload,
+    readable_text_on,
+    truncate_middle,
+)
 
 log.info(f"Starting {APP_NAME} v{APP_VERSION}")
 
 
-def _atomic_json_write(filepath: Path, data, indent: int = 2):
-    """Write JSON atomically via temp file + os.replace."""
-    filepath.parent.mkdir(parents=True, exist_ok=True)
-    fd, temp_path = tempfile.mkstemp(dir=filepath.parent, suffix='.tmp', text=True)
-    try:
-        with os.fdopen(fd, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=indent, ensure_ascii=False)
-        os.replace(temp_path, filepath)
-    except Exception:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-        raise
+_atomic_json_write = atomic_json_write
+_csv_safe_cell = csv_safe_cell
+
+
+def _open_external_url(url: str) -> bool:
+    """Backward-compatible wrapper around the shared URL opener."""
+    return open_external_url(url, opener=webbrowser.open)
 
 
 # =============================================================================
@@ -150,479 +176,7 @@ def setup_dpi_awareness():
 setup_dpi_awareness()
 
 # =============================================================================
-# FONT SYSTEM - Cross-platform typography
-# =============================================================================
-@dataclass
-class FontConfig:
-    """
-        Centralized font configuration for consistent typography.
-        
-        Provides standardized font sizes and styles across the application,
-        with platform-specific font family selection.
-        
-        Attributes:
-            family: The font family name (platform-dependent)
-            size_title: Font size for titles (16pt)
-            size_header: Font size for headers (12pt)
-            size_body: Font size for body text (10pt)
-            size_small: Font size for small text (9pt)
-            size_tiny: Font size for tiny text (8pt)
-        
-        Example:
-            >>> fonts = FontConfig(family="Segoe UI")
-            >>> label.configure(font=fonts.body())
-            >>> header.configure(font=fonts.header(bold=True))
-        """
-    family: str
-    size_title: int = 16
-    size_header: int = 12
-    size_body: int = 10
-    size_small: int = 9
-    size_tiny: int = 8
-    
-    def title(self, bold: bool = True) -> Tuple[str, int, str]:
-        return (self.family, self.size_title, "bold" if bold else "normal")
-    
-    def header(self, bold: bool = True) -> Tuple[str, int, str]:
-        return (self.family, self.size_header, "bold" if bold else "normal")
-    
-    def body(self, bold: bool = False) -> Tuple[str, int, str]:
-        return (self.family, self.size_body, "bold" if bold else "normal")
-    
-    def small(self, bold: bool = False) -> Tuple[str, int, str]:
-        return (self.family, self.size_small, "bold" if bold else "normal")
-    
-    def tiny(self, bold: bool = False) -> Tuple[str, int, str]:
-        return (self.family, self.size_tiny, "bold" if bold else "normal")
-    
-    def custom(self, size: int, bold: bool = False) -> Tuple[str, int, str]:
-        return (self.family, size, "bold" if bold else "normal")
-
-
-def get_system_font() -> str:
-    """Get the best available system font for the platform"""
-    if IS_WINDOWS:
-        return "Segoe UI"
-    elif IS_MAC:
-        # Try SF Pro, fall back to Helvetica Neue
-        return "SF Pro Display"
-    else:  # Linux
-        return "DejaVu Sans"
-
-
-# Global font configuration
-FONTS = FontConfig(family=get_system_font())
-
-# =============================================================================
-# DESIGN TOKENS - Consistent spacing and sizing
-# =============================================================================
-class DesignTokens:
-    """
-        Centralized design tokens for consistent UI spacing and sizing.
-        
-        Contains all spacing, sizing, and animation constants used throughout
-        the application to ensure visual consistency.
-        
-        Class Attributes:
-            SPACE_XS through SPACE_XXL: Spacing scale (4px to 32px)
-            RADIUS_SM/MD/LG: Border radius values
-            BUTTON_HEIGHT, INPUT_HEIGHT, ROW_HEIGHT: Component heights
-            ICON_SM/MD/LG: Icon size constants
-            SIDEBAR_WIDTH: Default sidebar width
-            ANIMATION_FAST/NORMAL/SLOW: Animation duration in milliseconds
-        
-        Example:
-            >>> frame.configure(padx=DesignTokens.SPACE_MD)
-            >>> button.configure(height=DesignTokens.BUTTON_HEIGHT)
-        """
-    # Spacing scale (in pixels)
-    SPACE_XS = 4
-    SPACE_SM = 8
-    SPACE_MD = 12
-    SPACE_LG = 16
-    SPACE_XL = 24
-    SPACE_XXL = 32
-    
-    # Border radius
-    RADIUS_SM = 4
-    RADIUS_MD = 6
-    RADIUS_LG = 8
-    
-    # Component heights
-    BUTTON_HEIGHT = 34
-    INPUT_HEIGHT = 36
-    ROW_HEIGHT = 32
-    TREEVIEW_ROW_HEIGHT = 32
-    
-    # Icon sizes
-    ICON_SM = 16
-    ICON_MD = 20
-    ICON_LG = 24
-    
-    # Sidebar width
-    SIDEBAR_WIDTH = 320
-    SIDEBAR_MIN_WIDTH = 260
-    
-    # Animation durations (ms)
-    ANIMATION_FAST = 100
-    ANIMATION_NORMAL = 200
-    ANIMATION_SLOW = 300
-
-
-# =============================================================================
 # DEPENDENCY MANAGEMENT - Professional first-run experience
-# =============================================================================
-class DependencyManager:
-    """
-        Manages package dependencies with installation capabilities.
-        
-        Handles checking for required and optional Python packages,
-        installing missing packages, and tracking installation status.
-        
-        Attributes:
-            REQUIRED_PACKAGES: Dict of packages that must be installed
-            OPTIONAL_PACKAGES: Dict of packages that enhance functionality
-            missing_required: List of missing required packages
-            missing_optional: List of missing optional packages
-            installed: Dict tracking installation status
-            install_errors: Dict of installation error messages
-        
-        Methods:
-            check_all(): Check status of all dependencies
-            install_package(package): Install a single package
-            install_all_missing(): Install all missing packages
-        
-        Example:
-            >>> dm = DependencyManager()
-            >>> ok, missing_req, missing_opt = dm.check_all()
-            >>> if not ok:
-            ...     dm.install_all_missing()
-        """
-    
-    REQUIRED_PACKAGES = {
-        "beautifulsoup4": {"import_name": "bs4", "required": True, "description": "HTML parsing for bookmark import"},
-        "requests": {"import_name": "requests", "required": True, "description": "HTTP requests for favicon download"},
-    }
-    
-    OPTIONAL_PACKAGES = {
-        "Pillow": {"import_name": "PIL", "required": False, "description": "Image processing for favicons"},
-        "pystray": {"import_name": "pystray", "required": False, "description": "System tray integration"},
-    }
-    
-    def __init__(self):
-        self.missing_required: List[str] = []
-        self.missing_optional: List[str] = []
-        self.installed: Dict[str, bool] = {}
-        self.install_errors: Dict[str, str] = {}
-    
-    def check_all(self) -> Tuple[bool, List[str], List[str]]:
-        """Check all dependencies, return (all_required_ok, missing_required, missing_optional)"""
-        self.missing_required = []
-        self.missing_optional = []
-        
-        # Check required packages
-        for package, info in self.REQUIRED_PACKAGES.items():
-            if not self._is_installed(info["import_name"]):
-                self.missing_required.append(package)
-                self.installed[package] = False
-            else:
-                self.installed[package] = True
-        
-        # Check optional packages
-        for package, info in self.OPTIONAL_PACKAGES.items():
-            if not self._is_installed(info["import_name"]):
-                self.missing_optional.append(package)
-                self.installed[package] = False
-            else:
-                self.installed[package] = True
-        
-        all_required_ok = len(self.missing_required) == 0
-        return all_required_ok, self.missing_required, self.missing_optional
-    
-    def _is_installed(self, import_name: str) -> bool:
-        """Check if a package is installed"""
-        try:
-            importlib.import_module(import_name)
-            return True
-        except ImportError:
-            return False
-    
-    def install_package(self, package: str, progress_callback: Optional[Callable] = None) -> bool:
-        """Install a single package"""
-        log.info(f"Installing package: {package}")
-        if progress_callback:
-            progress_callback(f"Installing {package}...")
-        
-        try:
-            result = subprocess.run(
-                [sys.executable, "-m", "pip", "install", package, "--quiet"],
-                capture_output=True,
-                text=True,
-                timeout=120
-            )
-            
-            if result.returncode == 0:
-                log.info(f"Successfully installed {package}")
-                self.installed[package] = True
-                return True
-            else:
-                error_msg = result.stderr or "Unknown error"
-                log.error(f"Failed to install {package}: {error_msg}")
-                self.install_errors[package] = error_msg
-                return False
-        except subprocess.TimeoutExpired:
-            log.error(f"Timeout installing {package}")
-            self.install_errors[package] = "Installation timed out"
-            return False
-        except Exception as e:
-            log.error(f"Error installing {package}: {e}")
-            self.install_errors[package] = str(e)
-            return False
-    
-    def install_all_missing(self, progress_callback: Optional[Callable] = None) -> bool:
-        """Install all missing packages"""
-        all_missing = self.missing_required + self.missing_optional
-        success = True
-        
-        for i, package in enumerate(all_missing):
-            if progress_callback:
-                progress_callback(f"Installing {package} ({i+1}/{len(all_missing)})...")
-            
-            if not self.install_package(package):
-                if package in self.missing_required:
-                    success = False
-        
-        return success
-
-
-class DependencyCheckDialog(tk.Toplevel):
-    """
-        Professional dialog for first-run dependency checking.
-        
-        Displays missing packages to the user and provides options to
-        install them or continue without optional features.
-        
-        Attributes:
-            parent: Parent Tk window
-            dep_manager: DependencyManager instance
-            result: Boolean indicating if OK to proceed
-        
-        Features:
-            - Shows required packages (must install) in red
-            - Shows optional packages (recommended) in yellow
-            - Progress bar during installation
-            - "Continue Without Optional" button when appropriate
-        """
-    
-    def __init__(self, parent: tk.Tk, dep_manager: DependencyManager):
-        super().__init__(parent)
-        self.parent = parent
-        self.dep_manager = dep_manager
-        self.result = False  # True if OK to proceed
-        
-        self.title(f"{APP_NAME} - Dependency Check")
-        self.geometry("500x400")
-        self.resizable(False, False)
-        self.configure(bg="#1e1e2e")
-        
-        # Make modal
-        self.transient(parent)
-        self.grab_set()
-        
-        # Center on screen
-        self.update_idletasks()
-        x = (self.winfo_screenwidth() - 500) // 2
-        y = (self.winfo_screenheight() - 400) // 2
-        self.geometry(f"+{x}+{y}")
-        
-        self._create_ui()
-        
-        # Handle window close
-        self.protocol("WM_DELETE_WINDOW", self._on_cancel)
-    
-    def _create_ui(self):
-        """Create the dialog UI"""
-        # Header
-        header = tk.Frame(self, bg="#313244", padx=20, pady=15)
-        header.pack(fill=tk.X)
-        
-        tk.Label(
-            header, text="📦 Dependency Check",
-            font=(FONTS.family, 14, "bold"),
-            bg="#313244", fg="#cdd6f4"
-        ).pack(anchor="w")
-        
-        tk.Label(
-            header, text="Some packages need to be installed for full functionality.",
-            font=(FONTS.family, 10),
-            bg="#313244", fg="#a6adc8"
-        ).pack(anchor="w", pady=(5, 0))
-        
-        # Content
-        content = tk.Frame(self, bg="#1e1e2e", padx=20, pady=15)
-        content.pack(fill=tk.BOTH, expand=True)
-        
-        # Required packages section
-        if self.dep_manager.missing_required:
-            tk.Label(
-                content, text="Required Packages (must install):",
-                font=(FONTS.family, 10, "bold"),
-                bg="#1e1e2e", fg="#f38ba8"
-            ).pack(anchor="w", pady=(0, 5))
-            
-            for pkg in self.dep_manager.missing_required:
-                info = self.dep_manager.REQUIRED_PACKAGES[pkg]
-                frame = tk.Frame(content, bg="#1e1e2e")
-                frame.pack(fill=tk.X, pady=2)
-                tk.Label(
-                    frame, text=f"  ❌ {pkg}",
-                    font=(FONTS.family, 10),
-                    bg="#1e1e2e", fg="#cdd6f4"
-                ).pack(side=tk.LEFT)
-                tk.Label(
-                    frame, text=f"- {info['description']}",
-                    font=(FONTS.family, 9),
-                    bg="#1e1e2e", fg="#6c7086"
-                ).pack(side=tk.LEFT, padx=(10, 0))
-        
-        # Optional packages section
-        if self.dep_manager.missing_optional:
-            tk.Label(
-                content, text="Optional Packages (recommended):",
-                font=(FONTS.family, 10, "bold"),
-                bg="#1e1e2e", fg="#f9e2af"
-            ).pack(anchor="w", pady=(15, 5))
-            
-            for pkg in self.dep_manager.missing_optional:
-                info = self.dep_manager.OPTIONAL_PACKAGES[pkg]
-                frame = tk.Frame(content, bg="#1e1e2e")
-                frame.pack(fill=tk.X, pady=2)
-                tk.Label(
-                    frame, text=f"  ⚠️ {pkg}",
-                    font=(FONTS.family, 10),
-                    bg="#1e1e2e", fg="#cdd6f4"
-                ).pack(side=tk.LEFT)
-                tk.Label(
-                    frame, text=f"- {info['description']}",
-                    font=(FONTS.family, 9),
-                    bg="#1e1e2e", fg="#6c7086"
-                ).pack(side=tk.LEFT, padx=(10, 0))
-        
-        # Progress area
-        self.progress_frame = tk.Frame(content, bg="#1e1e2e")
-        self.progress_frame.pack(fill=tk.X, pady=(20, 0))
-        
-        self.progress_label = tk.Label(
-            self.progress_frame, text="",
-            font=(FONTS.family, 9),
-            bg="#1e1e2e", fg="#a6adc8"
-        )
-        self.progress_label.pack(anchor="w")
-        
-        self.progress_bar = ttk.Progressbar(
-            self.progress_frame, mode="indeterminate", length=300
-        )
-        
-        # Buttons
-        btn_frame = tk.Frame(self, bg="#313244", padx=20, pady=15)
-        btn_frame.pack(fill=tk.X, side=tk.BOTTOM)
-        
-        self.install_btn = tk.Button(
-            btn_frame, text="Install All",
-            font=(FONTS.family, 10),
-            bg="#89b4fa", fg="#1e1e2e",
-            activebackground="#b4befe", activeforeground="#1e1e2e",
-            relief=tk.FLAT, padx=20, pady=8,
-            cursor="hand2",
-            command=self._on_install
-        )
-        self.install_btn.pack(side=tk.RIGHT)
-        
-        # Show "Continue without optional" only if required packages are installed
-        if not self.dep_manager.missing_required:
-            self.skip_btn = tk.Button(
-                btn_frame, text="Continue Without Optional",
-                font=(FONTS.family, 10),
-                bg="#45475a", fg="#cdd6f4",
-                activebackground="#585b70", activeforeground="#cdd6f4",
-                relief=tk.FLAT, padx=15, pady=8,
-                cursor="hand2",
-                command=self._on_skip
-            )
-            self.skip_btn.pack(side=tk.RIGHT, padx=(0, 10))
-        
-        tk.Button(
-            btn_frame, text="Cancel",
-            font=(FONTS.family, 10),
-            bg="#45475a", fg="#cdd6f4",
-            activebackground="#585b70", activeforeground="#cdd6f4",
-            relief=tk.FLAT, padx=15, pady=8,
-            cursor="hand2",
-            command=self._on_cancel
-        ).pack(side=tk.LEFT)
-    
-    def _on_install(self):
-        """Handle install button click"""
-        self.install_btn.configure(state=tk.DISABLED)
-        self.progress_bar.pack(fill=tk.X, pady=(5, 0))
-        self.progress_bar.start(10)
-        
-        # Run installation in background
-        def do_install():
-            success = self.dep_manager.install_all_missing(
-                progress_callback=lambda msg: self.after(0, lambda: self.progress_label.configure(text=msg))
-            )
-            self.after(0, lambda: self._installation_complete(success))
-        
-        threading.Thread(target=do_install, daemon=True).start()
-    
-    def _installation_complete(self, success: bool):
-        """Handle installation completion"""
-        self.progress_bar.stop()
-        self.progress_bar.pack_forget()
-        
-        if success or not self.dep_manager.missing_required:
-            self.progress_label.configure(text="✅ Installation complete!", fg="#a6e3a1")
-            self.result = True
-            self.after(1000, self.destroy)
-        else:
-            errors = "\n".join([f"{pkg}: {err}" for pkg, err in self.dep_manager.install_errors.items()])
-            self.progress_label.configure(
-                text=f"❌ Some installations failed. Check your internet connection.",
-                fg="#f38ba8"
-            )
-            self.install_btn.configure(state=tk.NORMAL, text="Retry")
-    
-    def _on_skip(self):
-        """Handle skip button click"""
-        self.result = True
-        self.destroy()
-    
-    def _on_cancel(self):
-        """Handle cancel/close"""
-        self.result = False
-        self.destroy()
-
-
-def check_and_install_dependencies(root: tk.Tk) -> bool:
-    """Check dependencies and show dialog if needed"""
-    dep_manager = DependencyManager()
-    all_ok, missing_req, missing_opt = dep_manager.check_all()
-    
-    if all_ok and not missing_opt:
-        log.info("All dependencies satisfied")
-        return True
-    
-    if not missing_req and not missing_opt:
-        return True
-    
-    # Show dependency dialog
-    dialog = DependencyCheckDialog(root, dep_manager)
-    root.wait_window(dialog)
-    
-    return dialog.result
-
-
 # =============================================================================
 # IMPORT DEPENDENCIES (after check)
 # =============================================================================
@@ -635,6 +189,7 @@ def import_dependencies():
     
     try:
         from PIL import Image, ImageTk, ImageDraw, ImageFont
+        Image.MAX_IMAGE_PIXELS = 20_000_000
         HAS_PIL = True
     except ImportError:
         HAS_PIL = False
@@ -1121,134 +676,6 @@ style_manager = StyleManager()
 
 
 
-# User-friendly error message mappings
-ERROR_MESSAGES = {
-    "FileNotFoundError": "The file could not be found. Please check the path and try again.",
-    "PermissionError": "Permission denied. Please check file permissions or run as administrator.",
-    "JSONDecodeError": "The file contains invalid data. It may be corrupted or not in the expected format.",
-    "ConnectionError": "Could not connect to the server. Please check your internet connection.",
-    "TimeoutError": "The operation timed out. Please try again later.",
-    "ValueError": "Invalid value provided. Please check your input.",
-    "MemoryError": "Not enough memory to complete this operation. Try closing other applications.",
-    "OSError": "An operating system error occurred. Please check disk space and permissions.",
-}
-
-
-def get_user_friendly_error(exception: Exception) -> str:
-    """Get a user-friendly error message for an exception.
-    
-    Args:
-        exception: The exception that occurred
-        
-    Returns:
-        str: User-friendly error message
-    """
-    exc_type = type(exception).__name__
-    
-    # Check for known error types
-    if exc_type in ERROR_MESSAGES:
-        return ERROR_MESSAGES[exc_type]
-    
-    # Check for specific error messages
-    error_str = str(exception).lower()
-    
-    if "permission" in error_str:
-        return ERROR_MESSAGES["PermissionError"]
-    elif "timeout" in error_str:
-        return ERROR_MESSAGES["TimeoutError"]
-    elif "connect" in error_str or "network" in error_str:
-        return ERROR_MESSAGES["ConnectionError"]
-    elif "memory" in error_str:
-        return ERROR_MESSAGES["MemoryError"]
-    elif "not found" in error_str or "no such file" in error_str:
-        return ERROR_MESSAGES["FileNotFoundError"]
-    
-    # Default: return the original message with some cleanup
-    msg = str(exception)
-    if len(msg) > 200:
-        msg = msg[:200] + "..."
-    
-    return f"An error occurred: {msg}"
-
-class ResourceManager:
-    """Context manager for safe resource cleanup."""
-    
-    def __init__(self):
-        self._resources = []
-    
-    def register(self, resource, cleanup_func=None):
-        """Register a resource for cleanup.
-        
-        Args:
-            resource: Resource to track
-            cleanup_func: Optional cleanup function (defaults to resource.close())
-        """
-        self._resources.append((resource, cleanup_func))
-        return resource
-    
-    def cleanup(self):
-        """Clean up all registered resources."""
-        for resource, cleanup_func in reversed(self._resources):
-            try:
-                if cleanup_func:
-                    cleanup_func(resource)
-                elif hasattr(resource, 'close'):
-                    resource.close()
-                elif hasattr(resource, 'destroy'):
-                    resource.destroy()
-            except Exception as e:
-                log.warning(f"Resource cleanup error: {e}")
-        self._resources.clear()
-    
-    def __enter__(self):
-        return self
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.cleanup()
-        return False
-
-def validate_environment():
-    """Validate the runtime environment at startup.
-    
-    Returns:
-        Tuple[bool, List[str]]: (is_valid, list of warnings)
-    """
-    warnings = []
-    
-    # Check Python version
-    if sys.version_info < (3, 8):
-        warnings.append(f"Python 3.8+ recommended (running {sys.version})")
-    
-    # Check data directory
-    if not APP_DIR.exists():
-        try:
-            APP_DIR.mkdir(parents=True, exist_ok=True)
-        except Exception as e:
-            warnings.append(f"Could not create data directory: {e}")
-    
-    # Check write permissions
-    try:
-        test_file = APP_DIR / ".write_test"
-        test_file.write_text("test")
-        test_file.unlink()
-    except Exception as e:
-        warnings.append(f"Data directory not writable: {e}")
-    
-    # Check disk space (warn if < 100MB)
-    try:
-        import shutil
-        total, used, free = shutil.disk_usage(APP_DIR)
-        if free < 100 * 1024 * 1024:  # 100MB
-            warnings.append(f"Low disk space: {free // (1024*1024)}MB free")
-    except Exception:
-        pass  # Disk space check is optional
-    
-    is_valid = len([w for w in warnings if "not writable" in w]) == 0
-    return is_valid, warnings
-
-
-
-
 # =============================================================================
 # DISTRIBUTION - Application Icon and About Dialog
 # =============================================================================
@@ -1613,8 +1040,9 @@ def set_window_icon(window: tk.Tk) -> bool:
     # Method 2: Try external .ico file (Windows)
     if IS_WINDOWS:
         ico_paths = [
-            Path(__file__).parent / "bookmark_organizer.ico",
+            ASSETS_DIR / "bookmark_organizer.ico",
             Path(sys.executable).parent / "bookmark_organizer.ico",
+            Path(sys.executable).parent / "assets" / "bookmark_organizer.ico",
             APP_DIR / "bookmark_organizer.ico",
         ]
         for ico_path in ico_paths:
@@ -1629,8 +1057,9 @@ def set_window_icon(window: tk.Tk) -> bool:
     # Method 3: Try external .png file
     if HAS_PIL:
         png_paths = [
-            Path(__file__).parent / "bookmark_organizer.png",
+            ASSETS_DIR / "bookmark_organizer.png",
             Path(sys.executable).parent / "bookmark_organizer.png",
+            Path(sys.executable).parent / "assets" / "bookmark_organizer.png",
             APP_DIR / "bookmark_organizer.png",
         ]
         for png_path in png_paths:
@@ -1686,239 +1115,16 @@ def set_window_icon(window: tk.Tk) -> bool:
 
 
 
-class SafeDict(dict):
-    """Dictionary subclass with safe access methods."""
-    
-    def safe_get(self, key, default=None, expected_type=None):
-        """Get value with optional type checking.
-        
-        Args:
-            key: Key to look up
-            default: Default if missing or wrong type
-            expected_type: Expected type (optional)
-            
-        Returns:
-            Value or default
-        """
-        value = self.get(key, default)
-        if expected_type and not isinstance(value, expected_type):
-            return default
-        return value
-
-
-def show_error_dialog(title: str, message: str, details: str = None):
-    """Show a user-friendly error dialog.
-    
-    Args:
-        title: Dialog title
-        message: Main error message (user-friendly)
-        details: Technical details (optional)
-    """
-    full_message = message
-    if details:
-        full_message += f"\n\nDetails: {details}"
-    
-    try:
-        messagebox.showerror(title, full_message)
-    except Exception:
-        # Fallback to console if messagebox fails
-        print(f"ERROR - {title}: {full_message}")
-
-
-def show_warning_dialog(title: str, message: str):
-    """Show a user-friendly warning dialog.
-    
-    Args:
-        title: Dialog title
-        message: Warning message
-    """
-    try:
-        messagebox.showwarning(title, message)
-    except Exception:
-        print(f"WARNING - {title}: {message}")
-
-
-def run_with_timeout(func, timeout_seconds: float, default=None):
-    """Run a function with a timeout.
-    
-    Args:
-        func: Function to run (no arguments)
-        timeout_seconds: Maximum execution time
-        default: Default value if timeout occurs
-        
-    Returns:
-        Function result or default
-    """
-    import concurrent.futures
-    
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(func)
-        try:
-            return future.result(timeout=timeout_seconds)
-        except concurrent.futures.TimeoutError:
-            log.warning(f"Function timed out after {timeout_seconds}s")
-            return default
-        except Exception as e:
-            log.error(f"Function error: {e}")
-            return default
-
-
-
-
-@dataclass
-class ThemeColors:
-    """
-        Complete color palette for a theme.
-        
-        Contains all color definitions used throughout the application,
-        organized by category (backgrounds, text, accents, UI elements, etc.).
-        
-        Color Categories:
-            Backgrounds: bg_dark, bg_primary, bg_secondary, bg_tertiary, bg_hover, bg_card
-            Text: text_primary, text_secondary, text_muted, text_link
-            Accents: accent_primary, accent_success, accent_warning, accent_error, etc.
-            UI Elements: border, border_muted, border_active, selection, selected, hover
-            Drag & Drop: drag_target, drag_target_bg, drop_zone, drop_zone_active
-            Status: status_success, status_warning, status_error, status_info
-            Scrollbar: scrollbar_bg, scrollbar_thumb, scrollbar_thumb_hover
-            Cards: card_bg, card_border, card_hover
-            Special: ai_accent, tag_bg, tag_text
-        
-        Methods:
-            to_dict(): Convert to dictionary
-            from_dict(d): Create from dictionary
-        """
-    # Backgrounds
-    bg_dark: str = "#0b0f14"
-    bg_primary: str = "#11161d"
-    bg_secondary: str = "#171d25"
-    bg_tertiary: str = "#222a35"
-    bg_hover: str = "#263244"
-    bg_card: str = "#151b23"
-    
-    # Text
-    text_primary: str = "#f2f6fb"
-    text_secondary: str = "#b7c0cc"
-    text_muted: str = "#7d8590"
-    text_link: str = "#58a6ff"
-    
-    # Accents
-    accent_primary: str = "#58a6ff"
-    accent_success: str = "#3fb950"
-    accent_warning: str = "#d29922"
-    accent_error: str = "#f85149"
-    accent_purple: str = "#a371f7"
-    accent_cyan: str = "#39c5cf"
-    accent_pink: str = "#db61a2"
-    accent_orange: str = "#f0883e"
-    
-    # UI Elements
-    border: str = "#2b333d"
-    border_muted: str = "#202832"
-    border_active: str = "#58a6ff"
-    selection: str = "#1e3a5f"
-    selected: str = "#1f6feb"
-    hover: str = "#263244"
-    
-    # Drag & Drop
-    drag_target: str = "#238636"
-    drag_target_bg: str = "#1c4428"
-    drop_zone: str = "#152d47"
-    drop_zone_active: str = "#1e3a5f"
-    drop_zone_border: str = "#58a6ff"
-    
-    # Status
-    status_success: str = "#3fb950"
-    status_warning: str = "#d29922"
-    status_error: str = "#f85149"
-    status_info: str = "#58a6ff"
-    
-    # Scrollbar
-    scrollbar_bg: str = "#171d25"
-    scrollbar_thumb: str = "#4b5563"
-    scrollbar_thumb_hover: str = "#6e7681"
-    
-    # Cards & Grid
-    card_bg: str = "#151b23"
-    card_border: str = "#2b333d"
-    card_hover: str = "#1b2330"
-    
-    # Special
-    ai_accent: str = "#a371f7"
-    tag_bg: str = "#388bfd26"
-    tag_text: str = "#58a6ff"
-    
-    def to_dict(self) -> Dict:
-        return {k: v for k, v in self.__dict__.items() if not k.startswith('_')}
-    
-    @classmethod
-    def from_dict(cls, d: Dict) -> "ThemeColors":
-        return cls(**{k: v for k, v in d.items() if hasattr(cls, k) or k in cls.__dataclass_fields__})
-
-
-@dataclass
-class ThemeInfo:
-    """
-        Theme metadata and colors container.
-        
-        Combines theme identification information with its color palette.
-        
-        Attributes:
-            name: Internal theme identifier (e.g., "github_dark")
-            display_name: Human-readable name (e.g., "GitHub Dark")
-            author: Theme creator (default: "Built-in")
-            version: Theme version string
-            description: Brief theme description
-            is_dark: Boolean indicating dark vs light theme
-            colors: ThemeColors instance with full color palette
-        
-        Methods:
-            to_dict(): Serialize to dictionary
-            from_dict(d): Deserialize from dictionary
-        """
-    name: str
-    display_name: str
-    author: str = "Built-in"
-    version: str = "1.0"
-    description: str = ""
-    is_dark: bool = True
-    colors: ThemeColors = field(default_factory=ThemeColors)
-    
-    def to_dict(self) -> Dict:
-        return {
-            "name": self.name,
-            "display_name": self.display_name,
-            "author": self.author,
-            "version": self.version,
-            "description": self.description,
-            "is_dark": self.is_dark,
-            "colors": self.colors.to_dict()
-        }
-    
-    @classmethod
-    def from_dict(cls, d: Dict) -> "ThemeInfo":
-        colors = ThemeColors.from_dict(d.get("colors", {}))
-        return cls(
-            name=d.get("name", "custom"),
-            display_name=d.get("display_name", "Custom Theme"),
-            author=d.get("author", "User"),
-            version=d.get("version", "1.0"),
-            description=d.get("description", ""),
-            is_dark=d.get("is_dark", True),
-            colors=colors
-        )
-
-
 # =============================================================================
 # Built-in Themes
 # =============================================================================
 BUILT_IN_THEMES: Dict[str, ThemeInfo] = {
     "github_dark": ThemeInfo(
         name="github_dark",
-        display_name="GitHub Dark",
-        description="Default dark theme inspired by GitHub",
-        is_dark=True,
-        colors=ThemeColors()  # Default colors are GitHub Dark
+        display_name="Studio",
+        description="Bright editorial workspace with ink typography and mint actions",
+        is_dark=False,
+        colors=ThemeColors()
     ),
     
     "github_light": ThemeInfo(
@@ -2364,207 +1570,29 @@ BUILT_IN_THEMES: Dict[str, ThemeInfo] = {
     ),
 }
 
-
-class ThemeManager:
-    """
-        Manages application themes with live switching.
-        
-        Handles loading, saving, and switching themes. Supports both
-        built-in themes and user-created custom themes.
-        
-        Attributes:
-            current_theme: Currently active ThemeInfo
-            custom_themes: Dict of user-created themes
-            _theme_change_callbacks: List of callbacks to notify on theme change
-        
-        Methods:
-            get_all_themes(): Get all available themes
-            set_theme(name): Switch to a different theme
-            create_custom_theme(...): Create new theme based on existing
-            delete_custom_theme(name): Remove a custom theme
-            export_theme(name, filepath): Export theme to file
-            import_theme(filepath): Import theme from file
-            add_theme_change_callback(callback): Register for theme changes
-        
-        Example:
-            >>> tm = ThemeManager()
-            >>> tm.set_theme("dracula")
-            >>> tm.add_theme_change_callback(on_theme_changed)
-        """
-    
-    def __init__(self, settings_file: Path = SETTINGS_FILE):
-        self.settings_file = settings_file
-        self.current_theme: ThemeInfo = BUILT_IN_THEMES["github_dark"]
-        self.custom_themes: Dict[str, ThemeInfo] = {}
-        self._theme_change_callbacks: List[Callable] = []
-        self._load_custom_themes()  # Must load before settings (settings references custom themes)
-        self._load_settings()
-    
-    def _load_settings(self):
-        """Load theme preference from settings"""
-        if self.settings_file.exists():
-            try:
-                with open(self.settings_file, 'r', encoding='utf-8') as f:
-                    settings = json.load(f)
-                    theme_name = settings.get("theme", "github_dark")
-                    if theme_name in BUILT_IN_THEMES:
-                        self.current_theme = BUILT_IN_THEMES[theme_name]
-                    elif theme_name in self.custom_themes:
-                        self.current_theme = self.custom_themes[theme_name]
-            except Exception:
-                pass
-    
-    def _load_custom_themes(self):
-        """Load user-created themes from themes directory"""
-        for theme_file in THEMES_DIR.glob("*.json"):
-            try:
-                with open(theme_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    theme = ThemeInfo.from_dict(data)
-                    self.custom_themes[theme.name] = theme
-            except Exception as e:
-                log.warning(f"Error loading theme {theme_file}: {e}")
-    
-    def save_settings(self):
-        """Save current theme to settings"""
-        settings = {}
-        if self.settings_file.exists():
-            try:
-                with open(self.settings_file, 'r', encoding='utf-8') as f:
-                    settings = json.load(f)
-            except Exception:
-                pass
-        
-        settings["theme"] = self.current_theme.name
-        _atomic_json_write(self.settings_file, settings)
-    
-    def get_all_themes(self) -> Dict[str, ThemeInfo]:
-        """Get all available themes"""
-        return {**BUILT_IN_THEMES, **self.custom_themes}
-    
-    def set_theme(self, theme_name: str) -> bool:
-        """Switch to a different theme"""
-        all_themes = self.get_all_themes()
-        if theme_name in all_themes:
-            self.current_theme = all_themes[theme_name]
-            self.save_settings()
-            self._notify_theme_change()
-            return True
-        return False
-    
-    def create_custom_theme(self, name: str, display_name: str, 
-                           base_theme: str = "github_dark", 
-                           color_overrides: Dict = None) -> ThemeInfo:
-        """Create a new custom theme based on an existing one"""
-        base = BUILT_IN_THEMES.get(base_theme, BUILT_IN_THEMES["github_dark"])
-        
-        # Copy base colors
-        new_colors_dict = base.colors.to_dict()
-        
-        # Apply overrides
-        if color_overrides:
-            new_colors_dict.update(color_overrides)
-        
-        new_colors = ThemeColors.from_dict(new_colors_dict)
-        
-        new_theme = ThemeInfo(
-            name=name,
-            display_name=display_name,
-            author="User",
-            version="1.0",
-            description="Custom theme",
-            is_dark=base.is_dark,
-            colors=new_colors
-        )
-        
-        # Save to file
-        theme_file = THEMES_DIR / f"{name}.json"
-        with open(theme_file, 'w', encoding='utf-8') as f:
-            json.dump(new_theme.to_dict(), f, indent=2)
-        
-        self.custom_themes[name] = new_theme
-        return new_theme
-    
-    def delete_custom_theme(self, name: str) -> bool:
-        """Delete a custom theme"""
-        if name in self.custom_themes:
-            theme_file = THEMES_DIR / f"{name}.json"
-            if theme_file.exists():
-                theme_file.unlink()
-            del self.custom_themes[name]
-            return True
-        return False
-    
-    def export_theme(self, theme_name: str, filepath: str) -> bool:
-        """Export a theme to a file"""
-        all_themes = self.get_all_themes()
-        if theme_name in all_themes:
-            with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(all_themes[theme_name].to_dict(), f, indent=2)
-            return True
-        return False
-    
-    def import_theme(self, filepath: str) -> Optional[ThemeInfo]:
-        """Import a theme from a file"""
-        try:
-            with open(filepath, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            theme = ThemeInfo.from_dict(data)
-            
-            # Ensure unique name
-            base_name = theme.name
-            counter = 1
-            while theme.name in self.get_all_themes():
-                theme.name = f"{base_name}_{counter}"
-                counter += 1
-            
-            # Save to themes directory
-            theme_file = THEMES_DIR / f"{theme.name}.json"
-            with open(theme_file, 'w', encoding='utf-8') as f:
-                json.dump(theme.to_dict(), f, indent=2)
-            
-            self.custom_themes[theme.name] = theme
-            return theme
-        except Exception as e:
-            log.error(f"Error importing theme: {e}")
-            return None
-    
-    def add_theme_change_callback(self, callback: Callable):
-        """Register a callback for theme changes"""
-        self._theme_change_callbacks.append(callback)
-    
-    def remove_theme_change_callback(self, callback: Callable):
-        """Remove a theme change callback"""
-        if callback in self._theme_change_callbacks:
-            self._theme_change_callbacks.remove(callback)
-    
-    def _notify_theme_change(self):
-        """Notify all callbacks of theme change"""
-        # Apply theme to ttk styles
-        if style_manager._initialized:
-            style_manager.apply_theme(self.current_theme.colors)
-        
-        for callback in self._theme_change_callbacks:
-            try:
-                callback(self.current_theme)
-            except Exception as e:
-                log.error(f"Error in theme callback: {e}")
-    
-    @property
-    def colors(self) -> ThemeColors:
-        """Get current theme colors (shortcut)"""
-        return self.current_theme.colors
-
-
 # Global theme manager instance
 _theme_manager: Optional[ThemeManager] = None
+_theme_style_callback_registered = False
+
+
+def _apply_theme_to_ttk(theme_info: ThemeInfo):
+    """Bridge toolkit-neutral theme changes into ttk style repainting."""
+    if style_manager._initialized:
+        style_manager.apply_theme(theme_info.colors)
 
 def get_theme_manager() -> ThemeManager:
     """Get the global theme manager instance"""
-    global _theme_manager
+    global _theme_manager, _theme_style_callback_registered
     if _theme_manager is None:
-        _theme_manager = ThemeManager()
+        _theme_manager = ThemeManager(
+            BUILT_IN_THEMES,
+            settings_file=SETTINGS_FILE,
+            themes_dir=THEMES_DIR,
+            default_theme="github_dark",
+        )
+    if not _theme_style_callback_registered:
+        _theme_manager.add_theme_change_callback(_apply_theme_to_ttk)
+        _theme_style_callback_registered = True
     return _theme_manager
 
 def get_theme() -> ThemeColors:
@@ -3002,15 +2030,23 @@ class BookmarkManager:
         self.filepath = filepath
         self.storage = StorageManager(filepath)
         self.bookmarks: Dict[int, Bookmark] = OrderedDict()
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self.search_engine = SearchEngine()
         self._load_bookmarks()
+
+    def _assign_unique_id(self, bookmark: Bookmark):
+        """Ensure an incoming bookmark cannot overwrite an existing ID."""
+        while bookmark.id in self.bookmarks:
+            old_id = bookmark.id
+            bookmark.id = int.from_bytes(os.urandom(8), 'big')
+            log.warning(f"Regenerated duplicate bookmark id {old_id}")
 
     def _load_bookmarks(self):
         """Load all bookmarks from storage"""
         with self._lock:
             self.bookmarks.clear()
             for bm in self.storage.load():
+                self._assign_unique_id(bm)
                 self.bookmarks[bm.id] = bm
 
     def reload(self):
@@ -3025,7 +2061,9 @@ class BookmarkManager:
 
     def add_bookmark(self, bookmark: Bookmark, save: bool = True) -> Bookmark:
         """Add a new bookmark. Set save=False for batch operations."""
-        self.bookmarks[bookmark.id] = bookmark
+        with self._lock:
+            self._assign_unique_id(bookmark)
+            self.bookmarks[bookmark.id] = bookmark
         if save:
             self.save_bookmarks()
         return bookmark
@@ -3036,25 +2074,33 @@ class BookmarkManager:
         if isinstance(bookmark_or_id, Bookmark):
             bookmark = bookmark_or_id
             bookmark.modified_at = datetime.now().isoformat()
-            self.bookmarks[bookmark.id] = bookmark
+            with self._lock:
+                self.bookmarks[bookmark.id] = bookmark
             self.save_bookmarks()
             return bookmark
-        
+
         # Legacy: ID with kwargs
-        bm = self.bookmarks.get(bookmark_or_id)
+        with self._lock:
+            bm = self.bookmarks.get(bookmark_or_id)
+            if bm:
+                for key, value in kwargs.items():
+                    if hasattr(bm, key):
+                        setattr(bm, key, value)
+                bm.modified_at = datetime.now().isoformat()
         if bm:
-            for key, value in kwargs.items():
-                if hasattr(bm, key):
-                    setattr(bm, key, value)
-            bm.modified_at = datetime.now().isoformat()
             self.save_bookmarks()
             return bm
         return None
     
     def delete_bookmark(self, bookmark_id: int) -> bool:
         """Delete a bookmark"""
-        if bookmark_id in self.bookmarks:
-            del self.bookmarks[bookmark_id]
+        with self._lock:
+            if bookmark_id in self.bookmarks:
+                del self.bookmarks[bookmark_id]
+                should_save = True
+            else:
+                should_save = False
+        if should_save:
             self.save_bookmarks()
             return True
         return False
@@ -3074,7 +2120,7 @@ class BookmarkManager:
 
         soup = BeautifulSoup(content, 'html.parser')
         added = duplicates = 0
-        existing_urls = {bm.url.rstrip('/').lower() for bm in self.bookmarks.values()}
+        existing_urls = {normalize_url(bm.url) for bm in self.bookmarks.values()}
         source = source_name or Path(filepath).name
 
         for a_tag in soup.find_all('a'):
@@ -3082,7 +2128,7 @@ class BookmarkManager:
             if not href or not href.startswith(('http://', 'https://')):
                 continue
 
-            normalized = href.rstrip('/').lower()
+            normalized = normalize_url(href)
             if normalized in existing_urls:
                 duplicates += 1
                 continue
@@ -3099,7 +2145,7 @@ class BookmarkManager:
                 category=category,
                 source_file=source
             )
-            self.bookmarks[bm.id] = bm
+            self.add_bookmark(bm, save=False)
             existing_urls.add(normalized)
             added += 1
 
@@ -3118,7 +2164,7 @@ class BookmarkManager:
             return 0, 0
 
         added = duplicates = 0
-        existing_urls = {bm.url.rstrip('/').lower() for bm in self.bookmarks.values()}
+        existing_urls = {normalize_url(bm.url) for bm in self.bookmarks.values()}
 
         bookmarks_data = data.get("bookmarks", data.get("data", [])) if isinstance(data, dict) else data
         if not isinstance(bookmarks_data, list):
@@ -3131,14 +2177,19 @@ class BookmarkManager:
             url = item.get("url", "").strip()
             if not url:
                 continue
-            if url.rstrip('/').lower() in existing_urls:
+            valid_url, error = validate_url(url)
+            if not valid_url:
+                log.warning(f"Skipping invalid bookmark URL '{url[:80]}': {error}")
+                continue
+            normalized = normalize_url(url)
+            if normalized in existing_urls:
                 duplicates += 1
                 continue
 
             try:
                 bm = Bookmark.from_dict(item)
-                self.bookmarks[bm.id] = bm
-                existing_urls.add(url.rstrip('/').lower())
+                self.add_bookmark(bm, save=False)
+                existing_urls.add(normalized)
                 added += 1
             except Exception as e:
                 log.warning(f"Skipping invalid bookmark '{url[:80]}': {e}")
@@ -3446,6 +2497,11 @@ class BookmarkManager:
         category given, and checks for duplicates.
         """
         # Clean the URL
+        valid_url, error = validate_url(url)
+        if not valid_url or not url.strip().startswith(('http://', 'https://')):
+            log.warning(f"Rejected invalid bookmark URL '{str(url)[:80]}': {error}")
+            return None
+
         clean = normalize_url(url)
         # But keep the original scheme if user explicitly used http
         if url.startswith('http://') and clean.startswith('https://'):
@@ -3453,9 +2509,10 @@ class BookmarkManager:
 
         # Check for existing
         canonical = normalize_url(url)
-        for bm in self.bookmarks.values():
-            if normalize_url(bm.url) == canonical:
-                return None  # Duplicate
+        with self._lock:
+            for bm in self.bookmarks.values():
+                if normalize_url(bm.url) == canonical:
+                    return None  # Duplicate
 
         # Auto-categorize
         if not category:
@@ -3465,9 +2522,7 @@ class BookmarkManager:
             id=None, url=clean, title=title or clean,
             category=category, tags=tags or [], **kwargs
         )
-        self.bookmarks[bm.id] = bm
-        self.save_bookmarks()
-        return bm
+        return self.add_bookmark(bm)
 
     def find_broken_links(self) -> List[Bookmark]:
         """Get bookmarks marked as broken"""
@@ -3479,10 +2534,10 @@ class BookmarkManager:
             return None
         
         # Normalize URL for comparison
-        normalized = url.lower().rstrip('/')
+        normalized = normalize_url(url)
         
         for bm in self.bookmarks.values():
-            bm_url = bm.url.lower().rstrip('/')
+            bm_url = normalize_url(bm.url)
             if bm_url == normalized:
                 return bm
         
@@ -3598,11 +2653,11 @@ class BookmarkManager:
                            'Created', 'Visits', 'Is Pinned'])
             for bm in self.bookmarks.values():
                 writer.writerow([
-                    bm.title,
-                    bm.url,
-                    bm.category,
-                    ','.join(bm.tags),
-                    bm.notes,
+                    _csv_safe_cell(bm.title),
+                    _csv_safe_cell(bm.url),
+                    _csv_safe_cell(bm.category),
+                    _csv_safe_cell(','.join(bm.tags)),
+                    _csv_safe_cell(bm.notes),
                     bm.created_at,
                     bm.visit_count,
                     bm.is_pinned
@@ -3896,37 +2951,42 @@ class ModernButton(tk.Frame, ThemedWidget):
         if style == "primary":
             bg = bg or theme.accent_primary
             hover_bg = hover_bg or theme.selected
-            fg = fg or "#ffffff"
+            fg = fg or readable_text_on(bg)
         elif style == "success":
             bg = bg or theme.accent_success
             hover_bg = hover_bg or theme.status_success
-            fg = fg or "#ffffff"
+            fg = fg or readable_text_on(bg)
         elif style == "danger":
             bg = bg or theme.accent_error
             hover_bg = hover_bg or theme.status_error
-            fg = fg or "#ffffff"
+            fg = fg or readable_text_on(bg)
         elif style == "warning":
             bg = bg or theme.accent_warning
             hover_bg = hover_bg or theme.status_warning
-            fg = fg or "#ffffff"
+            fg = fg or readable_text_on(bg)
         else:
             bg = bg or theme.bg_secondary
             hover_bg = hover_bg or theme.bg_hover
             fg = fg or theme.text_primary
+
+        pady = max(pady, 7)
         
         super().__init__(
             parent, bg=bg, takefocus=1,
-            highlightthickness=1,
+            highlightthickness=DesignTokens.FOCUS_RING_WIDTH,
             highlightbackground=theme.border_muted,
-            highlightcolor=theme.accent_primary
+            highlightcolor=theme.border_active
         )
         self.command = command
         self.default_bg = bg
         self.hover_bg = hover_bg
         self.fg = fg
+        self.hover_fg = readable_text_on(hover_bg) if style in {"primary", "success", "danger", "warning"} else fg
         self.state = state
         self.style = style
         self.focus_bg = hover_bg
+        self._pressed_bg = theme.selection if style == "default" else hover_bg
+        self._is_hovered = False
         
         # Icon + text
         display_text = f"{icon} {text}" if icon else text
@@ -3949,21 +3009,24 @@ class ModernButton(tk.Frame, ThemedWidget):
             for widget in [self, self.label]:
                 widget.bind("<Enter>", self._on_enter)
                 widget.bind("<Leave>", self._on_leave)
-                widget.bind("<Button-1>", self._on_click)
+                widget.bind("<ButtonPress-1>", self._on_press)
+                widget.bind("<ButtonRelease-1>", self._on_release)
             self.bind("<FocusIn>", self._on_focus_in)
             self.bind("<FocusOut>", self._on_focus_out)
             self.bind("<Return>", self._on_key_activate)
             self.bind("<space>", self._on_key_activate)
-    
+
     def _on_enter(self, e):
         if self.state == 'normal':
+            self._is_hovered = True
             self.configure(bg=self.hover_bg)
-            self.label.configure(bg=self.hover_bg)
-    
+            self.label.configure(bg=self.hover_bg, fg=self.hover_fg)
+
     def _on_leave(self, e):
         if self.state == 'normal':
+            self._is_hovered = False
             self.configure(bg=self.default_bg)
-            self.label.configure(bg=self.default_bg)
+            self.label.configure(bg=self.default_bg, fg=self.fg)
 
     def _on_focus_in(self, e):
         if self.state == 'normal':
@@ -3974,7 +3037,22 @@ class ModernButton(tk.Frame, ThemedWidget):
         if self.state == 'normal':
             theme = get_theme()
             self.configure(highlightbackground=theme.border_muted)
-    
+
+    def _on_press(self, e):
+        if self.state == 'normal':
+            self.configure(bg=self._pressed_bg)
+            self.label.configure(bg=self._pressed_bg, fg=readable_text_on(self._pressed_bg))
+
+    def _on_release(self, e):
+        if self.state != 'normal':
+            return
+        bg = self.hover_bg if self._is_hovered else self.default_bg
+        fg = self.hover_fg if self._is_hovered else self.fg
+        self.configure(bg=bg)
+        self.label.configure(bg=bg, fg=fg)
+        if self.command:
+            self.command()
+
     def _on_click(self, e):
         if self.state == 'normal' and self.command:
             self.command()
@@ -3988,11 +3066,14 @@ class ModernButton(tk.Frame, ThemedWidget):
         theme = get_theme()
         if state == 'normal':
             self.label.configure(fg=self.fg, cursor="hand2")
-            self.configure(highlightbackground=theme.border_muted)
+            bg = self.hover_bg if self._is_hovered else self.default_bg
+            fg = self.hover_fg if self._is_hovered else self.fg
+            self.configure(bg=bg, highlightbackground=theme.border_muted)
+            self.label.configure(bg=bg, fg=fg)
         else:
             self.label.configure(fg=theme.text_muted, cursor="arrow")
-            self.configure(bg=theme.bg_secondary, highlightbackground=theme.border_muted)
-            self.label.configure(bg=theme.bg_secondary)
+            self.configure(bg=theme.bg_tertiary, highlightbackground=theme.border_muted)
+            self.label.configure(bg=theme.bg_tertiary)
     
     def set_text(self, text):
         self.label.configure(text=text)
@@ -4024,7 +3105,7 @@ class ModernSearch(tk.Frame, ThemedWidget):
             focus(): Focus the entry
         """
     
-    def __init__(self, parent, textvariable, placeholder="Search...", 
+    def __init__(self, parent, textvariable, placeholder="Search…",
                  on_search=None, on_change=None, show_syntax_help=True):
         theme = get_theme()
         super().__init__(parent, bg=theme.bg_secondary)
@@ -4063,14 +3144,16 @@ class ModernSearch(tk.Frame, ThemedWidget):
                 cursor="hand2"
             )
             self.help_btn.pack(side=tk.RIGHT, padx=(8, 0))
-            self.help_btn.bind("<Button-1>", self._show_help)
+            make_keyboard_activatable(self.help_btn, self._show_help)
+            Tooltip(self.help_btn, "Show Search Syntax")
         
         # Clear button
         self.clear_btn = tk.Label(
             self.inner, text="✕", bg=theme.bg_secondary,
             fg=theme.text_muted, font=FONTS.body(), cursor="hand2"
         )
-        self.clear_btn.bind("<Button-1>", self._clear)
+        make_keyboard_activatable(self.clear_btn, self._clear)
+        Tooltip(self.clear_btn, "Clear Search")
         
         # Border line
         self.border = tk.Frame(self, bg=theme.border, height=2)
@@ -4168,9 +3251,10 @@ class TagWidget(tk.Frame, ThemedWidget):
                 cursor="hand2", padx=4
             )
             self.remove_btn.pack(side=tk.LEFT)
-            self.remove_btn.bind("<Button-1>", lambda e: on_remove(tag_name))
+            make_keyboard_activatable(self.remove_btn, lambda: on_remove(tag_name))
             self.remove_btn.bind("<Enter>", lambda e: self.remove_btn.configure(fg=theme.accent_error))
             self.remove_btn.bind("<Leave>", lambda e: self.remove_btn.configure(fg=theme.text_muted))
+            Tooltip(self.remove_btn, f"Remove #{tag_name}")
 
 
 class TagEditor(tk.Frame, ThemedWidget):
@@ -4225,7 +3309,8 @@ class TagEditor(tk.Frame, ThemedWidget):
             cursor="hand2", padx=8
         )
         self.add_btn.pack(side=tk.RIGHT)
-        self.add_btn.bind("<Button-1>", self._add_tag)
+        make_keyboard_activatable(self.add_btn, self._add_tag)
+        Tooltip(self.add_btn, "Add Tag")
         
         # Suggestions dropdown (hidden by default)
         self.suggestions_list = None
@@ -4735,9 +3820,9 @@ class SystemTrayManager:
     
     def _open_bookmark(self, bookmark: Bookmark):
         """Open a bookmark in browser"""
-        webbrowser.open(bookmark.url)
-        bookmark.record_visit()
-        self.app.bookmark_manager.save_bookmarks()
+        if _open_external_url(bookmark.url):
+            bookmark.record_visit()
+            self.app.bookmark_manager.save_bookmarks()
     
     def _exit_app(self):
         """Exit the application"""
@@ -5419,10 +4504,12 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
     
     def __init__(self, parent, stats: Dict[str, Any]):
         super().__init__(parent)
+        if hasattr(stats, "get_statistics"):
+            stats = stats.get_statistics()
         self.stats = stats
         theme = get_theme()
         
-        self.title("📊 Analytics Dashboard")
+        self.title("Analytics")
         self.geometry("800x650")
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
@@ -5435,22 +4522,22 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         header.pack_propagate(False)
         
         tk.Label(
-            header, text="📊 Collection Analytics", bg=theme.bg_dark,
-            fg=theme.text_primary, font=FONTS.title(bold=False)
+            header, text="Collection Analytics", bg=theme.bg_dark,
+            fg=theme.text_primary, font=FONTS.title(bold=True)
         ).pack(side=tk.LEFT, padx=20, pady=15)
         
         # Stats summary cards
         cards_frame = tk.Frame(self, bg=theme.bg_primary)
         cards_frame.pack(fill=tk.X, padx=20, pady=15)
         
-        self._create_stat_card(cards_frame, "Total Bookmarks", 
-                              str(stats["total_bookmarks"]), "📚", 0)
-        self._create_stat_card(cards_frame, "Categories", 
-                              str(stats["total_categories"]), "📂", 1)
-        self._create_stat_card(cards_frame, "Tags", 
-                              str(stats["total_tags"]), "🏷️", 2)
-        self._create_stat_card(cards_frame, "Duplicates", 
-                              str(stats["duplicate_bookmarks"]), "📋", 3)
+        active_categories = (
+            sum(1 for count in stats.get("category_counts", {}).values() if count > 0)
+            if stats["total_bookmarks"] > 0 else 0
+        )
+        self._create_stat_card(cards_frame, "Bookmarks", str(stats["total_bookmarks"]), "", 0)
+        self._create_stat_card(cards_frame, "Categories", str(active_categories), "", 1)
+        self._create_stat_card(cards_frame, "Tags", str(stats["total_tags"]), "", 2)
+        self._create_stat_card(cards_frame, "Duplicates", str(stats["duplicate_bookmarks"]), "", 3)
         
         for i in range(4):
             cards_frame.columnconfigure(i, weight=1)
@@ -5480,12 +4567,21 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         health_frame.pack(fill=tk.X, pady=(0, 15))
         
         health_score = self._calculate_health_score()
-        health_color = (theme.accent_success if health_score >= 80 
-                       else theme.accent_warning if health_score >= 50 
-                       else theme.accent_error)
+        if stats["total_bookmarks"] == 0:
+            health_color = theme.text_muted
+            health_label = "Ready"
+            health_state = "Not Started"
+            health_width = 0
+        else:
+            health_color = (theme.accent_success if health_score >= 80
+                           else theme.accent_warning if health_score >= 50
+                           else theme.accent_error)
+            health_label = f"{health_score}%"
+            health_state = "Excellent" if health_score >= 85 else ("Healthy" if health_score >= 70 else "Needs Review")
+            health_width = health_score / 100
         
         tk.Label(
-            health_frame, text="Collection Health Score", bg=theme.bg_secondary,
+            health_frame, text=f"Collection Health · {health_state}", bg=theme.bg_secondary,
             fg=theme.text_secondary, font=FONTS.body()
         ).pack(anchor="w", padx=15, pady=(10, 5))
         
@@ -5493,7 +4589,7 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         score_frame.pack(fill=tk.X, padx=15, pady=(0, 10))
         
         tk.Label(
-            score_frame, text=f"{health_score}%", bg=theme.bg_secondary,
+            score_frame, text=health_label, bg=theme.bg_secondary,
             fg=health_color, font=("Segoe UI", 28, "bold")
         ).pack(side=tk.LEFT)
         
@@ -5502,21 +4598,21 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         bar_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=20)
         
         bar_fill = tk.Frame(bar_frame, bg=health_color, height=10)
-        bar_fill.place(relwidth=health_score/100, relheight=1)
+        bar_fill.place(relwidth=health_width, relheight=1)
         
         # Category Distribution
-        self._create_section(content, "📂 Top Categories", self._get_category_chart())
+        self._create_section(content, "Top Categories", self._get_category_chart())
         
         # Age Distribution
-        self._create_section(content, "📅 Bookmark Age Distribution", self._get_age_chart())
+        self._create_section(content, "Bookmark Age Distribution", self._get_age_chart())
         
         # Top Domains
-        self._create_section(content, "🌐 Top Domains", self._get_domains_list())
+        self._create_section(content, "Top Domains", self._get_domains_list())
         
         # Issues section
         issues = self._get_issues()
         if issues:
-            self._create_section(content, "⚠️ Issues to Address", issues)
+            self._create_section(content, "Issues to Address", issues)
         
         # Close button
         btn_frame = tk.Frame(self, bg=theme.bg_primary)
@@ -5535,15 +4631,16 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         card = tk.Frame(parent, bg=theme.bg_secondary)
         card.grid(row=0, column=col, padx=5, pady=5, sticky="nsew")
         
-        tk.Label(
-            card, text=icon, bg=theme.bg_secondary,
-            fg=theme.accent_primary, font=("Segoe UI", 20)
-        ).pack(pady=(15, 5))
+        if icon:
+            tk.Label(
+                card, text=icon, bg=theme.bg_secondary,
+                fg=theme.accent_primary, font=("Segoe UI", 20)
+            ).pack(pady=(15, 5))
         
         tk.Label(
             card, text=value, bg=theme.bg_secondary,
             fg=theme.text_primary, font=("Segoe UI", 24, "bold")
-        ).pack()
+        ).pack(pady=(16 if not icon else 0, 0))
         
         tk.Label(
             card, text=title, bg=theme.bg_secondary,
@@ -5572,7 +4669,7 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         """Calculate collection health score"""
         total = self.stats["total_bookmarks"]
         if total == 0:
-            return 100
+            return 0
         
         score = 100
         
@@ -5604,20 +4701,18 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         total = self.stats["total_bookmarks"]
         
         if not counts or total == 0:
-            return "No data available"
+            return "Import or add bookmarks to populate category signals."
         
         # Sort and take top 8
-        sorted_cats = sorted(counts.items(), key=lambda x: -x[1])[:8]
-        
+        sorted_cats = [item for item in sorted(counts.items(), key=lambda x: -x[1]) if item[1] > 0][:8]
+        if not sorted_cats:
+            return "No active categories yet."
+
         lines = []
-        max_count = max(c for _, c in sorted_cats) if sorted_cats else 1
-        
         for cat, count in sorted_cats:
             pct = (count / total) * 100
-            bar_len = int((count / max_count) * 20)
-            bar = "█" * bar_len + "░" * (20 - bar_len)
-            name = cat[:25] + "..." if len(cat) > 28 else cat
-            lines.append(f"{name:30} {bar} {count:4} ({pct:4.1f}%)")
+            name = truncate_middle(cat, 30)
+            lines.append(f"{name:<34} {count:>4}  {pct:>5.1f}%")
         
         return "\n".join(lines)
     
@@ -5627,16 +4722,12 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         total = self.stats["total_bookmarks"]
         
         if total == 0:
-            return "No data available"
+            return "Import or add bookmarks to populate age distribution."
         
         lines = []
-        max_count = max(age_dist.values()) if age_dist else 1
-        
         for period, count in age_dist.items():
             pct = (count / total) * 100
-            bar_len = int((count / max_count) * 20)
-            bar = "█" * bar_len + "░" * (20 - bar_len)
-            lines.append(f"{period:15} {bar} {count:4} ({pct:4.1f}%)")
+            lines.append(f"{period:<16} {count:>4}  {pct:>5.1f}%")
         
         return "\n".join(lines)
     
@@ -5645,7 +4736,7 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         domains = self.stats["top_domains"][:10]
         
         if not domains:
-            return "No data available"
+            return "Import or add bookmarks to populate domain signals."
         
         lines = []
         for domain, count in domains:
@@ -5729,7 +4820,7 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
         theme = get_theme()
         
         self.title("Edit Bookmark" if bookmark else "Add Bookmark")
-        self.geometry("550x650")
+        self.geometry("600x700")
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
         self.grab_set()
@@ -5737,19 +4828,24 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
         set_dark_title_bar(self)
         
         # Header
-        header = tk.Frame(self, bg=theme.bg_dark, height=60)
+        header = tk.Frame(self, bg=theme.bg_dark, height=78)
         header.pack(fill=tk.X)
         header.pack_propagate(False)
-        
-        title = "✏️ Edit Bookmark" if bookmark else "➕ Add Bookmark"
+
+        title = "✏️ Edit bookmark" if bookmark else "➕ Add bookmark"
         tk.Label(
             header, text=title, bg=theme.bg_dark,
-            fg=theme.text_primary, font=FONTS.title(bold=False)
-        ).pack(side=tk.LEFT, padx=20, pady=15)
+            fg=theme.text_primary, font=FONTS.title(bold=True)
+        ).pack(anchor="w", padx=24, pady=(16, 2))
+        tk.Label(
+            header,
+            text="Keep the URL, category, tags, and notes clear enough to find later.",
+            bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small()
+        ).pack(anchor="w", padx=24, pady=(0, 14))
         
         # Content
         content = tk.Frame(self, bg=theme.bg_primary)
-        content.pack(fill=tk.BOTH, expand=True, padx=20, pady=15)
+        content.pack(fill=tk.BOTH, expand=True, padx=24, pady=18)
         
         # URL
         self._create_field(content, "URL", 0)
@@ -5758,7 +4854,8 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
             content, textvariable=self.url_var,
             bg=theme.bg_secondary, fg=theme.text_primary,
             insertbackground=theme.text_primary, bd=0,
-            font=FONTS.body()
+            highlightthickness=1, highlightbackground=theme.border_muted,
+            highlightcolor=theme.border_active, font=FONTS.body()
         )
         self.url_entry.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 15), ipady=8, ipadx=10)
         
@@ -5769,7 +4866,8 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
             content, textvariable=self.title_var,
             bg=theme.bg_secondary, fg=theme.text_primary,
             insertbackground=theme.text_primary, bd=0,
-            font=FONTS.body()
+            highlightthickness=1, highlightbackground=theme.border_muted,
+            highlightcolor=theme.border_active, font=FONTS.body()
         )
         self.title_entry.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(0, 15), ipady=8, ipadx=10)
         
@@ -5798,7 +4896,9 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
         self.notes_text = tk.Text(
             content, bg=theme.bg_secondary, fg=theme.text_primary,
             insertbackground=theme.text_primary, bd=0,
-            font=FONTS.body(), height=3, wrap=tk.WORD
+            highlightthickness=1, highlightbackground=theme.border_muted,
+            highlightcolor=theme.border_active, font=FONTS.body(), height=4,
+            wrap=tk.WORD
         )
         self.notes_text.grid(row=9, column=0, columnspan=2, sticky="ew", pady=(0, 15))
         if bookmark and bookmark.notes:
@@ -5883,20 +4983,20 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
         
         # Buttons
         btn_frame = tk.Frame(self, bg=theme.bg_primary)
-        btn_frame.pack(fill=tk.X, padx=20, pady=15)
+        btn_frame.pack(fill=tk.X, padx=24, pady=(0, 18))
         
         ModernButton(
             btn_frame, text="Cancel", command=self.destroy
         ).pack(side=tk.RIGHT, padx=(10, 0))
         
         ModernButton(
-            btn_frame, text="Save", command=self._save,
+            btn_frame, text="Save bookmark", command=self._save,
             style="primary", icon="💾"
         ).pack(side=tk.RIGHT)
         
         if bookmark:
             ModernButton(
-                btn_frame, text="Open URL", command=self._open_url,
+                btn_frame, text="Open in browser", command=self._open_url,
                 icon="🔗"
             ).pack(side=tk.LEFT)
         
@@ -5910,7 +5010,7 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
         theme = get_theme()
         tk.Label(
             parent, text=label, bg=theme.bg_primary,
-            fg=theme.text_secondary, font=FONTS.body()
+            fg=theme.text_secondary, font=FONTS.small(bold=True)
         ).grid(row=row, column=0, sticky="w", pady=(0, 5))
     
     def _save(self):
@@ -5960,7 +5060,7 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
         """Open the URL in browser"""
         url = self.url_var.get().strip()
         if url:
-            webbrowser.open(url)
+            _open_external_url(url)
     
     def center_window(self):
         """Center the dialog"""
@@ -6001,6 +5101,7 @@ class BookmarkCard(tk.Frame, ThemedWidget):
     def __init__(self, parent, bookmark: Bookmark, 
                  on_click: Callable = None,
                  on_double_click: Callable = None,
+                 on_right_click: Callable = None,
                  favicon_manager=None):
         theme = get_theme()
         super().__init__(parent, bg=theme.card_bg, cursor="hand2")
@@ -6008,6 +5109,7 @@ class BookmarkCard(tk.Frame, ThemedWidget):
         self.bookmark = bookmark
         self.on_click = on_click
         self.on_double_click = on_double_click
+        self.on_right_click = on_right_click
         self.is_selected = False
         self.theme = theme
         
@@ -6034,7 +5136,10 @@ class BookmarkCard(tk.Frame, ThemedWidget):
                     self._set_placeholder()
             else:
                 self._set_placeholder()
-                favicon_manager.fetch_favicon(bookmark.url, self._on_favicon_loaded)
+                if hasattr(favicon_manager, "fetch_favicon"):
+                    favicon_manager.fetch_favicon(bookmark.url, self._on_favicon_loaded)
+                elif hasattr(favicon_manager, "download_async"):
+                    favicon_manager.download_async(bookmark.domain, bookmark.id)
         else:
             self._set_placeholder()
         
@@ -6078,10 +5183,12 @@ class BookmarkCard(tk.Frame, ThemedWidget):
         self.bind("<Enter>", self._on_enter)
         self.bind("<Leave>", self._on_leave)
         self.bind("<Button-1>", self._on_click)
+        self.bind("<Button-3>", self._on_right_click)
         self.bind("<Double-1>", self._on_double_click)
         
         for child in self.winfo_children():
             child.bind("<Button-1>", self._on_click)
+            child.bind("<Button-3>", self._on_right_click)
             child.bind("<Double-1>", self._on_double_click)
     
     def _set_placeholder(self):
@@ -6134,6 +5241,10 @@ class BookmarkCard(tk.Frame, ThemedWidget):
     def _on_double_click(self, e):
         if self.on_double_click:
             self.on_double_click(self.bookmark)
+
+    def _on_right_click(self, e):
+        if self.on_right_click:
+            self.on_right_click(e, self.bookmark)
     
     def set_selected(self, selected: bool):
         """Set selection state"""
@@ -6348,10 +5459,17 @@ class CommandPalette(tk.Toplevel, ThemedWidget):
             widget.destroy()
 
         if not self.filtered_commands:
+            empty = tk.Frame(self.list_frame, bg=theme.bg_secondary)
+            empty.pack(fill=tk.BOTH, expand=True, pady=26)
             tk.Label(
-                self.list_frame, text="No commands found",
+                empty, text="No Matching Commands",
                 bg=theme.bg_secondary, fg=theme.text_secondary,
-                font=FONTS.body(), pady=24
+                font=FONTS.body(bold=True)
+            ).pack(fill=tk.X)
+            tk.Label(
+                empty, text="Try Add, Import, Export, Search, Theme, or Settings.",
+                bg=theme.bg_secondary, fg=theme.text_muted,
+                font=FONTS.small(), pady=6
             ).pack(fill=tk.X)
             return
         
@@ -6373,19 +5491,25 @@ class CommandPalette(tk.Toplevel, ThemedWidget):
             )
             accent.pack(side=tk.LEFT, fill=tk.Y)
             
-            tk.Label(
+            name_label = tk.Label(
                 item, text=name, bg=item.cget('bg'),
                 fg=theme.text_primary, font=FONTS.body(bold=is_selected),
                 anchor="w"
-            ).pack(side=tk.LEFT, padx=10, pady=9)
+            )
+            name_label.pack(side=tk.LEFT, padx=10, pady=9)
             
+            shortcut_label = None
             if shortcut:
-                tk.Label(
+                shortcut_label = tk.Label(
                     item, text=shortcut, bg=item.cget('bg'),
                     fg=theme.text_secondary, font=("Consolas", 9)
-                ).pack(side=tk.RIGHT, padx=10)
-            
-            item.bind("<Button-1>", lambda e, idx=i: self._select_and_execute(idx))
+                )
+                shortcut_label.pack(side=tk.RIGHT, padx=10)
+
+            make_keyboard_activatable(item, lambda idx=i: self._select_and_execute(idx))
+            for widget in [name_label, shortcut_label]:
+                if widget:
+                    widget.bind("<Button-1>", lambda e, idx=i: self._select_and_execute(idx))
     
     def _move_up(self, e):
         if self.selected_index > 0:
@@ -6876,7 +6000,8 @@ class SmartFiltersPanel(tk.Frame, ThemedWidget):
             cursor="hand2", padx=10, pady=8
         )
         self.toggle_btn.pack(side=tk.LEFT)
-        self.toggle_btn.bind("<Button-1>", self._toggle)
+        make_keyboard_activatable(self.toggle_btn, self._toggle)
+        Tooltip(self.toggle_btn, "Collapse Smart Filters")
         
         tk.Label(
             header, text="Smart Filters", bg=theme.bg_tertiary,
@@ -6890,7 +6015,8 @@ class SmartFiltersPanel(tk.Frame, ThemedWidget):
             cursor="hand2", padx=10
         )
         self.clear_btn.pack(side=tk.RIGHT)
-        self.clear_btn.bind("<Button-1>", self._clear_filters)
+        make_keyboard_activatable(self.clear_btn, self._clear_filters)
+        Tooltip(self.clear_btn, "Clear Smart Filters")
         
         # Content
         self.content = tk.Frame(self, bg=theme.bg_secondary)
@@ -6945,7 +6071,8 @@ class SmartFiltersPanel(tk.Frame, ThemedWidget):
                 padx=8, pady=3, cursor="hand2"
             )
             btn.pack(side=tk.LEFT, padx=2)
-            btn.bind("<Button-1>", lambda e, d=days: self._set_date_range(d))
+            make_keyboard_activatable(btn, lambda d=days: self._set_date_range(d))
+            Tooltip(btn, f"Show bookmarks from the last {days} day{'s' if days != 1 else ''}")
         
         # Status Filters
         self._create_section("📊 Status")
@@ -7225,10 +6352,16 @@ class TagCloudView(tk.Frame, ThemedWidget):
             def on_click(e, t=tag):
                 if self.on_tag_click:
                     self.on_tag_click(t)
+
+            def activate(t=tag):
+                if self.on_tag_click:
+                    self.on_tag_click(t)
             
             label.bind("<Enter>", on_enter)
             label.bind("<Leave>", on_leave)
             label.bind("<Button-1>", on_click)
+            make_keyboard_activatable(label, activate)
+            Tooltip(label, f"Filter by #{tag} ({pluralize(count, 'bookmark')})")
     
     def update_counts(self, tag_counts: Dict[str, int]):
         """Update tag counts and re-render"""
@@ -7409,10 +6542,14 @@ class KanbanColumn(tk.Frame, ThemedWidget):
             def on_click(e, bookmark=bm):
                 if self.on_bookmark_click:
                     self.on_bookmark_click(bookmark)
-            
-            card.bind("<Button-1>", on_click)
+
+            make_keyboard_activatable(
+                card,
+                lambda bookmark=bm: self.on_bookmark_click and self.on_bookmark_click(bookmark)
+            )
             for child in card.winfo_children():
                 child.bind("<Button-1>", on_click)
+            Tooltip(card, f"Open details for {display_or_fallback(bm.title, bm.domain)}")
             
             # Hover effect
             def on_enter(e, c=card):
@@ -7497,199 +6634,6 @@ class KanbanView(tk.Frame, ThemedWidget):
         """Handle drop on a category column"""
         if self.on_move:
             self.on_move(category)
-
-
-# =============================================================================
-# Display Density (Compact/Comfortable/Spacious)
-# =============================================================================
-class DisplayDensity(Enum):
-    """
-        Enumeration of display density options.
-        
-        Values:
-            COMPACT: Minimal spacing, more items visible
-            NORMAL: Standard spacing
-            COMFORTABLE: Extra spacing, easier reading
-        """
-    COMPACT = "compact"
-    COMFORTABLE = "comfortable"
-    SPACIOUS = "spacious"
-
-
-DENSITY_SETTINGS = {
-    DisplayDensity.COMPACT: {
-        "row_height": 24,
-        "padding_y": 4,
-        "font_size": 9,
-        "card_padding": 6,
-        "icon_size": 14,
-    },
-    DisplayDensity.COMFORTABLE: {
-        "row_height": 32,
-        "padding_y": 8,
-        "font_size": 10,
-        "card_padding": 10,
-        "icon_size": 16,
-    },
-    DisplayDensity.SPACIOUS: {
-        "row_height": 44,
-        "padding_y": 12,
-        "font_size": 11,
-        "card_padding": 15,
-        "icon_size": 20,
-    },
-}
-
-
-class DensityManager:
-    """Manages display density settings"""
-    
-    def __init__(self):
-        self._density = DisplayDensity.COMFORTABLE
-        self._callbacks: List[Callable] = []
-        self._load_settings()
-    
-    def _load_settings(self):
-        """Load density from settings"""
-        if SETTINGS_FILE.exists():
-            try:
-                with open(SETTINGS_FILE, 'r') as f:
-                    data = json.load(f)
-                    density_name = data.get("display_density", "comfortable")
-                    self._density = DisplayDensity(density_name)
-            except Exception:
-                pass
-    
-    def _save_settings(self):
-        """Save density to settings"""
-        data = {}
-        if SETTINGS_FILE.exists():
-            try:
-                with open(SETTINGS_FILE, 'r') as f:
-                    data = json.load(f)
-            except Exception:
-                pass
-        
-        data["display_density"] = self._density.value
-        
-        with open(SETTINGS_FILE, 'w') as f:
-            json.dump(data, f, indent=2)
-    
-    @property
-    def density(self) -> DisplayDensity:
-        return self._density
-    
-    @density.setter
-    def density(self, value: DisplayDensity):
-        if self._density != value:
-            self._density = value
-            self._save_settings()
-            self._notify_callbacks()
-    
-    def get_setting(self, key: str) -> Any:
-        """Get a density-specific setting"""
-        return DENSITY_SETTINGS[self._density].get(key)
-    
-    def add_callback(self, callback: Callable):
-        """Add density change callback"""
-        self._callbacks.append(callback)
-    
-    def remove_callback(self, callback: Callable):
-        """Remove density change callback"""
-        if callback in self._callbacks:
-            self._callbacks.remove(callback)
-    
-    def _notify_callbacks(self):
-        """Notify all callbacks of density change"""
-        for cb in self._callbacks:
-            try:
-                cb(self._density)
-            except Exception:
-                pass
-
-
-# =============================================================================
-# System Theme Detection
-# =============================================================================
-class SystemThemeDetector:
-    """Detect system dark/light mode preference"""
-    
-    def __init__(self, on_theme_change: Callable = None):
-        self.on_theme_change = on_theme_change
-        self._last_is_dark: Optional[bool] = None
-        self._running = False
-        self._check_interval = 5000  # Check every 5 seconds
-    
-    def get_system_theme_is_dark(self) -> bool:
-        """Detect if system is in dark mode"""
-        if IS_WINDOWS:
-            return self._check_windows_dark_mode()
-        elif IS_MAC:
-            return self._check_macos_dark_mode()
-        else:
-            return self._check_linux_dark_mode()
-    
-    def _check_windows_dark_mode(self) -> bool:
-        """Check Windows dark mode setting"""
-        try:
-            import winreg
-            key = winreg.OpenKey(
-                winreg.HKEY_CURRENT_USER,
-                r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
-            )
-            value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
-            winreg.CloseKey(key)
-            return value == 0
-        except Exception:
-            return True  # Default to dark
-    
-    def _check_macos_dark_mode(self) -> bool:
-        """Check macOS dark mode setting"""
-        try:
-            result = subprocess.run(
-                ["defaults", "read", "-g", "AppleInterfaceStyle"],
-                capture_output=True, text=True
-            )
-            return "dark" in result.stdout.lower()
-        except Exception:
-            return True
-    
-    def _check_linux_dark_mode(self) -> bool:
-        """Check Linux dark mode (GNOME/GTK)"""
-        try:
-            result = subprocess.run(
-                ["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"],
-                capture_output=True, text=True
-            )
-            return "dark" in result.stdout.lower()
-        except Exception:
-            return True
-    
-    def start_monitoring(self, root: tk.Tk):
-        """Start monitoring for system theme changes"""
-        self._running = True
-        self._root = root
-        self._check_theme()
-    
-    def stop_monitoring(self):
-        """Stop monitoring"""
-        self._running = False
-    
-    def _check_theme(self):
-        """Check for theme change"""
-        if not self._running:
-            return
-        
-        is_dark = self.get_system_theme_is_dark()
-        
-        if self._last_is_dark is not None and is_dark != self._last_is_dark:
-            if self.on_theme_change:
-                self.on_theme_change(is_dark)
-        
-        self._last_is_dark = is_dark
-        
-        if self._running:
-            self._root.after(self._check_interval, self._check_theme)
 
 
 # =============================================================================
@@ -7800,7 +6744,8 @@ class ReadingListView(tk.Frame, ThemedWidget):
                 cursor="hand2"
             )
             open_btn.pack(side=tk.LEFT, padx=5)
-            open_btn.bind("<Button-1>", lambda e, b=bm: self._on_open(b))
+            make_keyboard_activatable(open_btn, lambda b=bm: self._on_open(b))
+            create_tooltip(open_btn, "Open Bookmark")
             
             # Mark read button
             done_btn = tk.Label(
@@ -7809,7 +6754,8 @@ class ReadingListView(tk.Frame, ThemedWidget):
                 cursor="hand2"
             )
             done_btn.pack(side=tk.LEFT, padx=5)
-            done_btn.bind("<Button-1>", lambda e, b=bm: self._on_mark_read(b))
+            make_keyboard_activatable(done_btn, lambda b=bm: self._on_mark_read(b))
+            create_tooltip(done_btn, "Mark as Read")
             
             # Remove button
             remove_btn = tk.Label(
@@ -7818,20 +6764,21 @@ class ReadingListView(tk.Frame, ThemedWidget):
                 cursor="hand2"
             )
             remove_btn.pack(side=tk.LEFT, padx=5)
-            remove_btn.bind("<Button-1>", lambda e, b=bm: self._on_remove(b))
-    
+            make_keyboard_activatable(remove_btn, lambda b=bm: self._on_remove(b))
+            create_tooltip(remove_btn, "Remove from Reading List")
+
     def _on_open(self, bookmark: Bookmark):
         if self.on_open:
             self.on_open(bookmark)
-    
+
     def _on_mark_read(self, bookmark: Bookmark):
         if self.on_mark_read:
             self.on_mark_read(bookmark)
-    
+
     def _on_remove(self, bookmark: Bookmark):
         if self.on_remove:
             self.on_remove(bookmark)
-    
+
     def refresh(self, bookmarks: List[Bookmark]):
         """Refresh the reading list"""
         self.bookmarks = bookmarks
@@ -7846,215 +6793,16 @@ class ReadingListView(tk.Frame, ThemedWidget):
 # =============================================================================
 # Export Reports (PDF/HTML Analytics)
 # =============================================================================
-class ReportGenerator:
-    """Generate analytics reports in various formats"""
-    
+class ReportGenerator(BaseReportGenerator):
+    """Main-app adapter for themed analytics reports."""
+
     def __init__(self, bookmark_manager: BookmarkManager):
-        self.bookmark_manager = bookmark_manager
-    
-    def generate_html_report(self, filepath: str):
-        """Generate HTML analytics report"""
-        stats = self.bookmark_manager.get_statistics()
-        theme = get_theme()
-        
-        html = f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Bookmark Analytics Report</title>
-    <style>
-        body {{
-            font-family: 'Segoe UI', Arial, sans-serif;
-            background: {theme.bg_primary};
-            color: {theme.text_primary};
-            margin: 0;
-            padding: 40px;
-        }}
-        .container {{
-            max-width: 1000px;
-            margin: 0 auto;
-        }}
-        h1 {{
-            color: {theme.accent_primary};
-            border-bottom: 2px solid {theme.border};
-            padding-bottom: 10px;
-        }}
-        h2 {{
-            color: {theme.text_secondary};
-            margin-top: 30px;
-        }}
-        .stats-grid {{
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
-            margin: 30px 0;
-        }}
-        .stat-card {{
-            background: {theme.bg_secondary};
-            padding: 20px;
-            border-radius: 8px;
-            text-align: center;
-        }}
-        .stat-value {{
-            font-size: 32px;
-            font-weight: bold;
-            color: {theme.accent_primary};
-        }}
-        .stat-label {{
-            color: {theme.text_muted};
-            margin-top: 5px;
-        }}
-        table {{
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-        }}
-        th, td {{
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid {theme.border};
-        }}
-        th {{
-            background: {theme.bg_secondary};
-            color: {theme.text_secondary};
-        }}
-        .bar {{
-            background: {theme.bg_tertiary};
-            height: 20px;
-            border-radius: 4px;
-            overflow: hidden;
-        }}
-        .bar-fill {{
-            background: {theme.accent_primary};
-            height: 100%;
-        }}
-        .footer {{
-            margin-top: 50px;
-            color: {theme.text_muted};
-            text-align: center;
-            font-size: 12px;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>📊 Bookmark Analytics Report</h1>
-        <p>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
-        
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-value">{stats['total_bookmarks']}</div>
-                <div class="stat-label">Total Bookmarks</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">{stats['total_categories']}</div>
-                <div class="stat-label">Categories</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">{stats['total_tags']}</div>
-                <div class="stat-label">Tags</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">{stats['duplicate_bookmarks']}</div>
-                <div class="stat-label">Duplicates</div>
-            </div>
-        </div>
-        
-        <h2>📂 Categories</h2>
-        <table>
-            <tr><th>Category</th><th>Count</th><th>Distribution</th></tr>
-"""
-        
-        total = stats['total_bookmarks'] or 1
-        for cat, count in sorted(stats['category_counts'].items(), key=lambda x: -x[1]):
-            pct = (count / total) * 100
-            html += f"""
-            <tr>
-                <td>{cat}</td>
-                <td>{count}</td>
-                <td><div class="bar"><div class="bar-fill" style="width: {pct}%"></div></div></td>
-            </tr>
-"""
-        
-        html += """
-        </table>
-        
-        <h2>🌐 Top Domains</h2>
-        <table>
-            <tr><th>Domain</th><th>Count</th></tr>
-"""
-        
-        for domain, count in stats['top_domains'][:15]:
-            html += f"            <tr><td>{domain}</td><td>{count}</td></tr>\n"
-        
-        html += f"""
-        </table>
-        
-        <h2>📅 Age Distribution</h2>
-        <table>
-            <tr><th>Period</th><th>Count</th></tr>
-"""
-        
-        for period, count in stats['age_distribution'].items():
-            html += f"            <tr><td>{period}</td><td>{count}</td></tr>\n"
-        
-        html += f"""
-        </table>
-        
-        <div class="footer">
-            Generated by {APP_NAME} v{APP_VERSION}
-        </div>
-    </div>
-</body>
-</html>
-"""
-        
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(html)
-    
-    def generate_text_report(self, filepath: str):
-        """Generate plain text report"""
-        stats = self.bookmark_manager.get_statistics()
-        
-        lines = [
-            "=" * 60,
-            f"BOOKMARK ANALYTICS REPORT",
-            f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-            "=" * 60,
-            "",
-            "SUMMARY",
-            "-" * 40,
-            f"Total Bookmarks:  {stats['total_bookmarks']}",
-            f"Categories:       {stats['total_categories']}",
-            f"Tags:             {stats['total_tags']}",
-            f"Duplicates:       {stats['duplicate_bookmarks']}",
-            f"Broken Links:     {stats['broken']}",
-            f"Uncategorized:    {stats['uncategorized']}",
-            "",
-            "CATEGORIES",
-            "-" * 40,
-        ]
-        
-        for cat, count in sorted(stats['category_counts'].items(), key=lambda x: -x[1]):
-            lines.append(f"  {cat:40} {count:5}")
-        
-        lines.extend([
-            "",
-            "TOP DOMAINS",
-            "-" * 40,
-        ])
-        
-        for domain, count in stats['top_domains'][:15]:
-            lines.append(f"  {domain:40} {count:5}")
-        
-        lines.extend([
-            "",
-            "=" * 60,
-            f"Generated by {APP_NAME} v{APP_VERSION}",
-        ])
-        
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write('\n'.join(lines))
+        super().__init__(
+            bookmark_manager,
+            theme_provider=get_theme,
+            app_name=APP_NAME,
+            app_version=f"v{APP_VERSION}",
+        )
 
 
 
@@ -8695,15 +7443,17 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
                  initial_url: str = "",
                  on_add: Callable = None):
         super().__init__(parent)
-        self.categories = categories
+        self.categories = categories or []
         self.on_add = on_add
         self.result = None
         self.custom_favicon_path = None
+        self._title_placeholder_active = True
+        self._favicon_placeholder_active = True
         
         theme = get_theme()
         
         self.title("Add Bookmark")
-        self.geometry("520x350")
+        self.geometry("560x420")
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
         self.grab_set()
@@ -8716,18 +7466,18 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         header.pack(fill=tk.X)
 
         tk.Label(
-            header, text="➕ Add Bookmark", bg=theme.bg_dark,
+            header, text="➕ Add bookmark", bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.title(bold=True)
-        ).pack(anchor="w", padx=20, pady=(16, 3))
+        ).pack(anchor="w", padx=24, pady=(18, 3))
 
         tk.Label(
-            header, text="Paste a URL. Title and favicon can be refined later.",
+            header, text="Paste a URL now. You can refine title, category, and icon before saving.",
             bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small()
-        ).pack(anchor="w", padx=20, pady=(0, 14))
+        ).pack(anchor="w", padx=24, pady=(0, 16))
         
         # URL field
         url_frame = tk.Frame(self, bg=theme.bg_primary)
-        url_frame.pack(fill=tk.X, padx=20, pady=(18, 10))
+        url_frame.pack(fill=tk.X, padx=24, pady=(18, 10))
         
         tk.Label(
             url_frame, text="🔗", bg=theme.bg_primary,
@@ -8739,13 +7489,14 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
             url_frame, textvariable=self.url_var,
             bg=theme.bg_secondary, fg=theme.text_primary,
             insertbackground=theme.text_primary, bd=0,
-            font=FONTS.body()
+            highlightthickness=1, highlightbackground=theme.border_muted,
+            highlightcolor=theme.border_active, font=FONTS.body()
         )
         self.url_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10, ipady=8)
         
         # Title field (optional)
         title_frame = tk.Frame(self, bg=theme.bg_primary)
-        title_frame.pack(fill=tk.X, padx=20, pady=(0, 10))
+        title_frame.pack(fill=tk.X, padx=24, pady=(0, 10))
         
         tk.Label(
             title_frame, text="📝", bg=theme.bg_primary,
@@ -8755,37 +7506,36 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         self.title_var = tk.StringVar()
         self.title_entry = tk.Entry(
             title_frame, textvariable=self.title_var,
-            bg=theme.bg_secondary, fg=theme.text_primary,
+            bg=theme.bg_secondary, fg=theme.text_muted,
             insertbackground=theme.text_primary, bd=0,
-            font=FONTS.body()
+            highlightthickness=1, highlightbackground=theme.border_muted,
+            highlightcolor=theme.border_active, font=FONTS.body()
         )
         self.title_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10, ipady=6)
-        self.title_entry.insert(0, "Title (optional, auto-fetched)")
-        self.title_entry.bind("<FocusIn>", lambda e: self.title_entry.delete(0, tk.END) 
-                              if self.title_entry.get().startswith("Title") else None)
+        self.title_entry.insert(0, TITLE_PLACEHOLDER)
+        self.title_entry.bind("<FocusIn>", self._clear_title_placeholder)
+        self.title_entry.bind("<FocusOut>", self._restore_title_placeholder)
         
         # Category dropdown
         cat_frame = tk.Frame(self, bg=theme.bg_primary)
-        cat_frame.pack(fill=tk.X, padx=20, pady=(0, 10))
+        cat_frame.pack(fill=tk.X, padx=24, pady=(0, 10))
         
         tk.Label(
             cat_frame, text="📂", bg=theme.bg_primary,
             fg=theme.text_muted, font=("Segoe UI", 14)
         ).pack(side=tk.LEFT)
         
-        default_category = "Uncategorized / Needs Review"
-        if categories and default_category not in categories:
-            default_category = categories[0]
+        default_category = pick_default_category(categories)
         self.category_var = tk.StringVar(value=default_category)
         self.category_combo = ttk.Combobox(
             cat_frame, textvariable=self.category_var,
-            values=categories, state="readonly"
+            values=categories or [DEFAULT_CATEGORY], state="readonly"
         )
-        self.category_combo.pack(side=tk.LEFT, padx=10)
+        self.category_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
         
         # Custom favicon field
         favicon_frame = tk.Frame(self, bg=theme.bg_primary)
-        favicon_frame.pack(fill=tk.X, padx=20, pady=(0, 10))
+        favicon_frame.pack(fill=tk.X, padx=24, pady=(0, 8))
         
         tk.Label(
             favicon_frame, text="🖼️", bg=theme.bg_primary,
@@ -8793,33 +7543,33 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         ).pack(side=tk.LEFT)
         
         tk.Label(
-            favicon_frame, text="Custom Favicon (optional):", bg=theme.bg_primary,
+            favicon_frame, text="Custom favicon (optional)", bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.small()
         ).pack(side=tk.LEFT, padx=(5, 10))
         
         # Favicon URL/Path entry
         favicon_input_frame = tk.Frame(self, bg=theme.bg_primary)
-        favicon_input_frame.pack(fill=tk.X, padx=20, pady=(0, 10))
+        favicon_input_frame.pack(fill=tk.X, padx=24, pady=(0, 10))
         
         self.favicon_var = tk.StringVar()
         self.favicon_entry = tk.Entry(
             favicon_input_frame, textvariable=self.favicon_var,
-            bg=theme.bg_secondary, fg=theme.text_primary,
+            bg=theme.bg_secondary, fg=theme.text_muted,
             insertbackground=theme.text_primary, bd=0,
-            font=FONTS.small(), width=40
+            highlightthickness=1, highlightbackground=theme.border_muted,
+            highlightcolor=theme.border_active, font=FONTS.small(), width=40
         )
-        self.favicon_entry.pack(side=tk.LEFT, ipady=5, padx=(35, 5))
-        self.favicon_entry.insert(0, "URL or path to favicon...")
-        self.favicon_entry.bind("<FocusIn>", lambda e: self.favicon_entry.delete(0, tk.END) 
-                              if self.favicon_entry.get().startswith("URL") else None)
+        self.favicon_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=5, padx=(35, 5))
+        self.favicon_entry.insert(0, FAVICON_PLACEHOLDER)
+        self.favicon_entry.bind("<FocusIn>", self._clear_favicon_placeholder)
+        self.favicon_entry.bind("<FocusOut>", self._restore_favicon_placeholder)
         
         # Browse button
-        browse_btn = tk.Label(
-            favicon_input_frame, text="Browse", bg=theme.bg_secondary,
-            fg=theme.text_primary, font=FONTS.small(), padx=8, pady=3, cursor="hand2"
+        browse_btn = ModernButton(
+            favicon_input_frame, text="Browse",
+            command=self._browse_favicon, padx=10, pady=5
         )
         browse_btn.pack(side=tk.LEFT, padx=5)
-        browse_btn.bind("<Button-1>", lambda e: self._browse_favicon())
         
         # Favicon preview
         self.favicon_preview = tk.Label(
@@ -8829,14 +7579,14 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         
         # Buttons
         btn_frame = tk.Frame(self, bg=theme.bg_primary)
-        btn_frame.pack(fill=tk.X, padx=20, pady=(10, 20))
+        btn_frame.pack(fill=tk.X, padx=24, pady=(12, 20))
         
         ModernButton(
             btn_frame, text="Cancel", command=self.destroy
         ).pack(side=tk.RIGHT, padx=(10, 0))
         
         ModernButton(
-            btn_frame, text="Add", command=self._add,
+            btn_frame, text="Add bookmark", command=self._add,
             style="primary", icon="➕"
         ).pack(side=tk.RIGHT)
         
@@ -8849,9 +7599,46 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         self.url_entry.select_range(0, tk.END)
         
         self.center_window()
+
+    def _clear_title_placeholder(self, event=None):
+        """Clear title helper text only when it is the active placeholder."""
+        if self._title_placeholder_active:
+            self.title_entry.delete(0, tk.END)
+            self.title_entry.configure(fg=get_theme().text_primary)
+            self._title_placeholder_active = False
+
+    def _restore_title_placeholder(self, event=None):
+        """Restore title helper text when the optional title is blank."""
+        if not self.title_entry.get().strip():
+            self.title_entry.delete(0, tk.END)
+            self.title_entry.insert(0, TITLE_PLACEHOLDER)
+            self.title_entry.configure(fg=get_theme().text_muted)
+            self._title_placeholder_active = True
+
+    def _clear_favicon_placeholder(self, event=None):
+        """Clear favicon helper text only when it is the active placeholder."""
+        if self._favicon_placeholder_active:
+            self.favicon_entry.delete(0, tk.END)
+            self.favicon_entry.configure(fg=get_theme().text_primary)
+            self._favicon_placeholder_active = False
+
+    def _restore_favicon_placeholder(self, event=None):
+        """Restore favicon helper text when the optional field is blank."""
+        if not self.favicon_entry.get().strip():
+            self.favicon_entry.delete(0, tk.END)
+            self.favicon_entry.insert(0, FAVICON_PLACEHOLDER)
+            self.favicon_entry.configure(fg=get_theme().text_muted)
+            self._favicon_placeholder_active = True
+
+    def _get_title_value(self) -> str:
+        return "" if self._title_placeholder_active else self.title_var.get().strip()
+
+    def _get_favicon_value(self) -> str:
+        return "" if self._favicon_placeholder_active else self.favicon_var.get().strip()
     
     def _browse_favicon(self):
         """Browse for a local favicon image"""
+        self._clear_favicon_placeholder()
         filepath = filedialog.askopenfilename(
             title="Select Favicon Image",
             filetypes=[
@@ -8874,6 +7661,9 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
                     return
                 # Download from URL
                 resp = requests.get(path_or_url, timeout=5, allow_redirects=False, stream=True)
+                if resp.status_code >= 400:
+                    resp.close()
+                    return
                 content = bytearray()
                 try:
                     for chunk in resp.iter_content(chunk_size=8192):
@@ -8897,14 +7687,16 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         except Exception as e:
             print(f"Preview error: {e}")
     
-    def _process_custom_favicon(self) -> Optional[str]:
+    def _process_custom_favicon(self, bookmark_url: str = "") -> Optional[str]:
         """Process custom favicon URL or path and save to cache"""
-        favicon_input = self.favicon_var.get().strip()
-        if not favicon_input or favicon_input.startswith("URL"):
+        favicon_input = self._get_favicon_value()
+        if not favicon_input:
             return None
         
         try:
-            url = self.url_var.get().strip()
+            url = (bookmark_url or self.url_var.get()).strip()
+            if not url.lower().startswith(('http://', 'https://')):
+                url = 'https://' + url
             domain = urlparse(url).netloc
             if not domain:
                 return None
@@ -8919,6 +7711,14 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
                     )
                     return None
                 resp = requests.get(favicon_input, timeout=10, allow_redirects=False, stream=True)
+                if resp.status_code >= 400:
+                    resp.close()
+                    messagebox.showerror(
+                        "Favicon Not Available",
+                        f"The favicon URL returned HTTP {resp.status_code}.",
+                        parent=self
+                    )
+                    return None
                 content = bytearray()
                 try:
                     for chunk in resp.iter_content(chunk_size=8192):
@@ -8960,32 +7760,24 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
     
     def _add(self):
         """Add the bookmark"""
-        url = self.url_var.get().strip()
-        if not url:
-            messagebox.showwarning(
-                "URL required",
-                "Enter a bookmark URL before adding it.",
-                parent=self
-            )
+        payload, error = prepare_quick_add_payload(
+            url=self.url_var.get(),
+            title=self.title_var.get(),
+            category=self.category_var.get(),
+            categories=self.categories,
+            favicon_input=self.favicon_var.get(),
+            title_placeholder_active=self._title_placeholder_active,
+            favicon_placeholder_active=self._favicon_placeholder_active,
+        )
+        if not payload:
+            messagebox.showwarning("Bookmark URL Needed", error, parent=self)
             self.url_entry.focus_set()
+            self.url_entry.select_range(0, tk.END)
             return
         
-        if not url.startswith(('http://', 'https://')):
-            url = 'https://' + url
-        
-        title = self.title_var.get().strip()
-        if title.startswith("Title"):
-            title = ""
-        
         # Process custom favicon if provided
-        custom_favicon = self._process_custom_favicon()
-        
-        self.result = {
-            "url": url,
-            "title": title or url,
-            "category": self.category_var.get(),
-            "custom_favicon": custom_favicon
-        }
+        custom_favicon = self._process_custom_favicon(payload.url)
+        self.result = payload.to_dict(custom_favicon=custom_favicon or "")
         
         if self.on_add:
             self.on_add(self.result)
@@ -9891,7 +8683,8 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
             cursor="hand2", padx=15
         )
         close_btn.pack(side=tk.RIGHT)
-        close_btn.bind("<Button-1>", lambda e: self.pack_forget())
+        make_keyboard_activatable(close_btn, lambda: self.pack_forget())
+        create_tooltip(close_btn, "Close Details")
         
         # Content
         self.content = tk.Frame(self, bg=theme.bg_secondary)
@@ -10035,7 +8828,7 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
         value_label.pack(side=tk.LEFT, fill=tk.X)
         
         if is_link:
-            value_label.bind("<Button-1>", lambda e: webbrowser.open(value))
+            make_keyboard_activatable(value_label, lambda v=value: _open_external_url(v))
     
     def _format_date(self, date_str: str) -> str:
         """Format date string nicely"""
@@ -10201,6 +8994,8 @@ class LocalArchiver:
         Returns (success, filepath or error)
         """
         try:
+            if format not in {"html", "mhtml"}:
+                return False, "Unsupported archive format"
             if not URLUtilities._is_safe_url(bookmark.url):
                 return False, "Private or unsupported URLs cannot be archived"
 
@@ -10237,9 +9032,9 @@ class LocalArchiver:
 
             encoding = response.encoding or "utf-8"
             page_text = bytes(chunks).decode(encoding, errors="replace")
-            
+
             # Create safe filename
-            safe_title = re.sub(r'[^\w\s-]', '', bookmark.title)[:50]
+            safe_title = sanitize_filename(bookmark.title or "bookmark")[:50]
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f"{safe_title}_{timestamp}.{format}"
             filepath = self.ARCHIVE_DIR / filename
@@ -10320,9 +9115,14 @@ class LocalArchiver:
     def delete_archive(self, filepath: str) -> bool:
         """Delete an archived page"""
         try:
-            Path(filepath).unlink()
+            archive_root = self.ARCHIVE_DIR.resolve()
+            target = Path(filepath).resolve()
+            target.relative_to(archive_root)
+            if target.suffix.lower() not in {".html", ".mhtml"}:
+                return False
+            target.unlink()
             return True
-        except Exception:
+        except (OSError, ValueError):
             return False
 
 
@@ -10770,7 +9570,8 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         theme = get_theme()
         
         self.title("Selective Export")
-        self.geometry("550x600")
+        self.geometry("600x660")
+        self.minsize(560, 600)
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
         self.grab_set()
@@ -10786,6 +9587,13 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
             header, text="📤 Selective Export", bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.header()
         ).pack(side=tk.LEFT, padx=20, pady=15)
+
+        tk.Label(
+            header,
+            text="Choose the exact scope and format before writing a file.",
+            bg=theme.bg_dark, fg=theme.text_secondary,
+            font=FONTS.small()
+        ).pack(side=tk.LEFT, padx=(0, 20), pady=(18, 0))
         
         # Content
         content = tk.Frame(self, bg=theme.bg_primary)
@@ -10793,9 +9601,16 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         
         # Format selection
         tk.Label(
-            content, text="Export Format:", bg=theme.bg_primary,
-            fg=theme.text_secondary, font=FONTS.body()
+            content, text="Export Format", bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.body(bold=True)
         ).pack(anchor="w")
+
+        tk.Label(
+            content,
+            text="HTML works well for browsers. JSON preserves app data. CSV is best for spreadsheets.",
+            bg=theme.bg_primary, fg=theme.text_muted,
+            font=FONTS.small(), wraplength=520, justify=tk.LEFT
+        ).pack(anchor="w", pady=(2, 0))
         
         self.format_var = tk.StringVar(value="html")
         formats_frame = tk.Frame(content, bg=theme.bg_primary)
@@ -10809,9 +9624,16 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         
         # Category selection
         tk.Label(
-            content, text="Select Categories:", bg=theme.bg_primary,
-            fg=theme.text_secondary, font=FONTS.body()
+            content, text="Categories", bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.body(bold=True)
         ).pack(anchor="w", pady=(10, 5))
+
+        self.export_summary_label = tk.Label(
+            content, text="", bg=theme.bg_primary,
+            fg=theme.text_secondary, font=FONTS.small(),
+            anchor="w"
+        )
+        self.export_summary_label.pack(fill=tk.X, pady=(0, 6))
         
         # Category checkboxes with scroll
         cat_frame = tk.Frame(content, bg=theme.bg_secondary)
@@ -10832,24 +9654,32 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         select_frame = tk.Frame(cat_inner, bg=theme.bg_secondary)
         select_frame.pack(fill=tk.X, padx=10, pady=10)
         
-        tk.Label(
+        select_all_btn = tk.Label(
             select_frame, text="Select All", bg=theme.bg_secondary,
             fg=theme.accent_primary, font=FONTS.small(),
             cursor="hand2"
-        ).pack(side=tk.LEFT, padx=(0, 15))
+        )
+        select_all_btn.pack(side=tk.LEFT, padx=(0, 15))
         
-        tk.Label(
+        select_none_btn = tk.Label(
             select_frame, text="Select None", bg=theme.bg_secondary,
             fg=theme.accent_primary, font=FONTS.small(),
             cursor="hand2"
-        ).pack(side=tk.LEFT)
-        
-        select_frame.winfo_children()[0].bind("<Button-1>", lambda e: self._select_all(True))
-        select_frame.winfo_children()[1].bind("<Button-1>", lambda e: self._select_all(False))
+        )
+        select_none_btn.pack(side=tk.LEFT)
+
+        make_keyboard_activatable(select_all_btn, lambda: self._select_all(True))
+        make_keyboard_activatable(select_none_btn, lambda: self._select_all(False))
+        Tooltip(select_all_btn, "Select every category")
+        Tooltip(select_none_btn, "Clear category selection")
         
         # Category checkboxes
         self.cat_vars: Dict[str, tk.BooleanVar] = {}
-        categories = bookmark_manager.category_manager.get_sorted_categories()
+        categories = list(bookmark_manager.category_manager.get_sorted_categories())
+        category_names = {cat for cat in categories if cat}
+        for bookmark in bookmark_manager.get_all_bookmarks():
+            category_names.add(bookmark.category or DEFAULT_CATEGORY)
+        categories = sorted(category_names, key=lambda value: value.lower())
         counts = bookmark_manager.get_category_counts()
 
         if not categories:
@@ -10867,7 +9697,8 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
             self.cat_vars[cat] = var
             
             cb = ttk.Checkbutton(
-                cat_inner, text=f"{cat} ({count})", variable=var
+                cat_inner, text=f"{cat} ({format_compact_count(count)})",
+                variable=var, command=self._update_export_summary
             )
             cb.pack(anchor="w", padx=10, pady=2)
         
@@ -10899,10 +9730,15 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
             btn_frame, text="Cancel", command=self.destroy
         ).pack(side=tk.RIGHT, padx=(10, 0))
         
-        ModernButton(
-            btn_frame, text="Export", command=self._export,
+        self.export_button = ModernButton(
+            btn_frame, text="Export Bookmarks", command=self._export,
             style="primary", icon="📤"
-        ).pack(side=tk.RIGHT)
+        )
+        self.export_button.pack(side=tk.RIGHT)
+
+        self.format_var.trace_add('write', lambda *args: self._update_export_summary())
+        self.bind("<Escape>", lambda e: self.destroy())
+        self._update_export_summary()
         
         self.center_window()
     
@@ -10910,6 +9746,41 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         """Select all or none"""
         for var in self.cat_vars.values():
             var.set(select)
+        self._update_export_summary()
+
+    def _selected_bookmarks(self) -> List[Bookmark]:
+        selected_cats = {cat for cat, var in self.cat_vars.items() if var.get()}
+        if not selected_cats:
+            return []
+        bookmarks = []
+        for cat in selected_cats:
+            bookmarks.extend(self.bookmark_manager.get_bookmarks_by_category(cat))
+        return bookmarks
+
+    def _update_export_summary(self):
+        """Keep export scope visible before the user writes a file."""
+        selected_cats = [cat for cat, var in self.cat_vars.items() if var.get()]
+        bookmark_count = len(self._selected_bookmarks())
+        fmt = self.format_var.get().upper()
+        if not selected_cats:
+            summary = "Choose at least one category before exporting."
+            button_text = "Choose Categories"
+            state = "disabled"
+        elif bookmark_count == 0:
+            summary = f"{pluralize(len(selected_cats), 'category')} selected, but no bookmarks match."
+            button_text = "Nothing to Export"
+            state = "disabled"
+        else:
+            summary = (
+                f"{pluralize(bookmark_count, 'bookmark')} selected across "
+                f"{pluralize(len(selected_cats), 'category')} as {fmt}."
+            )
+            button_text = f"Export {format_compact_count(bookmark_count)}"
+            state = "normal"
+        self.export_summary_label.configure(text=summary)
+        if getattr(self, "export_button", None):
+            self.export_button.set_text(button_text)
+            self.export_button.set_state(state)
 
     def _bookmark_export_dict(self, bookmark: Bookmark) -> Dict[str, Any]:
         """Serialize one bookmark according to selected export options."""
@@ -10989,11 +9860,11 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
             writer = csv.writer(f)
             writer.writerow(columns)
             for bm in bookmarks:
-                row = [bm.title, bm.url, bm.category]
+                row = [_csv_safe_cell(bm.title), _csv_safe_cell(bm.url), _csv_safe_cell(bm.category)]
                 if self.include_tags_var.get():
-                    row.append(",".join(bm.tags))
+                    row.append(_csv_safe_cell(",".join(bm.tags)))
                 if self.include_notes_var.get():
-                    row.append(bm.notes)
+                    row.append(_csv_safe_cell(bm.notes))
                 if self.include_metadata_var.get():
                     row.extend([bm.created_at, bm.visit_count, bm.is_pinned])
                 writer.writerow(row)
@@ -11029,10 +9900,7 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
             )
             return
         
-        # Get bookmarks from selected categories
-        bookmarks = []
-        for cat in selected_cats:
-            bookmarks.extend(self.bookmark_manager.get_bookmarks_by_category(cat))
+        bookmarks = self._selected_bookmarks()
         
         if not bookmarks:
             messagebox.showwarning(
@@ -11055,7 +9923,8 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         filepath = filedialog.asksaveasfilename(
             title="Export Bookmarks",
             defaultextension=f".{fmt}",
-            filetypes=[extensions[fmt], ("All files", "*.*")]
+            filetypes=[extensions[fmt], ("All files", "*.*")],
+            parent=self
         )
         
         if not filepath:
@@ -11085,6 +9954,8 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
                 f"Exported {len(bookmarks)} bookmark{'s' if len(bookmarks) != 1 else ''} to {Path(filepath).name}.",
                 parent=self
             )
+            if callable(self.on_export):
+                self.on_export(self.result)
             self.destroy()
         
         except Exception as e:
@@ -11137,14 +10008,19 @@ class BackupScheduler:
                     default.update(loaded)
             except Exception:
                 pass
-        
+
+        default["enabled"] = bool(default.get("enabled", False))
+        default["interval_hours"] = clamp(safe_int(default.get("interval_hours"), 24), 1, 24 * 30)
+        default["max_backups"] = clamp(safe_int(default.get("max_backups"), 10), 1, 100)
+        backup_location = str(default.get("backup_location") or self.BACKUP_DIR)
+        default["backup_location"] = backup_location
+
         return default
     
     def _save_config(self):
         """Save backup configuration"""
-        DATA_DIR.mkdir(exist_ok=True)
-        with open(self.CONFIG_FILE, 'w') as f:
-            json.dump(self.config, f, indent=2)
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        _atomic_json_write(self.CONFIG_FILE, self.config)
     
     def start(self):
         """Start the backup scheduler"""
@@ -11188,9 +10064,9 @@ class BackupScheduler:
     def create_backup(self, location: str = None) -> str:
         """Create a backup now"""
         backup_dir = Path(location) if location else self.BACKUP_DIR
-        backup_dir.mkdir(exist_ok=True)
+        backup_dir.mkdir(parents=True, exist_ok=True)
         
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         filename = f"bookmark_backup_{timestamp}.json"
         filepath = backup_dir / filename
         
@@ -11241,7 +10117,7 @@ class BackupScheduler:
     
     def set_interval(self, hours: int):
         """Set backup interval in hours"""
-        self.config["interval_hours"] = hours
+        self.config["interval_hours"] = clamp(safe_int(hours, 24), 1, 24 * 30)
         self._save_config()
         
         # Restart scheduler with new interval
@@ -12080,14 +10956,15 @@ Examples:
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
         
-        bookmark = Bookmark(
-            id=None,
+        bookmark = self.bookmark_manager.add_bookmark_clean(
             url=url,
             title=title,
-            category="Uncategorized / Needs Review"
+            category="Uncategorized / Needs Review",
         )
+        if bookmark is None:
+            print("Could not add bookmark: invalid URL or duplicate")
+            return
         
-        self.bookmark_manager.add_bookmark(bookmark)
         print(f"✓ Added: {title}")
         print(f"  URL: {url}")
         print(f"  ID: {bookmark.id}")
@@ -12738,7 +11615,7 @@ class EnhancedProgressBar(tk.Frame, ThemedWidget):
         if maximum is not None:
             self._max = maximum
         
-        self._progress = min(value, self._max)
+        self._progress = max(0, min(value, self._max))
         
         # Calculate percentage
         pct = (self._progress / self._max * 100) if self._max > 0 else 0
@@ -12765,6 +11642,7 @@ class EnhancedProgressBar(tk.Frame, ThemedWidget):
         elif not active:
             self._animating = False
             self.bar_fill.configure(bg=theme.accent_primary)
+            self.bar_fill.place(relx=0, relwidth=max(0, min(1, self._progress / self._max if self._max else 0)))
     
     def _animate_indeterminate(self):
         """Animate indeterminate progress"""
@@ -12831,30 +11709,41 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
     
     def __init__(self, parent, on_files_dropped: Callable = None):
         theme = get_theme()
-        super().__init__(parent, bg=theme.bg_secondary, padx=18, pady=16)
+        super().__init__(
+            parent, bg=theme.bg_secondary, padx=18, pady=16,
+            takefocus=1, cursor="hand2"
+        )
         
         self.on_files_dropped = on_files_dropped
         self._drag_active = False
         self._compact = False
+        self.compact_row = None
+        self.compact_title_label = None
+        self.compact_detail_label = None
+        self.compact_action = None
         
-        self.configure(highlightbackground=theme.border, highlightthickness=2)
+        self.configure(
+            highlightbackground=theme.border_muted,
+            highlightcolor=theme.border_active,
+            highlightthickness=DesignTokens.FOCUS_RING_WIDTH
+        )
         
         # Icon
         self.icon_label = tk.Label(
-            self, text="📥", bg=theme.bg_secondary,
-            fg=theme.accent_primary, font=("Segoe UI Emoji", 28)
+            self, text="↓", bg=theme.bg_secondary,
+            fg=theme.accent_primary, font=FONTS.custom(26, bold=True)
         )
         self.icon_label.pack(pady=(8, 5))
         
         # Main text
         self.main_label = tk.Label(
-            self, text="Import bookmark files", bg=theme.bg_secondary,
+            self, text="Bring bookmarks in", bg=theme.bg_secondary,
             fg=theme.text_primary, font=FONTS.body(bold=True)
         )
         self.main_label.pack()
         
         # Supported formats
-        formats_text = "HTML, JSON, CSV, OPML, or text URLs"
+        formats_text = "HTML, JSON, CSV, OPML, and text URL files"
         self.formats_label = tk.Label(
             self, text=formats_text, bg=theme.bg_secondary,
             fg=theme.text_secondary, font=FONTS.small()
@@ -12863,7 +11752,7 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
         
         # Browse button
         self.browse_btn = ModernButton(
-            self, text="Browse Files",
+            self, text="Choose files",
             command=self._browse_files
         )
         self.browse_btn.pack(pady=(14, 6))
@@ -12871,7 +11760,11 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
         # Bind events (note: true drag-drop requires tkinterdnd2 or similar)
         # For now, we'll use click-to-browse and simulated drop
         self.bind("<Button-1>", lambda e: self._browse_files())
-        for child in self.winfo_children():
+        self.bind("<Return>", lambda e: self._browse_files())
+        self.bind("<space>", lambda e: self._browse_files())
+        self.bind("<FocusIn>", self._on_enter)
+        self.bind("<FocusOut>", self._on_leave)
+        for child in (self.icon_label, self.main_label, self.formats_label):
             child.bind("<Button-1>", lambda e: self._browse_files())
         
         # Visual feedback on hover
@@ -12881,12 +11774,25 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
     def _on_enter(self, e):
         """Mouse enter - highlight"""
         theme = get_theme()
-        self.configure(highlightbackground=theme.accent_primary)
-    
+        self._apply_surface(theme.bg_hover)
+        self.configure(highlightbackground=theme.accent_primary if not self._compact else theme.bg_dark)
+
     def _on_leave(self, e):
         """Mouse leave - reset"""
         theme = get_theme()
-        self.configure(highlightbackground=theme.border)
+        self._apply_surface(theme.bg_dark if self._compact else theme.bg_secondary)
+        self.configure(highlightbackground=theme.bg_dark if self._compact else theme.border_muted)
+
+    def _apply_surface(self, bg: str):
+        """Keep the import affordance visually unified across child widgets."""
+        widgets = [self, self.icon_label, self.main_label, self.formats_label]
+        if self.compact_row:
+            widgets.extend([self.compact_row, self.compact_title_label, self.compact_detail_label])
+        for widget in widgets:
+            try:
+                widget.configure(bg=bg)
+            except Exception:
+                pass
     
     def _browse_files(self):
         """Open file browser for multiple files"""
@@ -12921,9 +11827,9 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
             self.on_files_dropped(valid_files)
         elif not valid_files:
             messagebox.showwarning(
-                "No Valid Files",
-                "No supported bookmark files found.\n\n" +
-                "Supported formats: " + ", ".join(self.SUPPORTED_FORMATS.keys())
+                "No Supported Bookmark Files",
+                "Choose an HTML, JSON, CSV, OPML, or text file containing bookmark URLs.\n\n" +
+                "Supported extensions: " + ", ".join(sorted(self.SUPPORTED_FORMATS.keys()))
             )
     
     def set_importing(self, is_importing: bool):
@@ -12932,32 +11838,86 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
         
         if is_importing:
             self.icon_label.configure(text="⏳")
-            self.main_label.configure(text="Importing...")
-            self.browse_btn.state = "disabled"
-            self.browse_btn.label.configure(fg=theme.text_muted, cursor="arrow")
+            self.main_label.configure(text="Importing bookmarks…")
+            self.formats_label.configure(text="Please keep the app open while files are processed.")
+            self.browse_btn.set_state("disabled")
+            if self.compact_title_label:
+                self.compact_title_label.configure(text="Importing…")
+            if self.compact_detail_label:
+                self.compact_detail_label.configure(text="Processing selected files")
+            if self.compact_action:
+                self.compact_action.set_state("disabled")
         else:
-            self.icon_label.configure(text="📥")
+            self.icon_label.configure(text="↓")
             self.main_label.configure(
-                text="Import more bookmarks" if self._compact else "Import bookmark files"
+                text="Import library" if self._compact else "Bring bookmarks in"
             )
-            self.browse_btn.state = "normal"
-            self.browse_btn.label.configure(fg=theme.text_primary, cursor="hand2")
+            if not self._compact:
+                self.formats_label.configure(text="HTML, JSON, CSV, OPML, and text URL files")
+            self.browse_btn.set_state("normal")
+            if self.compact_title_label:
+                self.compact_title_label.configure(text="Import")
+            if self.compact_detail_label:
+                self.compact_detail_label.configure(text="Files or browser export")
+            if self.compact_action:
+                self.compact_action.set_state("normal")
 
     def set_compact(self, compact: bool = True):
         """Collapse the import affordance after the first successful import."""
         self._compact = compact
+        theme = get_theme()
         if compact:
-            self.configure(padx=14, pady=10)
+            self.configure(
+                bg=theme.bg_dark, padx=0, pady=0,
+                highlightthickness=DesignTokens.FOCUS_RING_WIDTH,
+                highlightbackground=theme.bg_dark,
+                highlightcolor=theme.border_active
+            )
             self.icon_label.pack_forget()
+            self.main_label.pack_forget()
             self.formats_label.pack_forget()
-            self.main_label.configure(text="Import more bookmarks")
-            self.browse_btn.set_text("Browse Files")
-            self.browse_btn.pack_configure(pady=(8, 4))
+            self.browse_btn.pack_forget()
+
+            if self.compact_row is None:
+                self.compact_row = tk.Frame(self, bg=theme.bg_dark, cursor="hand2")
+                copy = tk.Frame(self.compact_row, bg=theme.bg_dark, cursor="hand2")
+                copy.pack(side=tk.LEFT, fill=tk.X, expand=True)
+                self.compact_title_label = tk.Label(
+                    copy, text="Import", bg=theme.bg_dark,
+                    fg=theme.text_primary, font=FONTS.body(bold=True),
+                    cursor="hand2", anchor="w"
+                )
+                self.compact_title_label.pack(anchor="w")
+                self.compact_detail_label = tk.Label(
+                    copy, text="Files or browser export", bg=theme.bg_dark,
+                    fg=theme.text_muted, font=FONTS.tiny(),
+                    cursor="hand2", anchor="w"
+                )
+                self.compact_detail_label.pack(anchor="w", pady=(2, 0))
+                self.compact_action = ModernButton(
+                    self.compact_row, text="Choose", command=self._browse_files,
+                    style="primary", padx=12, pady=6, font=FONTS.tiny(bold=True)
+                )
+                self.compact_action.pack(side=tk.RIGHT, padx=(8, 0))
+                for widget in (self.compact_row, copy, self.compact_title_label, self.compact_detail_label):
+                    widget.bind("<Button-1>", lambda e: self._browse_files())
+                    widget.bind("<Enter>", self._on_enter)
+                    widget.bind("<Leave>", self._on_leave)
+            self.compact_row.pack(fill=tk.X)
         else:
-            self.configure(padx=18, pady=16)
-            self.icon_label.pack(pady=(8, 5), before=self.main_label)
+            self.configure(
+                bg=theme.bg_secondary, padx=18, pady=16,
+                highlightthickness=DesignTokens.FOCUS_RING_WIDTH,
+                highlightbackground=theme.border_muted
+            )
+            if self.compact_row:
+                self.compact_row.pack_forget()
+            self.icon_label.pack(pady=(8, 5))
+            self.main_label.pack()
             self.formats_label.pack(pady=(5, 0), padx=4, after=self.main_label)
-            self.main_label.configure(text="Import bookmark files")
+            self.browse_btn.pack(pady=(14, 6))
+            self.main_label.configure(text="Bring bookmarks in")
+            self.formats_label.configure(text="HTML, JSON, CSV, OPML, and text URL files")
             self.browse_btn.pack_configure(pady=(14, 6))
 
 
@@ -13134,7 +12094,8 @@ class MiniAnalyticsDashboard(tk.Frame, ThemedWidget):
             cursor="hand2", padx=10
         )
         self.refresh_btn.pack(side=tk.RIGHT)
-        self.refresh_btn.bind("<Button-1>", lambda e: self.refresh())
+        make_keyboard_activatable(self.refresh_btn, self.refresh)
+        Tooltip(self.refresh_btn, "Refresh Analytics")
         
         # Stats container
         self.stats_frame = tk.Frame(self, bg=theme.bg_secondary)
@@ -13275,7 +12236,7 @@ class FaviconStatusDisplay(tk.Frame, ThemedWidget):
         self.icon_label.pack(side=tk.LEFT, padx=(5, 3))
         
         self.status_label = tk.Label(
-            self, text="Favicons: Ready", bg=theme.bg_dark,
+            self, text="Icons ready", bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.small()
         )
         self.status_label.pack(side=tk.LEFT, padx=(0, 10))
@@ -13303,11 +12264,11 @@ class FaviconStatusDisplay(tk.Frame, ThemedWidget):
         
         pct = (completed / total) * 100 if total > 0 else 0
         
-        self.status_label.configure(text=f"Favicons: {completed}/{total}")
+        self.status_label.configure(text=f"Icons {completed}/{total}")
         self.progress_fill.place(relwidth=pct/100)
         
         if completed >= total:
-            self.status_label.configure(text=f"Favicons: {completed} ✓")
+            self.status_label.configure(text=f"Icons ready ({completed})")
             self.progress_fill.configure(bg=theme.accent_success)
             # Auto-hide after a delay
             self.after(3000, self.hide)
@@ -13353,6 +12314,7 @@ class HighSpeedFaviconManager:
         self._futures: Dict[str, Any] = {}
         self._progress_callback: Optional[Callable] = None
         self._on_favicon_ready: Optional[Callable] = None
+        self._callbacks: Dict[str, List[Callable]] = {}
         self._total_queued = 0
         self._completed = 0
         self._lock = threading.Lock()
@@ -13454,6 +12416,24 @@ class HighSpeedFaviconManager:
         if cached == "FAILED":
             return None  # Don't return the placeholder marker
         return cached
+
+    def fetch_favicon(self, url: str, callback: Callable = None):
+        """Compatibility wrapper for older card widgets.
+
+        callback receives (domain, filepath) when a favicon is available.
+        """
+        domain = self._normalize_domain(urlparse(url).netloc)
+        if not domain:
+            return
+        cached = self.get_cached(domain)
+        if cached:
+            if callback:
+                callback(domain, cached)
+            return
+        if callback:
+            with self._lock:
+                self._callbacks.setdefault(domain, []).append(callback)
+        self.download_async(domain)
     
     def is_cached(self, domain: str) -> bool:
         """Check if favicon is cached"""
@@ -13564,6 +12544,8 @@ class HighSpeedFaviconManager:
                     except Exception as img_error:
                         # If can't open as image, save raw content
                         content_type = response.headers.get('content-type', '')
+                        if not content_type.lower().startswith('image/'):
+                            continue
                         ext = 'png' if 'png' in content_type else 'ico'
                         
                         safe_domain = sanitize_filename(domain)
@@ -13596,6 +12578,15 @@ class HighSpeedFaviconManager:
                 self._on_favicon_ready(domain, filepath, bookmark_id)
             except Exception:
                 pass
+
+        with self._lock:
+            callbacks = self._callbacks.pop(domain, [])
+        if filepath:
+            for callback in callbacks:
+                try:
+                    callback(domain, filepath)
+                except Exception:
+                    pass
         
         if self._progress_callback:
             try:
@@ -13800,18 +12791,18 @@ class ThemeDropdown(tk.Frame):
         # Create dropdown button
         display = theme_manager.current_theme.display_name or theme_manager.current_theme.name
         self.btn = tk.Label(
-            self, text=f"🎨 {display[:18]}",
+            self, text=display[:18],
             bg=theme.bg_secondary, fg=theme.text_primary,
             font=FONTS.small(), padx=10, pady=6,
             cursor="hand2"
         )
         self.btn.pack(fill=tk.X)
         
-        self.btn.bind("<Button-1>", self._show_menu)
+        make_keyboard_activatable(self.btn, lambda: self._show_menu())
         self.btn.bind("<Enter>", lambda e: self.btn.configure(bg=theme.bg_hover))
         self.btn.bind("<Leave>", lambda e: self.btn.configure(bg=theme.bg_secondary))
     
-    def _show_menu(self, event):
+    def _show_menu(self, event=None):
         """Show theme selection menu"""
         theme = get_theme()
         
@@ -13820,10 +12811,10 @@ class ThemeDropdown(tk.Frame):
         
         for theme_name, theme_info in self.theme_manager.get_all_themes().items():
             display = theme_info.display_name or theme_name
-            is_dark = "🌙" if theme_info.is_dark else "☀️"
+            mode = "Dark" if theme_info.is_dark else "Light"
             check = " ✓" if theme_name == self.theme_manager.current_theme.name else ""
             menu.add_command(
-                label=f"  {is_dark} {display}{check}",
+                label=f"  {mode}  {display}{check}",
                 command=lambda t=theme_name: self._select_theme(t)
             )
         
@@ -13838,7 +12829,7 @@ class ThemeDropdown(tk.Frame):
         self.current_var.set(theme_name)
         info = self.theme_manager.get_all_themes().get(theme_name)
         display = info.display_name if info else theme_name
-        self.btn.configure(text=f"🎨 {display[:18]}")
+        self.btn.configure(text=display[:18])
         
         if self.on_change:
             self.on_change(theme_name)
@@ -13937,21 +12928,7 @@ class NonBlockingTaskRunner:
 # CATEGORY MANAGEMENT DIALOG
 # =============================================================================
 class CategoryManagementDialog(tk.Toplevel):
-    """
-        Represents a bookmark category.
-        
-        Attributes:
-            name: Category name (unique identifier)
-            parent: Parent category name (for nesting)
-            icon: Emoji icon for display
-            color: Optional color override
-            sort_order: Order within parent
-            created_at: ISO timestamp of creation
-        
-        Methods:
-            to_dict(): Serialize to dictionary
-            from_dict(d): Deserialize from dictionary
-        """
+    """Dialog for creating, renaming, and deleting bookmark categories."""
     
     def __init__(self, parent, category_manager, bookmark_manager, on_change: Callable = None):
         super().__init__(parent)
@@ -13960,6 +12937,8 @@ class CategoryManagementDialog(tk.Toplevel):
         self.category_manager = category_manager
         self.bookmark_manager = bookmark_manager
         self.on_change = on_change
+        self._category_placeholder = "New category name…"
+        self._category_placeholder_active = True
         
         self.title("Manage Categories")
         self.configure(bg=theme.bg_primary)
@@ -13995,11 +12974,14 @@ class CategoryManagementDialog(tk.Toplevel):
         self.new_cat_entry = tk.Entry(
             add_inner, bg=theme.bg_secondary, fg=theme.text_primary,
             insertbackground=theme.text_primary, font=FONTS.body(),
-            relief=tk.FLAT
+            relief=tk.FLAT,
+            highlightthickness=1, highlightbackground=theme.border_muted,
+            highlightcolor=theme.accent_primary
         )
         self.new_cat_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10), ipady=5)
-        self.new_cat_entry.insert(0, "New category name...")
+        self._show_category_placeholder()
         self.new_cat_entry.bind("<FocusIn>", lambda e: self._clear_placeholder())
+        self.new_cat_entry.bind("<FocusOut>", lambda e: self._restore_placeholder())
         self.new_cat_entry.bind("<Return>", lambda e: self._add_category())
         
         add_btn = ModernButton(
@@ -14041,8 +13023,20 @@ class CategoryManagementDialog(tk.Toplevel):
         self.center_window()
     
     def _clear_placeholder(self):
-        if self.new_cat_entry.get() == "New category name...":
+        if self._category_placeholder_active:
             self.new_cat_entry.delete(0, tk.END)
+            self.new_cat_entry.configure(fg=get_theme().text_primary)
+            self._category_placeholder_active = False
+
+    def _show_category_placeholder(self):
+        self.new_cat_entry.delete(0, tk.END)
+        self.new_cat_entry.insert(0, self._category_placeholder)
+        self.new_cat_entry.configure(fg=get_theme().text_muted)
+        self._category_placeholder_active = True
+
+    def _restore_placeholder(self):
+        if not self.new_cat_entry.get().strip():
+            self._show_category_placeholder()
     
     def _populate_categories(self):
         """Populate the category list"""
@@ -14102,7 +13096,8 @@ class CategoryManagementDialog(tk.Toplevel):
                 fg=theme.text_secondary, font=("Segoe UI", 12), cursor="hand2"
             )
             edit_btn.pack(side=tk.LEFT, padx=5, pady=5)
-            edit_btn.bind("<Button-1>", lambda e, n=cat_name: self._edit_category(n))
+            make_keyboard_activatable(edit_btn, lambda n=cat_name: self._edit_category(n))
+            Tooltip(edit_btn, f"Rename {cat_name}")
             
             # Delete button
             del_btn = tk.Label(
@@ -14110,14 +13105,24 @@ class CategoryManagementDialog(tk.Toplevel):
                 fg=theme.accent_error, font=("Segoe UI", 12), cursor="hand2"
             )
             del_btn.pack(side=tk.LEFT, padx=5, pady=5)
-            del_btn.bind("<Button-1>", lambda e, n=cat_name: self._delete_category(n))
+            make_keyboard_activatable(del_btn, lambda n=cat_name: self._delete_category(n))
+            Tooltip(del_btn, f"Delete {cat_name}")
     
     def _add_category(self):
         """Add new category"""
         name = self.new_cat_entry.get().strip()
-        if name and name != "New category name...":
+        if self._category_placeholder_active or not name:
+            messagebox.showinfo(
+                "Category name required",
+                "Enter a category name before adding it.",
+                parent=self
+            )
+            self.new_cat_entry.focus_set()
+            return
+
+        if name:
             if self.category_manager.add_category(name):
-                self.new_cat_entry.delete(0, tk.END)
+                self._show_category_placeholder()
                 self._populate_categories()
                 if self.on_change:
                     self.on_change()
@@ -14191,7 +13196,7 @@ class CategoryManagementDialog(tk.Toplevel):
         
         msg = f"Delete category '{name}'?"
         if count > 0:
-            msg += f"\n\n{count} bookmark(s) will be moved to 'Uncategorized / Needs Review'."
+            msg += f"\n\n{pluralize(count, 'bookmark')} will be moved to 'Uncategorized / Needs Review'."
         
         if messagebox.askyesno("Delete Category", msg, parent=self):
             # Move bookmarks to Uncategorized
@@ -14498,7 +13503,7 @@ class CustomFaviconDialog(tk.Toplevel):
 # EMPTY STATE - Shown when no bookmarks exist
 # =============================================================================
 class EmptyState(tk.Frame):
-    """Beautiful empty state with icon, message, and call-to-action buttons."""
+    """First-run empty state with clear, calm next actions."""
 
     def __init__(self, parent, on_import=None, on_add=None):
         theme = get_theme()
@@ -14508,55 +13513,76 @@ class EmptyState(tk.Frame):
         self._build(theme)
 
     def _build(self, theme):
-        # Center container
-        center = tk.Frame(self, bg=theme.bg_primary)
-        center.place(relx=0.5, rely=0.42, anchor="center")
+        stage = tk.Frame(self, bg=theme.bg_primary)
+        stage.place(relx=0.5, rely=0.5, relwidth=0.9, relheight=0.78, anchor="center")
 
-        # Large icon
-        tk.Label(
-            center, text="📑", bg=theme.bg_primary,
-            font=(FONTS.family, 48)
-        ).pack(pady=(0, 16))
+        left = tk.Frame(stage, bg=theme.bg_primary)
+        left.pack(fill=tk.BOTH, expand=True, padx=(32, 0))
 
-        # Heading
         tk.Label(
-            center, text="No bookmarks yet",
+            left, text="EMPTY LIBRARY", bg=theme.bg_primary,
+            fg=theme.accent_primary, font=FONTS.tiny(bold=True)
+        ).pack(anchor="w", pady=(10, 14))
+
+        tk.Label(
+            left, text="Start With an Import",
             bg=theme.bg_primary, fg=theme.text_primary,
-            font=FONTS.custom(18, bold=True)
-        ).pack(pady=(0, 8))
+            font=FONTS.custom(30, bold=True), justify=tk.LEFT
+        ).pack(anchor="w")
 
-        # Subtitle
         tk.Label(
-            center, text="Import your bookmarks from a browser export\nor add them one at a time.",
+            left,
+            text=(
+                "Bring in a browser export or add one URL. Then review duplicates, "
+                "missing tags, weak categories, and broken links from this workspace."
+            ),
             bg=theme.bg_primary, fg=theme.text_secondary,
-            font=FONTS.body(), justify="center"
-        ).pack(pady=(0, 28))
+            font=FONTS.custom(12), justify=tk.LEFT, wraplength=620
+        ).pack(anchor="w", pady=(18, 28))
 
-        # CTA buttons row
-        btn_row = tk.Frame(center, bg=theme.bg_primary)
-        btn_row.pack()
+        btn_row = tk.Frame(left, bg=theme.bg_primary)
+        btn_row.pack(anchor="w")
 
         import_btn = ModernButton(
-            btn_row, text="Import Bookmarks", icon="📥",
+            btn_row, text="Import Bookmarks", icon="↓",
             style="primary", command=self._on_import,
-            font=FONTS.body(bold=True), padx=20, pady=10
+            font=FONTS.body(bold=True), padx=22, pady=11
         )
-        import_btn.pack(side=tk.LEFT, padx=6)
+        import_btn.pack(side=tk.LEFT, padx=(0, 10))
 
         add_btn = ModernButton(
-            btn_row, text="Add Bookmark", icon="➕",
+            btn_row, text="Add URL", icon="+",
             command=self._on_add,
-            font=FONTS.body(), padx=20, pady=10
+            font=FONTS.body(), padx=20, pady=11
         )
-        add_btn.pack(side=tk.LEFT, padx=6)
+        add_btn.pack(side=tk.LEFT)
 
-        # Hint text
-        tk.Label(
-            center,
-            text="Tip: You can import browser exports from the sidebar or the Import menu.",
-            bg=theme.bg_primary, fg=theme.text_muted,
-            font=FONTS.small()
-        ).pack(pady=(24, 0))
+        runway = tk.Frame(left, bg=theme.bg_primary)
+        runway.pack(fill=tk.X, pady=(34, 0))
+        for eyebrow, title, body in [
+            ("01", "Import", "HTML, JSON, CSV, OPML, and plain URL lists."),
+            ("02", "Review", "Find broken links, duplicates, uncategorized items, and gaps."),
+            ("03", "Search", "Use domain:, #tags, pinned filters, and command actions."),
+        ]:
+            row = tk.Frame(runway, bg=theme.bg_primary)
+            row.pack(fill=tk.X, pady=7)
+            tk.Label(
+                row, text=eyebrow, bg=theme.bg_primary,
+                fg=theme.accent_primary, font=FONTS.small(bold=True), width=4, anchor="w"
+            ).pack(side=tk.LEFT)
+            tk.Frame(row, bg=theme.border, width=1, height=34).pack(side=tk.LEFT, padx=(4, 14))
+            copy = tk.Frame(row, bg=theme.bg_primary)
+            copy.pack(side=tk.LEFT, fill=tk.X, expand=True)
+            tk.Label(
+                copy, text=title, bg=theme.bg_primary,
+                fg=theme.text_primary, font=FONTS.body(bold=True), anchor="w"
+            ).pack(anchor="w")
+            tk.Label(
+                copy, text=body, bg=theme.bg_primary,
+                fg=theme.text_secondary, font=FONTS.small(), anchor="w", justify=tk.LEFT,
+                wraplength=440
+            ).pack(anchor="w", pady=(2, 0))
+
 
 
 class FilteredEmptyState(tk.Frame):
@@ -14575,18 +13601,18 @@ class FilteredEmptyState(tk.Frame):
 
         tk.Label(
             center, text="🔎", bg=theme.bg_primary,
-            fg=theme.accent_primary, font=(FONTS.family, 42)
-        ).pack(pady=(0, 16))
+            fg=theme.accent_primary, font=("Segoe UI Emoji", 40)
+        ).pack(pady=(0, 14))
 
         tk.Label(
-            center, text="No matching bookmarks",
+            center, text="No bookmarks match this view",
             bg=theme.bg_primary, fg=theme.text_primary,
             font=FONTS.custom(18, bold=True)
         ).pack(pady=(0, 8))
 
         tk.Label(
             center,
-            text="Try a broader search, switch filters, or clear the current view.",
+            text="Broaden the search, choose another filter, or reset the view to return to the full library.",
             bg=theme.bg_primary, fg=theme.text_secondary,
             font=FONTS.body(), justify="center", wraplength=420
         ).pack(pady=(0, 24))
@@ -14595,16 +13621,23 @@ class FilteredEmptyState(tk.Frame):
         btn_row.pack()
 
         ModernButton(
-            btn_row, text="Clear View", style="primary",
+            btn_row, text="Reset view", style="primary",
             command=self._on_clear, font=FONTS.body(bold=True),
             padx=20, pady=10
         ).pack(side=tk.LEFT, padx=6)
 
         ModernButton(
-            btn_row, text="Add Bookmark",
+            btn_row, text="Add bookmark",
             command=self._on_add, font=FONTS.body(),
             padx=20, pady=10
         ).pack(side=tk.LEFT, padx=6)
+
+        tk.Label(
+            center,
+            text="Tip: use domain:example.com, is:pinned, is:broken, or #tag in search.",
+            bg=theme.bg_primary, fg=theme.text_muted,
+            font=FONTS.small(), wraplength=440, justify="center"
+        ).pack(pady=(20, 0))
 
 
 # =============================================================================
@@ -14629,18 +13662,18 @@ class ToastNotification(tk.Toplevel):
 
         # Style config
         styles = {
-            "success": (theme.accent_success, "#ffffff", "✓"),
-            "error": (theme.accent_error, "#ffffff", "✕"),
-            "warning": (theme.accent_warning, "#ffffff", "⚠"),
-            "info": (theme.accent_primary, "#ffffff", "ℹ"),
+            "success": (theme.accent_success, readable_text_on(theme.accent_success), "✓"),
+            "error": (theme.accent_error, readable_text_on(theme.accent_error), "✕"),
+            "warning": (theme.accent_warning, readable_text_on(theme.accent_warning), "⚠"),
+            "info": (theme.accent_primary, readable_text_on(theme.accent_primary), "ℹ"),
         }
         bg, fg, icon = styles.get(style, styles["info"])
 
         # Build toast
-        frame = tk.Frame(self, bg=bg, padx=2, pady=2)
+        frame = tk.Frame(self, bg=bg, padx=1, pady=1)
         frame.pack(fill=tk.BOTH, expand=True)
 
-        inner = tk.Frame(frame, bg=theme.bg_dark)
+        inner = tk.Frame(frame, bg=theme.bg_card)
         inner.pack(fill=tk.BOTH, expand=True)
 
         # Icon strip
@@ -14651,19 +13684,19 @@ class ToastNotification(tk.Toplevel):
 
         # Message
         tk.Label(
-            inner, text=message, bg=theme.bg_dark,
+            inner, text=message, bg=theme.bg_card,
             fg=theme.text_primary, font=FONTS.body(),
             padx=14, pady=10, wraplength=350, justify="left"
         ).pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Close button
         close_lbl = tk.Label(
-            inner, text="✕", bg=theme.bg_dark,
+            inner, text="✕", bg=theme.bg_card,
             fg=theme.text_muted, font=FONTS.small(),
             cursor="hand2", padx=10
         )
         close_lbl.pack(side=tk.RIGHT, fill=tk.Y)
-        close_lbl.bind("<Button-1>", lambda e: self._dismiss())
+        make_keyboard_activatable(close_lbl, self._dismiss)
 
         # Position: top-right of parent, stacked below existing toasts
         self.update_idletasks()
@@ -14783,7 +13816,14 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         self.grid_frame = None
         self.main_container = None
         self.filter_buttons = {}
+        self.filter_button_parts = {}
         self.count_label = None
+        self.collection_summary_frame = None
+        self.summary_metric_labels = {}
+        self.summary_title_label = None
+        self.summary_detail_label = None
+        self.selection_bar = None
+        self.selection_count_label = None
         self.zoom_label = None
         self.search_var = None
         self.search_entry = None
@@ -14856,20 +13896,22 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             foreground=theme.text_primary,
             fieldbackground=theme.bg_primary,
             borderwidth=0,
-            rowheight=32  # Taller rows for better favicon spacing
+            rowheight=DesignTokens.TREEVIEW_ROW_HEIGHT,
+            font=FONTS.body()
         )
         
         style.configure(
             "Treeview.Heading",
             background=theme.bg_secondary,
-            foreground=theme.text_primary,
+            foreground=theme.text_secondary,
             borderwidth=0,
+            relief=tk.FLAT,
             font=FONTS.small(bold=True)
         )
         
         style.map(
             "Treeview",
-            background=[("selected", theme.selection)],
+            background=[("selected", theme.selection), ("focus", theme.bg_hover)],
             foreground=[("selected", theme.text_primary)]
         )
     
@@ -14884,8 +13926,8 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         file_menu = tk.Menu(menubar, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary)
         file_menu.add_command(label="New Bookmark", accelerator="Ctrl+N", command=self._add_bookmark)
         file_menu.add_separator()
-        file_menu.add_command(label="Import...", accelerator="Ctrl+I", command=self._show_import_dialog)
-        file_menu.add_command(label="Export...", accelerator="Ctrl+S", command=self._show_export_dialog)
+        file_menu.add_command(label="Import…", accelerator="Ctrl+I", command=self._show_import_dialog)
+        file_menu.add_command(label="Export…", accelerator="Ctrl+S", command=self._show_export_dialog)
         file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self._on_close)
         menubar.add_cascade(label="File", menu=file_menu)
@@ -14918,29 +13960,45 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         self.main_container.pack(fill=tk.BOTH, expand=True)
         
         # ===== HEADER / TOOLBAR =====
-        header = tk.Frame(self.main_container, bg=theme.bg_dark, height=76)
+        header = tk.Frame(
+            self.main_container, bg=theme.bg_dark, height=DesignTokens.HEADER_HEIGHT,
+            highlightbackground=theme.border_muted, highlightthickness=1
+        )
         header.pack(fill=tk.X)
         header.pack_propagate(False)
         
-        # Logo
+        # Brand block
+        brand = tk.Frame(header, bg=theme.bg_dark)
+        brand.pack(side=tk.LEFT, padx=(24, 18), pady=12)
+        brand_row = tk.Frame(brand, bg=theme.bg_dark)
+        brand_row.pack(anchor="w")
         tk.Label(
-            header, text=f"📚 {APP_NAME}", bg=theme.bg_dark,
+            brand_row, text="B", bg=theme.accent_primary,
+            fg=readable_text_on(theme.accent_primary),
+            font=FONTS.header(bold=True), width=2, padx=3, pady=3
+        ).pack(side=tk.LEFT, padx=(0, 9))
+        tk.Label(
+            brand_row, text=APP_NAME, bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.title(bold=True)
-        ).pack(side=tk.LEFT, padx=(24, 18), pady=18)
+        ).pack(side=tk.LEFT)
+        tk.Label(
+            brand, text="Library workspace for saved links",
+            bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small()
+        ).pack(anchor="w", pady=(2, 0))
         
         # Search bar
         search_frame = tk.Frame(
             header, bg=theme.bg_secondary,
-            highlightbackground=theme.border,
-            highlightthickness=1
+            highlightbackground=theme.border_muted,
+            highlightthickness=DesignTokens.FOCUS_RING_WIDTH
         )
-        search_frame.pack(side=tk.LEFT, padx=(0, 18), fill=tk.X, expand=True, pady=16)
+        search_frame.pack(side=tk.LEFT, padx=(0, 18), fill=tk.X, expand=True, pady=14)
         self.search_frame = search_frame
         
         tk.Label(
-            search_frame, text="🔍", bg=theme.bg_secondary,
-            fg=theme.text_muted, font=FONTS.header(bold=False)
-        ).pack(side=tk.LEFT, padx=(10, 5))
+            search_frame, text="Search", bg=theme.bg_secondary,
+            fg=theme.text_muted, font=FONTS.tiny(bold=True)
+        ).pack(side=tk.LEFT, padx=(12, 4))
         
         self.search_var = tk.StringVar()
         self.search_var.trace_add('write', self._on_search_change)
@@ -14955,7 +14013,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         Tooltip(self.search_entry, "Search bookmarks by title, URL, category, or tags.\nSpecial filters: is:pinned, is:broken, is:recent, is:untagged, domain:xyz")
 
         # Placeholder text
-        self._search_placeholder = "Search bookmarks... (Ctrl+F)"
+        self._search_placeholder = "Search links, domain:, #tag, or is:pinned…"
         self._suppress_search_callback = True
         self.search_entry.insert(0, self._search_placeholder)
         self._suppress_search_callback = False
@@ -14971,17 +14029,19 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         self.clear_search_btn.pack(side=tk.LEFT, padx=(5, 0))
         self.clear_search_btn.pack_forget()
         
-        def do_clear_search(event):
-            # Clear search - handles everything
-            self._clear_search()
-            return "break"
-        
-        self.clear_search_btn.bind("<Button-1>", do_clear_search)
+        make_keyboard_activatable(self.clear_search_btn, self._clear_search)
         self.clear_search_btn.bind("<Enter>", lambda e: self.clear_search_btn.configure(
             bg=theme.accent_error, fg="white"))
         self.clear_search_btn.bind("<Leave>", lambda e: self.clear_search_btn.configure(
             bg=theme.bg_tertiary, fg=theme.text_secondary))
-        Tooltip(self.clear_search_btn, "Clear search and show all bookmarks (click to reset)")
+        Tooltip(self.clear_search_btn, "Clear Search")
+
+        search_shortcut = tk.Label(
+            search_frame, text="Ctrl+F", bg=theme.bg_tertiary,
+            fg=theme.text_muted, font=FONTS.tiny(bold=True),
+            padx=8, pady=3
+        )
+        search_shortcut.pack(side=tk.RIGHT, padx=(8, 10))
         
         # ===== TOOLBAR BUTTONS =====
         toolbar = tk.Frame(header, bg=theme.bg_dark)
@@ -14989,7 +14049,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         
         # Add button
         add_btn = ModernButton(
-            toolbar, text="Add", icon="➕", style="primary",
+            toolbar, text="New", icon="+", style="primary",
             command=self._add_bookmark,
             tooltip="Add a new bookmark manually"
         )
@@ -14997,7 +14057,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         
         # Import button
         import_btn = ModernButton(
-            toolbar, text="Import", icon="📥",
+            toolbar, text="Import", icon="↓",
             command=self._show_import_dialog,
             tooltip="Import bookmarks from HTML, JSON, CSV, or OPML files"
         )
@@ -15005,18 +14065,18 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         
         # Export button
         export_btn = ModernButton(
-            toolbar, text="Export", icon="📤",
+            toolbar, text="Export", icon="↑",
             command=self._show_export_dialog,
             tooltip="Export bookmarks to HTML, JSON, CSV, or Markdown"
         )
         export_btn.pack(side=tk.LEFT, padx=3)
         
         # Separator
-        tk.Frame(toolbar, bg=theme.border, width=1, height=30).pack(side=tk.LEFT, padx=8)
+        tk.Frame(toolbar, bg=theme.border_muted, width=1, height=30).pack(side=tk.LEFT, padx=8)
         
         # AI button
         self.ai_btn = ModernButton(
-            toolbar, text="AI", icon="🤖",
+            toolbar, text="AI",
             command=self._show_ai_menu,
             tooltip="AI-powered tools: Auto-categorize, Generate tags,\nSummarize, Find semantic duplicates"
         )
@@ -15024,14 +14084,14 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         
         # Tools button
         self.tools_btn = ModernButton(
-            toolbar, text="Tools", icon="🔧",
+            toolbar, text="Tools",
             command=self._show_tools_menu,
             tooltip="Tools: Check links, Find duplicates,\nClean URLs, Manage categories, Backup"
         )
         self.tools_btn.pack(side=tk.LEFT, padx=3)
         
         # Separator
-        tk.Frame(toolbar, bg=theme.border, width=1, height=30).pack(side=tk.LEFT, padx=8)
+        tk.Frame(toolbar, bg=theme.border_muted, width=1, height=30).pack(side=tk.LEFT, padx=8)
         
         # Theme dropdown
         self.theme_dropdown = ThemeDropdown(
@@ -15042,7 +14102,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         Tooltip(self.theme_dropdown, "Change application theme/color scheme")
         
         # Zoom controls
-        tk.Frame(toolbar, bg=theme.border, width=1, height=30).pack(side=tk.LEFT, padx=8)
+        tk.Frame(toolbar, bg=theme.border_muted, width=1, height=30).pack(side=tk.LEFT, padx=8)
         
         zoom_frame = tk.Frame(toolbar, bg=theme.bg_dark)
         zoom_frame.pack(side=tk.LEFT, padx=3)
@@ -15075,30 +14135,32 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         content.pack(fill=tk.BOTH, expand=True)
         
         # ----- LEFT SIDEBAR (Scrollable) -----
-        left_sidebar = tk.Frame(content, bg=theme.bg_secondary, width=320)
+        left_sidebar = tk.Frame(content, bg=theme.bg_dark, width=DesignTokens.SIDEBAR_WIDTH)
         left_sidebar.pack(side=tk.LEFT, fill=tk.Y)
         left_sidebar.pack_propagate(False)
         
         # Scrollable container for left sidebar
-        self.left_scroll = ScrollableFrame(left_sidebar, bg=theme.bg_secondary)
+        self.left_scroll = ScrollableFrame(left_sidebar, bg=theme.bg_dark)
         self.left_scroll.pack(fill=tk.BOTH, expand=True)
         
         # Enhanced drag-drop import area
         self.import_area = DragDropImportArea(
             self.left_scroll.inner, on_files_dropped=self._on_files_dropped
         )
-        self.import_area.pack(fill=tk.X, padx=10, pady=10)
+        self.import_area.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=DesignTokens.PANEL_PAD)
+        self.import_area.set_compact(True)
         
         # Quick filters
-        filters_frame = tk.Frame(self.left_scroll.inner, bg=theme.bg_secondary)
-        filters_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        filters_frame = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
+        filters_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(0, DesignTokens.SPACE_MD))
         
         tk.Label(
-            filters_frame, text="Quick Filters", bg=theme.bg_secondary,
-            fg=theme.text_secondary, font=FONTS.small(bold=True)
-        ).pack(anchor="w", pady=(5, 5))
+            filters_frame, text="VIEWS", bg=theme.bg_dark,
+            fg=theme.text_muted, font=FONTS.tiny(bold=True)
+        ).pack(anchor="w", pady=(5, 7))
         
         self.filter_buttons = {}
+        self.filter_button_parts = {}
         self.active_filter = "All"  # Track active filter
         
         # Filter tooltips
@@ -15110,43 +14172,70 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             "Untagged": "Show bookmarks without any tags"
         }
         
-        for filter_name, icon in [("All", "📚"), ("Pinned", "📌"), ("Recent", "🕐"), ("Broken", "⚠️"), ("Untagged", "🏷️")]:
+        for filter_name, label in [
+            ("All", "All Links"),
+            ("Pinned", "Pinned"),
+            ("Recent", "Recent"),
+            ("Broken", "Needs Review"),
+            ("Untagged", "Untagged"),
+        ]:
             is_active = (filter_name == "All")  # All is active by default
-            btn = tk.Label(
-                filters_frame, text=f"{icon} {filter_name}",
-                bg=theme.selection if is_active else theme.bg_secondary,
-                fg=theme.text_primary,
-                font=FONTS.body(), cursor="hand2",
-                padx=10, pady=5
+            row = tk.Frame(
+                filters_frame,
+                bg=theme.selection if is_active else theme.bg_dark,
+                cursor="hand2", highlightthickness=1,
+                highlightbackground=theme.border_muted if is_active else theme.bg_dark
             )
-            btn.pack(fill=tk.X, pady=1)
-            btn.bind("<Button-1>", lambda e, f=filter_name: self._apply_filter(f))
-            # Only change bg on hover if not active
-            def on_enter(e, b=btn, f=filter_name):
-                if self.active_filter != f:
-                    b.configure(bg=get_theme().bg_hover)
-            def on_leave(e, b=btn, f=filter_name):
-                if self.active_filter != f:
-                    b.configure(bg=get_theme().bg_secondary)
-            btn.bind("<Enter>", on_enter)
-            btn.bind("<Leave>", on_leave)
-            self.filter_buttons[filter_name] = btn
+            row.pack(fill=tk.X, pady=2)
+            name_lbl = tk.Label(
+                row, text=label,
+                bg=row["bg"], fg=theme.text_primary,
+                font=FONTS.body(), cursor="hand2",
+                anchor="w", padx=10, pady=6
+            )
+            name_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
+            count_lbl = tk.Label(
+                row, text="0", bg=theme.bg_tertiary if is_active else theme.bg_primary,
+                fg=theme.text_secondary, font=FONTS.tiny(bold=True),
+                cursor="hand2", padx=7, pady=1
+            )
+            count_lbl.pack(side=tk.RIGHT, padx=(4, 8), pady=6)
+
+            for widget in (row, name_lbl, count_lbl):
+                widget.bind("<Button-1>", lambda e, f=filter_name: self._apply_filter(f))
+
+                def on_enter(e, f=filter_name):
+                    if self.active_filter != f:
+                        self._set_filter_visual(f, False, hover=True)
+
+                def on_leave(e, f=filter_name):
+                    if self.active_filter != f:
+                        self._set_filter_visual(f, False)
+
+                widget.bind("<Enter>", on_enter)
+                widget.bind("<Leave>", on_leave)
+
+            self.filter_buttons[filter_name] = row
+            self.filter_button_parts[filter_name] = (row, name_lbl, count_lbl)
+            make_keyboard_activatable(row, lambda f=filter_name: self._apply_filter(f))
+            row.bind("<FocusIn>", lambda e, f=filter_name: self._set_filter_visual(f, self.active_filter == f, hover=True))
+            row.bind("<FocusOut>", lambda e, f=filter_name: self._set_filter_visual(f, self.active_filter == f))
             
             # Add tooltip
-            Tooltip(btn, filter_tooltips.get(filter_name, ""))
+            Tooltip(row, filter_tooltips.get(filter_name, ""))
         
         # Categories header
-        cat_header = tk.Frame(self.left_scroll.inner, bg=theme.bg_secondary)
-        cat_header.pack(fill=tk.X, padx=10, pady=(15, 5))
+        cat_header = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
+        cat_header.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(16, 7))
         
         tk.Label(
-            cat_header, text="Categories", bg=theme.bg_secondary,
-            fg=theme.text_secondary, font=FONTS.small(bold=True)
+            cat_header, text="CATEGORIES", bg=theme.bg_dark,
+            fg=theme.text_muted, font=FONTS.tiny(bold=True)
         ).pack(side=tk.LEFT)
         
         # Categories list
-        self.categories_frame = tk.Frame(self.left_scroll.inner, bg=theme.bg_secondary)
-        self.categories_frame.pack(fill=tk.X, padx=10, pady=(0, 20))
+        self.categories_frame = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
+        self.categories_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(0, 20))
         
         # ----- MAIN CONTENT -----
         self.content_area = tk.Frame(content, bg=theme.bg_primary)
@@ -15154,13 +14243,21 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         
         # Content header
         content_header = tk.Frame(self.content_area, bg=theme.bg_primary)
-        content_header.pack(fill=tk.X, padx=15, pady=10)
+        content_header.pack(fill=tk.X, padx=DesignTokens.CONTENT_PAD_X, pady=(16, 8))
         
         self.count_label = tk.Label(
-            content_header, text="0 bookmarks", bg=theme.bg_primary,
-            fg=theme.text_muted, font=FONTS.body()
+            content_header, text="Library", bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.header(bold=True)
         )
         self.count_label.pack(side=tk.LEFT)
+
+        self.view_hint_label = tk.Label(
+            content_header, text="List view",
+            bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.small()
+        )
+        self.view_hint_label.pack(side=tk.RIGHT)
+
+        self._create_collection_summary()
         
         # List view frame
         self.list_frame = tk.Frame(self.content_area, bg=theme.bg_primary)
@@ -15174,19 +14271,19 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         
         # Configure columns with MORE padding for favicon
         self.tree.heading("#0", text="")
-        self.tree.column("#0", width=45, stretch=False, minwidth=45)  # Extra width for favicon padding
+        self.tree.column("#0", width=34, stretch=False, minwidth=34)
         
         self.tree.heading("title", text="Title")
-        self.tree.column("title", width=350)
+        self.tree.column("title", width=245, minwidth=160)
         
-        self.tree.heading("url", text="URL")
-        self.tree.column("url", width=280)
+        self.tree.heading("url", text="Domain")
+        self.tree.column("url", width=190, minwidth=150)
         
         self.tree.heading("category", text="Category")
-        self.tree.column("category", width=160)
+        self.tree.column("category", width=170, minwidth=130)
         
         self.tree.heading("tags", text="Tags")
-        self.tree.column("tags", width=180)
+        self.tree.column("tags", width=170, minwidth=130)
         
         # Scrollbars
         tree_scroll_y = ttk.Scrollbar(self.list_frame, orient="vertical", command=self.tree.yview)
@@ -15195,6 +14292,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         self.tree.tag_configure("oddrow", background=theme.bg_primary)
         self.tree.tag_configure("evenrow", background=theme.bg_secondary)
         self.tree.tag_configure("broken", foreground=theme.accent_error)
+        self.tree.tag_configure("pinned", foreground=theme.text_primary)
         
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         tree_scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
@@ -15209,6 +14307,8 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         self.tree.bind("<Control-MouseWheel>", self._on_mousewheel_zoom)
         self.list_frame.bind("<Control-MouseWheel>", self._on_mousewheel_zoom)
 
+        self._create_selection_bar()
+
         # Empty state (shown when no bookmarks exist)
         self.empty_state = EmptyState(
             self.content_area,
@@ -15222,41 +14322,191 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         )
 
         # Show list view by default
-        self.list_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
+        self.list_frame.pack(fill=tk.BOTH, expand=True, padx=DesignTokens.CONTENT_PAD_X, pady=(0, DesignTokens.CONTENT_PAD_Y))
 
         # ----- RIGHT SIDEBAR (Scrollable) - ANALYTICS -----
-        right_sidebar = tk.Frame(content, bg=theme.bg_secondary, width=360)
-        right_sidebar.pack(side=tk.RIGHT, fill=tk.Y)
+        right_sidebar = tk.Frame(content, bg=theme.bg_dark, width=DesignTokens.RIGHT_SIDEBAR_WIDTH)
+        right_sidebar.pack(side=tk.RIGHT, fill=tk.Y, before=self.content_area)
         right_sidebar.pack_propagate(False)
         
         # Scrollable container for right sidebar
-        self.right_scroll = ScrollableFrame(right_sidebar, bg=theme.bg_secondary)
+        self.right_scroll = ScrollableFrame(right_sidebar, bg=theme.bg_dark)
         self.right_scroll.pack(fill=tk.BOTH, expand=True)
         
         # Analytics Dashboard
         self._create_analytics_panel()
-    
+
+    def _create_collection_summary(self):
+        """Create the premium summary strip above the bookmark list."""
+        theme = get_theme()
+        self.collection_summary_frame = tk.Frame(
+            self.content_area, bg=theme.bg_card, height=DesignTokens.SUMMARY_STRIP_HEIGHT,
+            highlightbackground=theme.card_border, highlightthickness=1
+        )
+        self.collection_summary_frame.pack(
+            fill=tk.X, padx=DesignTokens.CONTENT_PAD_X, pady=(0, 12)
+        )
+        self.collection_summary_frame.pack_propagate(False)
+
+        left = tk.Frame(self.collection_summary_frame, bg=theme.bg_card)
+        left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(18, 10), pady=14)
+
+        self.summary_title_label = tk.Label(
+            left, text="Library Overview", bg=theme.bg_card,
+            fg=theme.text_primary, font=FONTS.header(bold=True), anchor="w"
+        )
+        self.summary_title_label.pack(anchor="w")
+
+        self.summary_detail_label = tk.Label(
+            left, text="Import bookmarks or add one manually to begin.",
+            bg=theme.bg_card, fg=theme.text_secondary,
+            font=FONTS.small(), anchor="w", wraplength=520, justify=tk.LEFT
+        )
+        self.summary_detail_label.pack(anchor="w", pady=(5, 0))
+
+        metrics = tk.Frame(self.collection_summary_frame, bg=theme.bg_card)
+        metrics.pack(side=tk.RIGHT, fill=tk.Y, padx=(8, 18), pady=12)
+        self.summary_metric_labels = {}
+        for key, label, color in [
+            ("visible", "Visible", theme.text_primary),
+            ("pinned", "Pinned", theme.accent_primary),
+            ("broken", "Review", theme.accent_error),
+            ("untagged", "Untagged", theme.accent_warning),
+        ]:
+            self._create_summary_metric(metrics, key, label, color)
+
+    def _create_summary_metric(self, parent, key: str, label: str, color: str):
+        """Create one compact metric in the summary strip."""
+        theme = get_theme()
+        block = tk.Frame(parent, bg=theme.bg_card)
+        block.pack(side=tk.LEFT, padx=(14, 0))
+        value_lbl = tk.Label(
+            block, text="0", bg=theme.bg_card, fg=color,
+            font=FONTS.custom(18, bold=True), width=5, anchor="e"
+        )
+        value_lbl.pack(anchor="e")
+        label_lbl = tk.Label(
+            block, text=label, bg=theme.bg_card, fg=theme.text_muted,
+            font=FONTS.tiny(bold=True), anchor="e"
+        )
+        label_lbl.pack(anchor="e", pady=(2, 0))
+        self.summary_metric_labels[key] = (value_lbl, label_lbl)
+
+    def _refresh_collection_summary(self, visible_count: int, total_count: int, query: str, quick_filter: str):
+        """Refresh the summary strip with current view and collection signals."""
+        if not getattr(self, 'collection_summary_frame', None):
+            return
+        all_bookmarks = self.bookmark_manager.get_all_bookmarks()
+        summary = build_collection_summary(
+            visible_count=visible_count,
+            total_count=total_count,
+            stats=self.bookmark_manager.get_statistics(),
+            all_bookmarks=all_bookmarks,
+            query=query,
+            quick_filter=quick_filter,
+            current_category=self.current_category,
+        )
+        for key, value in summary.metrics.items():
+            labels = self.summary_metric_labels.get(key)
+            if labels:
+                labels[0].configure(text=format_compact_count(value))
+
+        self.summary_title_label.configure(text=summary.title)
+        self.summary_detail_label.configure(text=summary.detail)
+
+    def _set_collection_summary_visible(self, visible: bool):
+        """Keep the empty-library state uncluttered while preserving list context."""
+        frame = getattr(self, 'collection_summary_frame', None)
+        if not frame:
+            return
+        if visible:
+            if frame.winfo_ismapped():
+                return
+            pack_options = {
+                "fill": tk.X,
+                "padx": DesignTokens.CONTENT_PAD_X,
+                "pady": (0, 12),
+            }
+            try:
+                if getattr(self, 'list_frame', None):
+                    frame.pack(**pack_options, before=self.list_frame)
+                else:
+                    frame.pack(**pack_options)
+            except tk.TclError:
+                frame.pack(**pack_options)
+        else:
+            frame.pack_forget()
+
+    def _create_selection_bar(self):
+        """Create the contextual action bar shown when rows are selected."""
+        theme = get_theme()
+        self.selection_bar = tk.Frame(
+            self.content_area, bg=theme.bg_tertiary,
+            highlightbackground=theme.border_muted, highlightthickness=1
+        )
+
+        self.selection_count_label = tk.Label(
+            self.selection_bar, text="", bg=theme.bg_tertiary,
+            fg=theme.text_primary, font=FONTS.small(bold=True)
+        )
+        self.selection_count_label.pack(side=tk.LEFT, padx=(14, 10), pady=8)
+
+        ModernButton(
+            self.selection_bar, text="Open", icon="🔗",
+            command=self._open_selected, padx=12, pady=6
+        ).pack(side=tk.RIGHT, padx=(4, 10), pady=6)
+        ModernButton(
+            self.selection_bar, text="Edit", icon="✏️",
+            command=self._edit_selected, padx=12, pady=6
+        ).pack(side=tk.RIGHT, padx=4, pady=6)
+        ModernButton(
+            self.selection_bar, text="Pin", icon="★",
+            command=self._toggle_pin, padx=12, pady=6
+        ).pack(side=tk.RIGHT, padx=4, pady=6)
+        ModernButton(
+            self.selection_bar, text="Delete", icon="🗑️",
+            command=self._delete_selected, style="danger", padx=12, pady=6
+        ).pack(side=tk.RIGHT, padx=4, pady=6)
+
+    def _update_selection_bar(self):
+        """Show or hide the contextual action bar based on selection."""
+        if not getattr(self, 'selection_bar', None):
+            return
+        count = len(self.selected_bookmarks)
+        if count:
+            self.selection_count_label.configure(text=f"{pluralize(count, 'bookmark')} Selected")
+            if not self.selection_bar.winfo_ismapped():
+                self.selection_bar.pack(
+                    fill=tk.X,
+                    padx=DesignTokens.CONTENT_PAD_X,
+                    pady=(0, 8),
+                    before=self.list_frame
+                )
+        else:
+            self.selection_bar.pack_forget()
+
     def _create_analytics_panel(self):
         """Create analytics panel in right sidebar"""
         theme = get_theme()
         
         # Header
-        header = tk.Frame(self.right_scroll.inner, bg=theme.bg_tertiary)
+        header = tk.Frame(self.right_scroll.inner, bg=theme.bg_secondary)
         header.pack(fill=tk.X)
         
         tk.Label(
-            header, text="📊 Analytics", bg=theme.bg_tertiary,
+            header, text="Signals", bg=theme.bg_secondary,
             fg=theme.text_primary, font=("Segoe UI", 11, "bold"),
             padx=15, pady=12
         ).pack(side=tk.LEFT)
         
         refresh_btn = tk.Label(
-            header, text="↻", bg=theme.bg_tertiary,
+            header, text="↻", bg=theme.bg_secondary,
             fg=theme.text_muted, font=("Segoe UI", 14),
             cursor="hand2", padx=15
         )
         refresh_btn.pack(side=tk.RIGHT)
-        refresh_btn.bind("<Button-1>", lambda e: self._refresh_analytics())
+        make_keyboard_activatable(refresh_btn, self._refresh_analytics)
+        Tooltip(refresh_btn, "Refresh Signals")
         
         # Stats container
         self.analytics_frame = tk.Frame(self.right_scroll.inner, bg=theme.bg_secondary)
@@ -15275,45 +14525,51 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         
         # Health Score
         health = self._calculate_health_score(stats)
-        health_color = theme.accent_success if health >= 70 else (theme.accent_warning if health >= 40 else theme.accent_error)
-        health_label = "Excellent" if health >= 85 else ("Healthy" if health >= 70 else ("Needs review" if health >= 40 else "At risk"))
+        if total == 0:
+            health_color = theme.text_muted
+            health_label = "Not Started"
+            health_value = "Ready"
+        else:
+            health_color = theme.accent_success if health >= 70 else (theme.accent_warning if health >= 40 else theme.accent_error)
+            health_label = "Excellent" if health >= 85 else ("Healthy" if health >= 70 else ("Needs review" if health >= 40 else "At risk"))
+            health_value = f"{health}%"
 
         def section_label(text: str, top_pad: int = 14):
             tk.Label(
                 self.analytics_frame, text=text, bg=theme.bg_secondary,
-                fg=theme.text_primary, font=FONTS.small(bold=True)
+                fg=theme.text_muted, font=FONTS.tiny(bold=True)
             ).pack(anchor="w", pady=(top_pad, 6))
 
         def empty_note(text: str):
             tk.Label(
                 self.analytics_frame, text=text, bg=theme.bg_secondary,
                 fg=theme.text_secondary, font=FONTS.small(),
-                wraplength=280, justify=tk.LEFT
+                wraplength=235, justify=tk.LEFT
             ).pack(anchor="w", pady=(2, 8))
         
         # Health card
         health_card = tk.Frame(
-            self.analytics_frame, bg=theme.bg_tertiary,
+            self.analytics_frame, bg=theme.bg_card,
             padx=16, pady=14,
-            highlightbackground=theme.border, highlightthickness=1
+            highlightbackground=theme.card_border, highlightthickness=1
         )
         health_card.pack(fill=tk.X, pady=(0, 12))
 
-        health_header = tk.Frame(health_card, bg=theme.bg_tertiary)
+        health_header = tk.Frame(health_card, bg=theme.bg_card)
         health_header.pack(fill=tk.X)
         
         tk.Label(
-            health_header, text="Collection health", bg=theme.bg_tertiary,
+            health_header, text="Collection Health", bg=theme.bg_card,
             fg=theme.text_secondary, font=FONTS.small()
         ).pack(side=tk.LEFT)
 
         tk.Label(
-            health_header, text=health_label, bg=theme.bg_tertiary,
+            health_header, text=health_label, bg=theme.bg_card,
             fg=health_color, font=FONTS.small(bold=True)
         ).pack(side=tk.RIGHT)
         
         tk.Label(
-            health_card, text=f"{health}%", bg=theme.bg_tertiary,
+            health_card, text=health_value, bg=theme.bg_card,
             fg=health_color, font=FONTS.custom(26, bold=True)
         ).pack(anchor="w", pady=(4, 4))
         
@@ -15321,7 +14577,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         bar_bg = tk.Frame(health_card, bg=theme.bg_primary, height=6)
         bar_bg.pack(fill=tk.X, pady=(0, 6))
         bar_fill = tk.Frame(bar_bg, bg=health_color, height=6)
-        bar_fill.place(x=0, y=0, relheight=1.0, relwidth=health/100)
+        bar_fill.place(x=0, y=0, relheight=1.0, relwidth=0 if total == 0 else health/100)
 
         issue_parts = []
         if stats.get('broken', 0):
@@ -15339,17 +14595,21 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             summary = "No major collection issues detected."
 
         tk.Label(
-            health_card, text=summary, bg=theme.bg_tertiary,
+            health_card, text=summary, bg=theme.bg_card,
             fg=theme.text_secondary, font=FONTS.small(),
-            wraplength=280, justify=tk.LEFT
+            wraplength=235, justify=tk.LEFT
         ).pack(anchor="w")
         
         # Quick stats grid - streamlined (removed With Notes, Pinned, With Tags)
         section_label("Overview", top_pad=6)
         
+        active_category_count = (
+            sum(1 for count in stats.get('category_counts', {}).values() if count > 0)
+            if total > 0 else 0
+        )
         stats_data = [
             ("Bookmarks", total, theme.text_primary),
-            ("Categories", stats.get('total_categories', 0), theme.accent_primary),
+            ("Categories", active_category_count, theme.accent_primary),
             ("Unique tags", stats.get('total_tags', 0), theme.accent_purple),
             ("Broken links", stats.get('broken', 0), theme.accent_error),
             ("Uncategorized", stats.get('uncategorized', 0), theme.accent_warning),
@@ -15365,12 +14625,12 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             ).pack(side=tk.LEFT)
             
             tk.Label(
-                row, text=str(value), bg=theme.bg_secondary,
+                row, text=format_compact_count(value), bg=theme.bg_secondary,
                 fg=color, font=FONTS.small(bold=True)
             ).pack(side=tk.RIGHT)
         
         # Top categories (compact) - clickable like domains
-        section_label("Top categories")
+        section_label("Top Categories")
         
         sorted_cats = [
             item for item in sorted(
@@ -15392,14 +14652,14 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             top.pack(fill=tk.X)
             
             cat_lbl = tk.Label(
-                top, text=cat[:28], bg=theme.bg_secondary,
+                top, text=truncate_middle(cat, 30), bg=theme.bg_secondary,
                 fg=theme.accent_primary, font=FONTS.small(),
                 cursor="hand2", anchor="w"
             )
             cat_lbl.pack(side=tk.LEFT)
             
             tk.Label(
-                top, text=str(count), bg=theme.bg_secondary,
+                top, text=format_compact_count(count), bg=theme.bg_secondary,
                 fg=theme.text_secondary, font=FONTS.small(bold=True)
             ).pack(side=tk.RIGHT)
 
@@ -15409,7 +14669,8 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             fill.place(x=0, y=0, relheight=1.0, relwidth=max(0.05, count / max_count))
             
             # Bind click to select category (like clicking in left panel)
-            for widget in [cat_frame, top, cat_lbl]:
+            make_keyboard_activatable(cat_frame, lambda c=cat: self._select_category(c))
+            for widget in [top, cat_lbl]:
                 widget.bind("<Button-1>", lambda e, c=cat: self._select_category(c))
                 widget.bind("<Enter>", lambda e, lbl=cat_lbl: lbl.configure(fg=theme.accent_success))
                 widget.bind("<Leave>", lambda e, lbl=cat_lbl: lbl.configure(fg=theme.accent_primary))
@@ -15418,7 +14679,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         top_domains = [(d, c) for d, c in stats.get('top_domains', []) if c > 0]
         num_domains = min(20, len(top_domains)) if len(top_domains) >= 20 else len(top_domains)
         
-        section_label(f"Top domains ({num_domains})")
+        section_label(f"Top Domains ({num_domains})")
         
         # Create scrollable frame for domains if many
         domains_frame = tk.Frame(self.analytics_frame, bg=theme.bg_secondary)
@@ -15432,25 +14693,28 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             row.pack(fill=tk.X, pady=2)
             
             domain_lbl = tk.Label(
-                row, text=domain[:26], bg=theme.bg_secondary,
+                row, text=truncate_middle(domain, 28), bg=theme.bg_secondary,
                 fg=theme.accent_primary, font=FONTS.small(),
                 cursor="hand2"
             )
             domain_lbl.pack(side=tk.LEFT)
             
             tk.Label(
-                row, text=str(count), bg=theme.bg_secondary,
+                row, text=format_compact_count(count), bg=theme.bg_secondary,
                 fg=theme.text_secondary, font=FONTS.small()
             ).pack(side=tk.RIGHT)
             
             # Bind click to filter by domain
-            for widget in [row, domain_lbl]:
+            make_keyboard_activatable(row, lambda d=domain: self._filter_by_domain(d))
+            for widget in [domain_lbl]:
                 widget.bind("<Button-1>", lambda e, d=domain: self._filter_by_domain(d))
                 widget.bind("<Enter>", lambda e, lbl=domain_lbl: lbl.configure(fg=theme.accent_success))
                 widget.bind("<Leave>", lambda e, lbl=domain_lbl: lbl.configure(fg=theme.accent_primary))
     
     def _calculate_health_score(self, stats: Dict) -> int:
         """Calculate collection health score"""
+        if stats.get('total_bookmarks', 0) == 0:
+            return 0
         score = 100
         total = stats['total_bookmarks'] or 1
         
@@ -15474,7 +14738,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         """Create enhanced status bar with counts and progress"""
         theme = get_theme()
         
-        self.status_bar = tk.Frame(self.root, bg=theme.bg_dark, height=32)
+        self.status_bar = tk.Frame(self.root, bg=theme.bg_dark, height=DesignTokens.STATUS_BAR_HEIGHT)
         self.status_bar.pack(fill=tk.X, side=tk.BOTTOM)
         self.status_bar.pack_propagate(False)
         
@@ -15543,7 +14807,10 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         bookmarks = self.bookmark_manager.get_all_bookmarks()
         self.favicon_manager.queue_bookmarks(bookmarks)
         
-        self._set_status(f"Loaded {len(bookmarks)} bookmarks from {DATA_DIR}")
+        if bookmarks:
+            self._set_status(f"Loaded {pluralize(len(bookmarks), 'bookmark')}")
+        else:
+            self._set_status("Library ready")
     
     def _refresh_category_list(self):
         """Refresh category list in sidebar with right-click support"""
@@ -15555,34 +14822,62 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         for widget in self.categories_frame.winfo_children():
             widget.destroy()
         
-        categories = self.category_manager.get_sorted_categories()
         counts = self.bookmark_manager.get_category_counts()
+        categories = sorted(
+            set(self.category_manager.get_sorted_categories()) |
+            {cat for cat, count in counts.items() if count > 0},
+            key=lambda name: name.lower()
+        )
+        self.categories_frame.bind("<Button-3>", self._show_add_category_menu)
+
+        total_bookmarks = len(self.bookmark_manager.get_all_bookmarks())
+        if total_bookmarks == 0:
+            tk.Label(
+                self.categories_frame,
+                text="Categories appear after you import or add bookmarks.",
+                bg=theme.bg_dark, fg=theme.text_muted,
+                font=FONTS.small(), wraplength=250, justify=tk.LEFT
+            ).pack(anchor="w", padx=10, pady=8)
+            return
+
+        categories = [cat for cat in categories if counts.get(cat, 0) > 0 or cat == self.current_category]
+        if not categories:
+            tk.Label(
+                self.categories_frame,
+                text="No active categories yet.",
+                bg=theme.bg_dark, fg=theme.text_muted,
+                font=FONTS.small(), wraplength=260, justify=tk.LEFT
+            ).pack(anchor="w", padx=10, pady=8)
+            return
         
         for cat in categories:
             count = counts.get(cat, 0)
-            icon = get_category_icon(cat)
             is_selected = (cat == self.current_category)
-            bg = theme.selection if is_selected else theme.bg_secondary
+            bg = theme.selection if is_selected else theme.bg_dark
 
             row = tk.Frame(
-                self.categories_frame, bg=bg, cursor="hand2"
+                self.categories_frame, bg=bg, cursor="hand2",
+                highlightthickness=1,
+                highlightbackground=theme.border_muted if is_selected else bg
             )
-            row.pack(fill=tk.X, pady=1)
+            row.pack(fill=tk.X, pady=2)
 
             name_lbl = tk.Label(
-                row, text=f"{icon} {cat}",
-                bg=bg, fg=theme.text_primary,
-                font=FONTS.body(), anchor="w", padx=10, pady=5
+                row, text=truncate_middle(cat, 20),
+                bg=bg, fg=theme.text_primary if is_selected else theme.text_secondary,
+                font=FONTS.body(bold=is_selected), anchor="w", padx=10, pady=6,
+                cursor="hand2"
             )
             name_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
             if count > 0:
                 count_lbl = tk.Label(
-                    row, text=str(count),
+                    row, text=format_compact_count(count),
                     bg=theme.bg_tertiary, fg=theme.text_secondary,
-                    font=FONTS.tiny(), padx=6, pady=1
+                    font=FONTS.tiny(bold=True), padx=7, pady=1,
+                    cursor="hand2"
                 )
-                count_lbl.pack(side=tk.RIGHT, padx=(0, 10), pady=5)
+                count_lbl.pack(side=tk.RIGHT, padx=(4, 8), pady=6)
             else:
                 count_lbl = None
 
@@ -15594,17 +14889,24 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
                 if c != self.current_category:
                     for w in [r, n] + ([cl] if cl else []):
                         w.configure(bg=theme.bg_hover)
+                    n.configure(fg=theme.text_primary)
             def on_leave(e, r=row, n=name_lbl, cl=count_lbl, c=cat):
                 if c != self.current_category:
-                    bg_ = theme.bg_secondary
+                    bg_ = theme.bg_dark
                     for w in [r, n]:
                         w.configure(bg=bg_)
+                    n.configure(fg=theme.text_secondary)
                     if cl:
                         cl.configure(bg=theme.bg_tertiary)
 
             for w in [row, name_lbl] + ([count_lbl] if count_lbl else []):
                 w.bind("<Enter>", on_enter)
                 w.bind("<Leave>", on_leave)
+
+            make_keyboard_activatable(row, lambda c=cat: self._select_category(c))
+            row.bind("<FocusIn>", lambda e, r=row, n=name_lbl, cl=count_lbl, c=cat: on_enter(e, r, n, cl, c), add="+")
+            row.bind("<FocusOut>", lambda e, r=row, n=name_lbl, cl=count_lbl, c=cat: on_leave(e, r, n, cl, c), add="+")
+            Tooltip(row, f"Show {cat} ({pluralize(count, 'bookmark')})")
         
         # Also bind right-click on empty space for "Add Category"
         self.categories_frame.bind("<Button-3>", self._show_add_category_menu)
@@ -15746,11 +15048,11 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         """Confirm and delete category"""
         count = len(self.bookmark_manager.get_bookmarks_by_category(category))
         
-        msg = f"Delete category '{category}'?"
+        msg = f"Delete the category '{category}'?"
         if count > 0:
-            msg += f"\n\n{count} bookmark(s) will be moved to 'Uncategorized / Needs Review'."
+            msg += f"\n\n{pluralize(count, 'bookmark')} will be moved to 'Uncategorized / Needs Review'."
         
-        if messagebox.askyesno("Delete Category", msg):
+        if messagebox.askyesno("Delete Category", msg, parent=self.root):
             # Move bookmarks to Uncategorized
             for bm in self.bookmark_manager.get_bookmarks_by_category(category):
                 bm.category = "Uncategorized / Needs Review"
@@ -15817,16 +15119,32 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         if self.count_label:
             n = len(bookmarks)
             total = len(self.bookmark_manager.bookmarks)
-            if n != total and total > 0:
-                self.count_label.configure(text=f"{n} of {total} bookmarks")
+            if total == 0:
+                self.count_label.configure(text="Library")
+                if getattr(self, 'view_hint_label', None):
+                    self.view_hint_label.configure(text="Ready to import")
+            elif n != total:
+                self.count_label.configure(text=f"{pluralize(n, 'bookmark')} Shown")
+                if getattr(self, 'view_hint_label', None):
+                    self.view_hint_label.configure(text="Filtered view")
             else:
-                self.count_label.configure(
-                    text=f"{n} bookmark{'s' if n != 1 else ''}"
-                )
+                self.count_label.configure(text=pluralize(n, "Bookmark"))
+                if getattr(self, 'view_hint_label', None):
+                    self.view_hint_label.configure(text="List view")
+
+        self._refresh_filter_counts()
+        total_bookmarks = len(self.bookmark_manager.get_all_bookmarks())
+        self._set_collection_summary_visible(total_bookmarks > 0)
+        if total_bookmarks > 0:
+            self._refresh_collection_summary(
+                visible_count=len(bookmarks),
+                total_count=total_bookmarks,
+                query=query,
+                quick_filter=quick_filter or ""
+            )
 
         # Toggle empty state vs list view
         if hasattr(self, 'empty_state'):
-            total_bookmarks = len(self.bookmark_manager.get_all_bookmarks())
             is_filtered_view = bool(query or quick_filter or self.current_category)
             self.empty_state.pack_forget()
             if hasattr(self, 'filtered_empty_state'):
@@ -15839,7 +15157,11 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
                 self.list_frame.pack_forget()
                 self.filtered_empty_state.pack(fill=tk.BOTH, expand=True)
             else:
-                self.list_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
+                self.list_frame.pack(
+                    fill=tk.BOTH, expand=True,
+                    padx=DesignTokens.CONTENT_PAD_X,
+                    pady=(0, DesignTokens.CONTENT_PAD_Y)
+                )
 
         if self.view_mode == ViewMode.LIST:
             self._populate_list_view(bookmarks)
@@ -15856,6 +15178,9 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         self.tree.tag_configure("oddrow", background=theme.bg_primary, foreground=theme.text_primary)
         self.tree.tag_configure("evenrow", background=theme.bg_secondary, foreground=theme.text_primary)
         self.tree.tag_configure("broken", foreground=theme.accent_error)
+        self.tree.tag_configure("archived", foreground=theme.text_muted)
+        previous_selection = set(getattr(self, 'selected_bookmarks', []))
+        restored_selection = []
 
         for item in self.tree.get_children():
             self.tree.delete(item)
@@ -15864,44 +15189,53 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         self._tree_domains: Dict[str, List[str]] = {}
         
         for index, bm in enumerate(bookmarks):
-            # Build title with status indicators
-            prefix = ""
+            # Build a calm, scannable row summary with important status first.
+            status_parts = []
             if bm.is_pinned:
-                prefix += "📌 "
+                status_parts.append("★")
             if bm.ai_confidence > 0:
-                prefix += "🤖 "  # AI-processed indicator
+                status_parts.append("AI")
             if not bm.is_valid:
-                prefix += "⚠️ "
+                status_parts.append("Needs review")
+            if bm.is_archived:
+                status_parts.append("Archived")
+
+            prefix = " · ".join(status_parts)
+            title_text = display_or_fallback(bm.title, "Untitled bookmark")
+            title = f"{prefix} · {title_text}" if prefix else title_text
             
-            if not prefix:
-                prefix = "    "  # Extra padding for favicon alignment
-            
-            title = f"{prefix}{bm.title}"
-            
-            # Show both user tags and AI tags
-            all_tags = list(bm.tags[:2])  # User tags first
-            if bm.ai_tags and len(all_tags) < 3:
-                # Add AI tags with indicator
-                for at in bm.ai_tags[:2]:
-                    if at not in all_tags and len(all_tags) < 3:
-                        all_tags.append(f"🤖{at}")
-            
-            tags_str = ", ".join(all_tags)
-            remaining = len(bm.tags) + len(bm.ai_tags) - len(all_tags)
+            # Keep rows scan-friendly: show one primary tag plus a count.
+            if bm.tags:
+                tags_str = f"#{bm.tags[0]}"
+                remaining = len(bm.tags) + len(bm.ai_tags) - 1
+            elif bm.ai_tags:
+                tags_str = f"AI #{bm.ai_tags[0]}"
+                remaining = len(bm.ai_tags) - 1
+            else:
+                tags_str = "—"
+                remaining = 0
             if remaining > 0:
                 tags_str += f" +{remaining}"
+
+            category = truncate_middle(display_or_fallback(bm.category, "Uncategorized"), 28)
+            url_display = display_or_fallback(bm.domain, "Unknown domain")
+            tags_str = truncate_middle(tags_str, 26)
 
             row_tags = ["evenrow" if index % 2 else "oddrow"]
             if not bm.is_valid:
                 row_tags.append("broken")
+            elif bm.is_archived:
+                row_tags.append("archived")
             
             item_id = self.tree.insert(
                 "", "end",
                 iid=str(bm.id),
                 text="  ",  # Padding space
-                values=(title, bm.url[:45], bm.category, tags_str),
+                values=(title, url_display, category, tags_str),
                 tags=tuple(row_tags)
             )
+            if bm.id in previous_selection:
+                restored_selection.append(item_id)
             
             self._tree_items[bm.id] = item_id
             
@@ -15913,6 +15247,14 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             favicon_path = self.favicon_manager.get_cached(bm.domain)
             if favicon_path:
                 self.tree.set_favicon(item_id, favicon_path)
+
+        if restored_selection:
+            self.tree.selection_set(restored_selection)
+            self.selected_bookmarks = [int(item) for item in restored_selection]
+        else:
+            self.selected_bookmarks = []
+        self._update_status_counts()
+        self._update_selection_bar()
     
     def _populate_grid_view(self, bookmarks: List[Bookmark]):
         """Grid view disabled - using list view only"""
@@ -16015,6 +15357,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         all_items = self.tree.get_children()
         self.tree.selection_set(all_items)
         self.selected_bookmarks = [int(item) for item in all_items]
+        self._update_selection_bar()
         self._set_status(f"Selected {len(all_items)} bookmarks")
         return "break"  # Prevent default behavior
     
@@ -16033,7 +15376,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         """Restore placeholder when search entry loses focus and is empty"""
         if hasattr(self, 'search_frame') and self.search_frame:
             theme = get_theme()
-            self.search_frame.configure(highlightbackground=theme.border)
+            self.search_frame.configure(highlightbackground=theme.border_muted)
         if not self.search_entry.get():
             self._suppress_search_callback = True
             self.search_entry.insert(0, self._search_placeholder)
@@ -16069,17 +15412,46 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         if self.search_query:
             self.quick_filter = None
             self.active_filter = None
-            # Update button highlighting
-            theme = get_theme()
-            for name, btn in self.filter_buttons.items():
-                btn.configure(bg=theme.bg_secondary)
+            for name in self.filter_buttons:
+                self._set_filter_visual(name, False)
         
         # Cancel any pending refresh
         self._cancel_search_debounce()
         
         # Schedule debounced refresh
         self._search_after = self.root.after(200, self._refresh_bookmark_list)
-    
+
+    def _set_filter_visual(self, filter_name: str, active: bool, hover: bool = False):
+        """Apply one consistent visual state to a quick-filter row."""
+        parts = getattr(self, 'filter_button_parts', {}).get(filter_name)
+        if not parts:
+            return
+        theme = get_theme()
+        row, name_lbl, count_lbl = parts
+        bg = theme.selection if active else (theme.bg_hover if hover else theme.bg_dark)
+        badge_bg = theme.bg_tertiary if active or hover else theme.bg_primary
+        fg = theme.text_primary if active else theme.text_secondary
+        for widget in (row, name_lbl):
+            try:
+                widget.configure(bg=bg)
+            except Exception:
+                pass
+        try:
+            row.configure(highlightbackground=theme.border_muted if active else bg)
+            count_lbl.configure(bg=badge_bg, fg=fg)
+        except Exception:
+            pass
+
+    def _refresh_filter_counts(self):
+        """Refresh quick-filter badges so the sidebar feels alive and trustworthy."""
+        if not getattr(self, 'filter_button_parts', None):
+            return
+        counts = build_filter_counts(self.bookmark_manager.get_all_bookmarks()).as_dict()
+        for name, count in counts.items():
+            parts = self.filter_button_parts.get(name)
+            if parts:
+                parts[2].configure(text=format_compact_count(count))
+
     def _clear_search(self):
         """Clear search bar and show all bookmarks"""
         # Cancel any pending search refresh
@@ -16103,12 +15475,8 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             self.clear_search_btn.pack_forget()
         
         # Reset filter button highlighting
-        theme = get_theme()
-        for name, btn in self.filter_buttons.items():
-            if name == "All":
-                btn.configure(bg=theme.selection)
-            else:
-                btn.configure(bg=theme.bg_secondary)
+        for name in self.filter_buttons:
+            self._set_filter_visual(name, name == "All")
         
         # Reset suppress flag after a brief delay
         def reset_flag():
@@ -16132,9 +15500,8 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         self.current_category = None
         
         # Update filter buttons
-        theme = get_theme()
-        for name, btn in self.filter_buttons.items():
-            btn.configure(bg=theme.bg_secondary)
+        for name in self.filter_buttons:
+            self._set_filter_visual(name, False)
         
         # Set search query directly in entry
         if self.search_entry:
@@ -16171,9 +15538,8 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             self.clear_search_btn.pack_forget()
         
         # Clear quick filter button highlighting
-        theme = get_theme()
-        for name, btn in self.filter_buttons.items():
-            btn.configure(bg=theme.bg_secondary)
+        for name in self.filter_buttons:
+            self._set_filter_visual(name, False)
         self.active_filter = None
         
         # Toggle category selection
@@ -16193,8 +15559,6 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
     
     def _apply_filter(self, filter_name: str):
         """Apply quick filter - clean and direct"""
-        theme = get_theme()
-        
         # Cancel any pending search refresh first
         self._cancel_search_debounce()
         
@@ -16205,11 +15569,8 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         self.active_filter = filter_name
         
         # Update all button states immediately
-        for name, btn in self.filter_buttons.items():
-            if name == filter_name:
-                btn.configure(bg=theme.selection)
-            else:
-                btn.configure(bg=theme.bg_secondary)
+        for name in self.filter_buttons:
+            self._set_filter_visual(name, name == filter_name)
         
         # Clear the search bar directly
         if self.search_entry:
@@ -16289,6 +15650,9 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         """Handle tree selection change"""
         self.selected_bookmarks = [int(item) for item in self.tree.selection()]
         self._update_status_counts()
+        self._update_selection_bar()
+        if self.selected_bookmarks:
+            self._set_status(f"{pluralize(len(self.selected_bookmarks), 'bookmark')} selected")
     
     def _on_item_double_click(self, event):
         """Handle double-click"""
@@ -16304,10 +15668,10 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
     
     def _open_bookmark(self, bookmark: Bookmark):
         """Open bookmark in browser"""
-        webbrowser.open(bookmark.url)
-        bookmark.visit_count += 1
-        bookmark.last_visited = datetime.now().isoformat()
-        self.bookmark_manager.update_bookmark(bookmark)
+        if _open_external_url(bookmark.url):
+            bookmark.visit_count += 1
+            bookmark.last_visited = datetime.now().isoformat()
+            self.bookmark_manager.update_bookmark(bookmark)
 
     def _show_command_palette(self, event=None):
         """Open the keyboard command palette."""
@@ -16356,14 +15720,14 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         
         menu = tk.Menu(self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
                       activebackground=theme.bg_hover, activeforeground=theme.text_primary)
-        menu.add_command(label="  🔗  Open in Browser", command=self._open_selected)
-        menu.add_command(label="  ✏️  Edit", command=self._edit_selected)
+        menu.add_command(label="  Open in Browser", command=self._open_selected)
+        menu.add_command(label="  Edit Bookmark", command=self._edit_selected)
         menu.add_separator()
         
         # Search Domain option
         if first_bookmark and first_bookmark.domain:
             menu.add_command(
-                label=f"  🔍  Search Domain ({first_bookmark.domain})",
+                label=f"  Filter by Domain ({first_bookmark.domain})",
                 command=lambda: self._filter_by_domain(first_bookmark.domain)
             )
         
@@ -16373,31 +15737,30 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         
         categories = self.category_manager.get_sorted_categories()
         for cat in categories:
-            icon = get_category_icon(cat)
             send_to_menu.add_command(
-                label=f"{icon} {cat}",
+                label=cat,
                 command=lambda c=cat: self._send_to_category(c)
             )
         
-        menu.add_cascade(label="  📂  Send to", menu=send_to_menu)
+        menu.add_cascade(label="  Move to Category", menu=send_to_menu)
         menu.add_separator()
-        menu.add_command(label="  📋  Copy URL", command=self._copy_url)
-        menu.add_command(label="  📌  Toggle Pin", command=self._toggle_pin)
-        menu.add_command(label="  🎨  Custom Favicon...", command=self._show_custom_favicon_dialog)
+        menu.add_command(label="  Copy URL", command=self._copy_url)
+        menu.add_command(label="  Toggle Pin", command=self._toggle_pin)
+        menu.add_command(label="  Custom Favicon…", command=self._show_custom_favicon_dialog)
         menu.add_separator()
         
         # AI Tools submenu
         ai_menu = tk.Menu(menu, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
                          activebackground=theme.bg_hover, activeforeground=theme.text_primary)
-        ai_menu.add_command(label="🤖  AI Categorize", command=self._ai_categorize)
-        ai_menu.add_command(label="🏷️  AI Suggest Tags", command=self._ai_suggest_tags)
-        ai_menu.add_command(label="📝  AI Summarize", command=self._ai_summarize)
-        ai_menu.add_command(label="✏️  AI Improve Titles", command=self._ai_improve_titles)
-        menu.add_cascade(label="  🤖  AI Tools", menu=ai_menu)
+        ai_menu.add_command(label="AI Categorize", command=self._ai_categorize)
+        ai_menu.add_command(label="Suggest Tags", command=self._ai_suggest_tags)
+        ai_menu.add_command(label="Summarize", command=self._ai_summarize)
+        ai_menu.add_command(label="Improve Titles", command=self._ai_improve_titles)
+        menu.add_cascade(label="  AI Tools", menu=ai_menu)
         
         menu.add_separator()
-        menu.add_command(label="  ⚠️  Mark as Broken", command=self._mark_as_broken)
-        menu.add_command(label="  🗑️  Delete", command=self._delete_selected)
+        menu.add_command(label="  Mark as Needs Review", command=self._mark_as_broken)
+        menu.add_command(label="  Delete", command=self._delete_selected)
         
         menu.tk_popup(event.x_root, event.y_root)
     
@@ -16440,19 +15803,19 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
                       font=FONTS.body(), activebackground=theme.bg_hover,
                       activeforeground=theme.text_primary, bd=0)
         
-        menu.add_command(label="  🤖  AI Categorize Selected", command=self._ai_categorize)
-        menu.add_command(label="  🏷️  AI Suggest Tags", command=self._ai_suggest_tags)
-        menu.add_command(label="  📝  AI Summarize", command=self._ai_summarize)
-        menu.add_command(label="  ✏️  AI Improve Titles", command=self._ai_improve_titles)
+        menu.add_command(label="  Categorize Selected", command=self._ai_categorize)
+        menu.add_command(label="  Suggest Tags", command=self._ai_suggest_tags)
+        menu.add_command(label="  Summarize", command=self._ai_summarize)
+        menu.add_command(label="  Improve Titles", command=self._ai_improve_titles)
         menu.add_separator()
-        menu.add_command(label="  🔀  Merge AI Tags to User Tags", command=self._merge_ai_tags)
+        menu.add_command(label="  Merge AI Tags to User Tags", command=self._merge_ai_tags)
         menu.add_separator()
-        menu.add_command(label="  📤  Export AI Data (JSON)", command=self._export_ai_data)
-        menu.add_command(label="  🧠  Export Learned Patterns", command=self._generate_category_patterns)
-        menu.add_command(label="  📥  Import Learned Patterns", command=self._import_ai_learned_data)
+        menu.add_command(label="  Export AI Data (JSON)", command=self._export_ai_data)
+        menu.add_command(label="  Export Learned Patterns", command=self._generate_category_patterns)
+        menu.add_command(label="  Import Learned Patterns", command=self._import_ai_learned_data)
         menu.add_separator()
-        menu.add_command(label="  📊  View AI Statistics", command=self._show_ai_stats)
-        menu.add_command(label="  ⚙️  AI Settings", command=self._show_ai_settings)
+        menu.add_command(label="  View AI Statistics", command=self._show_ai_stats)
+        menu.add_command(label="  AI Settings", command=self._show_ai_settings)
         
         # Position below button
         x = self.ai_btn.winfo_rootx()
@@ -16778,21 +16141,21 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
                       font=FONTS.body(), activebackground=theme.bg_hover,
                       activeforeground=theme.text_primary, bd=0)
         
-        menu.add_command(label="  📁  Manage Categories", command=self._show_category_manager)
-        menu.add_command(label="  🗂️  Categorize All Bookmarks", command=self._categorize_all_bookmarks)
-        menu.add_command(label="  📥  Import Categories File", command=self._import_categories_file)
-        menu.add_command(label="  🎨  Set Custom Favicon", command=self._show_custom_favicon_dialog)
+        menu.add_command(label="  Manage Categories", command=self._show_category_manager)
+        menu.add_command(label="  Categorize All Bookmarks", command=self._categorize_all_bookmarks)
+        menu.add_command(label="  Import Categories File", command=self._import_categories_file)
+        menu.add_command(label="  Set Custom Favicon", command=self._show_custom_favicon_dialog)
         menu.add_separator()
-        menu.add_command(label="  🔍  Check All Links", command=self._check_all_links)
-        menu.add_command(label="  🔄  Find Duplicates", command=self._find_duplicates)
-        menu.add_command(label="  🧹  Clean URLs", command=self._clean_urls)
+        menu.add_command(label="  Check All Links", command=self._check_all_links)
+        menu.add_command(label="  Find Duplicates", command=self._find_duplicates)
+        menu.add_command(label="  Clean Tracking Parameters", command=self._clean_urls)
         menu.add_separator()
-        menu.add_command(label="  📊  Full Analytics", command=self._show_analytics)
-        menu.add_command(label="  💾  Backup Now", command=self._backup_now)
+        menu.add_command(label="  Full Analytics", command=self._show_analytics)
+        menu.add_command(label="  Backup Now", command=self._backup_now)
         menu.add_separator()
-        menu.add_command(label="  🔄  Redownload All Favicons", command=self._redownload_all_favicons)
-        menu.add_command(label="  🔄  Redownload Missing Favicons", command=self._redownload_missing_favicons)
-        menu.add_command(label="  🗑️  Clear Favicon Cache", command=self._clear_favicon_cache)
+        menu.add_command(label="  Redownload All Favicons", command=self._redownload_all_favicons)
+        menu.add_command(label="  Redownload Missing Favicons", command=self._redownload_missing_favicons)
+        menu.add_command(label="  Clear Favicon Cache", command=self._clear_favicon_cache)
         
         # Position below button
         x = self.tools_btn.winfo_rootx()
@@ -16830,7 +16193,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         progress_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
         
         progress_label = tk.Label(
-            progress_frame, text="Categorizing...", bg=theme.bg_dark,
+            progress_frame, text="Categorizing…", bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.small()
         )
         progress_label.pack(side=tk.LEFT, padx=5)
@@ -16847,7 +16210,8 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             font=FONTS.small(), padx=8, pady=2, cursor="hand2"
         )
         cancel_btn.pack(side=tk.LEFT, padx=10)
-        cancel_btn.bind("<Button-1>", lambda e: setattr(self, '_cat_cancelled', True))
+        make_keyboard_activatable(cancel_btn, lambda: setattr(self, '_cat_cancelled', True))
+        Tooltip(cancel_btn, "Cancel Categorization")
         
         # Categorize in batches using after() for UI responsiveness
         self._cat_index = 0
@@ -17048,16 +16412,28 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
     
     def _on_bookmark_added(self, data: Dict):
         """Handle new bookmark"""
-        bookmark = Bookmark(
-            id=None, url=data["url"],
-            title=data["title"], category=data["category"]
-        )
+        url = str(data.get("url", "")).strip()
+        valid, error = validate_url(url)
+        if not valid or not url.startswith(("http://", "https://")):
+            self._show_toast(f"Bookmark was not added: {error or 'unsupported URL'}", "error")
+            return
         
-        self.bookmark_manager.add_bookmark(bookmark)
+        bookmark = self.bookmark_manager.add_bookmark_clean(
+            url=url,
+            title=str(data.get("title") or url).strip(),
+            category=str(data.get("category") or "Uncategorized / Needs Review"),
+            favicon_path=str(data.get("custom_favicon") or ""),
+        )
+        if bookmark is None:
+            self._show_toast("Bookmark already exists", "info")
+            self._set_status("Duplicate bookmark skipped")
+            return
+
         self.favicon_manager.download_async(bookmark.domain, bookmark.id)
         
         self._refresh_all()
-        self._set_status(f"Added: {bookmark.title}")
+        self._set_status(f"Added bookmark: {bookmark.title}")
+        self._show_toast("Bookmark added", "success")
     
     def _edit_selected(self):
         """Edit selected bookmark"""
@@ -17094,16 +16470,20 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         if urls:
             self.root.clipboard_clear()
             self.root.clipboard_append('\n'.join(urls))
-            self._set_status(f"Copied {len(urls)} URL(s)")
+            self._set_status(f"Copied {pluralize(len(urls), 'URL')}")
     
     def _toggle_pin(self):
         """Toggle pin status"""
+        changed = 0
         for bm_id in self.selected_bookmarks:
             bookmark = self.bookmark_manager.get_bookmark(bm_id)
             if bookmark:
                 bookmark.is_pinned = not bookmark.is_pinned
                 self.bookmark_manager.update_bookmark(bookmark)
+                changed += 1
         self._refresh_bookmark_list()
+        if changed:
+            self._set_status(f"Updated pin state for {pluralize(changed, 'bookmark')}")
     
     def _delete_selected(self):
         """Delete selected bookmarks with undo support"""
@@ -17112,10 +16492,11 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
 
         count = len(self.selected_bookmarks)
 
-        if count >= 5:
+        if count >= 2:
             if not messagebox.askyesno(
                 "Delete Bookmarks",
-                f"Delete {count} bookmarks?\n\nThis can be undone with Ctrl+Z."
+                f"Delete {pluralize(count, 'bookmark')}?\n\nYou can undo this from the Edit menu.",
+                parent=self.root
             ):
                 return
 
@@ -17124,12 +16505,13 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
 
         self.selected_bookmarks.clear()
         self._refresh_all()
-        self._show_toast(f"Deleted {count} bookmark{'s' if count != 1 else ''} (Ctrl+Z to undo)", "info")
+        self._update_selection_bar()
+        self._show_toast(f"Deleted {pluralize(count, 'bookmark')}. Undo is available from Edit.", "info")
     
     def _on_files_dropped(self, filepaths: List[str]):
         """Handle dropped files for import with backup and auto-categorization"""
         self.import_area.set_importing(True)
-        self._set_status(f"Importing {len(filepaths)} file(s)...")
+        self._set_status(f"Importing {pluralize(len(filepaths), 'file')}…")
         
         def do_import():
             total_added = 0
@@ -17241,10 +16623,13 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         bookmarks = self.bookmark_manager.get_all_bookmarks()
         self.favicon_manager.queue_bookmarks(bookmarks)
         
-        self._set_status(f"Imported {added} bookmarks ({dupes} duplicates skipped)")
+        self._set_status(f"Imported {pluralize(added, 'bookmark')}; skipped {pluralize(dupes, 'duplicate')}")
         
         if added > 0 or dupes > 0:
-            self._show_toast(f"Imported {added} bookmarks ({dupes} duplicates skipped)", "success")
+            self._show_toast(
+                f"Imported {pluralize(added, 'bookmark')}. Skipped {pluralize(dupes, 'duplicate')}.",
+                "success" if added > 0 else "info"
+            )
     
     def _show_import_dialog(self):
         """Show import options menu"""
@@ -17252,7 +16637,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         menu = tk.Menu(self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
                        activebackground=theme.bg_hover, activeforeground=theme.text_primary,
                        font=FONTS.body())
-        menu.add_command(label="  📄  Import from File...", command=self.import_area._browse_files)
+        menu.add_command(label="  Import from File…", command=self.import_area._browse_files)
         menu.add_separator()
 
         # Detect installed browsers
@@ -17260,9 +16645,8 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         browsers = importer.get_available_browsers()
         if browsers:
             for browser in browsers:
-                icon = {"chrome": "🌐", "firefox": "🦊", "edge": "🔵", "brave": "🦁"}.get(browser, "🌐")
                 menu.add_command(
-                    label=f"  {icon}  Import from {browser.title()}...",
+                    label=f"  Import from {browser.title()}…",
                     command=lambda b=browser: self._import_from_browser(b)
                 )
         else:
@@ -17307,13 +16691,13 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
                 self.root.after(0, self._refresh_all)
 
             self.root.after(0, lambda: self._show_toast(
-                f"Imported {added} bookmarks from {browser.title()} ({dupes} duplicates skipped)",
+                f"Imported {pluralize(added, 'bookmark')} from {browser.title()}. Skipped {pluralize(dupes, 'duplicate')}.",
                 "success" if added > 0 else "info"
             ))
 
         import threading
         threading.Thread(target=do_import, daemon=True).start()
-        self._show_toast(f"Importing from {browser.title()}...", "info")
+        self._show_toast(f"Importing from {browser.title()}…", "info")
     
     def _show_export_dialog(self):
         """Show export dialog"""
@@ -17340,7 +16724,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         progress_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
         
         progress_label = tk.Label(
-            progress_frame, text="Checking links...", bg=theme.bg_dark,
+            progress_frame, text="Checking links…", bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.small()
         )
         progress_label.pack(side=tk.LEFT, padx=5)
@@ -17360,11 +16744,12 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         
         def cancel_check():
             self._link_check_cancelled = True
-            cancel_btn.configure(text="Cancelling...", bg=theme.text_muted)
+            cancel_btn.configure(text="Cancelling…", bg=theme.text_muted)
+
+        make_keyboard_activatable(cancel_btn, cancel_check)
+        Tooltip(cancel_btn, "Cancel Link Check")
         
-        cancel_btn.bind("<Button-1>", lambda e: cancel_check())
-        
-        self._set_status("Checking links...")
+        self._set_status("Checking links…")
         
         broken_count = [0]  # Use list to allow modification in closure
         checked_count = [0]
@@ -17600,7 +16985,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         ).pack(anchor="w", pady=(4, 18))
         
         status_label = tk.Label(
-            content, text="Preparing request...", bg=theme.bg_primary,
+            content, text="Preparing request…", bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.body()
         )
         status_label.pack(anchor="w")
@@ -17625,9 +17010,9 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
         def cancel():
             self._ai_cancelled = True
             cancel_btn.set_state("disabled")
-            cancel_btn.set_text("Cancelling...")
-            status_label.configure(text="Cancelling after the current request finishes...")
-            self._set_status("Cancelling AI categorization...")
+            cancel_btn.set_text("Cancelling…")
+            status_label.configure(text="Cancelling after the current request finishes…")
+            self._set_status("Cancelling AI categorization…")
         
         footer = tk.Frame(dialog, bg=theme.bg_secondary, padx=20, pady=14)
         footer.pack(fill=tk.X, side=tk.BOTTOM)
@@ -17665,7 +17050,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             end_idx = min(start_idx + batch_size, len(bookmarks))
             batch = bookmarks[start_idx:end_idx]
             
-            status_label.configure(text=f"Processing batch {start_idx//batch_size + 1}...")
+            status_label.configure(text=f"Processing batch {start_idx//batch_size + 1}…")
             progress_fill.place(relwidth=start_idx / len(bookmarks))
             dialog.update()
             
@@ -17791,7 +17176,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             return
         
         # Show progress
-        self._set_status("Generating AI tags...")
+        self._set_status("Generating AI tags…")
         self.root.update()
         
         try:
@@ -17859,7 +17244,7 @@ class FinalBookmarkOrganizerApp(ThemedWidget):
             ):
                 return
         
-        self._set_status("Generating AI summaries...")
+        self._set_status("Generating AI summaries…")
         self.root.update()
         
         try:
@@ -17982,7 +17367,7 @@ Respond with JSON: {{"summaries": [{{"url": "...", "description": "..."}}]}}"""
             ):
                 return
         
-        self._set_status("Improving bookmark titles with AI...")
+        self._set_status("Improving bookmark titles with AI…")
         self.root.update()
         
         try:
@@ -18358,23 +17743,52 @@ Respond with ONLY valid JSON in this exact format:
 
         # Detect Ollama models button
         def detect_ollama_models():
-            url = ollama_url_var.get().strip().rstrip('/')
-            try:
-                import requests as req
-                resp = req.get(f"{url}/api/tags", timeout=5)
-                if resp.status_code == 200:
-                    models = [m["name"] for m in resp.json().get("models", [])]
-                    if models:
-                        model_combo['values'] = models
-                        if model_var.get() not in models:
-                            model_var.set(models[0])
-                        self._show_toast(f"Found {len(models)} Ollama models", "success")
-                    else:
-                        self._show_toast("Ollama is running, but no models are installed. Run: ollama pull llama3.2", "warning")
+            raw_url = ollama_url_var.get().strip()
+            if not raw_url:
+                self._show_toast("Enter an Ollama server URL before detecting models.", "warning")
+                ollama_url_entry.focus_set()
+                return
+
+            url = raw_url if "://" in raw_url else f"http://{raw_url}"
+            url = url.rstrip("/")
+            ollama_url_var.set(url)
+            detect_btn.set_state("disabled")
+            detect_btn.set_text("Detecting…")
+
+            def finish(kind: str, payload):
+                if not dialog.winfo_exists():
+                    return
+                detect_btn.set_state("normal")
+                detect_btn.set_text("Detect models")
+                if kind == "models":
+                    models = payload
+                    model_combo['values'] = models
+                    if model_var.get() not in models:
+                        model_var.set(models[0])
+                    self._show_toast(f"Found {pluralize(len(models), 'Ollama model')}", "success")
+                elif kind == "empty":
+                    self._show_toast(
+                        "Ollama is running, but no models are installed. Run: ollama pull llama3.2",
+                        "warning"
+                    )
+                elif kind == "status":
+                    self._show_toast(f"Ollama responded with HTTP {payload}. Check the server URL.", "error")
                 else:
-                    self._show_toast("Ollama did not respond at that URL", "error")
-            except Exception as e:
-                self._show_toast(f"Cannot reach Ollama at {url}: {str(e)[:80]}", "error")
+                    self._show_toast(f"Cannot reach Ollama at {url}: {str(payload)[:80]}", "error")
+
+            def worker():
+                try:
+                    import requests as req
+                    resp = req.get(f"{url}/api/tags", timeout=5)
+                    if resp.status_code == 200:
+                        models = [m["name"] for m in resp.json().get("models", []) if m.get("name")]
+                        self.root.after(0, lambda models=models: finish("models" if models else "empty", models))
+                    else:
+                        self.root.after(0, lambda status=resp.status_code: finish("status", status))
+                except Exception as e:
+                    self.root.after(0, lambda error=e: finish("error", error))
+
+            threading.Thread(target=worker, daemon=True).start()
 
         detect_btn = ModernButton(
             ollama_frame, text="Detect models", command=detect_ollama_models,
@@ -18578,7 +17992,7 @@ Respond with ONLY valid JSON in this exact format:
         if not result:
             return
         
-        self._set_status("Redownloading all favicons...")
+        self._set_status("Redownloading all favicons…")
         self.favicon_manager.redownload_all_favicons(bookmarks)
     
     def _redownload_missing_favicons(self):
@@ -18615,7 +18029,7 @@ Respond with ONLY valid JSON in this exact format:
         if not result:
             return
         
-        self._set_status("Redownloading missing favicons...")
+        self._set_status("Redownloading missing favicons…")
         self.favicon_manager.redownload_missing_favicons(bookmarks)
     
     def _undo(self):
@@ -18662,7 +18076,7 @@ Respond with ONLY valid JSON in this exact format:
         try:
             if hasattr(self, 'status_total_label') and self.status_total_label:
                 total = len(self.bookmark_manager.get_all_bookmarks())
-                self.status_total_label.configure(text=f"{total} items")
+                self.status_total_label.configure(text=pluralize(total, "bookmark"))
             
             if hasattr(self, 'status_selected_label') and self.status_selected_label:
                 selected = len(self.selected_bookmarks) if hasattr(self, 'selected_bookmarks') else 0
@@ -18794,13 +18208,6 @@ def main():
             print(f"FATAL ERROR: {e}")
         raise
 
-
-if __name__ == "__main__":
-    main()
-
-
-
-
 # =============================================================================
 # STYLED DROPDOWN MENU
 # =============================================================================
@@ -18896,3 +18303,7 @@ def show_styled_menu(parent, button_widget, items: List[Tuple[str, Callable]]):
     y = button_widget.winfo_rooty() + button_widget.winfo_height() + 2
     
     return StyledDropdownMenu(parent, items, x, y)
+
+
+if __name__ == "__main__":
+    main()

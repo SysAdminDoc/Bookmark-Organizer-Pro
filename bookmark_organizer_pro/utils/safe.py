@@ -114,7 +114,7 @@ def safe_get_domain(url: str) -> str:
         return ""
     try:
         parsed = urlparse(url)
-        return (parsed.netloc or "").replace("www.", "")
+        return (parsed.hostname or "").lower().removeprefix("www.")
     except Exception:
         return ""
 
