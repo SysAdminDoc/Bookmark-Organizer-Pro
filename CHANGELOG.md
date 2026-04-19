@@ -2,6 +2,43 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v5.2.1] - 2026-04-19
+
+### Changed
+- **Repo cleanup**: Renamed `bookmark_organizer_pro_v4.py` → `main.py`. The `_v4`
+  suffix was legacy from the v4.x line and implied the existence of v1/v2/v3
+  variants that never existed in the current tree. The modular
+  `bookmark_organizer_pro/` package is the canonical backend; `main.py` is a
+  thin(-ish) UI entry point that imports from it.
+- `bookmark_organizer.spec` now points at `main.py` and carries the current
+  `APP_VERSION = "5.2.0"` (was stuck at `4.1.0`).
+- `version_info.txt` bumped from `4.6.0.0` → `5.2.0.0` so PyInstaller-built
+  binaries report the correct Windows version metadata.
+- README, CLAUDE.md, and all docs updated to reference `main.py`.
+
+## [v5.2.0] - 2026-04-19
+
+### Fixed
+- **HTML entity decode in imports** — Titles like `Love, Death &amp; Robots` now
+  display correctly as `Love, Death & Robots`. Applied `html.unescape()` to
+  titles, URLs, folder names, and tags in all HTML-parsing importers
+  (Netscape, Pocket, Raindrop, OPML).
+- Right Analytics sidebar widened 300 → 360px to prevent header clipping at
+  115% default zoom.
+- Left sidebar widened 280 → 320px for consistent breathing room.
+
+## [v5.1.0] - 2026-04-19
+
+### Added
+- Ollama local LLM support — server URL field + auto-detect models in AI
+  settings dialog. Model catalog expanded to include llama3.3, qwen3, phi4,
+  gemma3, deepseek-r1, mixtral, codellama, command-r.
+
+### Changed
+- Default zoom bumped 100% → 115% for better readability on high-DPI displays.
+- Zoom scaling now applies to ALL text (Tk named fonts + custom FONTS system)
+  so default launch is no longer cramped.
+
 ## [v4.10.0] - 2026-04-18
 
 ### Removed
