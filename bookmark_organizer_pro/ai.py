@@ -330,6 +330,12 @@ class AIClient:
     def test_connection(self) -> Tuple[bool, str]:
         raise NotImplementedError
 
+    def complete(self, prompt: str, system: str = "",
+                 max_tokens: int = 800, temperature: float = 0.2) -> str:
+        """Single-turn text completion. Must be overridden by subclasses
+        that support free-form generation."""
+        raise NotImplementedError
+
     @staticmethod
     def _safe_confidence(value, default: float = 0.5) -> float:
         try:
@@ -520,6 +526,20 @@ class OpenAIClient(AIClient):
         except Exception as e:
             return False, f"Error: {str(e)[:200]}"
 
+    def complete(self, prompt: str, system: str = "",
+                 max_tokens: int = 800, temperature: float = 0.2) -> str:
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        return response.choices[0].message.content if response.choices else ""
+
 
 class AnthropicClient(AIClient):
     """Anthropic Claude API client"""
@@ -561,6 +581,19 @@ class AnthropicClient(AIClient):
         except Exception as e:
             return False, f"Error: {str(e)[:200]}"
 
+    def complete(self, prompt: str, system: str = "",
+                 max_tokens: int = 800, temperature: float = 0.2) -> str:
+        kwargs = {
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if system:
+            kwargs["system"] = system
+        response = self.client.messages.create(**kwargs)
+        return response.content[0].text if response.content else ""
+
 
 class GoogleClient(AIClient):
     """Google Gemini API client"""
@@ -595,6 +628,18 @@ class GoogleClient(AIClient):
             return True, f"Connected to Google Gemini ({self.model})"
         except Exception as e:
             return False, f"Error: {str(e)[:200]}"
+
+    def complete(self, prompt: str, system: str = "",
+                 max_tokens: int = 800, temperature: float = 0.2) -> str:
+        full = f"{system}\n\n{prompt}" if system else prompt
+        response = self.client.generate_content(
+            full,
+            generation_config={
+                "max_output_tokens": max_tokens,
+                "temperature": temperature,
+            },
+        )
+        return getattr(response, "text", "") or ""
 
 
 class GroqClient(AIClient):
@@ -641,6 +686,20 @@ class GroqClient(AIClient):
         except Exception as e:
             return False, f"Error: {str(e)[:200]}"
 
+    def complete(self, prompt: str, system: str = "",
+                 max_tokens: int = 800, temperature: float = 0.2) -> str:
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        return response.choices[0].message.content if response.choices else ""
+
 
 class OllamaClient(AIClient):
     """Ollama local API client"""
@@ -679,6 +738,26 @@ class OllamaClient(AIClient):
             return False, "Ollama not responding"
         except Exception as e:
             return False, f"Error: {str(e)[:150]}"
+
+    def complete(self, prompt: str, system: str = "",
+                 max_tokens: int = 800, temperature: float = 0.2) -> str:
+        requests = importlib.import_module('requests')
+        full = f"{system}\n\n{prompt}" if system else prompt
+        response = requests.post(
+            f"{self.base_url}/api/generate",
+            json={
+                "model": self.model,
+                "prompt": full,
+                "stream": False,
+                "options": {
+                    "temperature": temperature,
+                    "num_predict": max_tokens,
+                },
+            },
+            timeout=180,
+        )
+        response.raise_for_status()
+        return response.json().get("response", "")
 
 
 def create_ai_client(config: AIConfigManager) -> AIClient:

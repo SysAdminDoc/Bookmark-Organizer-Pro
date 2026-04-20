@@ -1,13 +1,108 @@
-# Bookmark Organizer Pro v5.2.2
+# Bookmark Organizer Pro v6.0.0
 
-A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, and advanced organization features.
+A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server for Claude / Cursor / Codex integration**, **single-file HTML snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
-![Version](https://img.shields.io/badge/version-5.2.2-blue.svg)
+![Version](https://img.shields.io/badge/version-6.0.0-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.8+-3776AB.svg?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
 
 ![Bookmark Organizer Pro Screenshot](assets/screenshot.png)
+
+## What's new in v6.0.0
+
+Major release. 18 new backend service modules and 20 new CLI subcommands.
+Every new capability is gated behind optional dependencies that degrade
+gracefully when missing, so the v5.x feature set keeps working with no
+extra installs. See [CHANGELOG.md](CHANGELOG.md) and [docs/COMPETITIVE_RESEARCH.md](docs/COMPETITIVE_RESEARCH.md).
+
+### v6 highlights
+
+- **MCP server** — expose your bookmark library as a Model Context
+  Protocol server. Claude Desktop, Claude Code, Cursor, and Codex can
+  now `search_bookmarks`, `semantic_search`, `chat_with_collection`,
+  `summarize_bookmark`, and 11 other tools directly. **No other OSS
+  bookmark manager ships this.** Run with
+  `python -m bookmark_organizer_pro.mcp_server`.
+- **Local semantic search + hybrid RRF** — `lancedb` vector store
+  fronted by an embedder chain (`fastembed` → `model2vec` →
+  `sentence-transformers`). Hybrid search fuses BOP's keyword engine
+  with vectors via Reciprocal Rank Fusion. All local, all optional.
+- **Single-file HTML snapshots** — `monolith` (Rust) → `single-file`
+  (Node) → built-in BS4 inliner fallback chain. Each snapshot is a
+  portable, self-contained HTML file stored alongside the bookmark.
+- **Citation-aware AI summaries** — LLM emits inline `[#cN]` tokens that
+  resolve to specific text spans in the source page. Click-to-source
+  highlighting in the UI; trustworthy at a glance.
+- **Conversational RAG over your collection** — single-turn or chat
+  history; can be restricted to a subset of bookmark IDs.
+- **NL → structured query** — type `"unread Rust articles I saved last
+  month"`; an LLM fills a typed query schema, validated and executed
+  locally. Never runs LLM-generated SQL.
+- **Tag normalization linter** — detects near-duplicate tags, casing
+  drift, and singular/plural variants. Knows 14 canonical aliases.
+- **Hybrid duplicate detector** — URL canonical → SimHash → embedding
+  cosine, layered review queue (never auto-merges).
+- **Trafilatura-based ingest** — extracts text, reading time, language,
+  content type at save time. Powers the search/summary/chat features
+  without LLM cost.
+- **Per-bookmark ZIP exporter** (Readeck-style) — portable archive with
+  metadata + notes + snapshot + extracted text.
+- **Encrypted-DB toggle** — AES-256-GCM via PBKDF2-HMAC-SHA256.
+- **Scheduled dead-link scanner** — background daemon, persistent queue.
+- **Daily digest** — on-this-day, this-week-last-year, rediscover, read-
+  later, stale-but-loved (Shaarli-inspired).
+- **Flows / research trails** — ordered, annotated bookmark sequences
+  (Grimoire-inspired). Different mental model from tags + folders.
+- **RSS / Atom feed ingestor** — per-feed AI tagging modes (PREDEFINED /
+  EXISTING / AUTO_GENERATE / DISABLED) layered on top of static default
+  tags.
+- **Read-later** as a first-class boolean field, not a tag.
+- **5 new importers** — Pocket export, Readwise Reader CSV, Pinboard
+  JSON, Instapaper CSV, Reddit Saved JSON.
+
+### MCP setup (Claude Desktop / Claude Code / Cursor)
+
+Add to your MCP config:
+
+```json
+{
+  "mcpServers": {
+    "bookmark-organizer-pro": {
+      "command": "python",
+      "args": ["-m", "bookmark_organizer_pro.mcp_server"]
+    }
+  }
+}
+```
+
+After restart, the agent can query your bookmark library directly.
+
+### v6 CLI quickstart
+
+```bash
+# Ingest, embed, then search semantically
+python -m bookmark_organizer_pro.cli ingest
+python -m bookmark_organizer_pro.cli embed
+python -m bookmark_organizer_pro.cli hybrid "python async tutorials"
+
+# Snapshot a bookmark to portable HTML
+python -m bookmark_organizer_pro.cli snapshot 12345
+
+# Ask the AI about your collection
+python -m bookmark_organizer_pro.cli ask "what have I saved about CRDTs?"
+
+# Detect tag drift
+python -m bookmark_organizer_pro.cli lint-tags
+python -m bookmark_organizer_pro.cli lint-tags --apply
+
+# Daily digest
+python -m bookmark_organizer_pro.cli digest
+
+# Run the MCP server
+python -m bookmark_organizer_pro.cli mcp-server
+```
 
 ## Features
 
@@ -379,6 +474,33 @@ MIT License - see LICENSE file for details.
 - Built with Python and Tkinter
 
 ## Version History
+
+### v6.0.0 (April 2026)
+
+Major release — see the **What's new in v6.0.0** section above and
+[CHANGELOG.md](CHANGELOG.md) for the full list. Headlines:
+
+- MCP server (`python -m bookmark_organizer_pro.mcp_server`) — first OSS
+  bookmark manager exposed via Model Context Protocol
+- Local semantic search via lancedb + fastembed/model2vec
+- Hybrid keyword + semantic search via Reciprocal Rank Fusion
+- Single-file HTML snapshot archiver (`monolith` / `single-file` / built-in)
+- Citation-aware AI summaries with click-to-source highlights
+- Conversational RAG over collections
+- NL → structured query smart collections
+- Tag normalization linter
+- Hybrid duplicate detector (URL + SimHash + embedding)
+- Trafilatura ingest pipeline (reading time, language, content type)
+- Per-bookmark ZIP exporter (Readeck-style)
+- Encrypted-DB toggle (AES-256-GCM + PBKDF2)
+- Scheduled dead-link scanner (background daemon)
+- Daily digest (on-this-day, rediscover, stale-but-loved)
+- Flows / research trails (ordered, annotated bookmark sequences)
+- RSS / Atom ingestor with per-feed AI tagging modes
+- Read-later as a first-class field
+- 5 new importers (Pocket / Readwise / Pinboard / Instapaper / Reddit Saved)
+- 20 new CLI subcommands
+- 5 AI clients now expose generic `complete()` for free-form generation
 
 ### v5.2.2 (April 2026)
 - Reliability & UX hardening pass across 14 files
