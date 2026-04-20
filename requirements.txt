@@ -1,4 +1,31 @@
+# Core (required)
 beautifulsoup4>=4.12
 requests>=2.31
 Pillow>=10.0
 pystray>=0.19
+
+# v6.0.0 — recommended for the full feature set. Each package is optional;
+# missing packages degrade individual features gracefully without breaking
+# the rest of the application.
+
+# Content extraction (ingest pipeline)
+trafilatura>=2.0; python_version >= "3.9"
+lingua-language-detector>=2.0; python_version >= "3.9"
+
+# Local embeddings (semantic search, RAG, hybrid search, hybrid dedup)
+fastembed>=0.4; python_version >= "3.9"
+# Tiny-footprint alternative (8-30 MB static models):
+# model2vec>=0.3
+
+# Vector store
+lancedb>=0.13; python_version >= "3.9"
+
+# Encrypted-DB toggle (AES-256-GCM via PBKDF2-HMAC-SHA256)
+cryptography>=42.0
+
+# MCP server (Claude Desktop / Claude Code / Cursor / Codex integration)
+mcp>=1.0; python_version >= "3.10"
+
+# RSS feed ingestor uses only stdlib xml.etree.
+# Snapshot archiver uses the `monolith` Rust binary if present, otherwise
+# `single-file` Node CLI, otherwise the built-in BeautifulSoup fallback.

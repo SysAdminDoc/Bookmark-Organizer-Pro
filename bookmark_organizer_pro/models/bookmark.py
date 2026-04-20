@@ -80,6 +80,19 @@ class Bookmark:
     reading_time: int = 0
     word_count: int = 0
     language: str = ""
+    # v6.0.0 additions
+    read_later: bool = False
+    read_later_position: int = 0
+    snapshot_path: str = ""
+    snapshot_size: int = 0
+    snapshot_at: str = ""
+    extracted_text_path: str = ""
+    content_type: str = ""
+    sentiment: str = ""
+    flow_id: str = ""
+    flow_position: int = 0
+    embedding_model: str = ""
+    embedding_dim: int = 0
     custom_data: Dict = field(default_factory=dict)
 
     def __post_init__(self):
@@ -185,6 +198,18 @@ class Bookmark:
             "http_status": self.http_status, "is_pinned": self.is_pinned,
             "is_archived": self.is_archived, "reading_time": self.reading_time,
             "word_count": self.word_count, "language": self.language,
+            "read_later": self.read_later,
+            "read_later_position": self.read_later_position,
+            "snapshot_path": self.snapshot_path,
+            "snapshot_size": self.snapshot_size,
+            "snapshot_at": self.snapshot_at,
+            "extracted_text_path": self.extracted_text_path,
+            "content_type": self.content_type,
+            "sentiment": self.sentiment,
+            "flow_id": self.flow_id,
+            "flow_position": self.flow_position,
+            "embedding_model": self.embedding_model,
+            "embedding_dim": self.embedding_dim,
             "custom_data": dict(self.custom_data)
         }
 
@@ -266,5 +291,17 @@ class Bookmark:
             reading_time=safe_int(d.get("reading_time", 0)),
             word_count=safe_int(d.get("word_count", 0)),
             language=str(d.get("language") or ""),
+            read_later=safe_bool(d.get("read_later", False)),
+            read_later_position=safe_int(d.get("read_later_position", 0)),
+            snapshot_path=str(d.get("snapshot_path") or ""),
+            snapshot_size=safe_int(d.get("snapshot_size", 0)),
+            snapshot_at=str(d.get("snapshot_at") or ""),
+            extracted_text_path=str(d.get("extracted_text_path") or ""),
+            content_type=str(d.get("content_type") or ""),
+            sentiment=str(d.get("sentiment") or ""),
+            flow_id=str(d.get("flow_id") or ""),
+            flow_position=safe_int(d.get("flow_position", 0)),
+            embedding_model=str(d.get("embedding_model") or ""),
+            embedding_dim=safe_int(d.get("embedding_dim", 0)),
             custom_data=dict(d.get("custom_data")) if isinstance(d.get("custom_data"), dict) else {},
         )
