@@ -6,7 +6,7 @@ from pathlib import Path
 
 # Application metadata
 APP_NAME = "Bookmark Organizer Pro"
-APP_VERSION = "5.2.2"
+APP_VERSION = "6.0.0"
 APP_SUBTITLE = "Ultimate Bookmark Management"
 
 # Paths
@@ -40,6 +40,19 @@ PATTERNS_FILE = DATA_DIR / "patterns.json"
 SETTINGS_FILE = DATA_DIR / "settings.json"
 TAGS_FILE = DATA_DIR / "tags.json"
 LOG_FILE = LOGS_DIR / "bookmark_organizer.log"
+
+# v6.0.0 directories
+SNAPSHOTS_DIR = APP_DIR / "snapshots"
+SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+EXTRACTED_DIR = APP_DIR / "extracted"
+EXTRACTED_DIR.mkdir(parents=True, exist_ok=True)
+EMBEDDINGS_DIR = APP_DIR / "embeddings"
+EMBEDDINGS_DIR.mkdir(parents=True, exist_ok=True)
+EXPORTS_DIR = APP_DIR / "exports"
+EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+FLOWS_FILE = DATA_DIR / "flows.json"
+FEEDS_FILE = DATA_DIR / "feeds.json"
+DEAD_LINKS_FILE = DATA_DIR / "dead_links.json"
 
 # Platform detection
 IS_WINDOWS = platform.system() == "Windows"
