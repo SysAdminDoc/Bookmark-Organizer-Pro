@@ -2,6 +2,154 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.0.0] - 2026-04-19
+
+Major release. Adds 18 new backend service modules and 20 new CLI
+subcommands, informed by a competitive landscape analysis of the OSS
+bookmark ecosystem (see `docs/COMPETITIVE_RESEARCH.md`). Every new
+capability is gated behind optional dependencies that degrade gracefully
+when missing, so the existing v5.x feature set keeps working with no
+extra installs.
+
+### Added — AI / search
+
+- **Local semantic search** (`services/embeddings.py`,
+  `services/vector_store.py`). Three-backend embedder chain: fastembed →
+  model2vec → sentence-transformers. Vector store prefers LanceDB; falls
+  back to in-memory JSON cosine. Stores chunked text with char-offset
+  anchors for citation-aware summaries.
+- **Hybrid keyword + semantic search via Reciprocal Rank Fusion**
+  (`services/hybrid_search.py`). Fuses BOP's existing FTS-style
+  SearchEngine with the vector store using k=60 RRF. Falls back to
+  keyword-only when no embeddings.
+- **Citation-aware AI summarizer** (`services/citation_summarizer.py`).
+  LLM emits inline `[#cN]` citation tokens that resolve to specific text
+  spans within the source. Each citation carries `chunk_id` plus
+  `char_start`/`char_end` offsets so the UI can deep-link to the
+  supporting span. Trust-building, deeply differentiated.
+- **Conversational RAG over collections** (`services/rag_chat.py`).
+  Single-turn first; multi-turn history capped to keep prompts bounded.
+  Supports restricting retrieval to a subset of bookmark IDs.
+- **NL → structured query translator** (`services/nl_query.py`). Schema-
+  bounded LLM call fills a typed `StructuredQuery` (tags, dates, content
+  type, domains, semantic seed); validated and executed locally against
+  the bookmark manager. Never runs LLM-generated SQL. Falls back to a
+  small heuristic when no AI is configured.
+- **All 5 AI clients gained a `complete(prompt, system, max_tokens,
+  temperature)` method** (OpenAI, Anthropic, Google Gemini, Groq,
+  Ollama) so the new RAG / summarization / NL-query features can use the
+  user's existing provider config.
+- **Hybrid duplicate detector** (`services/dup_hybrid.py`). Three-pass
+  layered detection: URL canonical → 64-bit SimHash (k=3 Hamming) →
+  embedding cosine ≥ 0.92. Surfaces a review queue with method and
+  confidence per group; never auto-merges.
+
+### Added — Content & preservation
+
+- **Trafilatura-based ingest pipeline** (`services/ingest.py`). At save
+  time extracts main article text, computes reading time, language
+  (lingua), and content type (article / video / code / paper / audio /
+  social / discussion). Falls back to BS4 + heuristics when trafilatura
+  is unavailable. Stores extracted text per-bookmark for reuse by
+  embedding, summarization, and chat.
+- **Single-file HTML snapshot archiver** (`services/snapshot.py`).
+  Three-backend chain: `monolith` Rust binary → `single-file` Node CLI →
+  pure-Python BS4 inliner that embeds CSS, images (as data URIs), and
+  fonts. 25 MB hard ceiling per snapshot. Records `snapshot_path`,
+  `snapshot_size`, `snapshot_at` on the Bookmark.
+- **Per-bookmark ZIP exporter** (`services/zip_export.py`,
+  Readeck-style). Each bookmark exports as a portable ZIP containing
+  `metadata.json` + `notes.md` + `snapshot.html` (if captured) +
+  `extracted.txt` (if ingested). Whole-collection mode bundles every
+  per-bookmark ZIP into one file for easy backup.
+- **Encrypted-DB toggle** (`services/encryption.py`). Optional AES-256-GCM
+  with PBKDF2-HMAC-SHA256 (480 000 iterations, NIST SP 800-132 floor)
+  over arbitrary JSON files. Adds `encrypt`/`decrypt` CLI subcommands.
+
+### Added — Organization
+
+- **Tag normalization linter** (`services/tag_linter.py`). Detects near-
+  duplicate tags, casing drift, and singular/plural variants. Knows 14
+  canonical aliases (`py`/`py3`/`python3` → `python`, `js` → `javascript`,
+  `k8s` → `kubernetes`, etc.). Surfaces a review queue with suggested
+  merges; `--apply` merges with one command. Goes beyond Karakeep's
+  enforcement-only approach by working retrospectively on already-
+  imported tag chaos. Tested on 4 840 real bookmarks.
+- **Read-later queue** as a first-class boolean field on the Bookmark
+  model (not a tag). New `read_later`, `read_later_position` fields.
+  `services/read_later.py` exposes enqueue / dequeue / reorder / peek /
+  complete operations.
+- **Flows / research-trail manager** (`services/flows.py`). Ordered,
+  annotated bookmark sequences (Grimoire-inspired). Each Flow has steps
+  with per-step notes; bookmarks are stamped with `flow_id` and
+  `flow_position`. Persisted to `~/.bookmark_organizer/flows.json`.
+- **Daily digest service** (`services/digest.py`). Five-section view:
+  on-this-day, this-week-last-year, rediscover (random older saves),
+  read-later top, stale-but-loved (frequently visited but unopened
+  recently). Shaarli-inspired.
+- **RSS / Atom feed ingestor** (`services/rss_feeds.py`) with per-feed
+  AI tagging modes (PREDEFINED / EXISTING / AUTO_GENERATE / DISABLED) +
+  default static tags. Solves the missing layer that both Karakeep #833
+  and Linkwarden #956 have open. Stdlib-only XML parser; tracks seen
+  GUIDs to avoid re-import.
+
+### Added — Reliability
+
+- **Scheduled dead-link scanner** (`services/dead_link_scanner.py`).
+  Background daemon that periodically scans the library and persists
+  broken/redirected URLs to a queue. Configurable interval and
+  "only-unchecked-for-N-hours" filter. Brings BOP up to LinkAce parity.
+- **5 new importers** (`importers_extra.py`): Pocket export
+  (HTML + JSON), Readwise Reader CSV, Pinboard JSON, Instapaper CSV,
+  Reddit Saved JSON. Positions BOP as the universal landing pad after
+  Pocket's July 2025 shutdown.
+
+### Added — Integration
+
+- **MCP server** (`mcp_server.py`). Stdio transport. Exposes 15 tools:
+  list_bookmarks, get_bookmark, search_bookmarks, semantic_search,
+  hybrid_search, add_bookmark, list_tags, list_categories,
+  get_extracted_text, chat_with_collection, summarize_bookmark,
+  daily_digest, list_dead_links, list_flows, get_flow. Run with
+  `python -m bookmark_organizer_pro.mcp_server`. **No OSS bookmark
+  manager exposes itself as MCP today** — first-mover. Makes BOP a
+  first-class citizen in Claude Desktop / Claude Code / Cursor / Codex.
+
+### Added — CLI
+
+- 20 new subcommands: `ingest`, `snapshot`, `embed`, `semantic`,
+  `hybrid`, `summarize`, `chat`, `ask`, `lint-tags`, `dups`, `scan`,
+  `digest`, `flow`, `feed`, `import-pocket`, `import-readwise`,
+  `import-pinboard`, `import-instapaper`, `import-reddit`, `zip-export`,
+  `encrypt`, `decrypt`, `read-later`, `mcp-server`.
+
+### Changed — Bookmark model
+
+Extended with v6 fields (all default-empty, fully backward-compatible
+with v5.x JSON): `read_later`, `read_later_position`, `snapshot_path`,
+`snapshot_size`, `snapshot_at`, `extracted_text_path`, `content_type`,
+`sentiment`, `flow_id`, `flow_position`, `embedding_model`,
+`embedding_dim`. `from_dict` round-trips all new fields with defensive
+coercion.
+
+### Changed — Storage
+
+New per-feature directories under `~/.bookmark_organizer/`:
+`snapshots/`, `extracted/`, `embeddings/`, `exports/`. New JSON files:
+`flows.json`, `feeds.json`, `dead_links.json`. Existing bookmark files
+unchanged.
+
+### Documentation
+
+- `docs/COMPETITIVE_RESEARCH.md` — 2 200-word competitive landscape
+  analysis covering Karakeep, Linkwarden, Linkding, Shiori, Wallabag,
+  Readeck, Buku, Floccus, Tab Stash, Stash, Reor, KaraKeep HomeDash, plus
+  AI/RAG state-of-the-art (EmbeddingGemma, model2vec, lancedb, MCP,
+  citation-aware RAG). Top-20 prioritized improvement list informed v6.
+- `requirements.txt` extended with optional v6 deps (trafilatura,
+  fastembed, lancedb, cryptography, mcp) using Python version markers.
+- `CLAUDE.md` rewritten for v6.
+
 ## Unreleased
 
 ### Changed

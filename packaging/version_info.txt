@@ -6,8 +6,8 @@
 
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(5, 2, 2, 0),
-    prodvers=(5, 2, 2, 0),
+    filevers=(6, 0, 0, 0),
+    prodvers=(6, 0, 0, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -23,12 +23,12 @@ VSVersionInfo(
           [
             StringStruct(u'CompanyName', u'Bookmark Organizer Team'),
             StringStruct(u'FileDescription', u'Bookmark Organizer Pro - Ultimate Bookmark Management'),
-            StringStruct(u'FileVersion', u'5.2.2.0'),
+            StringStruct(u'FileVersion', u'6.0.0.0'),
             StringStruct(u'InternalName', u'BookmarkOrganizerPro'),
             StringStruct(u'LegalCopyright', u'Copyright (c) 2026'),
             StringStruct(u'OriginalFilename', u'BookmarkOrganizerPro.exe'),
             StringStruct(u'ProductName', u'Bookmark Organizer Pro'),
-            StringStruct(u'ProductVersion', u'5.2.2.0')
+            StringStruct(u'ProductVersion', u'6.0.0.0')
           ]
         )
       ]

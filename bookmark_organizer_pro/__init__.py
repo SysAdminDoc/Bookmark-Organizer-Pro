@@ -60,6 +60,28 @@ from .services import (
     SemanticDuplicateDetector, WaybackMachine,
     SettingsProfile, SettingsProfileManager, SmartTagManager, SmartTagRule,
     VersionHistory,
+    # v6.0.0 additions
+    Citation, CitationSummarizer, CitedSummary,
+    DeadLinkRecord, DeadLinkScanner, ScanProgress,
+    DailyDigest, DailyDigestService, DigestSection,
+    DuplicateGroup, DuplicateReport, HybridDuplicateDetector,
+    EmbeddingService,
+    CryptoUnavailable, EncryptedStore,
+    Flow, FlowManager, FlowStep,
+    HybridResult, HybridSearch,
+    ContentIngestor, IngestResult,
+    NLQueryTranslator, StructuredQuery, execute_query,
+    ChatMessage, ChatTurn, CollectionChat,
+    ReadLaterQueue,
+    RSS_AI_MODES, FeedConfig, FeedIngestor, FeedItem, FeedRegistry, parse_feed,
+    SnapshotArchiver,
+    LintReport, TagLinter, TagSuggestion,
+    VectorStore, reciprocal_rank_fusion,
+    ZipExporter,
+)
+from .importers_extra import (
+    PocketExportImporter, ReadwiseReaderCSVImporter, PinboardJSONImporter,
+    InstapaperImporter, RedditSavedImporter, import_into,
 )
 from .io_formats import XBELHandler
 from .ai import (
@@ -124,6 +146,26 @@ __all__ = [
     "SemanticDuplicateDetector", "WaybackMachine",
     "SettingsProfile", "SettingsProfileManager", "SmartTagManager", "SmartTagRule",
     "VersionHistory",
+    # v6.0.0 additions
+    "Citation", "CitationSummarizer", "CitedSummary",
+    "DeadLinkRecord", "DeadLinkScanner", "ScanProgress",
+    "DailyDigest", "DailyDigestService", "DigestSection",
+    "DuplicateGroup", "DuplicateReport", "HybridDuplicateDetector",
+    "EmbeddingService",
+    "CryptoUnavailable", "EncryptedStore",
+    "Flow", "FlowManager", "FlowStep",
+    "HybridResult", "HybridSearch",
+    "ContentIngestor", "IngestResult",
+    "NLQueryTranslator", "StructuredQuery", "execute_query",
+    "ChatMessage", "ChatTurn", "CollectionChat",
+    "ReadLaterQueue",
+    "RSS_AI_MODES", "FeedConfig", "FeedIngestor", "FeedItem", "FeedRegistry", "parse_feed",
+    "SnapshotArchiver",
+    "LintReport", "TagLinter", "TagSuggestion",
+    "VectorStore", "reciprocal_rank_fusion",
+    "ZipExporter",
+    "PocketExportImporter", "ReadwiseReaderCSVImporter", "PinboardJSONImporter",
+    "InstapaperImporter", "RedditSavedImporter", "import_into",
     # I/O formats
     "XBELHandler",
     # AI
