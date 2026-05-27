@@ -83,7 +83,7 @@ class ReportGenerator:
         table {{ width: 100%; border-collapse: collapse; margin: 14px 0 22px; }}
         th, td {{ padding: 11px 12px; text-align: left; border-bottom: 1px solid {theme.border}; }}
         th {{ background: {theme.bg_secondary}; color: {theme.text_secondary}; }}
-        .bar {{ background: {theme.bg_tertiary}; height: 10px; border-radius: 999px; overflow: hidden; }}
+        .bar {{ background: {theme.bg_tertiary}; height: 10px; border-radius: 6px; overflow: hidden; }}
         .bar-fill {{ background: {theme.accent_primary}; height: 100%; }}
         .footer {{ margin-top: 44px; color: {theme.text_muted}; text-align: center; font-size: 12px; }}
     </style>
