@@ -87,15 +87,25 @@ AI_PROVIDERS = {
         description="Ultra-fast inference, free tier",
         free_tier=True
     ),
+    "deepseek": AIProviderInfo(
+        name="deepseek",
+        display_name="DeepSeek",
+        api_key_url="https://platform.deepseek.com/api_keys",
+        api_key_env="DEEPSEEK_API_KEY",
+        models=["deepseek-chat", "deepseek-reasoner"],
+        default_model="deepseek-chat",
+        description="DeepSeek V3/R1 — powerful and affordable",
+        free_tier=False,
+    ),
     "ollama": AIProviderInfo(
         name="ollama",
         display_name="Ollama (Local)",
         api_key_url="https://ollama.com/download",
         api_key_env="",
-        models=["llama3.2", "llama3.3", "llama3.1", "mistral", "mistral-nemo",
-                "qwen2.5", "qwen3", "phi4", "phi3", "gemma2", "gemma3",
-                "deepseek-r1", "deepseek-coder-v2", "codellama", "command-r",
-                "mixtral", "wizard-vicuna", "neural-chat", "starling-lm"],
+        models=["llama3.2", "llama3.3", "qwen3", "qwen3.5", "qwen2.5",
+                "gemma3", "phi4", "mistral", "mistral-nemo",
+                "deepseek-r1", "deepseek-r1:8b", "deepseek-coder-v2",
+                "codellama", "command-r", "mixtral", "llava"],
         default_model="llama3.2",
         description="Run models locally via Ollama — completely free, no API key needed",
         requires_api_key=False,
@@ -729,6 +739,64 @@ class GroqClient(AIClient):
         return response.choices[0].message.content if response.choices else ""
 
 
+class DeepSeekClient(AIClient):
+    """DeepSeek API client (OpenAI-compatible)"""
+
+    def __init__(self, api_key: str, model: str = "deepseek-chat"):
+        self.api_key = api_key
+        self.model = model
+        self._client = None
+
+    @property
+    def client(self):
+        if self._client is None:
+            if not self.api_key:
+                raise ValueError("DeepSeek API key is required. Get one at platform.deepseek.com/api_keys")
+            openai = ensure_package("openai")
+            self._client = openai.OpenAI(api_key=self.api_key, base_url="https://api.deepseek.com")
+        return self._client
+
+    def categorize_bookmarks(self, bookmarks: List[Dict], categories: List[str],
+                            allow_new: bool = True, suggest_tags: bool = True) -> List[Dict]:
+        prompt = self._build_prompt(bookmarks, categories, allow_new, suggest_tags)
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": "You categorize bookmarks. Respond only with valid JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3,
+        )
+        return self._parse_response((response.choices[0].message.content if response.choices else ''), bookmarks)
+
+    def test_connection(self) -> Tuple[bool, str]:
+        try:
+            if not self.api_key:
+                return False, "DeepSeek API key is required. Get one at platform.deepseek.com/api_keys"
+            self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": "Say OK"}],
+                max_tokens=10
+            )
+            return True, f"Connected to DeepSeek ({self.model})"
+        except Exception as e:
+            return False, f"Error: {str(e)[:200]}"
+
+    def complete(self, prompt: str, system: str = "",
+                 max_tokens: int = 800, temperature: float = 0.2) -> str:
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        return response.choices[0].message.content if response.choices else ""
+
+
 class OllamaClient(AIClient):
     """Ollama local API client"""
 
@@ -801,6 +869,8 @@ def create_ai_client(config: AIConfigManager) -> AIClient:
         return GoogleClient(config.get_api_key(), model)
     elif provider == "groq":
         return GroqClient(config.get_api_key(), model)
+    elif provider == "deepseek":
+        return DeepSeekClient(config.get_api_key(), model)
     elif provider == "ollama":
         return OllamaClient(config.get_ollama_url(), model)
     else:

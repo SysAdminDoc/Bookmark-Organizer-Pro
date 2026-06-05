@@ -1,27 +1,17 @@
-"""AI settings dialog actions for the app coordinator."""
+"""AI settings dialog with integrated Ollama management."""
 
 from __future__ import annotations
 
-import json
-import re
 import threading
 import tkinter as tk
-from datetime import datetime
-from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import messagebox, ttk
 from typing import Dict, List, Optional
 
-try:
-    import requests
-except ImportError:  # pragma: no cover - optional runtime dependency
-    requests = None
-
 from bookmark_organizer_pro.ai import AI_PROVIDERS, create_ai_client
-from bookmark_organizer_pro.core.category_manager import get_category_icon
 from bookmark_organizer_pro.logging_config import log
-from bookmark_organizer_pro.models import Bookmark, Category
+from bookmark_organizer_pro.services.ollama_manager import OllamaManager, OllamaStatus
 from bookmark_organizer_pro.ui.components import ScrollableFrame
-from bookmark_organizer_pro.ui.foundation import FONTS, pluralize
+from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, pluralize
 from bookmark_organizer_pro.ui.widgets import ModernButton, apply_window_chrome, get_theme
 
 
@@ -29,344 +19,468 @@ class AiSettingsMixin:
     """AI settings UI and provider connection testing workflow."""
 
     def _show_ai_settings(self):
-        """Show AI settings dialog"""
         theme = get_theme()
-        
+
         dialog = tk.Toplevel(self.root)
         dialog.title("AI Settings")
         dialog.configure(bg=theme.bg_primary)
-        dialog.geometry("560x660")
-        dialog.minsize(520, 560)
+        dialog.geometry("620x720")
+        dialog.minsize(580, 620)
         dialog.transient(self.root)
         dialog.grab_set()
         apply_window_chrome(dialog)
-        
-        # Center dialog
+
         dialog.update_idletasks()
-        x = self.root.winfo_x() + (self.root.winfo_width() - 560) // 2
-        y = self.root.winfo_y() + (self.root.winfo_height() - 660) // 2
-        dialog.geometry(f"+{x}+{y}")
-        
-        # Header
-        header = tk.Frame(dialog, bg=theme.bg_secondary, padx=24, pady=18)
+        x = self.root.winfo_x() + (self.root.winfo_width() - 620) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - 720) // 2
+        dialog.geometry(f"+{max(0, x)}+{max(0, y)}")
+
+        # ── Header ──
+        header = tk.Frame(dialog, bg=theme.bg_secondary, padx=24, pady=16)
         header.pack(fill=tk.X)
-        
+
         tk.Label(
-            header, text="AI settings", bg=theme.bg_secondary,
-            fg=theme.text_primary, font=FONTS.title(bold=True)
+            header, text="AI Settings", bg=theme.bg_secondary,
+            fg=theme.text_primary, font=FONTS.title(bold=True),
         ).pack(anchor="w")
-        
+
         tk.Label(
             header,
-            text="Choose the provider and pacing used for categorization, tags, descriptions, and title cleanup.",
+            text="Choose a provider for categorization, tags, summaries, and RAG chat.",
             bg=theme.bg_secondary, fg=theme.text_secondary,
-            font=FONTS.small(), wraplength=500, justify=tk.LEFT
-        ).pack(anchor="w", pady=(5, 0))
-        
-        # Scrollable content
-        scroll_area = ScrollableFrame(dialog, bg=theme.bg_primary)
-        scroll_area.pack(fill=tk.BOTH, expand=True)
-        content_frame = tk.Frame(scroll_area.inner, bg=theme.bg_primary, padx=24, pady=16)
-        content_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Provider selection
+            font=FONTS.small(), wraplength=560, justify=tk.LEFT,
+        ).pack(anchor="w", pady=(4, 0))
+
+        # ── Scrollable content ──
+        scroll = ScrollableFrame(dialog, bg=theme.bg_primary)
+        scroll.pack(fill=tk.BOTH, expand=True)
+        body = tk.Frame(scroll.inner, bg=theme.bg_primary, padx=24, pady=14)
+        body.pack(fill=tk.BOTH, expand=True)
+
+        # ── Provider selection ──
         tk.Label(
-            content_frame, text="Provider", bg=theme.bg_primary,
-            fg=theme.text_primary, font=("Segoe UI", 10, "bold")
-        ).pack(anchor="w", pady=(10, 5))
-        
+            body, text="Provider", bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.body(bold=True),
+        ).pack(anchor="w", pady=(8, 6))
+
         provider_var = tk.StringVar(value=self.ai_config.get_provider())
-        provider_frame = tk.Frame(content_frame, bg=theme.bg_primary)
-        provider_frame.pack(fill=tk.X, pady=5)
-        
-        for provider_name, info in AI_PROVIDERS.items():
+        provider_frame = tk.Frame(body, bg=theme.bg_primary)
+        provider_frame.pack(fill=tk.X, pady=(0, 8))
+
+        for pname, info in AI_PROVIDERS.items():
+            row = tk.Frame(provider_frame, bg=theme.bg_primary)
+            row.pack(fill=tk.X, pady=1)
+
             rb = tk.Radiobutton(
-                provider_frame, text=f"{info.display_name}",
-                variable=provider_var, value=provider_name,
+                row, text=info.display_name, variable=provider_var, value=pname,
                 bg=theme.bg_primary, fg=theme.text_primary,
                 activebackground=theme.bg_primary, activeforeground=theme.text_primary,
-                selectcolor=theme.bg_secondary, font=FONTS.small()
+                selectcolor=theme.bg_secondary, font=FONTS.body(),
             )
-            rb.pack(anchor="w", pady=2)
-            
-            desc = tk.Label(
-                provider_frame, text=f"   {info.description}",
-                bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.tiny()
-            )
-            desc.pack(anchor="w")
-        
-        # Model selection
+            rb.pack(side=tk.LEFT)
+
+            badge = ""
+            if info.free_tier:
+                badge = " · Free" if not info.local else " · Free · Local"
+            tk.Label(
+                row, text=f"  {info.description}{badge}",
+                bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.small(),
+            ).pack(side=tk.LEFT, padx=(4, 0))
+
+        # ── Separator ──
+        tk.Frame(body, bg=theme.border_muted, height=1).pack(fill=tk.X, pady=10)
+
+        # ── Model selection ──
         tk.Label(
-            content_frame, text="Model", bg=theme.bg_primary,
-            fg=theme.text_primary, font=("Segoe UI", 10, "bold")
-        ).pack(anchor="w", pady=(15, 5))
-        
+            body, text="Model", bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.body(bold=True),
+        ).pack(anchor="w", pady=(0, 4))
+
         model_var = tk.StringVar(value=self.ai_config.get_model())
-        model_combo = ttk.Combobox(content_frame, textvariable=model_var, state="readonly", width=44)
-        model_combo.pack(anchor="w", pady=5, ipady=3)
-        
-        # API Key
-        tk.Label(
-            content_frame, text="API key", bg=theme.bg_primary,
-            fg=theme.text_primary, font=("Segoe UI", 10, "bold")
-        ).pack(anchor="w", pady=(15, 5))
+        model_combo = ttk.Combobox(body, textvariable=model_var, state="readonly", width=48)
+        model_combo.pack(anchor="w", pady=(0, 8), ipady=3)
+
+        # ── API key section ──
+        api_key_frame = tk.Frame(body, bg=theme.bg_primary)
 
         tk.Label(
-            content_frame,
-            text="Stored locally in this app. Ollama does not require a cloud API key.",
-            bg=theme.bg_primary, fg=theme.text_muted,
-            font=FONTS.tiny(), wraplength=480, justify=tk.LEFT
-        ).pack(anchor="w", pady=(0, 5))
-        
+            api_key_frame, text="API Key", bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.body(bold=True),
+        ).pack(anchor="w", pady=(0, 4))
+
         api_key_var = tk.StringVar(value=self.ai_config.get_api_key())
         api_entry = tk.Entry(
-            content_frame, textvariable=api_key_var, show="•",
+            api_key_frame, textvariable=api_key_var, show="•",
             bg=theme.bg_secondary, fg=theme.text_primary,
-            insertbackground=theme.text_primary,
-            disabledbackground=theme.bg_tertiary,
-            disabledforeground=theme.text_muted,
-            font=FONTS.body(), relief=tk.FLAT, width=48,
-            highlightthickness=1, highlightbackground=theme.border_muted,
-            highlightcolor=theme.accent_primary
+            insertbackground=theme.text_primary, font=FONTS.body(),
+            relief=tk.FLAT, width=52, highlightthickness=1,
+            highlightbackground=theme.border_muted, highlightcolor=theme.accent_primary,
         )
-        api_entry.pack(anchor="w", ipady=5, pady=5)
-        
-        # Show/Hide key button
+        api_entry.pack(anchor="w", ipady=5, pady=(0, 4))
+
+        key_row = tk.Frame(api_key_frame, bg=theme.bg_primary)
+        key_row.pack(anchor="w")
+
         def toggle_key():
-            if api_entry.cget('show') == '•':
-                api_entry.configure(show='')
-                show_btn.set_text("Hide key")
+            if api_entry.cget("show") == "•":
+                api_entry.configure(show="")
+                show_btn.set_text("Hide")
             else:
-                api_entry.configure(show='•')
-                show_btn.set_text("Show key")
-        
-        show_btn = ModernButton(content_frame, text="Show key", command=toggle_key, padx=10, pady=4, font=FONTS.tiny())
-        show_btn.pack(anchor="w", pady=2)
-        
-        # Ollama server URL field
-        ollama_frame = tk.Frame(content_frame, bg=theme.bg_primary)
+                api_entry.configure(show="•")
+                show_btn.set_text("Show")
+
+        show_btn = ModernButton(key_row, text="Show", command=toggle_key, padx=8, pady=3, font=FONTS.small())
+        show_btn.pack(side=tk.LEFT, padx=(0, 8))
+
+        provider_info = AI_PROVIDERS.get(provider_var.get())
+        if provider_info and provider_info.api_key_url:
+            def _open_key_url():
+                import webbrowser
+                info = AI_PROVIDERS.get(provider_var.get())
+                if info and info.api_key_url:
+                    webbrowser.open(info.api_key_url)
+
+            get_key_btn = ModernButton(key_row, text="Get API key →", command=_open_key_url, padx=8, pady=3, font=FONTS.small())
+            get_key_btn.pack(side=tk.LEFT)
+
+        # ── Ollama management panel ──
+        ollama_panel = tk.Frame(body, bg=theme.bg_secondary, padx=16, pady=14,
+                                highlightbackground=theme.border_muted, highlightthickness=1)
+
+        ollama_mgr = OllamaManager(self.ai_config.get_ollama_url())
+
+        # Status line
+        ollama_status_var = tk.StringVar(value="Checking Ollama…")
+        ollama_status_label = tk.Label(
+            ollama_panel, textvariable=ollama_status_var,
+            bg=theme.bg_secondary, fg=theme.text_secondary, font=FONTS.body(),
+        )
+
+        # Status indicator dot
+        ollama_dot = tk.Label(
+            ollama_panel, text="●", bg=theme.bg_secondary,
+            fg=theme.text_muted, font=FONTS.body(),
+        )
+
+        # Header row
+        ollama_header = tk.Frame(ollama_panel, bg=theme.bg_secondary)
+        ollama_header.pack(fill=tk.X, pady=(0, 8))
 
         tk.Label(
-            ollama_frame, text="Ollama server URL", bg=theme.bg_primary,
-            fg=theme.text_primary, font=FONTS.small(bold=True)
-        ).pack(anchor="w", pady=(0, 3))
+            ollama_header, text="Ollama — Local AI", bg=theme.bg_secondary,
+            fg=theme.text_primary, font=FONTS.body(bold=True),
+        ).pack(side=tk.LEFT)
+
+        ollama_dot.pack(in_=ollama_header, side=tk.RIGHT)
+        ollama_status_label.pack(in_=ollama_header, side=tk.RIGHT, padx=(0, 6))
+
+        # URL field
+        url_row = tk.Frame(ollama_panel, bg=theme.bg_secondary)
+        url_row.pack(fill=tk.X, pady=(0, 8))
+
+        tk.Label(
+            url_row, text="Server", bg=theme.bg_secondary,
+            fg=theme.text_secondary, font=FONTS.small(),
+        ).pack(side=tk.LEFT, padx=(0, 6))
 
         ollama_url_var = tk.StringVar(value=self.ai_config.get_ollama_url())
         ollama_url_entry = tk.Entry(
-            ollama_frame, textvariable=ollama_url_var,
-            bg=theme.bg_secondary, fg=theme.text_primary,
-            insertbackground=theme.text_primary,
-            font=FONTS.body(), relief=tk.FLAT, width=46,
-            highlightthickness=1, highlightbackground=theme.border_muted,
-            highlightcolor=theme.accent_primary
+            url_row, textvariable=ollama_url_var,
+            bg=theme.bg_primary, fg=theme.text_primary,
+            insertbackground=theme.text_primary, font=FONTS.small(),
+            relief=tk.FLAT, width=30, highlightthickness=1,
+            highlightbackground=theme.border_muted, highlightcolor=theme.accent_primary,
         )
-        ollama_url_entry.pack(anchor="w", ipady=4, pady=2)
+        ollama_url_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=3)
+
+        # Action buttons row
+        action_row = tk.Frame(ollama_panel, bg=theme.bg_secondary)
+        action_row.pack(fill=tk.X, pady=(0, 8))
+
+        install_btn = ModernButton(action_row, text="Install Ollama", style="primary", padx=10, pady=4, font=FONTS.small())
+        install_btn.pack(side=tk.LEFT, padx=(0, 6))
+
+        start_btn = ModernButton(action_row, text="Start Server", padx=10, pady=4, font=FONTS.small())
+        start_btn.pack(side=tk.LEFT, padx=(0, 6))
+
+        refresh_btn = ModernButton(action_row, text="Refresh", padx=10, pady=4, font=FONTS.small())
+        refresh_btn.pack(side=tk.LEFT)
+
+        # Model download section
+        download_frame = tk.Frame(ollama_panel, bg=theme.bg_secondary)
+        download_frame.pack(fill=tk.X, pady=(0, 4))
 
         tk.Label(
-            ollama_frame, text="Default: http://localhost:11434",
-            bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.tiny()
-        ).pack(anchor="w")
+            download_frame, text="Download model:", bg=theme.bg_secondary,
+            fg=theme.text_secondary, font=FONTS.small(),
+        ).pack(side=tk.LEFT, padx=(0, 6))
 
-        # Detect Ollama models button
-        def detect_ollama_models():
-            raw_url = ollama_url_var.get().strip()
-            if not raw_url:
-                self._show_toast("Enter an Ollama server URL before detecting models.", "warning")
-                ollama_url_entry.focus_set()
+        popular = OllamaManager.get_popular_models()
+        model_names_for_pull = [f"{m[0]}  ({m[1]}) — {m[2]}" for m in popular]
+
+        pull_var = tk.StringVar(value=model_names_for_pull[0] if model_names_for_pull else "")
+        pull_combo = ttk.Combobox(download_frame, textvariable=pull_var, values=model_names_for_pull, state="readonly", width=40)
+        pull_combo.pack(side=tk.LEFT, padx=(0, 6), ipady=2)
+
+        # Progress label for downloads
+        progress_var = tk.StringVar(value="")
+        progress_label = tk.Label(
+            ollama_panel, textvariable=progress_var,
+            bg=theme.bg_secondary, fg=theme.accent_primary, font=FONTS.small(),
+        )
+
+        # Local models list
+        local_models_frame = tk.Frame(ollama_panel, bg=theme.bg_secondary)
+        local_models_label = tk.Label(
+            local_models_frame, text="", bg=theme.bg_secondary,
+            fg=theme.text_secondary, font=FONTS.small(), justify=tk.LEFT, anchor="w",
+        )
+        local_models_label.pack(anchor="w")
+
+        def _update_ollama_status(status: OllamaStatus):
+            if not dialog.winfo_exists():
                 return
+            if not status.installed:
+                ollama_status_var.set("Not installed")
+                ollama_dot.configure(fg=theme.accent_error)
+                install_btn.set_state("normal")
+                start_btn.set_state("disabled")
+            elif not status.running:
+                ollama_status_var.set(f"Installed (v{status.version}) — server stopped")
+                ollama_dot.configure(fg=theme.accent_warning)
+                install_btn.set_state("disabled")
+                start_btn.set_state("normal")
+            else:
+                n = len(status.models)
+                ollama_status_var.set(f"Running — {pluralize(n, 'model')} available")
+                ollama_dot.configure(fg=theme.accent_success)
+                install_btn.set_state("disabled")
+                start_btn.set_state("disabled")
 
-            url = raw_url if "://" in raw_url else f"http://{raw_url}"
-            url = url.rstrip("/")
-            ollama_url_var.set(url)
-            detect_btn.set_state("disabled")
-            detect_btn.set_text("Detecting…")
+                # Update model combo with local models
+                local_names = [m["name"] for m in status.models]
+                current_vals = list(model_combo["values"] or [])
+                merged = list(dict.fromkeys(local_names + current_vals))
+                model_combo["values"] = merged
 
-            def finish(kind: str, payload):
-                if not dialog.winfo_exists():
-                    return
-                detect_btn.set_state("normal")
-                detect_btn.set_text("Detect models")
-                if kind == "models":
-                    models = payload
-                    model_combo['values'] = models
-                    if model_var.get() not in models:
-                        model_var.set(models[0])
-                    self._show_toast(f"Found {pluralize(len(models), 'Ollama model')}", "success")
-                elif kind == "empty":
-                    self._show_toast(
-                        "Ollama is running, but no models are installed. Run: ollama pull llama3.2",
-                        "warning"
-                    )
-                elif kind == "status":
-                    self._show_toast(f"Ollama responded with HTTP {payload}. Check the server URL.", "error")
+                if model_var.get() not in merged and merged:
+                    model_var.set(merged[0])
+
+                # Show local models list
+                if status.models:
+                    lines = ["Installed models:"]
+                    for m in status.models:
+                        lines.append(f"  • {m['name']}  ({m.get('size', '')})")
+                    local_models_label.configure(text="\n".join(lines))
+                    local_models_frame.pack(fill=tk.X, pady=(6, 0))
                 else:
-                    self._show_toast(f"Cannot reach Ollama at {url}: {str(payload)[:80]}", "error")
+                    local_models_frame.pack_forget()
+
+        def _refresh_ollama():
+            ollama_status_var.set("Checking…")
+            ollama_dot.configure(fg=theme.text_muted)
 
             def worker():
-                try:
-                    import requests as req
-                    resp = req.get(f"{url}/api/tags", timeout=5)
-                    if resp.status_code == 200:
-                        models = [m["name"] for m in resp.json().get("models", []) if m.get("name")]
-                        self.root.after(0, lambda models=models: finish("models" if models else "empty", models))
-                    else:
-                        self.root.after(0, lambda status=resp.status_code: finish("status", status))
-                except Exception as e:
-                    self.root.after(0, lambda error=e: finish("error", error))
+                mgr = OllamaManager(ollama_url_var.get().strip() or OLLAMA_DEFAULT_URL)
+                status = mgr.detect()
+                self.root.after(0, lambda: _update_ollama_status(status))
 
             threading.Thread(target=worker, daemon=True).start()
 
-        detect_btn = ModernButton(
-            ollama_frame, text="Detect models", command=detect_ollama_models,
-            style="primary", padx=12, pady=5, font=FONTS.tiny()
-        )
-        detect_btn.pack(anchor="w", pady=(5, 0))
+        def _install_ollama():
+            install_btn.set_state("disabled")
+            install_btn.set_text("Installing…")
+            progress_var.set("Starting installation…")
+            progress_label.pack(fill=tk.X, pady=(4, 0))
 
-        # Update models when provider changes
-        def on_provider_change(*args):
+            def on_progress(msg):
+                self.root.after(0, lambda: progress_var.set(msg))
+
+            def on_done(ok, msg):
+                def update():
+                    if not dialog.winfo_exists():
+                        return
+                    install_btn.set_text("Install Ollama")
+                    if ok:
+                        progress_var.set("Installed! Starting server…")
+                        _start_ollama()
+                    else:
+                        progress_var.set(f"Install failed: {msg[:80]}")
+                        install_btn.set_state("normal")
+                self.root.after(0, update)
+
+            OllamaManager().install(on_progress=on_progress, on_done=on_done)
+
+        def _start_ollama():
+            start_btn.set_state("disabled")
+            start_btn.set_text("Starting…")
+            progress_var.set("Starting Ollama server…")
+            progress_label.pack(fill=tk.X, pady=(4, 0))
+
+            def on_done(ok, msg):
+                def update():
+                    if not dialog.winfo_exists():
+                        return
+                    start_btn.set_text("Start Server")
+                    if ok:
+                        progress_var.set("Server is running!")
+                        _refresh_ollama()
+                    else:
+                        progress_var.set(f"Start failed: {msg[:80]}")
+                        start_btn.set_state("normal")
+                self.root.after(0, update)
+
+            OllamaManager(ollama_url_var.get().strip() or OLLAMA_DEFAULT_URL).start_server(on_done=on_done)
+
+        def _pull_model():
+            selected = pull_var.get()
+            if not selected:
+                return
+            model_name = selected.split("  (")[0].strip()
+            pull_btn.set_state("disabled")
+            pull_btn.set_text("Downloading…")
+            progress_var.set(f"Pulling {model_name}…")
+            progress_label.pack(fill=tk.X, pady=(4, 0))
+
+            def on_progress(msg):
+                self.root.after(0, lambda: progress_var.set(msg[:80]))
+
+            def on_done(ok, msg):
+                def update():
+                    if not dialog.winfo_exists():
+                        return
+                    pull_btn.set_text("Download")
+                    pull_btn.set_state("normal")
+                    if ok:
+                        progress_var.set(f"{model_name} ready!")
+                        _refresh_ollama()
+                    else:
+                        progress_var.set(f"Pull failed: {msg[:80]}")
+                self.root.after(0, update)
+
+            OllamaManager(ollama_url_var.get().strip() or OLLAMA_DEFAULT_URL).pull_model(
+                model_name, on_progress=on_progress, on_done=on_done,
+            )
+
+        pull_btn = ModernButton(download_frame, text="Download", style="primary", padx=10, pady=4, font=FONTS.small())
+        pull_btn.pack(side=tk.LEFT)
+
+        install_btn.command = _install_ollama
+        start_btn.command = _start_ollama
+        refresh_btn.command = _refresh_ollama
+
+        # ── Pacing settings ──
+        tk.Frame(body, bg=theme.border_muted, height=1).pack(fill=tk.X, pady=10)
+
+        settings_frame = tk.Frame(body, bg=theme.bg_primary)
+        settings_frame.pack(fill=tk.X, pady=(0, 8))
+
+        tk.Label(
+            settings_frame, text="Batch size", bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.small(),
+        ).grid(row=0, column=0, sticky="w", pady=4)
+
+        batch_var = tk.IntVar(value=self.ai_config.get_batch_size())
+        ttk.Spinbox(settings_frame, from_=5, to=50, textvariable=batch_var, width=8).grid(row=0, column=1, padx=10, pady=4)
+
+        tk.Label(
+            settings_frame, text="Rate limit (req/min)", bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.small(),
+        ).grid(row=1, column=0, sticky="w", pady=4)
+
+        rate_var = tk.IntVar(value=self.ai_config.get_rate_limit())
+        ttk.Spinbox(settings_frame, from_=1, to=120, textvariable=rate_var, width=8).grid(row=1, column=1, padx=10, pady=4)
+
+        # ── Provider change handler ──
+        from bookmark_organizer_pro.services.ollama_manager import OLLAMA_DEFAULT_URL
+
+        def on_provider_change(*_):
             provider = provider_var.get()
             info = AI_PROVIDERS.get(provider)
             if info:
-                model_combo['values'] = info.models
+                model_combo["values"] = info.models
                 if model_var.get() not in info.models:
                     model_var.set(info.default_model)
-                # Update API key field
                 api_key_var.set(self.ai_config.get_api_key(provider))
 
-            # Show/hide Ollama-specific fields
             if provider == "ollama":
-                ollama_frame.pack(fill=tk.X, pady=(10, 5), before=settings_frame)
-                api_entry.configure(state="disabled")
+                ollama_panel.pack(fill=tk.X, pady=(8, 4), before=settings_frame)
+                api_key_frame.pack_forget()
+                _refresh_ollama()
             else:
-                ollama_frame.pack_forget()
-                api_entry.configure(state="normal")
+                ollama_panel.pack_forget()
+                api_key_frame.pack(fill=tk.X, pady=(0, 8), before=settings_frame)
 
-        # Batch size and rate limit
-        settings_frame = tk.Frame(content_frame, bg=theme.bg_primary)
-        settings_frame.pack(fill=tk.X, pady=(15, 5))
-        
-        tk.Label(
-            settings_frame, text="Batch size", bg=theme.bg_primary,
-            fg=theme.text_primary, font=FONTS.small()
-        ).grid(row=0, column=0, sticky="w", pady=5)
-        
-        batch_var = tk.IntVar(value=self.ai_config.get_batch_size())
-        batch_spin = ttk.Spinbox(settings_frame, from_=5, to=50, textvariable=batch_var, width=8)
-        batch_spin.grid(row=0, column=1, padx=10, pady=5)
-        
-        tk.Label(
-            settings_frame, text="Rate limit (req/min)", bg=theme.bg_primary,
-            fg=theme.text_primary, font=FONTS.small()
-        ).grid(row=1, column=0, sticky="w", pady=5)
-        
-        rate_var = tk.IntVar(value=self.ai_config.get_rate_limit())
-        rate_spin = ttk.Spinbox(settings_frame, from_=1, to=120, textvariable=rate_var, width=8)
-        rate_spin.grid(row=1, column=1, padx=10, pady=5)
+        provider_var.trace_add("write", on_provider_change)
+        on_provider_change()
 
-        provider_var.trace_add('write', on_provider_change)
-        on_provider_change()  # Initialize after dependent fields are packed
-        
-        # Test connection button
+        # ── Test connection ──
         def test_connection():
             provider = provider_var.get()
             model = model_var.get()
             key = api_key_var.get()
-            
-            # Validate API key is provided (except for Ollama)
-            if not key and provider != "ollama":
-                provider_label = AI_PROVIDERS.get(provider).display_name if provider in AI_PROVIDERS else provider
+
+            if not key and provider not in ("ollama",):
+                pl = AI_PROVIDERS.get(provider)
                 messagebox.showwarning(
                     "API Key Required",
-                    f"Enter an API key for {provider_label} before testing the connection.\n\n"
-                    "You can get an API key from:\n"
-                    "• OpenAI: platform.openai.com/api-keys\n"
-                    "• Anthropic: console.anthropic.com/settings/keys\n"
-                    "• Google: aistudio.google.com/app/apikey\n"
-                    "• Groq: console.groq.com/keys",
-                    parent=dialog)
+                    f"Enter an API key for {pl.display_name if pl else provider} before testing.",
+                    parent=dialog,
+                )
                 return
-            
-            # Temporarily set provider, model, and key for test
+
             old_provider = self.ai_config.get_provider()
             old_model = self.ai_config.get_model()
             old_key = self.ai_config.get_api_key(provider)
-            
-            # Set all values temporarily (without saving to file)
+
             self.ai_config._config["provider"] = provider
             self.ai_config._config["model"] = model
             self.ai_config._config.setdefault("api_keys", {})[provider] = key
-            
+            if provider == "ollama":
+                self.ai_config._config["ollama_url"] = ollama_url_var.get().strip() or OLLAMA_DEFAULT_URL
+
             try:
                 client = create_ai_client(self.ai_config)
                 success, message = client.test_connection()
-                
                 if success:
-                    messagebox.showinfo(
-                        "Connection Successful",
-                        f"{self._ai_provider_name()} responded successfully.\n\n{message}",
-                        parent=dialog
-                    )
+                    messagebox.showinfo("Connection Successful", message, parent=dialog)
                 else:
-                    messagebox.showerror(
-                        "Connection Failed",
-                        f"The provider responded, but the connection test did not pass.\n\n{message}",
-                        parent=dialog
-                    )
+                    messagebox.showerror("Connection Failed", message, parent=dialog)
             except Exception as e:
-                error_msg = str(e)
-                # Provide helpful hints based on error
-                hint = ""
-                if "API_KEY" in error_msg or "api_key" in error_msg.lower() or "authentication" in error_msg.lower():
-                    hint = "\n\nHint: Check that your API key is correct and active."
-                elif "model" in error_msg.lower():
-                    hint = f"\n\nHint: The model '{model}' may not be available for your account."
-                elif "quota" in error_msg.lower() or "rate" in error_msg.lower():
-                    hint = "\n\nHint: You may have exceeded your API quota or rate limit."
-                
-                messagebox.showerror(
-                    "Connection Failed",
-                    f"The connection test could not be completed.\n\n{error_msg[:300]}{hint}",
-                    parent=dialog
-                )
+                messagebox.showerror("Connection Failed", str(e)[:300], parent=dialog)
             finally:
-                # Restore original values
                 self.ai_config._config["provider"] = old_provider
                 self.ai_config._config["model"] = old_model
                 if old_key:
                     self.ai_config._config.setdefault("api_keys", {})[provider] = old_key
                 elif provider in self.ai_config._config.get("api_keys", {}):
                     del self.ai_config._config["api_keys"][provider]
-        
+
         test_btn = ModernButton(
-            content_frame, text="Test connection", command=test_connection,
-            style="primary", padx=16, pady=7
+            body, text="Test Connection", command=test_connection,
+            style="primary", padx=14, pady=6,
         )
-        test_btn.pack(anchor="w", pady=(15, 5))
-        
-        # Buttons
-        btn_frame = tk.Frame(dialog, bg=theme.bg_secondary, padx=20, pady=15)
-        btn_frame.pack(fill=tk.X, side=tk.BOTTOM)
-        
+        test_btn.pack(anchor="w", pady=(8, 4))
+
+        # ── Footer buttons ──
+        footer = tk.Frame(dialog, bg=theme.bg_secondary, padx=20, pady=14)
+        footer.pack(fill=tk.X, side=tk.BOTTOM)
+
         def save():
             self.ai_config.set_provider(provider_var.get())
             self.ai_config.set_model(model_var.get())
             self.ai_config.set_api_key(provider_var.get(), api_key_var.get())
             self.ai_config.set_batch_size(batch_var.get())
             self.ai_config.set_rate_limit(rate_var.get())
-            # Save Ollama URL if using Ollama
             if provider_var.get() == "ollama":
-                url = ollama_url_var.get().strip().rstrip('/')
+                url = ollama_url_var.get().strip().rstrip("/")
                 if url:
                     self.ai_config._config["ollama_url"] = url
             self.ai_config.save_config()
             dialog.destroy()
             self._show_toast("AI settings saved", "success")
-        
-        save_btn = ModernButton(btn_frame, text="Save settings", command=save, style="success", padx=22, pady=8)
-        save_btn.pack(side=tk.RIGHT)
-        
-        cancel_btn = ModernButton(btn_frame, text="Cancel", command=dialog.destroy, padx=18, pady=8)
-        cancel_btn.pack(side=tk.RIGHT, padx=(0, 10))
+
+        ModernButton(footer, text="Save", command=save, style="success", padx=20, pady=7).pack(side=tk.RIGHT)
+        ModernButton(footer, text="Cancel", command=dialog.destroy, padx=16, pady=7).pack(side=tk.RIGHT, padx=(0, 8))
         dialog.bind("<Escape>", lambda e: dialog.destroy())
         dialog.bind("<Control-Return>", lambda e: save())
-
