@@ -54,7 +54,7 @@ class SnapshotArchiver:
             return False, "Private or unsupported URL"
         out_path = self.snapshots_dir / f"{bookmark.id}.html"
         for backend in (self._snapshot_monolith, self._snapshot_singlefile,
-                        self._snapshot_python):
+                        self._snapshot_playwright, self._snapshot_python):
             try:
                 ok, msg = backend(bookmark.url, out_path)
             except Exception as exc:
@@ -130,6 +130,30 @@ class SnapshotArchiver:
         if not out_path.exists() or out_path.stat().st_size == 0:
             return False, "single-file produced no output"
         return True, str(out_path)
+
+    def _snapshot_playwright(self, url: str, out_path: Path) -> Tuple[bool, str]:
+        """Headless Chromium via playwright — captures JS-rendered SPAs."""
+        pw_sync = _try_import("playwright.sync_api")
+        if pw_sync is None:
+            return False, "playwright not installed"
+        try:
+            with pw_sync.sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                try:
+                    page = browser.new_page()
+                    page.goto(url, wait_until="networkidle", timeout=60_000)
+                    content = page.content()
+                finally:
+                    browser.close()
+            if not content or len(content) < 100:
+                return False, "playwright produced empty page"
+            data = content.encode("utf-8")
+            if len(data) > self.MAX_BYTES:
+                return False, "snapshot too large"
+            out_path.write_bytes(data)
+            return True, str(out_path)
+        except Exception as exc:
+            return False, f"playwright failed: {exc}"
 
     def _snapshot_python(self, url: str, out_path: Path) -> Tuple[bool, str]:
         """Pure-Python fallback: inline CSS, images, and basic fonts."""

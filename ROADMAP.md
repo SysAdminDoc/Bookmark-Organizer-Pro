@@ -102,7 +102,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| 🔲 R-23 | **Headless Chromium snapshot fallback** — `playwright` for JS-heavy SPAs when monolith/single-file produce empty shells. | Now | M | [S-1][S-3] |
+| ✅ R-23 | **Headless Chromium snapshot fallback** — playwright backend added as 3rd in chain (monolith → singlefile → playwright → python). | Now | M | [S-1][S-3] |
 | 🔲 R-24 | **Scheduled auto-snapshot** — user picks bookmarks for periodic re-capture to catch silent edits. | Next | M | [S-1] |
 | 🔲 R-25 | **EPUB export of collections** — each bookmark as a chapter, TOC from titles. `ebooklib` or manual ZIP construction. | Next | M | [S-6][S-18] |
 | 🔲 R-26 | **OPDS catalog** — serve collections to e-reader apps (Readeck-style). | Later | M | [S-6] |
@@ -344,7 +344,7 @@ Immediate priority. Ship within the next development cycle.
 - 🔲 **R-16** List virtualization via tksheet [L]
 - ✅ **R-19** Fix command palette FocusOut [S]
 - ✅ **R-20** Fix GridView scroll stealing [S]
-- 🔲 **R-23** Headless Chromium snapshot fallback [M]
+- ✅ **R-23** Headless Chromium snapshot fallback [M]
 - ✅ **R-32** Per-backup integrity hash [S]
 - ✅ **R-33** Deduplicate cross-category patterns [M]
 - ✅ **R-34** Fix overly broad plain patterns [M]
