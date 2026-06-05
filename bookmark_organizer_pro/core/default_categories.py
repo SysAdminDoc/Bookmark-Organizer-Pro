@@ -137,6 +137,25 @@ DEFAULT_CATEGORIES = {
         "keyword:breaking", "keyword:developing story",
         "keyword:trending", "keyword:viral",
         "keyword:investigative", "keyword:breaking story",
+        # Research agent additions
+        "domain:msnbc.com", "domain:buzzfeednews.com", "domain:defenseone.com",
+        "domain:c-span.org", "domain:rawstory.com", "domain:commondreams.org",
+        "domain:mediaite.com", "domain:realclearpolitics.com", "domain:fivethirtyeight.com",
+        "domain:thedispatch.com", "domain:bulwark.com", "domain:currentaffairs.org",
+        "domain:theatlantic.com", "domain:wired.com/news", "domain:apnews.com/hub",
+        "domain:hindustantimes.com", "domain:ndtv.com", "domain:india.com",
+        "domain:thehindu.com", "domain:livemint.com", "domain:news.com.au",
+        "domain:9news.com.au", "domain:stuff.co.nz", "domain:nzherald.co.nz",
+        "domain:irishtimes.com", "domain:rte.ie", "domain:aftonbladet.se",
+        "domain:asahi.com", "domain:chosun.com", "domain:joongang.co.kr",
+        "domain:clarin.com", "domain:folha.uol.com.br", "domain:corriere.it",
+        "domain:20minutos.es", "domain:lavanguardia.com", "domain:nzz.ch",
+        "domain:tagesanzeiger.ch", "domain:theglobeandmail.com", "domain:montrealgazette.com",
+        # Research agent keyword additions
+        "keyword:fact check", "keyword:press conference", "keyword:wire service",
+        "keyword:press pool", "keyword:breaking alert", "keyword:special report",
+        "keyword:long read", "keyword:correspondent", "keyword:press freedom",
+        "keyword:media bias",
     ],
 
     # -------------------------------------------------------------------------
@@ -173,6 +192,24 @@ DEFAULT_CATEGORIES = {
         "keyword:smartphone", "keyword:laptop review", "keyword:wearable",
         "keyword:consumer tech", "keyword:tech news",
         "keyword:chipset", "keyword:benchmark", "keyword:spec sheet",
+        # Research agent additions
+        "domain:cnet.com", "domain:pcworld.com", "domain:techradar.com",
+        "domain:phonearena.com", "domain:9to5google.com", "domain:appleinsider.com",
+        "domain:macrumors.com", "domain:technologyreview.com", "domain:notebookcheck.net",
+        "domain:liliputing.com", "domain:phoronix.com", "domain:techdirt.com",
+        "domain:dailydev.to", "domain:daily.dev", "domain:bgr.com",
+        "domain:droid-life.com", "domain:androidpolice.com", "domain:laptopmag.com",
+        "domain:pcmag.com", "domain:trustedreviews.com", "domain:t3.com",
+        "domain:stuff.tv", "domain:cio.com", "domain:infoworld.com",
+        "domain:networkworld.com", "domain:informationweek.com", "domain:thenewstack.io",
+        "domain:sdxcentral.com", "domain:siliconangle.com", "domain:datacenterknowledge.com",
+        "domain:fierceelectronics.com", "domain:techspot.com", "domain:hardocp.com",
+        "domain:overclock3d.net",
+        # Research agent keyword additions
+        "keyword:tech startup", "keyword:semiconductor", "keyword:processor review",
+        "keyword:display technology", "keyword:5g network", "keyword:foldable phone",
+        "keyword:mixed reality", "keyword:quantum computing", "keyword:edge ai",
+        "keyword:tech industry",
     ],
 
     # -------------------------------------------------------------------------
@@ -325,6 +362,27 @@ DEFAULT_CATEGORIES = {
         "keyword:unit test", "keyword:integration test",
         "keyword:dependency", "keyword:migration guide",
         "keyword:breaking change", "keyword:deprecation",
+        # Research agent additions
+        "domain:hashnode.com", "domain:linear.app", "domain:roadmap.sh",
+        "domain:theodinproject.com", "domain:bundlephobia.com", "domain:mvnrepository.com",
+        "domain:wakatime.com", "domain:gitpod.io", "domain:codespaces.github.com",
+        "domain:sonarqube.org", "domain:sonarcloud.io", "domain:bazel.build",
+        "domain:cmake.org", "domain:meson.build", "domain:conventionalcommits.org",
+        "domain:semver.org", "domain:12factor.net", "domain:refactoring.guru",
+        "domain:sourcemaking.com", "domain:martinfowler.com", "domain:patterns.dev",
+        "domain:javascript.info", "domain:learnxinyminutes.com", "domain:gobyexample.com",
+        "domain:rustbyexample.com", "domain:ray.io", "domain:dagger.io",
+        "domain:earthly.dev", "domain:moonrepo.dev", "domain:turbo.build",
+        "domain:nx.dev", "domain:lerna.js.org", "domain:bower.io",
+        "domain:hex.pm", "domain:clojars.org", "domain:opam.ocaml.org",
+        "domain:hackage.haskell.org", "domain:elixir-lang.org", "domain:haskell.org",
+        "domain:ocaml.org", "domain:scala-lang.org", "domain:julialang.org",
+        "domain:ziglang.org", "domain:gleam.run", "domain:vlang.io",
+        # Research agent keyword additions
+        "keyword:monorepo", "keyword:design pattern", "keyword:clean architecture",
+        "keyword:domain driven design", "keyword:event sourcing", "keyword:microservices pattern",
+        "keyword:code coverage", "keyword:static analysis", "keyword:linting",
+        "keyword:type safety",
     ],
 
     # -------------------------------------------------------------------------
@@ -415,6 +473,24 @@ DEFAULT_CATEGORIES = {
         "keyword:embedding", "keyword:tokenizer",
         "keyword:genai", "keyword:foundation model",
         "keyword:multimodal", "keyword:retrieval augmented",
+        # Research agent additions
+        "domain:blackforestlabs.ai", "domain:flux.ai", "domain:recraft.ai",
+        "domain:fal.ai", "domain:fireworks.ai", "domain:anyscale.com",
+        "domain:databricks.com", "domain:datarobot.com", "domain:h2o.ai",
+        "domain:c3.ai", "domain:clarifai.com", "domain:labelbox.com",
+        "domain:snorkel.ai", "domain:tecton.ai", "domain:feast.dev",
+        "domain:mlflow.org", "domain:bentoml.com", "domain:modal.com",
+        "domain:lightning.ai", "domain:lamini.ai", "domain:vapi.ai",
+        "domain:bland.ai", "domain:deepgram.com", "domain:assemblyai.com",
+        "domain:rev.ai", "domain:speechmatics.com", "domain:fathom.video",
+        "domain:openwebui.com", "domain:lmstys.org", "domain:lindy.ai",
+        "domain:relevanceai.com", "domain:langchain.com", "domain:llamaindex.ai",
+        "domain:crewai.com", "domain:autogen.microsoft.com",
+        # Research agent keyword additions
+        "keyword:ai agent", "keyword:function calling", "keyword:tool use",
+        "keyword:model context protocol", "keyword:vision language model", "keyword:text-to-speech",
+        "keyword:speech-to-text", "keyword:voice agent", "keyword:ai safety",
+        "keyword:alignment",
     ],
 
     # -------------------------------------------------------------------------
@@ -515,6 +591,21 @@ DEFAULT_CATEGORIES = {
         "keyword:container orchestration", "keyword:infrastructure as code",
         "keyword:cloud migration", "keyword:multi-cloud",
         "keyword:edge computing", "keyword:api gateway",
+        # Research agent additions
+        "domain:koyeb.com", "domain:northflank.com", "domain:aptible.com",
+        "domain:gigalixir.com", "domain:platform.sh", "domain:clever-cloud.com",
+        "domain:dokku.com", "domain:caprover.com", "domain:convex.dev",
+        "domain:appwrite.io", "domain:pocketbase.io", "domain:directus.io",
+        "domain:strapi.io", "domain:sanity.io", "domain:contentful.com",
+        "domain:timescale.com", "domain:aiven.io", "domain:crunchy.dev",
+        "domain:tembo.io", "domain:databaselabs.io", "domain:kamatera.com",
+        "domain:servespace.io", "domain:coreweave.com", "domain:lambdalabs.com",
+        "domain:paperspace.com",
+        # Research agent keyword additions
+        "keyword:serverless database", "keyword:managed postgres", "keyword:database branching",
+        "keyword:gpu cloud", "keyword:edge function", "keyword:platform engineering",
+        "keyword:internal developer platform", "keyword:cloud cost optimization", "keyword:finops",
+        "keyword:cloud native",
     ],
 
     # -------------------------------------------------------------------------
@@ -761,6 +852,22 @@ DEFAULT_CATEGORIES = {
         "keyword:print driver", "keyword:printer setup",
         "keyword:tls", "keyword:incident response",
         "keyword:sla", "keyword:service desk", "keyword:help desk",
+        # Research agent additions
+        "domain:nagios.org", "domain:puppet.com", "domain:chef.io",
+        "domain:saltproject.io", "domain:solarwinds.com", "domain:manageengine.com",
+        "domain:atera.com", "domain:auvik.com", "domain:kaseya.com",
+        "domain:datto.com", "domain:lansweeper.com", "domain:snipeitapp.com",
+        "domain:glpi-project.org", "domain:itglue.com", "domain:hudu.com",
+        "domain:osquery.io", "domain:wazuh.com", "domain:crowdstrike.com",
+        "domain:sentinelone.com", "domain:domotz.com", "domain:observium.org",
+        "domain:librenms.org", "domain:fogproject.org", "domain:clonezilla.org",
+        "domain:mremoteng.org", "domain:mobaxterm.mobatek.net", "domain:royalapps.com",
+        "domain:netbox.dev", "domain:phpipam.net", "domain:racktables.org",
+        # Research agent keyword additions
+        "keyword:asset management", "keyword:it documentation", "keyword:network discovery",
+        "keyword:configuration management", "keyword:infrastructure monitoring", "keyword:log management",
+        "keyword:snmp monitoring", "keyword:it asset tracking", "keyword:msp tools",
+        "keyword:it automation",
     ],
 
     # -------------------------------------------------------------------------
@@ -869,6 +976,23 @@ DEFAULT_CATEGORIES = {
         "keyword:plex server", "keyword:jellyfin",
         "keyword:docker-compose", "keyword:portainer",
         "keyword:plex setup", "keyword:home network",
+        # Research agent additions
+        "domain:karakeep.app", "domain:plausible.io", "domain:umami.is",
+        "domain:shlink.io", "domain:linkwarden.app", "domain:wallabag.org",
+        "domain:tandoor.dev", "domain:recipesage.com", "domain:hedgedoc.org",
+        "domain:silverbullet.md", "domain:docmost.com", "domain:memos.pub",
+        "domain:vikunja.io", "domain:wekan.github.io", "domain:kanboard.org",
+        "domain:planka.app", "domain:focalboard.com", "domain:linkding.github.io",
+        "domain:listmonk.app", "domain:mailtrain.org", "domain:mautic.org",
+        "domain:gotify.net", "domain:ntfy.sh", "domain:changedetection.io",
+        "domain:huginn.github.io", "domain:windmill.dev", "domain:activepieces.com",
+        "domain:netbird.io", "domain:headscale.net", "domain:lldap.github.io",
+        "domain:pinchflat.dev", "domain:tubearchivist.com",
+        # Research agent keyword additions
+        "keyword:docker stack", "keyword:reverse proxy", "keyword:selfhosted analytics",
+        "keyword:selfhosted bookmark", "keyword:recipe manager selfhosted", "keyword:selfhosted notes",
+        "keyword:selfhosted wiki", "keyword:selfhosted automation", "keyword:selfhosted vpn",
+        "keyword:selfhosted dashboard",
     ],
 
     # -------------------------------------------------------------------------
@@ -933,6 +1057,26 @@ DEFAULT_CATEGORIES = {
         "keyword:astrophysics", "keyword:microbiology",
         "keyword:genome", "keyword:climate science",
         "keyword:particle physics", "keyword:cosmology",
+        # Research agent additions
+        "domain:science.org", "domain:livescience.com", "domain:sciencealert.com",
+        "domain:scitechdaily.com", "domain:theconversation.com", "domain:aip.org",
+        "domain:aps.org", "domain:acs.org", "domain:rsc.org",
+        "domain:iop.org", "domain:agu.org", "domain:plos.org",
+        "domain:frontiersin.org", "domain:mdpi.com", "domain:hindawi.com",
+        "domain:biorxiv.org", "domain:medrxiv.org", "domain:chemrxiv.org",
+        "domain:eartharxiv.org", "domain:engrxiv.org", "domain:osf.io",
+        "domain:zenodo.org", "domain:figshare.com", "domain:dryad.org",
+        "domain:doaj.org", "domain:scimagojr.com", "domain:dimensions.ai",
+        "domain:semanticscholar.org", "domain:connectedpapers.com", "domain:elicit.com",
+        "domain:scite.ai", "domain:litmaps.com", "domain:research.com",
+        "domain:scilit.net", "domain:popularmechanics.com", "domain:discovermagazine.com",
+        "domain:iflscience.com", "domain:symmetrymagazine.org", "domain:physicsworld.com",
+        "domain:chemistryworld.com", "domain:the-scientist.com", "domain:eurekalert.org",
+        # Research agent keyword additions
+        "keyword:preprint", "keyword:open access", "keyword:impact factor",
+        "keyword:systematic review", "keyword:meta-analysis", "keyword:data repository",
+        "keyword:scientific method", "keyword:reproducibility", "keyword:clinical study",
+        "keyword:earth science",
     ],
 
     # -------------------------------------------------------------------------
@@ -1073,6 +1217,24 @@ DEFAULT_CATEGORIES = {
         "keyword:continuing education", "keyword:professional license",
         "keyword:credit hour", "keyword:transcript",
         "keyword:accredited",
+        # Research agent additions
+        "domain:egghead.io", "domain:frontendmasters.com", "domain:laracasts.com",
+        "domain:vueschool.io", "domain:scrimba.com", "domain:geeksforgeeks.org",
+        "domain:hyperskill.org", "domain:exercism.io", "domain:algocademy.com",
+        "domain:learnworlds.com", "domain:thinkific.com", "domain:teachable.com",
+        "domain:podia.com", "domain:kajabi.com", "domain:freshlearn.com",
+        "domain:uchicago.edu", "domain:nyu.edu", "domain:duke.edu",
+        "domain:northwestern.edu", "domain:brown.edu", "domain:dartmouth.edu",
+        "domain:ethz.ch", "domain:epfl.ch", "domain:tsinghua.edu.cn",
+        "domain:nus.edu.sg", "domain:canva.com/designschool", "domain:google.com/certificates",
+        "domain:grow.google", "domain:applied.co", "domain:simonandschuster.com",
+        "domain:domestika.org", "domain:sololearn.com", "domain:w3resource.com",
+        "domain:programiz.com", "domain:interviewbit.com",
+        # Research agent keyword additions
+        "keyword:micro-credential", "keyword:coding bootcamp", "keyword:certificate program",
+        "keyword:distance learning", "keyword:self-paced course", "keyword:academic journal",
+        "keyword:stem education", "keyword:professional certificate", "keyword:open courseware",
+        "keyword:peer tutoring",
     ],
 
     # -------------------------------------------------------------------------
@@ -1125,6 +1287,23 @@ DEFAULT_CATEGORIES = {
         "keyword:definition", "keyword:meaning of",
         "keyword:encyclopedia", "keyword:wiki", "keyword:lookup",
         "keyword:calculator", "keyword:converter", "keyword:translate",
+        # Research agent additions
+        "domain:wikihow.com", "domain:thoughtco.com", "domain:howstuffworks.com",
+        "domain:mentalfloss.com", "domain:encyclopedia.com", "domain:collinsdictionary.com",
+        "domain:dictionary.cambridge.org", "domain:oxfordlearnersdictionaries.com", "domain:onelook.com",
+        "domain:rhymezone.com", "domain:abbreviations.com", "domain:refseek.com",
+        "domain:infoplease.com", "domain:worldhistory.org", "domain:biography.com",
+        "domain:famousscientists.org", "domain:gisgeography.com", "domain:nationsonline.org",
+        "domain:countryreports.org", "domain:cia.gov/the-world-factbook", "domain:citypopulation.de",
+        "domain:ourworldindata.org", "domain:gapminder.org", "domain:data.worldbank.org",
+        "domain:acronymfinder.com", "domain:symbols.com", "domain:quoteinvestigator.com",
+        "domain:phrases.org.uk", "domain:grammarbook.com", "domain:grammarly.com/blog",
+        "domain:purdue.edu/owl", "domain:scholarpedia.org", "domain:stanford.library.sydney.edu.au",
+        "domain:plato.stanford.edu", "domain:iep.utm.edu", "domain:eol.org",
+        # Research agent keyword additions
+        "keyword:synonym", "keyword:antonym", "keyword:pronunciation",
+        "keyword:almanac", "keyword:atlas", "keyword:glossary",
+        "keyword:thesaurus", "keyword:etymology", "keyword:quotation",
     ],
 
     # -------------------------------------------------------------------------
@@ -1264,6 +1443,16 @@ DEFAULT_CATEGORIES = {
         "keyword:net worth",
         "keyword:financial freedom", "keyword:emergency fund",
         "keyword:debt snowball", "keyword:credit card reward",
+        # Research agent additions
+        "domain:tdameritrade.com", "domain:quicken.com", "domain:everydollar.com",
+        "domain:bitget.com", "domain:interactivebrokers.com", "domain:monefy.com",
+        "domain:mortgagecalculator.org", "domain:thecollegeinvestor.com", "domain:moneywise.com",
+        "domain:alphagamma.eu", "domain:financialauditcpa.com",
+        # Research agent keyword additions
+        "keyword:commission-free trading", "keyword:neobank app", "keyword:robo-advisor",
+        "keyword:cryptocurrency exchange", "keyword:personal finance budgeting", "keyword:tax preparation software",
+        "keyword:mortgage calculator", "keyword:stock trading platform", "keyword:credit score monitoring",
+        "keyword:investment portfolio tracker",
     ],
 
     # -------------------------------------------------------------------------
@@ -1309,6 +1498,16 @@ DEFAULT_CATEGORIES = {
         "keyword:business plan", "keyword:pitch deck",
         "keyword:quarterly earnings", "keyword:annual report",
         "keyword:corporate governance",
+        # Research agent additions
+        "domain:entrepreneur.com", "domain:freshworks.com", "domain:netsuite.com",
+        "domain:dynamics.microsoft.com", "domain:paycor.com", "domain:rippling.com",
+        "domain:deel.com", "domain:tableau.com", "domain:pardot.com",
+        "domain:capterra.com", "domain:shrm.org", "domain:scalefusion.com",
+        # Research agent keyword additions
+        "keyword:business SaaS tools", "keyword:CRM platform", "keyword:ERP software",
+        "keyword:HR management software", "keyword:payroll platform", "keyword:business analytics",
+        "keyword:marketing automation", "keyword:business intelligence dashboard", "keyword:enterprise resource planning",
+        "keyword:human capital management",
     ],
 
     # -------------------------------------------------------------------------
@@ -1398,6 +1597,16 @@ DEFAULT_CATEGORIES = {
         "keyword:professional development", "keyword:mentorship",
         "keyword:job application", "keyword:background check",
         "keyword:reference check", "keyword:onboarding",
+        # Research agent additions
+        "domain:repvue.com", "domain:resumegenius.com", "domain:jobbers.io",
+        "domain:scale.jobs", "domain:skipdrive.com", "domain:ophyai.com",
+        "domain:resumelab.com", "domain:coursereport.com", "domain:techelevator.com",
+        "domain:careerkarma.com", "domain:bestjobsearchapps.com",
+        # Research agent keyword additions
+        "keyword:freelance platform", "keyword:remote work job board", "keyword:resume builder AI",
+        "keyword:salary comparison tool", "keyword:coding interview prep", "keyword:career bootcamp",
+        "keyword:ATS optimization", "keyword:gig economy platform", "keyword:job application tracker",
+        "keyword:tech career placement",
     ],
 
     # -------------------------------------------------------------------------
@@ -1502,6 +1711,17 @@ DEFAULT_CATEGORIES = {
         "keyword:homeowner",
         "keyword:condo association", "keyword:home equity",
         "keyword:down payment", "keyword:escrow",
+        # Research agent additions
+        "domain:sothebysrealty.com", "domain:concreit.com", "domain:reit.com",
+        "domain:brevitas.com", "domain:realting.com", "domain:tranio.com",
+        "domain:homelight.com", "domain:altgage.com", "domain:realtylync.com",
+        "domain:dealpath.com", "domain:stacksource.com", "domain:financelobby.com",
+        "domain:commloan.com", "domain:lumicre.com", "domain:estateskyline.co",
+        # Research agent keyword additions
+        "keyword:commercial real estate listing", "keyword:real estate crowdfunding", "keyword:REIT investment platform",
+        "keyword:property management software", "keyword:foreclosure auction site", "keyword:international property search",
+        "keyword:mortgage lending marketplace", "keyword:rental property management", "keyword:real estate investment analysis",
+        "keyword:land sale auction",
     ],
 
     # -------------------------------------------------------------------------
@@ -1627,6 +1847,16 @@ DEFAULT_CATEGORIES = {
         "keyword:limited edition", "keyword:pre-order",
         "keyword:sold out", "keyword:restock",
         "keyword:size chart", "keyword:return policy",
+        # Research agent additions
+        "domain:dhgate.com", "domain:sierra.com", "domain:campmor.com",
+        "domain:backcountry.com", "domain:evo.com", "domain:luisaviaroma.com",
+        "domain:zalando.com", "domain:shopee.com", "domain:rakuten.com",
+        "domain:coupang.com", "domain:mercadolibre.com", "domain:boxed.com",
+        # Research agent keyword additions
+        "keyword:online marketplace", "keyword:grocery delivery service", "keyword:luxury fashion retailer",
+        "keyword:outdoor gear store", "keyword:electronics retailer online", "keyword:fast fashion platform",
+        "keyword:resale marketplace", "keyword:sporting goods store", "keyword:home improvement store",
+        "keyword:cross-border e-commerce",
     ],
 
     # -------------------------------------------------------------------------
@@ -1791,6 +2021,25 @@ DEFAULT_CATEGORIES = {
         "keyword:urgent care", "keyword:emergency room",
         "keyword:clinical trial", "keyword:drug interaction",
         "keyword:dosage",
+        # Research agent additions
+        "domain:epocrates.com", "domain:loseit.com", "domain:garmin.com",
+        "domain:lifesum.com", "domain:nutrisense.io", "domain:insighttimer.com",
+        "domain:wysa.com", "domain:woebot.io", "domain:cerebral.com",
+        "domain:donefirst.com", "domain:brightside.com", "domain:ginger.com",
+        "domain:athenahealth.com", "domain:kareo.com", "domain:doximity.com",
+        "domain:choosingtherapy.com", "domain:helpguide.org", "domain:dbtselfhelp.com",
+        "domain:recoverywarriors.com", "domain:rxsaver.com", "domain:singlecare.com",
+        "domain:costplusdrugs.com", "domain:honeybeehealth.com", "domain:nurx.com",
+        "domain:hims.com", "domain:forhers.com", "domain:ro.co",
+        "domain:calibrate.com", "domain:found.com", "domain:virta.com",
+        "domain:aaptiv.com", "domain:sweatapp.com", "domain:beachbodyondemand.com",
+        "domain:obefitness.com", "domain:centr.com", "domain:orangetheory.com",
+        "domain:crossfit.com",
+        # Research agent keyword additions
+        "keyword:telehealth", "keyword:prescription refill", "keyword:medical imaging",
+        "keyword:weight management", "keyword:health screening", "keyword:preventive care",
+        "keyword:nutritionist", "keyword:holistic health", "keyword:biometric",
+        "keyword:wearable health",
     ],
 
     # -------------------------------------------------------------------------
@@ -1933,6 +2182,24 @@ DEFAULT_CATEGORIES = {
         "keyword:sourdough", "keyword:fermentation",
         "keyword:sous vide", "keyword:cast iron",
         "keyword:food truck", "keyword:brunch",
+        # Research agent additions
+        "domain:supercook.com", "domain:mealime.com", "domain:paprikaapp.com",
+        "domain:plantoeat.com", "domain:eatthismuch.com", "domain:copykat.com",
+        "domain:justapinch.com", "domain:geniuskitchen.com", "domain:recipetineats.com",
+        "domain:onceuponachef.com", "domain:thespruceeats.com", "domain:myrecipes.com",
+        "domain:saveur.com", "domain:foodandwine.com", "domain:jocooks.com",
+        "domain:spendwithpennies.com", "domain:dinnerthendessert.com", "domain:cafedelites.com",
+        "domain:twopeasandtheirpod.com", "domain:iowagirleats.com", "domain:hostthetoast.com",
+        "domain:themediterraneandish.com", "domain:rainbowplantlife.com", "domain:thefullhelping.com",
+        "domain:ohsheglows.com", "domain:themodernproper.com", "domain:barefeetinthekitchen.com",
+        "domain:closetcooking.com", "domain:cookunity.com", "domain:factor.com",
+        "domain:freshlygrounded.com", "domain:thecookierookie.com", "domain:acouplecooks.com",
+        "domain:naturallyella.com", "domain:wellplated.com", "domain:joyfoodsunshine.com",
+        # Research agent keyword additions
+        "keyword:meal delivery", "keyword:pantry staples", "keyword:copycat recipe",
+        "keyword:food pairing", "keyword:seasonal cooking", "keyword:batch cooking",
+        "keyword:weeknight dinner", "keyword:comfort food", "keyword:plant-based",
+        "keyword:whole30",
     ],
 
     # -------------------------------------------------------------------------
@@ -2053,6 +2320,23 @@ DEFAULT_CATEGORIES = {
         "keyword:national park", "keyword:camping",
         "keyword:layover", "keyword:connecting flight",
         "keyword:bucket list",
+        # Research agent additions
+        "domain:trip.com", "domain:tripit.com", "domain:wanderlog.com",
+        "domain:getaway.house", "domain:worldnomads.com", "domain:nomadicmatt.com",
+        "domain:matadornetwork.com", "domain:theculturetrip.com", "domain:secretflying.com",
+        "domain:scottscheapflights.com", "domain:goingawesomplaces.com", "domain:travelpirates.com",
+        "domain:alternativeairlines.com", "domain:hotelscombined.com", "domain:hostelz.com",
+        "domain:couchsurfing.com", "domain:trustedhousesitters.com", "domain:housesittersamerica.com",
+        "domain:getyourguide.com", "domain:viator.com", "domain:klook.com",
+        "domain:musement.com", "domain:tiqets.com", "domain:airalo.com",
+        "domain:xe.com", "domain:packpoint.com", "domain:flighty.app",
+        "domain:appintheair.mobi", "domain:hoteltonight.com", "domain:lastminute.com",
+        "domain:secretescapes.com", "domain:inspirock.com", "domain:lambus.com",
+        "domain:polarsteps.com", "domain:travelperk.com", "domain:navan.com",
+        # Research agent keyword additions
+        "keyword:flight deal", "keyword:travel rewards", "keyword:travel blog",
+        "keyword:digital nomad", "keyword:travel insurance", "keyword:packing list",
+        "keyword:trip planner", "keyword:currency exchange", "keyword:hidden gem destination",
     ],
 
     # -------------------------------------------------------------------------
@@ -2190,6 +2474,26 @@ DEFAULT_CATEGORIES = {
         "keyword:ski resort", "keyword:snowboard",
         "keyword:training plan", "keyword:race results",
         "keyword:personal best", "keyword:season ticket",
+        # Research agent additions
+        "domain:spotrac.com", "domain:overthecap.com", "domain:rotowire.com",
+        "domain:rotoworld.com", "domain:rotoballer.com", "domain:actionnetwork.com",
+        "domain:vsin.com", "domain:dimers.com", "domain:sportsbettingdime.com",
+        "domain:sportshandle.com", "domain:betonline.ag", "domain:wynnbet.com",
+        "domain:hardrocksportsbook.com", "domain:betssongroup.com", "domain:williamhill.com",
+        "domain:paddypower.com", "domain:unibet.com", "domain:sportsbookreview.com",
+        "domain:oddsshark.com", "domain:vegasinsider.com", "domain:espnfc.com",
+        "domain:fourfourtwo.com", "domain:90min.com", "domain:football365.com",
+        "domain:barclaybuzz.com", "domain:rugbyworld.com", "domain:rugby.com.au",
+        "domain:world.rugby", "domain:f1technical.net", "domain:racer.com",
+        "domain:mmamania.com", "domain:mmajunkie.usatoday.com", "domain:bloodyelbow.com",
+        "domain:golfmonthly.com", "domain:tennisabstract.com", "domain:tennistonic.com",
+        "domain:nbatopshot.com", "domain:superbowl.com", "domain:nflshop.com",
+        "domain:mlbshop.com", "domain:nbashop.com",
+        # Research agent keyword additions
+        "keyword:parlay", "keyword:moneyline", "keyword:over under",
+        "keyword:prop bet", "keyword:salary cap", "keyword:free agent signing",
+        "keyword:trade deadline", "keyword:preseason", "keyword:injury report",
+        "keyword:power rankings",
     ],
 
     # -------------------------------------------------------------------------
@@ -2305,6 +2609,32 @@ DEFAULT_CATEGORIES = {
         "keyword:audiobook", "keyword:e-book",
         "keyword:premiere",
         "keyword:season finale", "keyword:binge",
+        # Research agent additions
+        "domain:appletv.apple.com", "domain:funimation.com", "domain:reelgood.com",
+        "domain:tvtime.com", "domain:azlyrics.com", "domain:musixmatch.com",
+        "domain:shazam.com", "domain:setlist.fm", "domain:rateyourmusic.com",
+        "domain:albumoftheyear.org", "domain:aoty.org", "domain:pitchfork.com",
+        "domain:stereogum.com", "domain:consequenceofsound.net", "domain:nme.com",
+        "domain:spin.com", "domain:popsugar.com", "domain:justjared.com",
+        "domain:perezhilton.com", "domain:cinemablend.com", "domain:slashfilm.com",
+        "domain:theplaylist.net", "domain:avclub.com", "domain:denofgeek.com",
+        "domain:agoodmovietowatch.com", "domain:tunefind.com", "domain:commonsensemedia.org/movie-reviews",
+        "domain:ew.com", "domain:decider.com", "domain:realsound.jp",
+        "domain:viki.com", "domain:rakuten.tv", "domain:bravotv.com",
+        "domain:bet.com", "domain:starz.com", "domain:showtime.com",
+        "domain:epix.com", "domain:mgmplus.com", "domain:kanopy.com",
+        "domain:hoopla.com", "domain:mubi.com", "domain:criterion.com",
+        "domain:criterionchannel.com", "domain:shudder.com", "domain:sundancenow.com",
+        "domain:britbox.com", "domain:acorn.tv", "domain:curiositystream.com",
+        "domain:nebula.tv", "domain:dropout.tv", "domain:crackle.com/movies",
+        "domain:animeplanet.com", "domain:funimation.com/shows", "domain:hidive.com",
+        "domain:vrv.co", "domain:animenewsnetwork.com", "domain:cbr.com",
+        "domain:thewrap.com", "domain:tasteofcinema.com", "domain:bfi.org.uk",
+        # Research agent keyword additions
+        "keyword:what to watch", "keyword:streaming guide", "keyword:album review",
+        "keyword:discography", "keyword:setlist", "keyword:music discovery",
+        "keyword:concert tickets", "keyword:oscar nominee", "keyword:emmy award",
+        "keyword:cosplay",
     ],
 
     # -------------------------------------------------------------------------
@@ -2393,6 +2723,27 @@ DEFAULT_CATEGORIES = {
         "keyword:leaderboard", "keyword:multiplayer",
         "keyword:speedrun", "keyword:game review",
         "keyword:game trailer", "keyword:early access",
+        # Research agent additions
+        "domain:nintendolife.com", "domain:pushsquare.com", "domain:purexbox.com",
+        "domain:trueachievements.com", "domain:playstationtrophies.org", "domain:psnprofiles.com",
+        "domain:exophase.com", "domain:games.gg", "domain:thegamer.com",
+        "domain:gamerant.com", "domain:twinfinite.net", "domain:siliconera.com",
+        "domain:dualshockers.com", "domain:mp1st.com", "domain:noisy-pixel.com",
+        "domain:nintendoeverything.com", "domain:insider-gaming.com", "domain:vgchartz.com",
+        "domain:crazygames.com", "domain:poki.com", "domain:kongregate.com",
+        "domain:miniclip.com", "domain:newgrounds.com", "domain:tabletopsimulator.com",
+        "domain:boardgamearena.com", "domain:heroforge.com", "domain:foundationvtt.com",
+        "domain:questdb.com", "domain:esportsinsider.com", "domain:dotesports.com",
+        "domain:win.gg", "domain:prosettings.net", "domain:pvplive.net",
+        "domain:smash.gg", "domain:start.gg", "domain:faceit.com",
+        "domain:esea.net", "domain:challengermode.com", "domain:floatplane.com",
+        "domain:luna.amazon.com", "domain:stadia.google.com", "domain:geforcenow.com",
+        "domain:boosteroid.com", "domain:shadow.tech", "domain:xbox.com/play",
+        # Research agent keyword additions
+        "keyword:game deal", "keyword:trophy guide", "keyword:achievement guide",
+        "keyword:tier list", "keyword:patch notes", "keyword:game pass ultimate",
+        "keyword:cloud gaming", "keyword:retro gaming", "keyword:tabletop rpg",
+        "keyword:indie game",
     ],
 
     # -------------------------------------------------------------------------
@@ -2491,6 +2842,22 @@ DEFAULT_CATEGORIES = {
         "keyword:dating app", "keyword:swipe right",
         "keyword:match profile", "keyword:swipe",
         "keyword:online dating",
+        # Research agent additions
+        "domain:bluesky.social", "domain:pixelfed.social", "domain:pixelfed.org",
+        "domain:mastodon.online", "domain:mstdn.social", "domain:mastodon.world",
+        "domain:wechat.com", "domain:viber.com", "domain:messenger.com",
+        "domain:m.me", "domain:rednote.com", "domain:xiaohongshu.com/explore",
+        "domain:noplace.app", "domain:plurk.com", "domain:post.news",
+        "domain:spoutible.com", "domain:counterthink.com", "domain:mastodon.art",
+        "domain:indieapps.social", "domain:fosstodon.org", "domain:hachyderm.io",
+        "domain:infosec.exchange", "domain:tech.lgbt", "domain:universeodon.com",
+        "domain:yammer.com", "domain:workplace.com", "domain:circle.so",
+        "domain:swapcard.com", "domain:polywork.com", "domain:mastodon.lol",
+        # Research agent keyword additions
+        "keyword:fediverse", "keyword:decentralized social", "keyword:activitypub",
+        "keyword:microblog", "keyword:status update", "keyword:at protocol",
+        "keyword:social feed", "keyword:creator economy", "keyword:community building",
+        "keyword:group chat",
     ],
 
     # -------------------------------------------------------------------------
@@ -2580,6 +2947,21 @@ DEFAULT_CATEGORIES = {
         "keyword:crosspost", "keyword:megathread",
         "keyword:sticky thread", "keyword:necropost",
         "keyword:moderator", "keyword:ban appeal",
+        # Research agent additions
+        "domain:askubuntu.com", "domain:mathoverflow.net", "domain:xenforo.com",
+        "domain:vbulletin.com", "domain:phpbb.com", "domain:lemmy.ml",
+        "domain:nodebb.org", "domain:mumsnet.com", "domain:netmums.com",
+        "domain:thestudentroom.co.uk", "domain:talkbass.com", "domain:theotherbbs.net",
+        "domain:shroomery.org", "domain:rollitup.org", "domain:diyaudio.com",
+        "domain:pianostreet.com", "domain:arstechnica.com/civis", "domain:cruisecritic.com",
+        "domain:city-data.com", "domain:skyscrapercity.com", "domain:avsforum.com",
+        "domain:whirlpool.net.au", "domain:hardwarezone.com.sg", "domain:teamliquid.net",
+        "domain:techspot.com/community", "domain:bodybuilding.com/forums", "domain:wuxiaworld.com",
+        # Research agent keyword additions
+        "keyword:phpbb", "keyword:xenforo", "keyword:vbulletin",
+        "keyword:new thread", "keyword:reply to post", "keyword:forum rules",
+        "keyword:off topic", "keyword:general discussion", "keyword:classifieds forum",
+        "keyword:pinned post",
     ],
 
     # -------------------------------------------------------------------------
@@ -2614,6 +2996,23 @@ DEFAULT_CATEGORIES = {
         "keyword:shorts", "keyword:reels",
         "keyword:watch party", "keyword:premiere video",
         "keyword:video upload", "keyword:video editor online",
+        # Research agent additions
+        "domain:instagram.com/reels", "domain:peertube.social", "domain:d.tube",
+        "domain:lbry.tv", "domain:streamable.com", "domain:gfycat.com",
+        "domain:giphy.com/clips", "domain:archive.org/details/movies", "domain:roosterteeth.com",
+        "domain:veoh.com", "domain:metacafe.com", "domain:vid.me",
+        "domain:utreon.com", "domain:clapper.com", "domain:nimo.tv",
+        "domain:bigo.tv", "domain:caffeine.tv", "domain:theta.tv",
+        "domain:livepeer.org", "domain:wistia.com", "domain:sproutvideo.com",
+        "domain:vidyard.com", "domain:screencastify.com", "domain:clipchamp.com",
+        "domain:streamyard.com", "domain:restream.io", "domain:riverside.fm",
+        "domain:switchboard.live", "domain:veed.io", "domain:biteable.com",
+        "domain:animoto.com", "domain:powtoon.com", "domain:9gag.com/video",
+        # Research agent keyword additions
+        "keyword:video hosting", "keyword:live broadcast", "keyword:screen recording",
+        "keyword:video editing tool", "keyword:webinar", "keyword:video podcast",
+        "keyword:vertical video", "keyword:video embed", "keyword:ott platform",
+        "keyword:video transcoding",
     ],
 
     # -------------------------------------------------------------------------
@@ -2662,6 +3061,25 @@ DEFAULT_CATEGORIES = {
         "keyword:design system", "keyword:figma plugin",
         "keyword:dribbble shot", "keyword:behance project",
         "keyword:font pairing", "keyword:design inspiration",
+        # Research agent additions
+        "domain:framer.com", "domain:webflow.com", "domain:creativebloq.com",
+        "domain:alistapart.com", "domain:uxdesign.cc", "domain:nngroup.com",
+        "domain:lawsofux.com", "domain:coolors.co", "domain:colorhunt.co",
+        "domain:fontpair.co", "domain:designernews.co", "domain:muz.li",
+        "domain:uxpin.com", "domain:balsamiq.com", "domain:moqups.com",
+        "domain:mockflow.com", "domain:plerdy.com", "domain:maze.co",
+        "domain:hotjar.com", "domain:userTesting.com", "domain:affinitydesigner.com",
+        "domain:iconscout.com", "domain:thenounproject.com", "domain:googlefonts.com",
+        "domain:myfonts.com", "domain:spline.design", "domain:rive.app",
+        "domain:materialdesign.io", "domain:designsystems.com", "domain:storybook.js.org",
+        "domain:uxcollective.design", "domain:pageflows.com", "domain:mobbin.com",
+        "domain:uigarage.net", "domain:calltoidea.com", "domain:landbook.com",
+        "domain:onepagelove.com", "domain:bestwebsite.gallery", "domain:abduzeedo.com",
+        "domain:designspiration.com", "domain:nicelydone.club",
+        # Research agent keyword additions
+        "keyword:UI/UX design", "keyword:graphic design tools", "keyword:prototyping",
+        "keyword:wireframing", "keyword:icon libraries", "keyword:typography resources",
+        "keyword:color palettes", "keyword:design systems", "keyword:motion design",
     ],
 
     # -------------------------------------------------------------------------
@@ -2694,6 +3112,25 @@ DEFAULT_CATEGORIES = {
         "keyword:focal length", "keyword:aperture",
         "keyword:shutter speed", "keyword:iso setting",
         "keyword:stock photo", "keyword:photo gallery",
+        # Research agent additions
+        "domain:adobestock.com", "domain:zenfolio.com", "domain:photoshelter.com",
+        "domain:cambridgeincolour.com", "domain:photographylife.com", "domain:borrowlenses.com",
+        "domain:ephotozine.com", "domain:digitalcameraworld.com", "domain:imaging-resource.com",
+        "domain:thephoblographer.com", "domain:lightstalking.com", "domain:iso1200.com",
+        "domain:diyphotography.net", "domain:shotkit.com", "domain:slrlounge.com",
+        "domain:strobist.com", "domain:phlearn.com", "domain:creativelive.com",
+        "domain:kelbyone.com", "domain:pixpa.com", "domain:format.com",
+        "domain:adobe.com/products/lightroom", "domain:adobe.com/products/photoshop", "domain:capture-one.com",
+        "domain:skylum.com", "domain:on1.com", "domain:dxo.com",
+        "domain:affinity.serif.com", "domain:darkroom.co", "domain:picmonkey.com",
+        "domain:fotor.com", "domain:snapseed.com", "domain:bayphoto.com",
+        "domain:printique.com", "domain:nframed.com", "domain:mpix.com",
+        "domain:whitewall.com", "domain:naturettl.com", "domain:birdphotographers.net",
+        "domain:astrobin.com", "domain:cloudynights.com", "domain:fredmiranda.com",
+        # Research agent keyword additions
+        "keyword:camera reviews", "keyword:photo editing software", "keyword:stock photos",
+        "keyword:photo printing", "keyword:lens reviews", "keyword:photography tutorials",
+        "keyword:drone photography", "keyword:astrophotography", "keyword:wildlife photography",
     ],
 
     # -------------------------------------------------------------------------
@@ -2738,6 +3175,25 @@ DEFAULT_CATEGORIES = {
         "keyword:video editing", "keyword:color grading",
         "keyword:compositing", "keyword:rotoscoping",
         "keyword:sound design", "keyword:foley",
+        # Research agent additions
+        "domain:avid.com", "domain:izotope.com", "domain:waves.com",
+        "domain:native-instruments.com", "domain:ableton.com", "domain:steinberg.net",
+        "domain:image-line.com", "domain:presonus.com", "domain:focusrite.com",
+        "domain:rode.com", "domain:shure.com", "domain:sennheiser.com",
+        "domain:audacityteam.org", "domain:kdenlive.org", "domain:shotcut.org",
+        "domain:ffmpeg.org", "domain:wirecast.com", "domain:ecamm.com",
+        "domain:streamlabs.com", "domain:maxon.net", "domain:foundry.com",
+        "domain:sidefx.com", "domain:shade.inc", "domain:colorgradingcentral.com",
+        "domain:pluginboutique.com", "domain:loopcloud.com", "domain:landr.com",
+        "domain:bandlab.com", "domain:cakewalk.com", "domain:reaper.fm",
+        "domain:ardour.org", "domain:libsyn.com", "domain:captivate.fm",
+        "domain:spreaker.com", "domain:acast.com", "domain:evercast.us",
+        "domain:musictech.com", "domain:soundonsound.com", "domain:musicradar.com",
+        "domain:audiokinetic.com", "domain:sweetwater.com", "domain:zzounds.com",
+        # Research agent keyword additions
+        "keyword:audio production", "keyword:podcast hosting", "keyword:live streaming",
+        "keyword:VFX compositing", "keyword:DAW plugins", "keyword:music production",
+        "keyword:broadcasting software",
     ],
 
     # -------------------------------------------------------------------------
@@ -2852,6 +3308,18 @@ DEFAULT_CATEGORIES = {
         "keyword:fuel economy", "keyword:horsepower",
         "keyword:towing capacity", "keyword:cargo space",
         "keyword:vehicle history", "keyword:blue book value",
+        # Research agent additions
+        "domain:motor1.com", "domain:topgear.com", "domain:carscoops.com",
+        "domain:cleantechnica.com", "domain:carwow.com", "domain:whatcar.com",
+        "domain:parkers.co.uk", "domain:classiccars.com", "domain:hemmings.com",
+        "domain:mecum.com", "domain:barrett-jackson.com", "domain:autopia.org",
+        "domain:jeepforum.com", "domain:audizine.com", "domain:fordtrucks.com",
+        "domain:trailbuiltoffroad.com", "domain:autoanything.com", "domain:chemicalguys.com",
+        "domain:ammonyc.com", "domain:detailingworld.co.uk",
+        # Research agent keyword additions
+        "keyword:car reviews", "keyword:electric vehicles", "keyword:classic cars",
+        "keyword:car detailing", "keyword:off-road 4x4", "keyword:motorcycle reviews",
+        "keyword:car buying guide", "keyword:tire reviews", "keyword:car forums",
     ],
 
     # -------------------------------------------------------------------------
@@ -2897,6 +3365,20 @@ DEFAULT_CATEGORIES = {
         "keyword:home organization", "keyword:declutter",
         "keyword:house plant", "keyword:compost",
         "keyword:raised bed", "keyword:pressure washer",
+        # Research agent additions
+        "domain:apartmenttherapy.com", "domain:ana-white.com", "domain:younghouselove.com",
+        "domain:remodelaholic.com", "domain:gardeningknowhow.com", "domain:savvygardening.com",
+        "domain:thespruce.com", "domain:hunker.com", "domain:elledecor.com",
+        "domain:lawnstarter.com", "domain:scotts.com", "domain:truevalue.com",
+        "domain:tractorsupply.com", "domain:build.com", "domain:flooranddecor.com",
+        "domain:tileshop.com", "domain:rejuvenation.com", "domain:schoolhouseelectric.com",
+        "domain:allmodern.com", "domain:birchlane.com", "domain:retronovation.com",
+        "domain:rona.ca", "domain:bunnings.com.au", "domain:screwfix.com",
+        "domain:wickes.co.uk", "domain:coohom.com", "domain:plangrid.com",
+        "domain:havenly.com", "domain:modsy.com", "domain:roomsketcher.com",
+        # Research agent keyword additions
+        "keyword:gardening", "keyword:DIY projects", "keyword:furniture shopping",
+        "keyword:remodeling",
     ],
 
     # -------------------------------------------------------------------------
@@ -2933,6 +3415,22 @@ DEFAULT_CATEGORIES = {
         "keyword:family activities", "keyword:kids crafts",
         "keyword:back to school", "keyword:lunch box ideas",
         "keyword:playdate", "keyword:babysitter",
+        # Research agent additions
+        "domain:familyeducation.com", "domain:coolmath.com", "domain:readingiq.com",
+        "domain:zerotothree.org", "domain:pathways.org", "domain:ahaparenting.com",
+        "domain:positiveparentingsolutions.com", "domain:handsinhandparenting.org", "domain:janetlansbury.com",
+        "domain:parentingscience.com", "domain:happiestbaby.com", "domain:loveevery.com",
+        "domain:highlights.com", "domain:imaginationsoup.net", "domain:busytoddler.com",
+        "domain:dayswitgrey.com", "domain:kidsactivitiesblog.com", "domain:notimeforflashcards.com",
+        "domain:laughingkidslearn.com", "domain:baby-chick.com", "domain:cafemom.com",
+        "domain:babywise.com", "domain:poppylist.com", "domain:wonderbly.com",
+        "domain:tinybeans.com", "domain:hellobello.com", "domain:thedadlab.com",
+        "domain:dadsnet.co.uk", "domain:kindercare.com", "domain:understood.org",
+        "domain:childmind.org", "domain:raisingchildren.net.au",
+        # Research agent keyword additions
+        "keyword:parenting advice", "keyword:pregnancy tracker", "keyword:baby registry",
+        "keyword:homeschool resources", "keyword:kids education", "keyword:family planning",
+        "keyword:childcare",
     ],
 
     # -------------------------------------------------------------------------
@@ -2967,6 +3465,23 @@ DEFAULT_CATEGORIES = {
         "keyword:pet grooming", "keyword:flea treatment",
         "keyword:heartworm", "keyword:spay neuter",
         "keyword:pet sitter", "keyword:dog walker",
+        # Research agent additions
+        "domain:akc.org", "domain:humanesociety.org", "domain:dogfoodadvisor.com",
+        "domain:thedodo.com", "domain:merckvetmanual.com", "domain:avma.org",
+        "domain:thecatsite.com", "domain:petplace.com", "domain:veterinarypartner.vin.com",
+        "domain:vcahospitals.com", "domain:banfield.com", "domain:hillspet.com",
+        "domain:royalcanin.com", "domain:purina.com", "domain:iams.com",
+        "domain:blueBuffalo.com", "domain:bringfido.com", "domain:gopetfriendly.com",
+        "domain:petinsurance.com", "domain:lemonade.com", "domain:fetchpet.com",
+        "domain:rescueme.org", "domain:bestfriends.org", "domain:pawschicago.org",
+        "domain:birdtricksstore.com", "domain:reptilebasics.com", "domain:liveaquaria.com",
+        "domain:aquariumcoop.com", "domain:bulkreefsupply.com", "domain:smartpakequine.com",
+        "domain:thehorse.com", "domain:horseandhound.co.uk", "domain:whole-dog-journal.com",
+        "domain:cathealth.com", "domain:catfooddb.com", "domain:fearfreepets.com",
+        "domain:drmartybecker.com", "domain:petsandparasites.org",
+        # Research agent keyword additions
+        "keyword:dog food reviews", "keyword:cat health", "keyword:veterinary advice",
+        "keyword:aquarium supplies", "keyword:horse equestrian", "keyword:pet training",
     ],
 
     # -------------------------------------------------------------------------
@@ -3014,6 +3529,22 @@ DEFAULT_CATEGORIES = {
         "keyword:runway", "keyword:collection",
         "keyword:athleisure", "keyword:capsule wardrobe",
         "keyword:men's fashion", "keyword:women's fashion",
+        # Research agent additions
+        "domain:net-a-porter.com", "domain:mytheresa.com", "domain:revolve.com",
+        "domain:businessoffashion.com", "domain:maccosmetics.com", "domain:narscosmetics.com",
+        "domain:matchesfashion.com", "domain:fashionphile.com", "domain:stadiumgoods.com",
+        "domain:flightclub.com", "domain:lushusa.com", "domain:benefitcosmetics.com",
+        "domain:tartecosmetics.com", "domain:toofaced.com", "domain:clinique.com",
+        "domain:esteelauder.com", "domain:bobbibrown.com", "domain:thegoodtrade.com",
+        "domain:manrepeller.com", "domain:coveteur.com", "domain:thecut.com",
+        "domain:hypebae.com", "domain:snobette.com", "domain:mejuri.com",
+        "domain:gorjana.com", "domain:kendrascott.com", "domain:brilliantearth.com",
+        "domain:madewell.com", "domain:everlane.com", "domain:allbirds.com",
+        "domain:reformation.com",
+        # Research agent keyword additions
+        "keyword:fashion trends", "keyword:beauty products", "keyword:luxury brands",
+        "keyword:sneaker resale", "keyword:cosmetics reviews", "keyword:designer clothing",
+        "keyword:thrift shopping", "keyword:jewelry accessories",
     ],
 
     # -------------------------------------------------------------------------
@@ -3094,6 +3625,22 @@ DEFAULT_CATEGORIES = {
         "keyword:weather map", "keyword:weather alert",
         "keyword:weather station", "keyword:rain gauge",
         "keyword:weather satellite", "keyword:climate change",
+        # Research agent additions
+        "domain:sat24.com", "domain:weatherandradar.com", "domain:myradar.com",
+        "domain:radar.weather.gov", "domain:darksky.net", "domain:clime.com",
+        "domain:carrot.weather", "domain:weatherpro.com", "domain:snowforecast.com",
+        "domain:mountain-forecast.com", "domain:skiresort.info", "domain:onthesnow.com",
+        "domain:avalanche.org", "domain:airnow.gov", "domain:iqair.com",
+        "domain:breezometer.com", "domain:purpleair.com", "domain:fire.airnow.gov",
+        "domain:inciweb.wildfire.gov", "domain:drought.gov", "domain:swpc.noaa.gov",
+        "domain:spaceweatherlive.com", "domain:spaceweather.com", "domain:ssd.noaa.gov",
+        "domain:ndbc.noaa.gov", "domain:tidesandcurrents.noaa.gov", "domain:worldweather.wmo.int",
+        "domain:severe.worldweather.wmo.int", "domain:wpc.ncep.noaa.gov", "domain:spc.noaa.gov",
+        # Research agent keyword additions
+        "keyword:air quality index", "keyword:pollen count", "keyword:uv index",
+        "keyword:snow forecast", "keyword:avalanche warning", "keyword:drought monitor",
+        "keyword:space weather", "keyword:tidal forecast", "keyword:fire weather",
+        "keyword:marine forecast",
     ],
 
     # -------------------------------------------------------------------------
@@ -3218,6 +3765,24 @@ DEFAULT_CATEGORIES = {
         "keyword:statute", "keyword:ordinance",
         "keyword:federal agency", "keyword:congressional",
         "keyword:municipal", "keyword:county clerk",
+        # Research agent additions
+        "domain:defense.gov", "domain:energy.gov", "domain:uscis.gov",
+        "domain:travel.state.gov", "domain:studentaid.gov", "domain:sss.gov",
+        "domain:benefits.gov", "domain:recreation.gov", "domain:usajobs.gov",
+        "domain:login.gov", "domain:id.me", "domain:performance.gov",
+        "domain:analytics.usa.gov", "domain:si.edu", "domain:smithsonian.gov",
+        "domain:nps.gov", "domain:fs.usda.gov", "domain:blm.gov",
+        "domain:fws.gov", "domain:grants.gov", "domain:sam.gov",
+        "domain:sbir.gov", "domain:ftc.gov/consumer", "domain:consumerfinance.gov",
+        "domain:ttb.gov", "domain:uscg.mil", "domain:army.mil",
+        "domain:navy.mil", "domain:af.mil", "domain:marines.mil",
+        "domain:spaceforce.mil", "domain:nga.gov", "domain:gao.gov",
+        "domain:cbo.gov", "domain:govtrack.us", "domain:maplight.org",
+        # Research agent keyword additions
+        "keyword:foia request", "keyword:government grant", "keyword:public hearing",
+        "keyword:census data", "keyword:government benefit", "keyword:military service",
+        "keyword:government contract", "keyword:civil service", "keyword:state legislature",
+        "keyword:government accountability",
     ],
 
     # -------------------------------------------------------------------------
@@ -3291,6 +3856,20 @@ DEFAULT_CATEGORIES = {
         "keyword:kanban", "keyword:gantt chart",
         "keyword:spreadsheet", "keyword:template",
         "keyword:kanban board", "keyword:mind map",
+        # Research agent additions
+        "domain:todoist.com", "domain:ticktick.com", "domain:any.do",
+        "domain:fantastical.app", "domain:capacities.io", "domain:tana.inc",
+        "domain:loom.com", "domain:cal.com", "domain:wrike.com",
+        "domain:teamwork.com", "domain:proofhub.com", "domain:amplenote.com",
+        "domain:noteplan.co", "domain:motion.com", "domain:sunsama.com",
+        "domain:coda.io", "domain:replicon.com", "domain:kimai.org",
+        "domain:activitywatch.net", "domain:superproductivity.com", "domain:flowlu.com",
+        "domain:briefmatic.com", "domain:toolfinder.com",
+        # Research agent keyword additions
+        "keyword:time tracking software", "keyword:knowledge management PKM", "keyword:note-taking app",
+        "keyword:workflow automation tool", "keyword:calendar scheduling app", "keyword:team collaboration platform",
+        "keyword:cloud file storage", "keyword:writing productivity tool", "keyword:task management software",
+        "keyword:async collaboration tool",
     ],
 
     # -------------------------------------------------------------------------

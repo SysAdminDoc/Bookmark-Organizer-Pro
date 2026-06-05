@@ -122,7 +122,13 @@ class PatternEngine:
                     pass
 
     def match(self, url: str, title: str = "") -> Optional[str]:
-        """Return the first matching category for the given URL/title, or None."""
+        """Return the best matching category for the given URL/title, or None.
+
+        Uses a two-pass priority system: domain and path rules (most specific)
+        are checked first across ALL categories before falling back to keyword,
+        title, regex, and extension rules. This prevents a generic keyword like
+        "community" from overriding an exact domain match like "figma.com".
+        """
         url_text = str(url or "")
         title_text = str(title or "")
         url_lower = url_text.lower()
@@ -136,27 +142,31 @@ class PatternEngine:
         except Exception:
             domain = path = ""
 
+        # Pass 1: domain and path rules (highest specificity)
         for rule in self.rules:
             matcher = rule["matcher"]
             rtype = rule["type"]
-
             try:
                 if rtype == "domain" and (domain == matcher or domain.endswith("." + matcher)):
                     return rule["category"]
                 elif rtype == "path" and matcher in path:
                     return rule["category"]
-                elif rtype == "keyword" and (matcher in url_lower or matcher in title_lower):
+                elif rtype == "extension" and path.endswith(f".{matcher}"):
+                    return rule["category"]
+            except Exception:
+                continue
+
+        # Pass 2: keyword, title, regex rules (broader matching)
+        for rule in self.rules:
+            matcher = rule["matcher"]
+            rtype = rule["type"]
+            try:
+                if rtype == "keyword" and (matcher in url_lower or matcher in title_lower):
                     return rule["category"]
                 elif rtype == "title" and matcher in title_lower:
                     return rule["category"]
-                elif rtype == "extension":
-                    if path.endswith(f".{matcher}"):
-                        return rule["category"]
                 elif rtype == "regex":
                     if _safe_regex_search(matcher, url_text) or _safe_regex_search(matcher, title_text):
-                        return rule["category"]
-                elif rtype == "plain":
-                    if matcher in domain or matcher in url_lower or matcher in title_lower:
                         return rule["category"]
             except Exception:
                 continue
