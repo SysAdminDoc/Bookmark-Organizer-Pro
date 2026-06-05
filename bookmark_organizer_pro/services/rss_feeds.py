@@ -17,6 +17,10 @@ import json
 import os
 import tempfile
 import threading
+try:
+    from defusedxml.ElementTree import fromstring as _xml_fromstring
+except ImportError:
+    from xml.etree.ElementTree import fromstring as _xml_fromstring
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
@@ -147,7 +151,7 @@ def parse_feed(xml_text: str, base_url: str = "") -> List[FeedItem]:
     """Best-effort RSS 2.0 + Atom 1.0 parser using stdlib."""
     items: List[FeedItem] = []
     try:
-        root = ET.fromstring(xml_text)
+        root = _xml_fromstring(xml_text)
     except ET.ParseError as exc:
         log.warning(f"Feed parse failed: {exc}")
         return items

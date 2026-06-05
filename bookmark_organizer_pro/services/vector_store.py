@@ -217,11 +217,19 @@ class VectorStore:
         return self._lance_table
 
     def _persist_memory(self):
+        import tempfile, os
         try:
-            self._memory_path.write_text(
-                json.dumps(self._memory, ensure_ascii=False),
-                encoding="utf-8",
+            fd, tmp = tempfile.mkstemp(
+                dir=self._memory_path.parent, suffix=".tmp", text=True,
             )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(self._memory, f, ensure_ascii=False)
+                os.replace(tmp, self._memory_path)
+            except Exception:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+                raise
         except OSError as exc:
             log.warning(f"Could not persist vector store: {exc}")
 

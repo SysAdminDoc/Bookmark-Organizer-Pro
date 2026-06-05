@@ -440,7 +440,8 @@ Summary:"""
         text = re.sub(r'\s+', ' ', text).strip()
         
         # Decode HTML entities
-        text = html_module.unescape(text) if 'html_module' in dir() else text
+        import html as _html_mod
+        text = _html_mod.unescape(text)
         
         return text
     

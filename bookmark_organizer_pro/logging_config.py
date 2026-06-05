@@ -6,6 +6,7 @@ Set BOOKMARK_DEBUG=1 environment variable to enable console logging.
 """
 
 import logging
+import logging.handlers
 import os
 import sys
 
@@ -32,9 +33,11 @@ class AppLogger:
         self.logger = logging.getLogger("BookmarkOrganizer")
         self.logger.setLevel(logging.DEBUG)
 
-        # File handler - always log to file
+        # File handler with rotation — 5 MB max, 3 backups
         try:
-            file_handler = logging.FileHandler(LOG_FILE, encoding='utf-8')
+            file_handler = logging.handlers.RotatingFileHandler(
+                LOG_FILE, maxBytes=5_000_000, backupCount=3, encoding='utf-8',
+            )
             file_handler.setLevel(logging.DEBUG)
             file_format = logging.Formatter(
                 '%(asctime)s | %(levelname)-8s | %(name)s | %(message)s',
@@ -43,7 +46,10 @@ class AppLogger:
             file_handler.setFormatter(file_format)
             self.logger.addHandler(file_handler)
         except Exception:
-            pass  # Fail silently if log file can't be written
+            fallback = logging.StreamHandler(sys.stderr)
+            fallback.setLevel(logging.WARNING)
+            fallback.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+            self.logger.addHandler(fallback)
 
         # Console handler - only in debug mode
         self.console_handler = None

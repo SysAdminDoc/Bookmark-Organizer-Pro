@@ -147,6 +147,10 @@ class StorageManager:
         try:
             with self._lock:
                 self.filepath.parent.mkdir(parents=True, exist_ok=True)
+                if self.filepath.is_file():
+                    pre_restore = BACKUP_DIR / f"pre_restore_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                    shutil.copy2(self.filepath, pre_restore)
+                    log.info(f"Pre-restore backup saved: {pre_restore.name}")
                 shutil.copy2(backup_path, self.filepath)
             return True
         except Exception as e:

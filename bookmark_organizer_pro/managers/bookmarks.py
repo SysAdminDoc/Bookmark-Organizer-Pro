@@ -334,8 +334,8 @@ class BookmarkManager:
         return sorted(results, key=lambda x: x.created_at, reverse=True)
     
     def get_stale_bookmarks(self, days: int = 90) -> List[Bookmark]:
-        """Get stale bookmarks"""
-        return [bm for bm in self.bookmarks.values() if bm.is_stale]
+        """Get bookmarks not visited in the given number of days."""
+        return [bm for bm in self.bookmarks.values() if bm.age_days > days or bm.is_stale]
     
     def get_frequently_visited(self, limit: int = 20) -> List[Bookmark]:
         """Get most frequently visited bookmarks"""

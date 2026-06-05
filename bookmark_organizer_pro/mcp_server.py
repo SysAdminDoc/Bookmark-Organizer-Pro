@@ -275,30 +275,125 @@ def t_get_flow(flow_id: str) -> Optional[Dict]:
 
 TOOLS = [
     ("list_bookmarks", t_list_bookmarks,
-     "List bookmarks with optional category/tag filters."),
-    ("get_bookmark", t_get_bookmark, "Get a single bookmark by ID."),
-    ("search_bookmarks", t_search, "Keyword search across bookmark titles/URLs."),
+     "List bookmarks with optional category/tag/read-later filters, sorted newest first.",
+     {
+         "type": "object",
+         "properties": {
+             "limit": {"type": "integer", "description": "Max bookmarks to return (default 50)", "default": 50},
+             "offset": {"type": "integer", "description": "Skip first N bookmarks for pagination", "default": 0},
+             "category": {"type": "string", "description": "Filter by category name"},
+             "tag": {"type": "string", "description": "Filter by tag (case-insensitive)"},
+             "read_later_only": {"type": "boolean", "description": "If true, only return read-later bookmarks", "default": False},
+         },
+     }),
+    ("get_bookmark", t_get_bookmark,
+     "Get a single bookmark by its numeric ID.",
+     {
+         "type": "object",
+         "properties": {
+             "bookmark_id": {"type": "integer", "description": "The bookmark ID"},
+         },
+         "required": ["bookmark_id"],
+     }),
+    ("search_bookmarks", t_search,
+     "Keyword search across bookmark titles, URLs, tags, and descriptions. Supports boolean operators (AND, OR) and field prefixes (title:, url:, tag:, category:).",
+     {
+         "type": "object",
+         "properties": {
+             "query": {"type": "string", "description": "Search query string"},
+             "limit": {"type": "integer", "description": "Max results (default 25)", "default": 25},
+         },
+         "required": ["query"],
+     }),
     ("semantic_search", t_semantic_search,
-     "Semantic vector search over bookmark content (requires ingest first)."),
+     "Semantic vector search over ingested bookmark content. Requires running 'embed' first. Returns bookmarks ranked by meaning similarity.",
+     {
+         "type": "object",
+         "properties": {
+             "query": {"type": "string", "description": "Natural language query"},
+             "k": {"type": "integer", "description": "Number of results (default 10)", "default": 10},
+         },
+         "required": ["query"],
+     }),
     ("hybrid_search", t_hybrid_search,
-     "Best-of-both-worlds RRF over keyword + semantic results."),
+     "Best-of-both-worlds search: fuses keyword and semantic results via Reciprocal Rank Fusion. Falls back to keyword-only if no embeddings exist.",
+     {
+         "type": "object",
+         "properties": {
+             "query": {"type": "string", "description": "Search query"},
+             "limit": {"type": "integer", "description": "Max results (default 25)", "default": 25},
+         },
+         "required": ["query"],
+     }),
     ("add_bookmark", t_add_bookmark,
-     "Add a new bookmark with auto-categorization and URL cleaning."),
-    ("list_tags", t_list_tags, "List tags with counts."),
-    ("list_categories", t_list_categories, "List categories with counts."),
+     "Add a new bookmark with automatic categorization via 4,200+ pattern rules and URL tracking-param cleaning.",
+     {
+         "type": "object",
+         "properties": {
+             "url": {"type": "string", "description": "The URL to bookmark (required)"},
+             "title": {"type": "string", "description": "Display title (auto-fetched if blank)"},
+             "category": {"type": "string", "description": "Category name (auto-categorized if blank)"},
+             "tags": {"type": "array", "items": {"type": "string"}, "description": "Tags to apply"},
+         },
+         "required": ["url"],
+     }),
+    ("list_tags", t_list_tags,
+     "List all tags with usage counts, sorted by most-used first.",
+     {
+         "type": "object",
+         "properties": {
+             "limit": {"type": "integer", "description": "Max tags to return (default 100)", "default": 100},
+         },
+     }),
+    ("list_categories", t_list_categories,
+     "List all categories with bookmark counts, sorted alphabetically.",
+     {"type": "object", "properties": {}}),
     ("get_extracted_text", t_get_extracted_text,
-     "Return the extracted readable text for a bookmark."),
+     "Return the extracted readable text for a bookmark (requires prior ingest).",
+     {
+         "type": "object",
+         "properties": {
+             "bookmark_id": {"type": "integer", "description": "The bookmark ID"},
+         },
+         "required": ["bookmark_id"],
+     }),
     ("chat_with_collection", t_chat,
-     "Conversational RAG over the bookmark library."),
+     "Ask a question about your bookmark collection using RAG. Retrieves relevant bookmark content and generates an AI answer with source attribution.",
+     {
+         "type": "object",
+         "properties": {
+             "question": {"type": "string", "description": "Your question about saved bookmarks"},
+             "restrict_ids": {"type": "array", "items": {"type": "integer"}, "description": "Optional: limit retrieval to these bookmark IDs"},
+         },
+         "required": ["question"],
+     }),
     ("summarize_bookmark", t_summarize,
-     "AI summary of a bookmark with inline citations back to source spans."),
+     "Generate an AI summary of a bookmark with inline [#cN] citations that link back to specific text spans in the source.",
+     {
+         "type": "object",
+         "properties": {
+             "bookmark_id": {"type": "integer", "description": "The bookmark ID to summarize"},
+         },
+         "required": ["bookmark_id"],
+     }),
     ("daily_digest", t_daily_digest,
-     "On-this-day digest plus rediscover/read-later/stale picks."),
+     "Generate a daily digest with sections: on-this-day, this-week-last-year, rediscover (random older saves), read-later queue, and stale-but-loved.",
+     {"type": "object", "properties": {}}),
     ("list_dead_links", t_dead_links,
-     "Bookmarks the scheduled scanner has flagged as broken/redirected."),
+     "List bookmarks the scheduled dead-link scanner has flagged as broken or redirected.",
+     {"type": "object", "properties": {}}),
     ("list_flows", t_list_flows,
-     "List research flows (ordered, annotated bookmark sequences)."),
-    ("get_flow", t_get_flow, "Get a flow with its steps and bookmarks."),
+     "List all research flows (ordered, annotated bookmark sequences for research trails).",
+     {"type": "object", "properties": {}}),
+    ("get_flow", t_get_flow,
+     "Get a specific research flow with all its steps and associated bookmarks.",
+     {
+         "type": "object",
+         "properties": {
+             "flow_id": {"type": "string", "description": "The flow ID"},
+         },
+         "required": ["flow_id"],
+     }),
 ]
 
 
@@ -332,15 +427,15 @@ async def serve_stdio() -> int:
             Tool(
                 name=name,
                 description=desc,
-                inputSchema={"type": "object", "additionalProperties": True},
+                inputSchema=schema,
             )
-            for name, _, desc in TOOLS
+            for name, _, desc, schema in TOOLS
         ]
 
     @server.call_tool()
     async def _call_tool(name: str, arguments: Dict[str, Any]) -> List[Any]:
         from mcp.types import TextContent
-        impl = next((fn for tname, fn, _ in TOOLS if tname == name), None)
+        impl = next((fn for tname, fn, _, _ in TOOLS if tname == name), None)
         if impl is None:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]
         try:

@@ -177,10 +177,12 @@ class SnapshotArchiver:
         for tag in soup.find_all("script"):
             tag.decompose()
 
+        import html as _html
+        safe_url = _html.escape(url, quote=True)
         banner_html = (
             f'<div style="background:#1a1a2e;color:#eee;padding:8px 16px;'
             f'font:12px/1.4 system-ui;position:sticky;top:0;z-index:99999;">'
-            f'Snapshot of <a style="color:#58a6ff" href="{url}">{url}</a> '
+            f'Snapshot of <a style="color:#58a6ff" href="{safe_url}">{safe_url}</a> '
             f'on {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>'
         )
         if soup.body:

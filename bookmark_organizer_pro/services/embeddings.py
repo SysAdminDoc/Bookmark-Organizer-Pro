@@ -168,6 +168,7 @@ class EmbeddingService:
                 local = window.rfind(". ")
                 if local != -1:
                     end = (end - 200) + local + 1
+            end = max(end, start + 1)
             chunk = text[start:end].strip()
             if chunk:
                 chunks.append({
@@ -179,7 +180,7 @@ class EmbeddingService:
                 idx += 1
             if end >= n:
                 break
-            start = max(end - overlap, end)
+            start = end - overlap
         return chunks
 
     @staticmethod

@@ -181,7 +181,7 @@ class SearchQuery:
                 if created.replace(tzinfo=None) < self.date_after:
                     return False
             except Exception:
-                pass
+                return False
 
         if self.date_before:
             try:
@@ -236,7 +236,7 @@ class SearchEngine:
         """Search bookmarks with query. Returns (bookmark, relevance_score) tuples."""
         query = str(query or "")
         if not query.strip():
-            return [(bm, 1.0) for bm in bookmarks]
+            return []
 
         self._add_to_history(query)
         parsed = SearchQuery(query)

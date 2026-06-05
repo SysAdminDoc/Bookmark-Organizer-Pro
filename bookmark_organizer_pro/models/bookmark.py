@@ -156,8 +156,10 @@ class Bookmark:
             self.modified_at = datetime.now().isoformat()
 
     def remove_tag(self, tag: str):
-        if tag in self.tags:
-            self.tags.remove(tag)
+        tag_lower = str(tag or "").strip().lower()
+        before = len(self.tags)
+        self.tags = [t for t in self.tags if t.lower() != tag_lower]
+        if len(self.tags) < before:
             self.modified_at = datetime.now().isoformat()
 
     def record_visit(self):
