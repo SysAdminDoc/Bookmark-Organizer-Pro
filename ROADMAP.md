@@ -74,7 +74,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 | 🔲 R-10 | **Collections as retrieval scopes** — pin RAG chat to a collection or tag from the sidebar. | Next | M | [S-1][S-10] |
 | 🔲 R-11 | **Answer caching** — `(query_hash, scope_hash)` cache for repeat questions. | Later | S | [S-1] |
 | 🔲 R-12 | **YouTube transcript capture** — detect YouTube URLs at save time, fetch transcript via `yt-dlp --write-auto-sub --skip-download`, index as extracted text for semantic search + RAG. | Next | M | [S-6][S-18] |
-| 🔲 R-13 | **Smart Collections** — saved filter rules (tags, domains, date ranges, content types) that auto-populate. Powered by existing `StructuredQuery` from `nl_query.py`. | Next | M | [S-10][S-19] |
+| ✅ R-13 | **Smart Collections** — `SmartCollectionManager` with tag/domain/date/keyword/content-type filters. CRUD + evaluate API. | Next | M | [S-10][S-19] |
 | 🔲 R-14 | **MCP auth token with per-tool scopes** — read-only vs. read-write tokens for multi-client environments. | Later | M | [S-14] |
 | 🔲 R-15 | **MCP streaming** for `chat_with_collection` — stream RAG responses token-by-token. | Later | M | [S-14] |
 
@@ -104,7 +104,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 |---|------|------|--------|--------|
 | ✅ R-23 | **Headless Chromium snapshot fallback** — playwright backend added as 3rd in chain (monolith → singlefile → playwright → python). | Now | M | [S-1][S-3] |
 | 🔲 R-24 | **Scheduled auto-snapshot** — user picks bookmarks for periodic re-capture to catch silent edits. | Next | M | [S-1] |
-| 🔲 R-25 | **EPUB export of collections** — each bookmark as a chapter, TOC from titles. `ebooklib` or manual ZIP construction. | Next | M | [S-6][S-18] |
+| ✅ R-25 | **EPUB export of collections** — EPUB 3.0 via manual ZIP. Each bookmark = chapter. No external deps. | Next | M | [S-6][S-18] |
 | 🔲 R-26 | **OPDS catalog** — serve collections to e-reader apps (Readeck-style). | Later | M | [S-6] |
 
 ---
@@ -368,11 +368,11 @@ High-value features and architectural investments.
 - ✅ **R-09** Time-weighted recall [S]
 - 🔲 **R-10** Collections as retrieval scopes [M]
 - 🔲 **R-12** YouTube transcript capture [M]
-- 🔲 **R-13** Smart Collections [M]
+- ✅ **R-13** Smart Collections [M]
 - 🔲 **R-17** Tree view alongside list [M]
 - 🔲 **R-18** sv-ttk theme integration [M]
 - 🔲 **R-24** Scheduled auto-snapshot [M]
-- 🔲 **R-25** EPUB export of collections [M]
+- ✅ **R-25** EPUB export of collections [M]
 - 🔲 **R-27** Zotero RDF import/export [M]
 - ✅ **R-30** Obsidian vault export [M]
 - 🔲 **R-31** SQLite migration (optional) [XL]
