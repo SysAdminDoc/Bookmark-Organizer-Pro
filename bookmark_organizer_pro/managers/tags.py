@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -37,6 +38,7 @@ class TagManager:
     def __init__(self, filepath: Path = TAGS_FILE):
         self.filepath = filepath
         self.tags: Dict[str, Tag] = {}
+        self._lock = threading.RLock()
         self._load_tags()
     
     def _load_tags(self):
@@ -75,21 +77,24 @@ class TagManager:
         if not name or not str(name).strip():
             log.warning("Attempted to add tag with empty name")
             return None
-        name = str(name).strip()[:50]  # Cap length
+        name = str(name).strip()[:50]
         tag = Tag(name=name, color=str(color or "").strip(), parent=str(parent or "").strip())
-        if tag.full_path in self.tags:
-            return self.tags[tag.full_path]  # Return existing instead of duplicate
-        self.tags[tag.full_path] = tag
+        with self._lock:
+            if tag.full_path in self.tags:
+                return self.tags[tag.full_path]
+            self.tags[tag.full_path] = tag
         self.save_tags()
         return tag
-    
+
     def remove_tag(self, tag_path: str) -> bool:
         """Remove a tag"""
-        if tag_path in self.tags:
-            del self.tags[tag_path]
-            self.save_tags()
-            return True
-        return False
+        with self._lock:
+            if tag_path in self.tags:
+                del self.tags[tag_path]
+            else:
+                return False
+        self.save_tags()
+        return True
     
     def get_tag(self, tag_path: str) -> Optional[Tag]:
         """Get a tag by path"""

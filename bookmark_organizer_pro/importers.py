@@ -48,6 +48,19 @@ def _is_supported_web_url(url: str) -> bool:
         return False
 
 
+def _dedup_bookmarks(bookmarks: List[Bookmark]) -> List[Bookmark]:
+    """Remove intra-file duplicates by normalized URL, keeping the first occurrence."""
+    seen: set = set()
+    out: List[Bookmark] = []
+    for bm in bookmarks:
+        key = bm.url.strip().lower().rstrip("/")
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(bm)
+    return out
+
+
 class BrowserProfileImporter:
     """Import bookmarks directly from browser profiles"""
 
@@ -636,4 +649,4 @@ class NetscapeBookmarkImporter:
         except Exception as e:
             log.error(f"Error importing Netscape bookmarks: {e}")
 
-        return bookmarks
+        return _dedup_bookmarks(bookmarks)

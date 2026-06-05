@@ -17,6 +17,7 @@ from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.search import levenshtein_distance
 from bookmark_organizer_pro.utils import safe_float
+from bookmark_organizer_pro.utils.safe import sanitize_for_prompt
 from bookmark_organizer_pro.utils.runtime import atomic_json_write as _atomic_json_write
 
 
@@ -165,10 +166,10 @@ class AIBatchProcessor:
 2. 3-5 relevant tags (single words, lowercase)
 3. A brief 1-sentence summary
 
-URL: {bookmark.url}
-Title: {bookmark.title}
-Current Category: {bookmark.category}
-Domain: {bookmark.domain}
+URL: {sanitize_for_prompt(bookmark.url, 500)}
+Title: {sanitize_for_prompt(bookmark.title, 200)}
+Current Category: {sanitize_for_prompt(bookmark.category, 100)}
+Domain: {sanitize_for_prompt(bookmark.domain, 100)}
 
 Respond in JSON format:
 {{"category": "...", "tags": ["...", "..."], "summary": "...", "confidence": 0.0-1.0}}"""
@@ -243,10 +244,10 @@ Tags should be:
 - Descriptive of content, topic, or purpose
 - Not duplicate existing tags: {existing_tags or []}
 
-URL: {bookmark.url}
-Title: {bookmark.title}
-Domain: {bookmark.domain}
-Notes: {bookmark.notes[:200] if bookmark.notes else 'None'}
+URL: {sanitize_for_prompt(bookmark.url, 500)}
+Title: {sanitize_for_prompt(bookmark.title, 200)}
+Domain: {sanitize_for_prompt(bookmark.domain, 100)}
+Notes: {sanitize_for_prompt(bookmark.notes[:200] if bookmark.notes else 'None', 200)}
 
 Return only a JSON array of tag strings: ["tag1", "tag2", ...]"""
             

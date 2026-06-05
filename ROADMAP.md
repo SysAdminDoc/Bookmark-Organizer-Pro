@@ -30,7 +30,7 @@ Python/Tkinter bookmark manager with 4,224 categorization patterns, 5 AI provide
 - [x] **BOP-009** Fix `batch_refresh_metadata` thread safety (collect-then-apply) | `managers/bookmarks.py`
 - [x] **BOP-015** API server auth token + CORS deny | `services/api.py`
 - [x] **BOP-016** Skip analytics rebuild when stats unchanged | `app_mixins/dashboard.py`
-- [ ] **BOP-010** Fix dead-link scanner thread safety | `services/dead_link_scanner.py`, `link_checker.py`
+- [x] **BOP-010** Fix dead-link scanner thread safety | `services/dead_link_scanner.py`
 - [ ] **BOP-019** List virtualization (tksheet or canvas-based) | `app_mixins/bookmarks.py`
 
 ## P2 — Medium impact (competitive parity, quality of life)
@@ -44,14 +44,14 @@ Python/Tkinter bookmark manager with 4,224 categorization patterns, 5 AI provide
 - [ ] **BOP-027** Reader view with highlight and annotation (net-new)
 - [ ] **BOP-028** EPUB export of collections
 - [ ] **BOP-029** YouTube transcript capture and indexing via yt-dlp
-- [ ] **BOP-030** Sanitize user data in LLM prompts | `ai.py`, `citation_summarizer.py`, `rag_chat.py`, `nl_query.py`
+- [x] **BOP-030** Sanitize user data in LLM prompts | `utils/safe.py`, `services/ai_tools.py`
 - [ ] **BOP-031** Fix URL normalization HTTP->HTTPS upgrade | `utils/url.py`
-- [ ] **BOP-032** Pre-restore backup in StorageManager *(done)*
-- [ ] **BOP-033** Thread safety for TagManager | `managers/tags.py`
+- [x] **BOP-032** Pre-restore backup in StorageManager | `core/storage_manager.py`
+- [x] **BOP-033** Thread safety for TagManager | `managers/tags.py`
 - [ ] **BOP-034** Fix `save_bookmarks` lock race | `managers/bookmarks.py`
 - [ ] **BOP-035** Deduplicate cross-category patterns | `core/default_categories.py`
 - [ ] **BOP-036** Fix overly broad plain patterns | `core/default_categories.py`, `core/pattern_engine.py`
-- [ ] **BOP-037** Intra-file dedup in importers | `importers.py`, `importers_extra.py`
+- [x] **BOP-037** Intra-file dedup in importers | `importers.py`
 - [ ] **BOP-038** Fix GridView scroll stealing | `ui/widget_grid.py`, `ui/components.py`
 - [ ] **BOP-039** Fix command palette FocusOut | `ui/shell_widgets.py`
 - [ ] **BOP-040** Undo for bulk category moves and duplicate removal
