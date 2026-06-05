@@ -188,6 +188,27 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 
 ---
 
+## Known Bugs (from research pass 3)
+
+*All identified in audit, all verified. Fix before next release.*
+
+| # | Bug | Severity | Effort | Status |
+|---|-----|----------|--------|--------|
+| BUG-01 | 6 domain patterns with embedded spaces — will never match | P0 | S | ✅ |
+| BUG-02 | 48 dead `domain:path` patterns — converted to `regex:` | P0 | M | ✅ |
+| BUG-03 | 3 misplaced domains (photopea→Design, ifixit→Technology, apollo.io→Business) | P1 | S | ✅ |
+| BUG-04 | `plain` type dead code removed from pattern engine | P1 | S | ✅ |
+| BUG-05 | Obsidian export: 3 optional fields now YAML-escaped | P1 | S | ✅ |
+| BUG-06 | Redundant local `Path as _P` import removed | P2 | S | ✅ |
+| BUG-07 | Path sandbox upgraded to `Path.is_relative_to()` (3 files) | P2 | S | ✅ |
+| BUG-08 | Pattern engine O(1) domain dict lookup (was O(n) linear scan) | P2 | M | ✅ |
+| BUG-09 | 18 overly broad keywords removed (bond, stream, analysis, etc.) | P2 | M | ✅ |
+| BUG-10 | 4 tests added for two-pass priority behavior | P1 | S | ✅ |
+| BUG-11 | 8 tests added for PatternEngine with real DEFAULT_CATEGORIES | P1 | S | ✅ |
+| BUG-12 | Pre-existing test failure — already fixed in prior commit | P2 | S | ✅ |
+
+---
+
 ## Completed (v6.1.0)
 
 All v6.1.0 fixes are recorded in [CHANGELOG.md](CHANGELOG.md). Key items that were previously on this roadmap:

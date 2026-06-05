@@ -67,7 +67,7 @@ def export_epub(bookmarks: List[Bookmark], output_path: Optional[Path] = None,
         if include_text and bm.extracted_text_path:
             try:
                 text_path = Path(bm.extracted_text_path).resolve()
-                if str(text_path).startswith(str(EXPORTS_DIR.parent.resolve())):
+                if text_path.is_relative_to(EXPORTS_DIR.parent.resolve()):
                     text = text_path.read_text(encoding="utf-8")[:20000]
             except OSError:
                 pass

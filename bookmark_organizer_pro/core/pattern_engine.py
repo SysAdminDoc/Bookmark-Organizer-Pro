@@ -7,12 +7,17 @@ Supports multiple pattern types:
 - title:foo              — substring match in title only
 - ext:pdf                — file extension match
 - regex:pattern          — regex match against URL or title
-- (plain)                — substring match in URL, domain, or title
+
+Uses a two-pass priority system with O(1) domain lookup via dict indexing.
+Pass 1 checks domain/path/extension (most specific), Pass 2 checks
+keyword/title/regex (broader). This prevents generic keywords from
+overriding exact domain matches.
 """
 
 import re
 import signal
 import sys
+from collections import defaultdict
 from collections.abc import Iterable
 from typing import Dict, List, Optional
 from urllib.parse import urlparse
@@ -45,17 +50,33 @@ def _safe_regex_search(pattern, text: str):
 class PatternEngine:
     """URL/title pattern matching for auto-categorization.
 
-    Compiles patterns once into rules; each match() call iterates the rules
-    in definition order and returns the first matching category.
+    Compiles patterns once into rules and indexes. Domain rules are indexed
+    in a dict for O(1) exact-match lookup; suffix-match domains use a
+    separate list for short linear scans. Other rule types use ordered lists.
     """
 
     def __init__(self, categories: Dict[str, List[str]]):
         self.rules = []
+        self._domain_exact: Dict[str, str] = {}
+        self._domain_suffix: List[dict] = []
+        self._path_rules: List[dict] = []
+        self._ext_rules: List[dict] = []
+        self._keyword_rules: List[dict] = []
+        self._title_rules: List[dict] = []
+        self._regex_rules: List[dict] = []
         self.compile_patterns(categories)
 
     def compile_patterns(self, categories: Dict[str, List[str]]):
-        """Compile all patterns into rules."""
+        """Compile all patterns into rules and build indexes."""
         self.rules = []
+        self._domain_exact = {}
+        self._domain_suffix = []
+        self._path_rules = []
+        self._ext_rules = []
+        self._keyword_rules = []
+        self._title_rules = []
+        self._regex_rules = []
+
         if not isinstance(categories, dict):
             return
 
@@ -78,45 +99,50 @@ class PatternEngine:
                     if p_lower.startswith("regex:"):
                         regex_str = p_stripped[6:]
                         if not regex_str or len(regex_str) > 500:
-                            continue  # Skip overly long regex (ReDoS guard)
+                            continue
                         rule["type"] = "regex"
                         rule["matcher"] = re.compile(regex_str, re.IGNORECASE)
+                        self._regex_rules.append(rule)
                     elif p_lower.startswith("domain:"):
                         matcher = p_stripped[7:].lower().strip().rstrip(".").removeprefix("www.")
                         if not matcher:
                             continue
                         rule["type"] = "domain"
                         rule["matcher"] = matcher
+                        if "." in matcher and not matcher.startswith("."):
+                            if matcher not in self._domain_exact:
+                                self._domain_exact[matcher] = category
+                        self._domain_suffix.append(rule)
                     elif p_lower.startswith("path:"):
                         matcher = p_stripped[5:].lower().strip()
                         if not matcher:
                             continue
                         rule["type"] = "path"
                         rule["matcher"] = matcher
+                        self._path_rules.append(rule)
                     elif p_lower.startswith("keyword:"):
                         matcher = p_stripped[8:].lower().strip()
                         if not matcher:
                             continue
                         rule["type"] = "keyword"
                         rule["matcher"] = matcher
+                        self._keyword_rules.append(rule)
                     elif p_lower.startswith("title:"):
                         matcher = p_stripped[6:].lower().strip()
                         if not matcher:
                             continue
                         rule["type"] = "title"
                         rule["matcher"] = matcher
+                        self._title_rules.append(rule)
                     elif p_lower.startswith("ext:"):
                         matcher = p_stripped[4:].lower().strip().lstrip(".")
                         if not matcher:
                             continue
                         rule["type"] = "extension"
                         rule["matcher"] = matcher
+                        self._ext_rules.append(rule)
                     else:
-                        matcher = p_stripped.lower()
-                        if not matcher:
-                            continue
-                        rule["type"] = "plain"
-                        rule["matcher"] = matcher
+                        continue
                     self.rules.append(rule)
                 except re.error:
                     pass
@@ -124,10 +150,8 @@ class PatternEngine:
     def match(self, url: str, title: str = "") -> Optional[str]:
         """Return the best matching category for the given URL/title, or None.
 
-        Uses a two-pass priority system: domain and path rules (most specific)
-        are checked first across ALL categories before falling back to keyword,
-        title, regex, and extension rules. This prevents a generic keyword like
-        "community" from overriding an exact domain match like "figma.com".
+        Pass 1: O(1) exact domain lookup, then suffix domain scan, path, extension.
+        Pass 2: keyword, title, regex (broader matching).
         """
         url_text = str(url or "")
         title_text = str(title or "")
@@ -142,32 +166,60 @@ class PatternEngine:
         except Exception:
             domain = path = ""
 
-        # Pass 1: domain and path rules (highest specificity)
-        for rule in self.rules:
-            matcher = rule["matcher"]
-            rtype = rule["type"]
+        # Pass 1a: O(1) exact domain lookup
+        if domain in self._domain_exact:
+            return self._domain_exact[domain]
+
+        # Pass 1b: suffix domain match (for patterns like "example.com" matching "sub.example.com")
+        if domain:
+            for rule in self._domain_suffix:
+                matcher = rule["matcher"]
+                try:
+                    if domain.endswith("." + matcher):
+                        return rule["category"]
+                except Exception:
+                    continue
+
+        # Pass 1c: path rules
+        if path:
+            for rule in self._path_rules:
+                try:
+                    if rule["matcher"] in path:
+                        return rule["category"]
+                except Exception:
+                    continue
+
+        # Pass 1d: extension rules
+        if path:
+            for rule in self._ext_rules:
+                try:
+                    if path.endswith(f".{rule['matcher']}"):
+                        return rule["category"]
+                except Exception:
+                    continue
+
+        # Pass 2a: keyword rules
+        for rule in self._keyword_rules:
             try:
-                if rtype == "domain" and (domain == matcher or domain.endswith("." + matcher)):
-                    return rule["category"]
-                elif rtype == "path" and matcher in path:
-                    return rule["category"]
-                elif rtype == "extension" and path.endswith(f".{matcher}"):
+                matcher = rule["matcher"]
+                if matcher in url_lower or matcher in title_lower:
                     return rule["category"]
             except Exception:
                 continue
 
-        # Pass 2: keyword, title, regex rules (broader matching)
-        for rule in self.rules:
-            matcher = rule["matcher"]
-            rtype = rule["type"]
+        # Pass 2b: title rules
+        for rule in self._title_rules:
             try:
-                if rtype == "keyword" and (matcher in url_lower or matcher in title_lower):
+                if rule["matcher"] in title_lower:
                     return rule["category"]
-                elif rtype == "title" and matcher in title_lower:
+            except Exception:
+                continue
+
+        # Pass 2c: regex rules
+        for rule in self._regex_rules:
+            try:
+                if _safe_regex_search(rule["matcher"], url_text) or _safe_regex_search(rule["matcher"], title_text):
                     return rule["category"]
-                elif rtype == "regex":
-                    if _safe_regex_search(matcher, url_text) or _safe_regex_search(matcher, title_text):
-                        return rule["category"]
             except Exception:
                 continue
 
