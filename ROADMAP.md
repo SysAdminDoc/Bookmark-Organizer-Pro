@@ -67,7 +67,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
 | 🔲 R-05 | **FastMCP migration** — replace raw `mcp` SDK with FastMCP 3.x for auto-schema from type hints, ToolAnnotations (`readOnlyHint`, `destructiveHint`), strict validation. | Now | M | [S-14][S-15] |
-| 🔲 R-06 | **MCP tools: `create_flow`, `append_to_flow`, `export_zip`, `list_snapshots`** — let agents curate research trails and export data. | Now | M | [S-14] |
+| ✅ R-06 | **MCP tools: `create_flow`, `append_to_flow`, `export_zip`, `list_snapshots`** — 4 new typed tools added (19 total). | Now | M | [S-14] |
 | 🔲 R-07 | **Cross-encoder re-rank** after RRF — optional `bge-reranker-base` step for ambiguous queries. Gated on installed package. | Next | M | [S-16][S-17] |
 | 🔲 R-08 | **Chunk-level provenance in RAG** — cite specific chunk offsets, not just bookmark ID. UI deep-links to the supporting span. | Next | M | [S-1] |
 | 🔲 R-09 | **Time-weighted recall** — down-weight old bookmarks in semantic search unless query explicitly requests history. | Next | S | [S-1] |
@@ -340,7 +340,7 @@ Immediate priority. Ship within the next development cycle.
 - 🔲 **R-01** Browser extension (MV3) [L]
 - ✅ **R-04** Bookmarklet fallback [S]
 - 🔲 **R-05** FastMCP migration [M]
-- 🔲 **R-06** MCP tools: create_flow, append_to_flow, export_zip, list_snapshots [M]
+- ✅ **R-06** MCP tools: create_flow, append_to_flow, export_zip, list_snapshots [M]
 - 🔲 **R-16** List virtualization via tksheet [L]
 - ✅ **R-19** Fix command palette FocusOut [S]
 - ✅ **R-20** Fix GridView scroll stealing [S]
