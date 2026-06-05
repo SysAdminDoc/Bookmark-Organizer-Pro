@@ -118,7 +118,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 | 🔲 R-27 | **Zotero RDF import/export** — bridge to academic reference managers. | Next | M | [S-1] |
 | 🔲 R-28 | **Matter export format** — import from Readwise-adjacent service. | Later | S | [S-1] |
 | 🔲 R-29 | **ATOM / JSON Feed output per collection** — share collections as RSS. | Later | S | [S-1] |
-| 🔲 R-30 | **Obsidian vault export via CLI + MCP** — Markdown files with YAML frontmatter (URL, tags, category, highlights). | Next | M | [S-1][S-11] |
+| ✅ R-30 | **Obsidian vault export via CLI + MCP** — `services/obsidian_export.py` + MCP `export_to_obsidian` tool (20 total). Tag/category/date filters. | Next | M | [S-1][S-11] |
 
 ---
 
@@ -374,7 +374,7 @@ High-value features and architectural investments.
 - 🔲 **R-24** Scheduled auto-snapshot [M]
 - 🔲 **R-25** EPUB export of collections [M]
 - 🔲 **R-27** Zotero RDF import/export [M]
-- 🔲 **R-30** Obsidian vault export [M]
+- ✅ **R-30** Obsidian vault export [M]
 - 🔲 **R-31** SQLite migration (optional) [XL]
 - 🔲 **R-35** API key storage via keyring [M]
 - 🔲 **R-37** SSRF allow-list for snapshot/ingest [M]
