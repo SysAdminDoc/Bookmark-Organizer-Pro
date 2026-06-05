@@ -66,7 +66,9 @@ def export_epub(bookmarks: List[Bookmark], output_path: Optional[Path] = None,
         text = ""
         if include_text and bm.extracted_text_path:
             try:
-                text = Path(bm.extracted_text_path).read_text(encoding="utf-8")[:20000]
+                text_path = Path(bm.extracted_text_path).resolve()
+                if str(text_path).startswith(str(EXPORTS_DIR.parent.resolve())):
+                    text = text_path.read_text(encoding="utf-8")[:20000]
             except OSError:
                 pass
         chapter_file = f"chapter_{i:04d}.xhtml"

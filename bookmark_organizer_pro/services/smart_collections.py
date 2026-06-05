@@ -58,11 +58,11 @@ class SmartCollection:
         if f.categories:
             cat_lower = bookmark.category.lower()
             parent_lower = bookmark.parent_category.lower()
-            if not any(c.lower() in cat_lower or c.lower() in parent_lower for c in f.categories):
+            if not any(c.lower() == cat_lower or c.lower() == parent_lower for c in f.categories):
                 return False
 
         if f.domains:
-            domain = bookmark.domain
+            domain = bookmark.domain.lower()
             if not any(d.lower() in domain for d in f.domains):
                 return False
 

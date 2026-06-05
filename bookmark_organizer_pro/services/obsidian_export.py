@@ -36,10 +36,17 @@ def _safe_filename(title: str) -> str:
     return (name[:120] or "bookmark") + ".md"
 
 
+def _yaml_escape(value: str) -> str:
+    """Escape a string for safe YAML double-quoted scalar."""
+    s = str(value or "")
+    s = s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\r")
+    return f'"{s}"'
+
+
 def _yaml_list(items: List[str]) -> str:
     if not items:
         return "[]"
-    return "[" + ", ".join(f'"{t}"' for t in items) + "]"
+    return "[" + ", ".join(_yaml_escape(t) for t in items) + "]"
 
 
 def export_bookmark(bookmark: Bookmark, vault_dir: Path,
@@ -60,11 +67,11 @@ def export_bookmark(bookmark: Bookmark, vault_dir: Path,
 
     lines = [
         "---",
-        f"url: {bookmark.url}",
-        f"title: \"{bookmark.title}\"",
-        f"category: {bookmark.full_category_path}",
+        f"url: {_yaml_escape(bookmark.url)}",
+        f"title: {_yaml_escape(bookmark.title)}",
+        f"category: {_yaml_escape(bookmark.full_category_path)}",
         f"tags: {_yaml_list(tags)}",
-        f"created: {bookmark.created_at}",
+        f"created: {_yaml_escape(bookmark.created_at)}",
     ]
     if bookmark.language:
         lines.append(f"language: {bookmark.language}")
@@ -91,12 +98,15 @@ def export_bookmark(bookmark: Bookmark, vault_dir: Path,
 
     if include_text and bookmark.extracted_text_path:
         try:
-            text = Path(bookmark.extracted_text_path).read_text(encoding="utf-8")
-            if text.strip():
-                lines.append("## Content")
-                lines.append("")
-                lines.append(text[:10000])
-                lines.append("")
+            from bookmark_organizer_pro.constants import APP_DIR
+            text_path = Path(bookmark.extracted_text_path).resolve()
+            if str(text_path).startswith(str(APP_DIR.resolve())):
+                text = text_path.read_text(encoding="utf-8")
+                if text.strip():
+                    lines.append("## Content")
+                    lines.append("")
+                    lines.append(text[:10000])
+                    lines.append("")
         except OSError:
             pass
 

@@ -55,6 +55,9 @@ x.send(JSON.stringify({{url:u,title:t,notes:s?'Selected: '+s:''}}));
     print(bookmarklet)
     print(f"\nPort: {args.port}")
     print(f"Token: {token[:8]}...")
+    print("\nWARNING: The API token is embedded in this bookmarklet URL.")
+    print("If browser sync (Chrome Sync, Firefox Sync) is enabled,")
+    print("the token will be uploaded to your browser vendor's cloud.")
 
 
 if __name__ == "__main__":

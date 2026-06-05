@@ -32,6 +32,9 @@ class BookmarkCLI:
         if not args:
             self._print_help()
             return
+        if args[0] in ("--version", "-V"):
+            print(f"{APP_NAME} v{APP_VERSION}")
+            return
         
         command = args[0].lower()
         cmd_args = args[1:]
@@ -86,7 +89,7 @@ class BookmarkCLI:
         print(f"""
 {APP_NAME} CLI v{APP_VERSION}
 
-Usage: python bookmark_organizer.py [command] [options]
+Usage: python main.py [command] [options]
 
 Commands:
   list [category]        List bookmarks (optionally filter by category)
@@ -128,11 +131,11 @@ v6.0.0 commands:
   mcp-server                    Run the MCP server (stdio) for Claude/Cursor/etc.
 
 Examples:
-  python bookmark_organizer.py list
-  python bookmark_organizer.py add https://example.com "Example Site"
-  python bookmark_organizer.py hybrid "python async tutorials"
-  python bookmark_organizer.py ingest        # ingest all
-  python bookmark_organizer.py mcp-server    # expose to Claude Desktop
+  python main.py list
+  python main.py add https://example.com "Example Site"
+  python main.py hybrid "python async tutorials"
+  python main.py ingest        # ingest all
+  python main.py mcp-server    # expose to Claude Desktop
 """)
     
     def _cmd_list(self, args):

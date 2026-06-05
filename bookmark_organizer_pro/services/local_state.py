@@ -271,21 +271,7 @@ class VersionHistory:
 # Per-Category Colors
 # =============================================================================
 class CategoryColorManager:
-    """
-        Represents a bookmark category.
-        
-        Attributes:
-            name: Category name (unique identifier)
-            parent: Parent category name (for nesting)
-            icon: Emoji icon for display
-            color: Optional color override
-            sort_order: Order within parent
-            created_at: ISO timestamp of creation
-        
-        Methods:
-            to_dict(): Serialize to dictionary
-            from_dict(d): Deserialize from dictionary
-        """
+    """Persists per-category color assignments to a local JSON file."""
     
     COLORS_FILE = DATA_DIR / "category_colors.json"
     

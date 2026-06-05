@@ -31,6 +31,7 @@ import asyncio
 import importlib
 import json
 import sys
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from bookmark_organizer_pro.ai import AIConfigManager
@@ -313,7 +314,10 @@ def t_export_to_obsidian(vault_path: str, tag_filter: str = "",
     from bookmark_organizer_pro.services.obsidian_export import export_collection
     s = _services()
     bms = s.bookmark_manager.get_all_bookmarks()
-    vault = Path(vault_path).expanduser()
+    vault = Path(vault_path).expanduser().resolve()
+    home = Path.home().resolve()
+    if not str(vault).startswith(str(home)):
+        return {"error": "vault_path must be under the user's home directory"}
     paths = export_collection(bms, vault, tag_filter=tag_filter or None,
                               category_filter=category_filter or None,
                               since=since or None)
