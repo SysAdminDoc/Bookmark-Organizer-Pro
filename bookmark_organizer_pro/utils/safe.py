@@ -176,3 +176,17 @@ def safe_slice(lst, start: int = 0, end: int = None, default=None):
         return lst[start:end] if end is not None else lst[start:]
     except Exception:
         return default if default is not None else []
+
+
+def sanitize_for_prompt(text: str, max_len: int = 2000) -> str:
+    """Sanitize user-supplied text before inserting into an LLM prompt.
+
+    Strips control characters and XML/markdown delimiter sequences that could
+    cause prompt-injection or confuse structured output parsers.  Truncates
+    to *max_len* characters.
+    """
+    if not text:
+        return ""
+    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', str(text))
+    text = text.replace('</system>', '').replace('<|', '').replace('|>', '')
+    return text[:max_len]

@@ -90,11 +90,12 @@ class DeadLinkScanner:
                 except Exception as exc:
                     is_valid, status_code = False, 0
                     log.debug(f"check failed for {bm.url}: {exc}")
-                bm.last_checked = now
-                bm.is_valid = is_valid
-                bm.http_status = status_code
+                with self._lock:
+                    bm.last_checked = now
+                    bm.is_valid = is_valid
+                    bm.http_status = status_code
+                    redirect = str(bm.custom_data.get("redirect_url", "") or "")
                 progress.done += 1
-                redirect = str(bm.custom_data.get("redirect_url", "") or "")
                 if not is_valid:
                     progress.broken += 1
                     records.append(DeadLinkRecord(
