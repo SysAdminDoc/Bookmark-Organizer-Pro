@@ -53,7 +53,7 @@ class HoverPreview:
         title = bookmark.title[:60] + "..." if len(bookmark.title) > 63 else bookmark.title
         tk.Label(
             frame, text=title, bg=theme.bg_dark,
-            fg=theme.text_primary, font=("Segoe UI", 10, "bold"),
+            fg=theme.text_primary, font=FONTS.body(bold=True),
             wraplength=300, justify=tk.LEFT
         ).pack(anchor="w")
         
@@ -215,7 +215,7 @@ class FilteredEmptyState(tk.Frame):
 
         tk.Label(
             center, text="🔎", bg=theme.bg_primary,
-            fg=theme.accent_primary, font=("Segoe UI Emoji", 40)
+            fg=theme.accent_primary, font=FONTS.custom(40)
         ).pack(pady=(0, 14))
 
         tk.Label(

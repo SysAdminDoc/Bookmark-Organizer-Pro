@@ -177,7 +177,7 @@ class CommandPalette(tk.Toplevel, ThemedWidget):
             if shortcut:
                 shortcut_label = tk.Label(
                     item, text=shortcut, bg=item.cget('bg'),
-                    fg=theme.text_secondary, font=("Consolas", 9)
+                    fg=theme.text_secondary, font=FONTS.tiny()
                 )
                 shortcut_label.pack(side=tk.RIGHT, padx=10)
 
@@ -352,14 +352,23 @@ class StyledDropdownMenu(tk.Toplevel):
         
         self.geometry(f"+{x}+{y}")
         
-        # Close on click outside
-        self.bind("<FocusOut>", lambda e: self.destroy())
+        # Close on click outside or Escape
+        self.bind("<FocusOut>", lambda e: self.after(50, self._check_focus))
         self.bind("<Escape>", lambda e: self.destroy())
-        
-        # Take focus
+
+        # Take focus without modal grab (grab_set can lock the app if
+        # the menu fails to destroy itself).
         self.focus_set()
-        self.grab_set()
     
+    def _check_focus(self):
+        """Destroy only if focus has truly left the dropdown."""
+        try:
+            focused = self.focus_get()
+            if focused is None or not str(focused).startswith(str(self)):
+                self.destroy()
+        except Exception:
+            self.destroy()
+
     def _on_click(self, command: Callable):
         """Handle menu item click"""
         self.destroy()

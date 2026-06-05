@@ -14,25 +14,29 @@ class FilterActionsMixin:
 
     def _on_search_focus_in(self, e):
         """Clear placeholder when search entry gains focus"""
+        theme = get_theme()
         if hasattr(self, 'search_frame') and self.search_frame:
-            theme = get_theme()
             self.search_frame.configure(highlightbackground=theme.accent_primary)
+        if hasattr(self, '_search_icon_label') and self._search_icon_label:
+            self._search_icon_label.configure(fg=theme.accent_primary)
         if self.search_entry.get() == self._search_placeholder:
             self._suppress_search_callback = True
             self.search_entry.delete(0, tk.END)
             self._suppress_search_callback = False
-            self.search_entry.configure(fg=get_theme().text_primary)
+            self.search_entry.configure(fg=theme.text_primary)
 
     def _on_search_focus_out(self, e):
         """Restore placeholder when search entry loses focus and is empty"""
+        theme = get_theme()
         if hasattr(self, 'search_frame') and self.search_frame:
-            theme = get_theme()
             self.search_frame.configure(highlightbackground=theme.border_muted)
+        if hasattr(self, '_search_icon_label') and self._search_icon_label:
+            self._search_icon_label.configure(fg=theme.text_muted)
         if not self.search_entry.get():
             self._suppress_search_callback = True
             self.search_entry.insert(0, self._search_placeholder)
             self._suppress_search_callback = False
-            self.search_entry.configure(fg=get_theme().text_muted)
+            self.search_entry.configure(fg=theme.text_muted)
             if hasattr(self, 'clear_search_btn') and self.clear_search_btn:
                 self.clear_search_btn.pack_forget()
 

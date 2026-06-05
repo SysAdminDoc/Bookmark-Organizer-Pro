@@ -175,13 +175,13 @@ class DashboardActionsMixin:
         
         tk.Label(
             header, text="Signals", bg=theme.bg_secondary,
-            fg=theme.text_primary, font=("Segoe UI", 11, "bold"),
+            fg=theme.text_primary, font=FONTS.body(bold=True),
             padx=15, pady=12
         ).pack(side=tk.LEFT)
         
         refresh_btn = tk.Label(
             header, text="↻", bg=theme.bg_secondary,
-            fg=theme.text_muted, font=("Segoe UI", 14),
+            fg=theme.text_muted, font=FONTS.subtitle(),
             cursor="hand2", padx=15
         )
         refresh_btn.pack(side=tk.RIGHT)
@@ -214,7 +214,7 @@ class DashboardActionsMixin:
             health_value = "Ready"
         else:
             health_color = theme.accent_success if health >= 70 else (theme.accent_warning if health >= 40 else theme.accent_error)
-            health_label = "Excellent" if health >= 85 else ("Healthy" if health >= 70 else ("Needs review" if health >= 40 else "At risk"))
+            health_label = "Excellent" if health >= 85 else ("Healthy" if health >= 70 else ("Needs Review" if health >= 40 else "At Risk"))
             health_value = f"{health}%"
 
         def section_label(text: str, top_pad: int = 14):

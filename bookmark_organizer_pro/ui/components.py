@@ -208,8 +208,7 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
         )
         self.browse_btn.pack(pady=(14, 6))
         
-        # Bind events (note: true drag-drop requires tkinterdnd2 or similar)
-        # For now, we'll use click-to-browse and simulated drop
+        # Click-to-browse (true drag-drop requires tkinterdnd2)
         self.bind("<Button-1>", lambda e: self._browse_files())
         self.bind("<Return>", lambda e: self._browse_files())
         self.bind("<space>", lambda e: self._browse_files())
@@ -473,8 +472,11 @@ class ScrollableFrame(tk.Frame):
         # Mouse wheel scrolling
         self.canvas.bind("<MouseWheel>", self._on_mousewheel)
         self.inner.bind("<MouseWheel>", self._on_mousewheel)
-        
-        self.inner.bind("<MouseWheel>", self._on_mousewheel_global, add="+")
+
+        # Keyboard scrolling
+        self.canvas.configure(takefocus=1)
+        for key in ("<Prior>", "<Next>", "<Home>", "<End>"):
+            self.canvas.bind(key, self._on_key_scroll)
     
     def _on_frame_configure(self, event):
         """Update scroll region when inner frame changes"""
@@ -487,20 +489,18 @@ class ScrollableFrame(tk.Frame):
     def _on_mousewheel(self, event):
         """Handle mouse wheel scrolling"""
         self.canvas.yview_scroll(-1 * (event.delta // 120), "units")
-    
-    def _on_mousewheel_global(self, event):
-        """Handle mouse wheel when over child widgets"""
-        # Check if mouse is over this frame
-        widget = event.widget
-        while widget:
-            if widget == self.inner or widget == self.canvas:
-                self.canvas.yview_scroll(-1 * (event.delta // 120), "units")
-                break
-            try:
-                widget = widget.master
-            except Exception:
-                break
-    
+
+    def _on_key_scroll(self, event):
+        """Handle keyboard scrolling (Page Up/Down, Home, End)."""
+        if event.keysym == "Prior":
+            self.canvas.yview_scroll(-5, "units")
+        elif event.keysym == "Next":
+            self.canvas.yview_scroll(5, "units")
+        elif event.keysym == "Home":
+            self.canvas.yview_moveto(0)
+        elif event.keysym == "End":
+            self.canvas.yview_moveto(1)
+
     def scroll_to_top(self):
         """Scroll to top"""
         self.canvas.yview_moveto(0)
