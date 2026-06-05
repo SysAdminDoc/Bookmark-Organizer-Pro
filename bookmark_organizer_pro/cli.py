@@ -85,6 +85,8 @@ class BookmarkCLI:
             "atom-export": self._cmd_atom_export,
             "json-feed": self._cmd_json_feed,
             "import-matter": self._cmd_import_matter,
+            "import-zotero": self._cmd_import_zotero,
+            "zotero-export": self._cmd_zotero_export,
         }
         
         if command in commands:
@@ -877,3 +879,25 @@ Top Domains:
             return
         added, dupes = import_into(self.bookmark_manager, MatterImporter, args[0])
         print(f"Matter import: {added} added, {dupes} duplicates skipped")
+
+    def _cmd_import_zotero(self, args):
+        from bookmark_organizer_pro.services.zotero_interop import import_zotero_rdf
+        if not args:
+            print("Usage: import-zotero <path_to_zotero_export.rdf>")
+            return
+        bookmarks = import_zotero_rdf(args[0])
+        added = 0
+        for bm in bookmarks:
+            self.bookmark_manager.add_bookmark(bm, save=False)
+            added += 1
+        if added:
+            self.bookmark_manager.save_bookmarks()
+        print(f"Zotero import: {added} bookmarks added")
+
+    def _cmd_zotero_export(self, args):
+        from bookmark_organizer_pro.services.zotero_interop import export_zotero_rdf
+        from pathlib import Path
+        output = Path(args[0]) if args else None
+        bms = self.bookmark_manager.get_all_bookmarks()
+        path = export_zotero_rdf(bms, output_path=output)
+        print(f"Zotero RDF export: {path} ({len(bms)} items)")

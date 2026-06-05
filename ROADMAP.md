@@ -75,7 +75,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 | ✅ R-11 | **Answer caching** — LRU cache (128 entries) keyed on `(query_hash, scope_hash)`. Skips multi-turn. `clear_cache()` + `cache_stats`. | Later | S | [S-1] |
 | ✅ R-12 | **YouTube transcript capture** — `services/youtube_transcript.py`: detects YouTube URLs, fetches via yt-dlp CLI or library, parses VTT, stores as extracted text. | Next | M | [S-6][S-18] |
 | ✅ R-13 | **Smart Collections** — `SmartCollectionManager` with tag/domain/date/keyword/content-type filters. CRUD + evaluate API. | Next | M | [S-10][S-19] |
-| 🔲 R-14 | **MCP auth token with per-tool scopes** — read-only vs. read-write tokens for multi-client environments. | Later | M | [S-14] |
+| ✅ R-14 | **MCP auth scopes** — `services/mcp_auth.py` with `MCPTokenManager`. Create/revoke tokens, read-only vs read-write scope per tool. | Later | M | [S-14] |
 | 🔲 R-15 | **MCP streaming** for `chat_with_collection` — stream RAG responses token-by-token. | Later | M | [S-14] |
 
 ---
@@ -115,7 +115,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| 🔲 R-27 | **Zotero RDF import/export** — bridge to academic reference managers. | Next | M | [S-1] |
+| ✅ R-27 | **Zotero RDF import/export** — `services/zotero_interop.py`. CLI: `import-zotero`, `zotero-export`. Reads/writes dc:title, dc:subject, dcterms:abstract. | Next | M | [S-1] |
 | ✅ R-28 | **Matter CSV importer** — `MatterImporter` in `importers_extra.py`. CLI: `import-matter`. Reads Title/URL/Tags/Status/Date Saved. | Later | S | [S-1] |
 | ✅ R-29 | **Atom + JSON Feed export** — `services/feed_export.py` with `export_atom()` and `export_json_feed()`. CLI: `atom-export`, `json-feed`. | Later | S | [S-1] |
 | ✅ R-30 | **Obsidian vault export via CLI + MCP** — `services/obsidian_export.py` + MCP `export_to_obsidian` tool (20 total). Tag/category/date filters. | Next | M | [S-1][S-11] |
