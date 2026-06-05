@@ -475,6 +475,8 @@ async def serve_stdio() -> int:
 
 
 def main():
+    from bookmark_organizer_pro.constants import ensure_directories
+    ensure_directories()
     log.info(f"{APP_NAME} MCP server v{APP_VERSION} starting (stdio)")
     try:
         sys.exit(asyncio.run(serve_stdio()))
