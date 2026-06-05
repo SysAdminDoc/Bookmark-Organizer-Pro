@@ -81,6 +81,10 @@ class BookmarkCLI:
             "nl-query": self._cmd_nl_query,
             "obsidian-export": self._cmd_obsidian_export,
             "epub-export": self._cmd_epub_export,
+            # v6.3
+            "atom-export": self._cmd_atom_export,
+            "json-feed": self._cmd_json_feed,
+            "import-matter": self._cmd_import_matter,
         }
         
         if command in commands:
@@ -819,3 +823,57 @@ Top Domains:
             bms = [b for b in bms if any(t.lower() == tag_l for t in b.tags)]
         path = export_epub(bms, output_path=output, title=title)
         print(f"EPUB exported: {path} ({len(bms)} bookmarks)")
+
+    def _cmd_atom_export(self, args):
+        from bookmark_organizer_pro.services.feed_export import export_atom
+        from pathlib import Path
+        title = "Bookmarks"
+        output = None
+        tag_filter = None
+        i = 0
+        while i < len(args):
+            if args[i] == "--title" and i + 1 < len(args):
+                title = args[i + 1]; i += 2
+            elif args[i] == "--output" and i + 1 < len(args):
+                output = Path(args[i + 1]); i += 2
+            elif args[i] == "--tag" and i + 1 < len(args):
+                tag_filter = args[i + 1]; i += 2
+            else:
+                i += 1
+        bms = self.bookmark_manager.get_all_bookmarks()
+        if tag_filter:
+            tag_l = tag_filter.lower()
+            bms = [b for b in bms if any(t.lower() == tag_l for t in b.tags)]
+        path = export_atom(bms, title=title, output_path=output)
+        print(f"Atom feed exported: {path} ({len(bms)} entries)")
+
+    def _cmd_json_feed(self, args):
+        from bookmark_organizer_pro.services.feed_export import export_json_feed
+        from pathlib import Path
+        title = "Bookmarks"
+        output = None
+        tag_filter = None
+        i = 0
+        while i < len(args):
+            if args[i] == "--title" and i + 1 < len(args):
+                title = args[i + 1]; i += 2
+            elif args[i] == "--output" and i + 1 < len(args):
+                output = Path(args[i + 1]); i += 2
+            elif args[i] == "--tag" and i + 1 < len(args):
+                tag_filter = args[i + 1]; i += 2
+            else:
+                i += 1
+        bms = self.bookmark_manager.get_all_bookmarks()
+        if tag_filter:
+            tag_l = tag_filter.lower()
+            bms = [b for b in bms if any(t.lower() == tag_l for t in b.tags)]
+        path = export_json_feed(bms, title=title, output_path=output)
+        print(f"JSON Feed exported: {path} ({len(bms)} items)")
+
+    def _cmd_import_matter(self, args):
+        from bookmark_organizer_pro.importers_extra import MatterImporter, import_into
+        if not args:
+            print("Usage: import-matter <path_to_matter_export.csv>")
+            return
+        added, dupes = import_into(self.bookmark_manager, MatterImporter, args[0])
+        print(f"Matter import: {added} added, {dupes} duplicates skipped")
