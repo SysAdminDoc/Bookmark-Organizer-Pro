@@ -2,6 +2,67 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.2.0] - 2026-06-05
+
+Feature release with 22 roadmap items shipped. Consolidated ROADMAP v3 with
+68 sourced references, then implemented all 19 Now-tier items plus 5 Next-tier
+items. Total test suite: 188 methods across 3 files.
+
+### Added — Features
+
+- **Smart Collections** (`services/smart_collections.py`) — saved filter
+  rules (tags, domains, dates, content types, keywords) that auto-populate
+  dynamically. CRUD + evaluate API. (R-13)
+- **EPUB export** (`services/epub_export.py`) — export bookmark collections
+  as EPUB 3.0 e-books. Each bookmark = chapter with extracted text. No
+  external deps — manual ZIP construction. (R-25)
+- **Obsidian vault export** (`services/obsidian_export.py`) — Markdown files
+  with YAML frontmatter (URL, tags, category, dates). Supports tag/category/
+  date filtering. Also available as MCP tool `export_to_obsidian`. (R-30)
+- **4 new MCP tools** — `create_flow`, `append_to_flow`, `export_zip`,
+  `list_snapshots`, `export_to_obsidian` (20 total). (R-06, R-30)
+- **FastMCP migration** — auto-schema from type hints when FastMCP is
+  installed, raw `mcp` SDK fallback otherwise. (R-05)
+- **Playwright snapshot backend** — headless Chromium for JS-heavy SPAs.
+  4-backend chain: monolith → singlefile → playwright → Python BS4. (R-23)
+- **Bookmarklet generator** — `scripts/generate_bookmarklet.py` creates a JS
+  bookmark with auth token. Sends URL+title+selection to localhost API with
+  toast feedback. (R-04)
+- **Time-weighted recall** — exponential decay factor with configurable
+  half-life in hybrid search. (R-09)
+- **High-contrast theme** — WCAG AA accessible: yellow accents on black,
+  maximum contrast. (R-49)
+- **First-run privacy banner** — one-time notice confirming local-first
+  operation. (R-39)
+
+### Fixed — Quality
+
+- **Pillow upgraded to ≥12.2.0** — fixes CVE-2026-25990, CVE-2026-40192,
+  CVE-2026-42308. (R-36b)
+- **ReDoS timeout on pattern engine regex** — `signal.alarm` guard on Unix,
+  RecursionError/MemoryError catch on Windows. (R-36)
+- **37 duplicate patterns removed** — 8 within-category + 29 cross-category.
+  25+ overly broad plain patterns converted to typed. (R-33, R-34)
+- **1,409 lines dead code removed** — GridView, BookmarkListView,
+  MiniAnalyticsDashboard, SystemTray, BookmarkCard,
+  CategoryDragDropManager. 9 UI files cleaned. (R-46)
+- **Copy-pasted model docstrings** fixed in 5 files. (R-47)
+- **Command palette FocusOut** — 150ms delay + child-focus check prevents
+  premature close on click. (R-19)
+- **GridView scroll stealing** — `bind_all` replaced with widget-scoped
+  binding. (R-20)
+- **Per-backup SHA-256 integrity hash** — verified on restore. (R-32)
+
+### Improved — Infrastructure
+
+- **Python version matrix in CI** — tests on 3.10, 3.11, 3.12, 3.13. (R-42)
+- **26 new service layer tests** — embeddings, encryption, tag_linter,
+  flows, digest, rss_feeds, zip_export, read_later. (R-43)
+- **20 MCP server integration tests** — all 20 tools, schema validation,
+  flows CRUD, dedup detection. (R-44)
+- **4 broken test expectations fixed** — search-empty, cost tracker month,
+  API auth, AI batch FakeConfig. 188 total tests green.
+
 ## [v6.1.0] - 2026-06-05
 
 Hardening and reliability release. 35 fixes across 30+ files, informed by an
