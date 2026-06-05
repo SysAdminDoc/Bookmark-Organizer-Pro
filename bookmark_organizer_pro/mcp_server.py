@@ -210,9 +210,21 @@ def t_get_extracted_text(bookmark_id: int) -> str:
         return ""
 
 
-def t_chat(question: str, restrict_ids: Optional[List[int]] = None) -> Dict:
+def t_chat(question: str, restrict_ids: Optional[List[int]] = None,
+           restrict_tag: str = "", restrict_category: str = "") -> Dict:
     s = _services()
-    turn = s.chat.ask(question, restrict_ids=restrict_ids)
+    ids = list(restrict_ids) if restrict_ids else None
+    if restrict_tag or restrict_category:
+        bms = s.bookmark_manager.get_all_bookmarks()
+        if restrict_tag:
+            tag_l = restrict_tag.lower()
+            bms = [b for b in bms if any(t.lower() == tag_l for t in b.tags)]
+        if restrict_category:
+            cat_l = restrict_category.lower()
+            bms = [b for b in bms if b.category.lower() == cat_l]
+        scope_ids = [b.id for b in bms]
+        ids = scope_ids if ids is None else [i for i in ids if i in set(scope_ids)]
+    turn = s.chat.ask(question, restrict_ids=ids)
     return {
         "answer": turn.answer,
         "used_chunks": turn.used_chunks,
@@ -425,12 +437,14 @@ TOOLS = [
          "required": ["bookmark_id"],
      }),
     ("chat_with_collection", t_chat,
-     "Ask a question about your bookmark collection using RAG. Retrieves relevant bookmark content and generates an AI answer with source attribution.",
+     "Ask a question about your bookmark collection using RAG. Can scope to a tag or category.",
      {
          "type": "object",
          "properties": {
              "question": {"type": "string", "description": "Your question about saved bookmarks"},
              "restrict_ids": {"type": "array", "items": {"type": "integer"}, "description": "Optional: limit retrieval to these bookmark IDs"},
+             "restrict_tag": {"type": "string", "description": "Optional: scope retrieval to bookmarks with this tag"},
+             "restrict_category": {"type": "string", "description": "Optional: scope retrieval to bookmarks in this category"},
          },
          "required": ["question"],
      }),
@@ -633,8 +647,9 @@ def _build_fastmcp_server():
         return t_get_extracted_text(bookmark_id)
 
     @mcp_app.tool(description="Conversational RAG over the bookmark library.")
-    def chat_with_collection(question: str, restrict_ids: list[int] | None = None) -> dict:
-        return t_chat(question, restrict_ids)
+    def chat_with_collection(question: str, restrict_ids: list[int] | None = None,
+                             restrict_tag: str = "", restrict_category: str = "") -> dict:
+        return t_chat(question, restrict_ids, restrict_tag, restrict_category)
 
     @mcp_app.tool(description="AI summary with inline citations back to source spans.")
     def summarize_bookmark(bookmark_id: int) -> dict:

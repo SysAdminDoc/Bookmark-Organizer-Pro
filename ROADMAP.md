@@ -71,9 +71,9 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 | 🔲 R-07 | **Cross-encoder re-rank** after RRF — optional `bge-reranker-base` step for ambiguous queries. Gated on installed package. | Next | M | [S-16][S-17] |
 | 🔲 R-08 | **Chunk-level provenance in RAG** — cite specific chunk offsets, not just bookmark ID. UI deep-links to the supporting span. | Next | M | [S-1] |
 | ✅ R-09 | **Time-weighted recall** — exponential decay factor with configurable half-life in hybrid search. `time_weight` param (0-1). | Next | S | [S-1] |
-| 🔲 R-10 | **Collections as retrieval scopes** — pin RAG chat to a collection or tag from the sidebar. | Next | M | [S-1][S-10] |
+| ✅ R-10 | **Collections as retrieval scopes** — `restrict_tag` and `restrict_category` params on MCP `chat_with_collection` + FastMCP path. | Next | M | [S-1][S-10] |
 | ✅ R-11 | **Answer caching** — LRU cache (128 entries) keyed on `(query_hash, scope_hash)`. Skips multi-turn. `clear_cache()` + `cache_stats`. | Later | S | [S-1] |
-| 🔲 R-12 | **YouTube transcript capture** — detect YouTube URLs at save time, fetch transcript via `yt-dlp --write-auto-sub --skip-download`, index as extracted text for semantic search + RAG. | Next | M | [S-6][S-18] |
+| ✅ R-12 | **YouTube transcript capture** — `services/youtube_transcript.py`: detects YouTube URLs, fetches via yt-dlp CLI or library, parses VTT, stores as extracted text. | Next | M | [S-6][S-18] |
 | ✅ R-13 | **Smart Collections** — `SmartCollectionManager` with tag/domain/date/keyword/content-type filters. CRUD + evaluate API. | Next | M | [S-10][S-19] |
 | 🔲 R-14 | **MCP auth token with per-tool scopes** — read-only vs. read-write tokens for multi-client environments. | Later | M | [S-14] |
 | 🔲 R-15 | **MCP streaming** for `chat_with_collection` — stream RAG responses token-by-token. | Later | M | [S-14] |
@@ -103,7 +103,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
 | ✅ R-23 | **Headless Chromium snapshot fallback** — playwright backend added as 3rd in chain (monolith → singlefile → playwright → python). | Now | M | [S-1][S-3] |
-| 🔲 R-24 | **Scheduled auto-snapshot** — user picks bookmarks for periodic re-capture to catch silent edits. | Next | M | [S-1] |
+| ✅ R-24 | **Scheduled auto-snapshot** — `services/auto_snapshot.py`: SnapshotScheduler with add/remove/run_once/start/stop. Background daemon thread. | Next | M | [S-1] |
 | ✅ R-25 | **EPUB export of collections** — EPUB 3.0 via manual ZIP. Each bookmark = chapter. No external deps. | Next | M | [S-6][S-18] |
 | 🔲 R-26 | **OPDS catalog** — serve collections to e-reader apps (Readeck-style). | Later | M | [S-6] |
 
