@@ -7,7 +7,7 @@ import threading
 import tkinter as tk
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from bookmark_organizer_pro.constants import BACKUP_DIR
 from bookmark_organizer_pro.importers import (
@@ -20,28 +20,170 @@ from bookmark_organizer_pro.importers import (
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.ui.bookmark_workflows import SelectiveExportDialog
-from bookmark_organizer_pro.ui.foundation import FONTS, pluralize
-from bookmark_organizer_pro.ui.widgets import get_theme
+from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, pluralize
+from bookmark_organizer_pro.ui.widgets import ModernButton, get_theme
+
+
+class ImportProgressModal(tk.Toplevel):
+    """Large centered modal that shows import progress."""
+
+    def __init__(self, parent, source_label: str = "file"):
+        super().__init__(parent)
+        theme = get_theme()
+
+        self.title("Importing Bookmarks")
+        self.configure(bg=theme.bg_primary)
+        self.resizable(False, False)
+        self.transient(parent)
+        self.grab_set()
+        self.protocol("WM_DELETE_WINDOW", lambda: None)
+
+        width, height = 480, 260
+        self.geometry(f"{width}x{height}")
+        self.update_idletasks()
+        px = parent.winfo_rootx() + (parent.winfo_width() - width) // 2
+        py = parent.winfo_rooty() + (parent.winfo_height() - height) // 2
+        self.geometry(f"+{max(0, px)}+{max(0, py)}")
+
+        try:
+            self.attributes("-topmost", True)
+        except Exception:
+            pass
+
+        # --- Icon ---
+        tk.Label(
+            self, text="↓", bg=theme.bg_primary,
+            fg=theme.accent_primary, font=FONTS.custom(36, bold=True),
+        ).pack(pady=(28, 8))
+
+        # --- Title ---
+        self._title_label = tk.Label(
+            self, text=f"Importing from {source_label}…",
+            bg=theme.bg_primary, fg=theme.text_primary,
+            font=FONTS.subtitle(bold=True),
+        )
+        self._title_label.pack()
+
+        # --- Status ---
+        self._status_label = tk.Label(
+            self, text="Preparing…",
+            bg=theme.bg_primary, fg=theme.text_secondary,
+            font=FONTS.body(),
+        )
+        self._status_label.pack(pady=(6, 12))
+
+        # --- Progress bar ---
+        bar_frame = tk.Frame(self, bg=theme.bg_primary)
+        bar_frame.pack(fill=tk.X, padx=48)
+
+        self._bar_bg = tk.Frame(bar_frame, bg=theme.bg_tertiary, height=6)
+        self._bar_bg.pack(fill=tk.X)
+
+        self._bar_fill = tk.Frame(self._bar_bg, bg=theme.accent_primary, height=6)
+        self._bar_fill.place(x=0, y=0, relheight=1.0, relwidth=0)
+
+        # --- Count ---
+        self._count_label = tk.Label(
+            self, text="",
+            bg=theme.bg_primary, fg=theme.text_muted,
+            font=FONTS.small(),
+        )
+        self._count_label.pack(pady=(10, 0))
+
+        self._animating = True
+        self._animate_pos = 0.0
+        self._animate()
+
+    def _animate(self):
+        if not self._animating:
+            return
+        self._animate_pos += 0.03
+        if self._animate_pos > 0.7:
+            self._animate_pos = 0.0
+        self._bar_fill.place(relx=self._animate_pos, relwidth=0.3)
+        self.after(40, self._animate)
+
+    def set_progress(self, current: int, total: int, added: int, dupes: int):
+        self._animating = False
+        pct = current / max(total, 1)
+        self._bar_fill.place(relx=0, relwidth=pct)
+        self._status_label.configure(text=f"Processing bookmark {current:,} of {total:,}")
+        parts = []
+        if added:
+            parts.append(f"{added:,} added")
+        if dupes:
+            parts.append(f"{dupes:,} skipped")
+        self._count_label.configure(text=" · ".join(parts) if parts else "")
+
+    def set_categorizing(self):
+        self._status_label.configure(text="Auto-categorizing bookmarks…")
+
+    def set_saving(self):
+        self._status_label.configure(text="Saving to library…")
+
+    def finish(self, added: int, dupes: int):
+        theme = get_theme()
+        self._animating = False
+        self._bar_fill.place(relx=0, relwidth=1.0)
+        self._bar_fill.configure(bg=theme.accent_success)
+        self._title_label.configure(text="Import Complete")
+        self._status_label.configure(
+            text=f"{added:,} bookmarks imported, {dupes:,} duplicates skipped",
+            fg=theme.text_primary,
+        )
+        self._count_label.configure(text="")
+
+        btn_frame = tk.Frame(self, bg=theme.bg_primary)
+        btn_frame.pack(pady=(12, 0))
+        ModernButton(
+            btn_frame, text="Done", style="primary",
+            command=self._close, padx=24, pady=8,
+        ).pack()
+        self.protocol("WM_DELETE_WINDOW", self._close)
+
+    def finish_error(self, message: str):
+        theme = get_theme()
+        self._animating = False
+        self._bar_fill.place(relx=0, relwidth=1.0)
+        self._bar_fill.configure(bg=theme.accent_error)
+        self._title_label.configure(text="Import Failed")
+        self._status_label.configure(text=message[:120], fg=theme.accent_error)
+
+        btn_frame = tk.Frame(self, bg=theme.bg_primary)
+        btn_frame.pack(pady=(12, 0))
+        ModernButton(
+            btn_frame, text="Close", command=self._close, padx=24, pady=8,
+        ).pack()
+        self.protocol("WM_DELETE_WINDOW", self._close)
+
+    def _close(self):
+        self.grab_release()
+        self.destroy()
 
 
 class ImportExportMixin:
     """File, browser, and export actions used by the app coordinator."""
 
     def _on_files_dropped(self, filepaths: List[str]):
-        """Handle dropped files for import with backup and auto-categorization"""
+        """Handle dropped files for import with progress modal."""
         self.import_area.set_importing(True)
-        self._set_status(f"Importing {pluralize(len(filepaths), 'file')}…")
-        
+
+        file_names = ", ".join(Path(f).name for f in filepaths[:3])
+        if len(filepaths) > 3:
+            file_names += f" (+{len(filepaths) - 3} more)"
+        modal = ImportProgressModal(self.root, source_label=file_names)
+
         def do_import():
             total_added = 0
             total_dupes = 0
             imported_bookmarks = []
-            
+            all_parsed: List[Bookmark] = []
+
             try:
+                # Phase 1: Parse all files
                 for filepath in filepaths:
                     ext = Path(filepath).suffix.lower()
-                    bookmarks = []
-                    
+                    bookmarks: List[Bookmark] = []
                     try:
                         if ext in ('.html', '.htm'):
                             bookmarks = NetscapeBookmarkImporter.import_from_netscape(filepath)
@@ -52,7 +194,8 @@ class ImportExportMixin:
                             for item in items:
                                 if isinstance(item, dict) and item.get('url'):
                                     bm = Bookmark(id=None, url=item.get('url', ''),
-                                                title=item.get('title', ''), category=item.get('category', 'Imported'))
+                                                  title=item.get('title', ''),
+                                                  category=item.get('category', 'Imported'))
                                     bookmarks.append(bm)
                         elif ext == '.csv':
                             bookmarks = RaindropImporter.import_from_csv(filepath)
@@ -60,45 +203,46 @@ class ImportExportMixin:
                             bookmarks = OPMLImporter.import_from_opml(filepath)
                         elif ext == '.txt':
                             bookmarks = TextURLImporter.import_from_text(filepath)
-                        else:
-                            continue
-                        
-                        for bm in bookmarks:
-                            if bm and bm.url:
-                                existing = self.bookmark_manager.find_by_url(bm.url)
-                                if not existing:
-                                    # Auto-categorize before adding
-                                    if not bm.category or bm.category in ("Imported", "Uncategorized", "Uncategorized / Needs Review"):
-                                        bm.category = self.category_manager.categorize_url(bm.url, bm.title)
-                                    
-                                    self.bookmark_manager.add_bookmark(bm, save=False)
-                                    imported_bookmarks.append(bm)
-                                    total_added += 1
-                                else:
-                                    total_dupes += 1
                     except Exception as e:
                         log.error(f"Import error for {filepath}: {e}")
-                        self.root.after(0, lambda err=e: self._show_toast(
-                            f"Error importing file: {str(err)[:80]}", "error"))
-                
-                # Save all bookmarks after batch import
+                    all_parsed.extend(b for b in bookmarks if b and b.url)
+
+                total = len(all_parsed)
+
+                # Phase 2: Deduplicate, categorize, add
+                for i, bm in enumerate(all_parsed):
+                    existing = self.bookmark_manager.find_by_url(bm.url)
+                    if existing:
+                        total_dupes += 1
+                    else:
+                        if not bm.category or bm.category in (
+                            "Imported", "Uncategorized", "Uncategorized / Needs Review"
+                        ):
+                            bm.category = self.category_manager.categorize_url(bm.url, bm.title)
+                        self.bookmark_manager.add_bookmark(bm, save=False)
+                        imported_bookmarks.append(bm)
+                        total_added += 1
+
+                    if (i + 1) % 25 == 0 or i == total - 1:
+                        self.root.after(0, lambda c=i+1, t=total, a=total_added, d=total_dupes:
+                                        modal.set_progress(c, t, a, d))
+
+                # Phase 3: Save
+                self.root.after(0, modal.set_saving)
                 self.bookmark_manager.save_bookmarks()
-                
-                # Save to permanent import backup (grows forever)
+
                 if imported_bookmarks:
                     self._save_import_backup(imported_bookmarks)
-                    
+
+                self.root.after(0, lambda: modal.finish(total_added, total_dupes))
+
             except Exception as e:
                 log.error(f"Import thread error: {e}")
-                self.root.after(0, lambda err=e: self._show_toast(
-                    f"Import failed: {str(err)[:80]}", "error"))
+                self.root.after(0, lambda: modal.finish_error(str(e)[:120]))
             finally:
-                # Always call completion handler
                 self.root.after(0, lambda: self._on_import_done(total_added, total_dupes))
-        
-        # Start import thread
-        import_thread = threading.Thread(target=do_import, daemon=True)
-        import_thread.start()
+
+        threading.Thread(target=do_import, daemon=True).start()
     
     def _save_import_backup(self, bookmarks: List[Bookmark]):
         """Save imported bookmarks to permanent backup file (grows forever)"""
@@ -175,7 +319,7 @@ class ImportExportMixin:
         menu.tk_popup(self.root.winfo_pointerx(), self.root.winfo_pointery())
 
     def _import_from_browser(self, browser: str):
-        """Import bookmarks directly from a browser profile"""
+        """Import bookmarks directly from a browser profile with progress modal."""
         importer = BrowserProfileImporter()
         profiles = importer.get_profiles(browser)
 
@@ -183,40 +327,50 @@ class ImportExportMixin:
             self._show_toast(f"No {browser.title()} profiles found", "warning")
             return
 
-        # Use first profile (Default) — could add profile picker later
         profile_name, profile_path = profiles[0]
+        modal = ImportProgressModal(self.root, source_label=f"{browser.title()} ({profile_name})")
 
         def do_import():
-            if browser == "firefox":
-                bookmarks = importer.import_from_firefox(profile_path)
-            else:
-                bookmarks = importer.import_from_chrome(profile_path)
+            try:
+                if browser == "firefox":
+                    bookmarks = importer.import_from_firefox(profile_path)
+                else:
+                    bookmarks = importer.import_from_chrome(profile_path)
 
-            added = 0
-            dupes = 0
-            for bm in bookmarks:
-                if not bm.url or not bm.url.startswith(('http://', 'https://')):
-                    continue
-                existing = self.bookmark_manager.find_by_url(bm.url) if hasattr(self.bookmark_manager, 'find_by_url') else None
-                if existing:
-                    dupes += 1
-                    continue
-                bm.source_file = f"{browser}:{profile_name}"
-                self.bookmark_manager.add_bookmark(bm, save=False)
-                added += 1
+                valid = [bm for bm in bookmarks if bm.url and bm.url.startswith(('http://', 'https://'))]
+                total = len(valid)
+                added = 0
+                dupes = 0
 
-            if added > 0:
-                self.bookmark_manager.save_bookmarks()
-                self.root.after(0, self._refresh_all)
+                for i, bm in enumerate(valid):
+                    existing = self.bookmark_manager.find_by_url(bm.url)
+                    if existing:
+                        dupes += 1
+                    else:
+                        if not bm.category or bm.category in (
+                            "Imported", "Uncategorized", "Uncategorized / Needs Review"
+                        ):
+                            bm.category = self.category_manager.categorize_url(bm.url, bm.title)
+                        bm.source_file = f"{browser}:{profile_name}"
+                        self.bookmark_manager.add_bookmark(bm, save=False)
+                        added += 1
 
-            self.root.after(0, lambda: self._show_toast(
-                f"Imported {pluralize(added, 'bookmark')} from {browser.title()}. Skipped {pluralize(dupes, 'duplicate')}.",
-                "success" if added > 0 else "info"
-            ))
+                    if (i + 1) % 25 == 0 or i == total - 1:
+                        self.root.after(0, lambda c=i+1, t=total, a=added, d=dupes:
+                                        modal.set_progress(c, t, a, d))
 
-        import threading
+                self.root.after(0, modal.set_saving)
+                if added > 0:
+                    self.bookmark_manager.save_bookmarks()
+
+                self.root.after(0, lambda: modal.finish(added, dupes))
+                self.root.after(0, lambda: self._on_import_done(added, dupes))
+
+            except Exception as e:
+                log.error(f"Browser import error: {e}")
+                self.root.after(0, lambda: modal.finish_error(str(e)[:120]))
+
         threading.Thread(target=do_import, daemon=True).start()
-        self._show_toast(f"Importing from {browser.title()}…", "info")
     
     def _show_export_dialog(self):
         """Show export dialog"""
