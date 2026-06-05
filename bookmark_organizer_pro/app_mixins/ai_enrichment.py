@@ -14,6 +14,7 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.ai_audit_log import log_tag_suggestion, log_summary
 
 
 class AiEnrichmentMixin:
@@ -58,12 +59,21 @@ class AiEnrichmentMixin:
                 return
             result_map = {r["url"]: r for r in results}
             tagged = 0
+            provider = self.ai_config.get_provider()
+            model = self.ai_config.get_model()
             for bm in bookmarks:
                 result = result_map.get(bm.url)
                 if result and result.get("tags"):
+                    old_tags = list(bm.ai_tags)
                     bm.ai_tags = [t.lower().strip() for t in result["tags"] if t]
                     bm.modified_at = datetime.now().isoformat()
                     tagged += 1
+                    log_tag_suggestion(
+                        provider=provider, model=model,
+                        bookmark_id=bm.id, url=bm.url,
+                        old_tags=old_tags, new_tags=list(bm.ai_tags),
+                        ai_tags=result["tags"], applied=True,
+                    )
             self.bookmark_manager.save_bookmarks()
             self._refresh_bookmark_list()
             messagebox.showinfo("Tags Generated", f"Generated AI tags for {tagged} bookmark(s).\n\nAI tags stay separate from your manual tags until you choose to merge them.", parent=self.root)
@@ -127,12 +137,19 @@ Respond with JSON: {{"summaries": [{{"url": "...", "description": "..."}}]}}"""
                 summaries = data.get("summaries", [])
                 summary_map = {s["url"]: s["description"] for s in summaries}
                 updated = 0
+                provider = self.ai_config.get_provider()
+                model = self.ai_config.get_model()
                 for bm in bookmarks:
                     desc = summary_map.get(bm.url)
                     if desc:
                         bm.description = desc
                         bm.modified_at = datetime.now().isoformat()
                         updated += 1
+                        log_summary(
+                            provider=provider, model=model,
+                            bookmark_id=bm.id, url=bm.url,
+                            summary=desc, applied=True,
+                        )
                 self.bookmark_manager.save_bookmarks()
                 self._refresh_bookmark_list()
                 messagebox.showinfo("Descriptions Generated", f"Generated descriptions for {updated} bookmark(s).", parent=self.root)

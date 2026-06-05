@@ -15,6 +15,7 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.ai_audit_log import log_title_improvement
 from bookmark_organizer_pro.ui.foundation import FONTS
 from bookmark_organizer_pro.ui.widgets import ModernButton, apply_window_chrome, get_theme
 
@@ -199,11 +200,20 @@ Respond with ONLY valid JSON in this exact format:
         
         def apply_changes():
             applied = 0
+            provider = self.ai_config.get_provider()
+            model = self.ai_config.get_model()
             for bm, new_title, var in check_vars:
                 if var.get():
+                    old_title = bm.title
                     bm.title = new_title
                     bm.modified_at = datetime.now().isoformat()
                     applied += 1
+                    log_title_improvement(
+                        provider=provider, model=model,
+                        bookmark_id=bm.id, url=bm.url,
+                        old_title=old_title, new_title=new_title,
+                        applied=True,
+                    )
             
             self.bookmark_manager.save_bookmarks()
             self._refresh_bookmark_list()
