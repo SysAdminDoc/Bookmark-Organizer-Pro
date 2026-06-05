@@ -83,7 +83,7 @@ class TagManager:
             if tag.full_path in self.tags:
                 return self.tags[tag.full_path]
             self.tags[tag.full_path] = tag
-        self.save_tags()
+            self.save_tags()
         return tag
 
     def remove_tag(self, tag_path: str) -> bool:
@@ -93,7 +93,7 @@ class TagManager:
                 del self.tags[tag_path]
             else:
                 return False
-        self.save_tags()
+            self.save_tags()
         return True
     
     def get_tag(self, tag_path: str) -> Optional[Tag]:
@@ -119,19 +119,21 @@ class TagManager:
     
     def update_tag_color(self, tag_path: str, color: str) -> bool:
         """Update tag color"""
-        if tag_path in self.tags:
-            self.tags[tag_path].color = color
-            self.save_tags()
-            return True
+        with self._lock:
+            if tag_path in self.tags:
+                self.tags[tag_path].color = color
+                self.save_tags()
+                return True
         return False
-    
+
     def merge_tags(self, source_path: str, target_path: str) -> bool:
         """Merge source tag into target (for bookmark manager to handle)"""
-        if source_path in self.tags and target_path in self.tags:
-            # Just remove the source tag, bookmarks need to be updated separately
-            del self.tags[source_path]
-            self.save_tags()
-            return True
+        with self._lock:
+            if source_path in self.tags and target_path in self.tags:
+                # Just remove the source tag, bookmarks need to be updated separately
+                del self.tags[source_path]
+                self.save_tags()
+                return True
         return False
     
     def get_tag_suggestions(self, partial: str, limit: int = 10) -> List[str]:

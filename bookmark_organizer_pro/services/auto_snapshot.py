@@ -77,7 +77,8 @@ class SnapshotScheduler:
             return sorted(self._scheduled_ids)
 
     def is_scheduled(self, bookmark_id: int) -> bool:
-        return bookmark_id in self._scheduled_ids
+        with self._lock:
+            return bookmark_id in self._scheduled_ids
 
     @property
     def interval_hours(self) -> int:

@@ -47,7 +47,7 @@ class StorageManager:
                 self._create_backup()
 
             fd, temp_path = tempfile.mkstemp(
-                dir=self.filepath.parent, suffix='.tmp', text=True
+                dir=self.filepath.resolve().parent, suffix='.tmp', text=True
             )
             try:
                 with os.fdopen(fd, 'w', encoding='utf-8') as f:
@@ -82,10 +82,18 @@ class StorageManager:
 
             backups = sorted(BACKUP_DIR.glob(f"{self.filepath.stem}_*.json"))
             while len(backups) > 10:
+                old = backups.pop(0)
                 try:
-                    backups.pop(0).unlink()
+                    old.unlink()
                 except OSError:
-                    break
+                    continue
+                # Also clean up orphaned .sha256 hash file
+                sha_file = old.with_suffix(".sha256")
+                try:
+                    if sha_file.exists():
+                        sha_file.unlink()
+                except OSError:
+                    pass
         except Exception as e:
             log.warning(f"Backup creation failed: {e}")
 

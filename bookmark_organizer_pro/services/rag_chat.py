@@ -75,7 +75,9 @@ class CollectionChat:
         if not question.strip():
             return ChatTurn(answer="")
 
-        if use_cache and not self.history:
+        # Cache hits are only valid for stateless (first-turn) queries
+        is_first_turn = not self.history
+        if use_cache and is_first_turn:
             key = self._cache_key(question, restrict_ids)
             if key in self._cache:
                 self._cache.move_to_end(key)
@@ -146,7 +148,7 @@ class CollectionChat:
         turn = ChatTurn(answer=answer, sources=retrieved, used_chunks=len(retrieved),
                         chunk_provenance=provenance)
 
-        if use_cache and not self.history[:-2]:
+        if use_cache and is_first_turn:
             key = self._cache_key(question, restrict_ids)
             self._cache[key] = turn
             while len(self._cache) > self._cache_size:

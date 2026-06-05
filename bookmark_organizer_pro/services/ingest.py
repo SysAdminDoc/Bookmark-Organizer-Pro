@@ -197,9 +197,29 @@ def _fetch_html(url: str, timeout: int = 15) -> Optional[str]:
             url,
             headers={"User-Agent": "Mozilla/5.0 (BookmarkOrganizerPro/6.0)"},
             timeout=timeout,
-            allow_redirects=True,
+            allow_redirects=False,
             stream=True,
         )
+        # Follow redirects manually with SSRF check on each hop
+        for _ in range(5):
+            if resp.status_code not in (301, 302, 303, 307, 308):
+                break
+            location = resp.headers.get("Location", "")
+            resp.close()
+            if not location:
+                return None
+            from urllib.parse import urljoin
+            location = urljoin(url, location)
+            if not URLUtilities._is_safe_url(location):
+                log.debug(f"redirect to unsafe URL blocked: {location}")
+                return None
+            resp = requests.get(
+                location,
+                headers={"User-Agent": "Mozilla/5.0 (BookmarkOrganizerPro/6.0)"},
+                timeout=timeout,
+                allow_redirects=False,
+                stream=True,
+            )
     except Exception as exc:
         log.debug(f"fetch failed for {url}: {exc}")
         return None

@@ -34,7 +34,10 @@ class AppLogger:
         self.logger.setLevel(logging.DEBUG)
 
         # File handler with rotation — 5 MB max, 3 backups
+        self._file_handler = None
+        self._fallback_handler = None
         try:
+            LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
             file_handler = logging.handlers.RotatingFileHandler(
                 LOG_FILE, maxBytes=5_000_000, backupCount=3, encoding='utf-8',
             )
@@ -45,11 +48,12 @@ class AppLogger:
             )
             file_handler.setFormatter(file_format)
             self.logger.addHandler(file_handler)
+            self._file_handler = file_handler
         except Exception:
-            fallback = logging.StreamHandler(sys.stderr)
-            fallback.setLevel(logging.WARNING)
-            fallback.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
-            self.logger.addHandler(fallback)
+            self._fallback_handler = logging.StreamHandler(sys.stderr)
+            self._fallback_handler.setLevel(logging.WARNING)
+            self._fallback_handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+            self.logger.addHandler(self._fallback_handler)
 
         # Console handler - only in debug mode
         self.console_handler = None

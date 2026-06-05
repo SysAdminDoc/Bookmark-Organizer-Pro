@@ -55,14 +55,14 @@ class URLUtilities:
             hostname = (parsed.hostname or '').strip().rstrip('.').lower()
             if not hostname or hostname in ('localhost', '0.0.0.0', '::'):
                 return False
-            if cls.SSRF_ALLOW_LIST:
-                for pattern in cls.SSRF_ALLOW_LIST:
-                    if pattern.search(hostname):
-                        return True
             ascii_host = hostname.encode("idna").decode("ascii")
             for info in socket.getaddrinfo(ascii_host, None, socket.AF_UNSPEC):
                 ip = ipaddress.ip_address(info[4][0])
                 if ip.is_multicast or ip.is_unspecified or not ip.is_global:
+                    # Allow-listed domains may legitimately resolve to private IPs
+                    if cls.SSRF_ALLOW_LIST:
+                        if any(pattern.search(hostname) for pattern in cls.SSRF_ALLOW_LIST):
+                            continue
                     return False
             return True
         except Exception:

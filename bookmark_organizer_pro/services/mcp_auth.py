@@ -10,6 +10,7 @@ import json
 import os
 import secrets
 import tempfile
+import threading
 from pathlib import Path
 from typing import Dict, Optional, Set
 
@@ -38,6 +39,7 @@ class MCPTokenManager:
     def __init__(self, filepath: Path = MCP_TOKENS_FILE):
         self.filepath = filepath
         self._tokens: Dict[str, dict] = {}
+        self._lock = threading.RLock()
         self._load()
 
     def _load(self):
@@ -63,36 +65,40 @@ class MCPTokenManager:
 
     def create_token(self, name: str, scope: str = "read-write") -> str:
         token = secrets.token_urlsafe(32)
-        self._tokens[token] = {
-            "name": name,
-            "scope": scope if scope in ("read-only", "read-write") else "read-write",
-            "created_at": __import__("datetime").datetime.now().isoformat(),
-        }
-        self._save()
+        with self._lock:
+            self._tokens[token] = {
+                "name": name,
+                "scope": scope if scope in ("read-only", "read-write") else "read-write",
+                "created_at": __import__("datetime").datetime.now().isoformat(),
+            }
+            self._save()
         log.info(f"MCP token created: {name} (scope={scope})")
         return token
 
     def revoke_token(self, token: str) -> bool:
-        if token in self._tokens:
-            name = self._tokens[token].get("name", "")
-            del self._tokens[token]
-            self._save()
-            log.info(f"MCP token revoked: {name}")
-            return True
+        with self._lock:
+            if token in self._tokens:
+                name = self._tokens[token].get("name", "")
+                del self._tokens[token]
+                self._save()
+                log.info(f"MCP token revoked: {name}")
+                return True
         return False
 
     def list_tokens(self) -> list:
-        return [
-            {"token_prefix": t[:8] + "...", "name": v["name"],
-             "scope": v["scope"], "created_at": v.get("created_at", "")}
-            for t, v in self._tokens.items()
-        ]
+        with self._lock:
+            return [
+                {"token_prefix": t[:8] + "...", "name": v["name"],
+                 "scope": v["scope"], "created_at": v.get("created_at", "")}
+                for t, v in self._tokens.items()
+            ]
 
     def validate(self, token: str, tool_name: str) -> bool:
-        if token not in self._tokens:
-            return False
-        info = self._tokens[token]
-        scope = info.get("scope", "read-write")
+        with self._lock:
+            if token not in self._tokens:
+                return False
+            info = self._tokens[token]
+            scope = info.get("scope", "read-write")
         if scope == "read-write":
             return True
         if scope == "read-only":
@@ -100,5 +106,6 @@ class MCPTokenManager:
         return False
 
     def get_scope(self, token: str) -> Optional[str]:
-        info = self._tokens.get(token)
-        return info["scope"] if info else None
+        with self._lock:
+            info = self._tokens.get(token)
+            return info["scope"] if info else None

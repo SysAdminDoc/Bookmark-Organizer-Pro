@@ -124,8 +124,9 @@ class BookmarkManager:
         with self._lock:
             self._assign_unique_id(bookmark)
             self.bookmarks[bookmark.id] = bookmark
-        if save:
-            self.save_bookmarks()
+            if save:
+                snapshot = list(self.bookmarks.values())
+                self.storage.save([bm.to_dict() for bm in snapshot])
         return bookmark
     
     def update_bookmark(self, bookmark_or_id, **kwargs) -> Optional[Bookmark]:
@@ -138,7 +139,8 @@ class BookmarkManager:
                 if bookmark.id is None:
                     bookmark.id = int.from_bytes(os.urandom(8), 'big')
                 self.bookmarks[bookmark.id] = bookmark
-            self.save_bookmarks()
+                snapshot = list(self.bookmarks.values())
+                self.storage.save([bm.to_dict() for bm in snapshot])
             return bookmark
 
         # Legacy: ID with kwargs
@@ -152,10 +154,9 @@ class BookmarkManager:
                     if hasattr(bm, key):
                         setattr(bm, key, value)
                 bm.modified_at = datetime.now().isoformat()
-        if bm:
-            self.save_bookmarks()
-            return bm
-        return None
+                snapshot = list(self.bookmarks.values())
+                self.storage.save([bm.to_dict() for bm in snapshot])
+        return bm
     
     def delete_bookmark(self, bookmark_id: int) -> bool:
         """Delete a bookmark"""
@@ -165,12 +166,9 @@ class BookmarkManager:
         with self._lock:
             if bookmark_id in self.bookmarks:
                 del self.bookmarks[bookmark_id]
-                should_save = True
-            else:
-                should_save = False
-        if should_save:
-            self.save_bookmarks()
-            return True
+                snapshot = list(self.bookmarks.values())
+                self.storage.save([bm.to_dict() for bm in snapshot])
+                return True
         return False
     
     def get_bookmark(self, bookmark_id: int) -> Optional[Bookmark]:
@@ -492,24 +490,28 @@ class BookmarkManager:
         Sets is_archived=True and adds a '_deleted_at' timestamp to custom_data.
         Use restore_from_trash() to recover, or empty_trash() to purge.
         """
-        bm = self.bookmarks.get(bookmark_id)
-        if not bm:
-            return False
-        bm.is_archived = True
-        bm.custom_data['_deleted_at'] = datetime.now().isoformat()
-        bm.modified_at = datetime.now().isoformat()
-        self.save_bookmarks()
+        with self._lock:
+            bm = self.bookmarks.get(bookmark_id)
+            if not bm:
+                return False
+            bm.is_archived = True
+            bm.custom_data['_deleted_at'] = datetime.now().isoformat()
+            bm.modified_at = datetime.now().isoformat()
+            snapshot = list(self.bookmarks.values())
+            self.storage.save([bm.to_dict() for bm in snapshot])
         return True
 
     def restore_from_trash(self, bookmark_id: int) -> bool:
         """Restore a bookmark from trash."""
-        bm = self.bookmarks.get(bookmark_id)
-        if not bm:
-            return False
-        bm.is_archived = False
-        bm.custom_data.pop('_deleted_at', None)
-        bm.modified_at = datetime.now().isoformat()
-        self.save_bookmarks()
+        with self._lock:
+            bm = self.bookmarks.get(bookmark_id)
+            if not bm:
+                return False
+            bm.is_archived = False
+            bm.custom_data.pop('_deleted_at', None)
+            bm.modified_at = datetime.now().isoformat()
+            snapshot = list(self.bookmarks.values())
+            self.storage.save([bm.to_dict() for bm in snapshot])
         return True
 
     def get_trash(self) -> List[Bookmark]:
@@ -595,8 +597,9 @@ class BookmarkManager:
                             if changed:
                                 bm.modified_at = datetime.now().isoformat()
                                 updated += 1
-                except Exception:
-                    pass
+                except Exception as exc:
+                    bm = futures[future]
+                    log.warning(f"Metadata refresh failed for bookmark {bm.id} ({bm.url[:60]}): {exc}")
                 if progress_callback:
                     try:
                         progress_callback(done, total)
@@ -604,7 +607,9 @@ class BookmarkManager:
                         pass
 
         if updated > 0:
-            self.save_bookmarks()
+            with self._lock:
+                snapshot = list(self.bookmarks.values())
+                self.storage.save([bm.to_dict() for bm in snapshot])
         return updated
 
     # ── Auto-Clean URLs on Add (inspired by Shaarli) ────────────────────
@@ -678,16 +683,17 @@ class BookmarkManager:
     
     def clean_tracking_params(self) -> int:
         """Clean tracking parameters from all URLs"""
-        cleaned = 0
-        for bm in self.bookmarks.values():
-            clean_url = bm.clean_url()
-            if clean_url != bm.url:
-                bm.url = clean_url
-                bm.modified_at = datetime.now().isoformat()
-                cleaned += 1
-        
-        if cleaned > 0:
-            self.save_bookmarks()
+        with self._lock:
+            cleaned = 0
+            for bm in self.bookmarks.values():
+                clean_url = bm.clean_url()
+                if clean_url != bm.url:
+                    bm.url = clean_url
+                    bm.modified_at = datetime.now().isoformat()
+                    cleaned += 1
+            if cleaned > 0:
+                snapshot = list(self.bookmarks.values())
+                self.storage.save([bm.to_dict() for bm in snapshot])
         return cleaned
     
     def merge_tags(self, source_tag: str, target_tag: str) -> int:
@@ -701,18 +707,19 @@ class BookmarkManager:
         if source_key == target_key:
             return 0
 
-        count = 0
-        for bm in self.bookmarks.values():
-            existing_tags = list(bm.tags)
-            if any(str(tag).lower() == source_key for tag in existing_tags):
-                bm.tags = [tag for tag in existing_tags if str(tag).lower() != source_key]
-                if not any(str(tag).lower() == target_key for tag in bm.tags):
-                    bm.tags.append(target_tag)
-                bm.modified_at = datetime.now().isoformat()
-                count += 1
-        
-        if count > 0:
-            self.save_bookmarks()
+        with self._lock:
+            count = 0
+            for bm in self.bookmarks.values():
+                existing_tags = list(bm.tags)
+                if any(str(tag).lower() == source_key for tag in existing_tags):
+                    bm.tags = [tag for tag in existing_tags if str(tag).lower() != source_key]
+                    if not any(str(tag).lower() == target_key for tag in bm.tags):
+                        bm.tags.append(target_tag)
+                    bm.modified_at = datetime.now().isoformat()
+                    count += 1
+            if count > 0:
+                snapshot = list(self.bookmarks.values())
+                self.storage.save([bm.to_dict() for bm in snapshot])
         return count
     
     def export_html(self, filepath: str, category: str = None):

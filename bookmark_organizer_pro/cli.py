@@ -414,7 +414,12 @@ Top Domains:
             print("usage: snapshot <bookmark-id>")
             return
         from bookmark_organizer_pro.services.snapshot import SnapshotArchiver
-        bm = self.bookmark_manager.get_bookmark(int(args[0]))
+        try:
+            bid = int(args[0])
+        except ValueError:
+            print("error: bookmark ID must be an integer")
+            return
+        bm = self.bookmark_manager.get_bookmark(bid)
         if not bm:
             print("not found")
             return
@@ -492,7 +497,12 @@ Top Domains:
             print("usage: summarize <bookmark-id>")
             return
         from bookmark_organizer_pro.services.citation_summarizer import CitationSummarizer
-        bm = self.bookmark_manager.get_bookmark(int(args[0]))
+        try:
+            bid = int(args[0])
+        except ValueError:
+            print("error: bookmark ID must be an integer")
+            return
+        bm = self.bookmark_manager.get_bookmark(bid)
         if not bm:
             print("not found")
             return
@@ -588,7 +598,12 @@ Top Domains:
             f = fm.create(name)
             print(f"Created flow {f.id[:8]} '{f.name}'")
         elif cmd == "add" and len(args) >= 3:
-            flow_id, bid = args[1], int(args[2])
+            try:
+                bid = int(args[2])
+            except ValueError:
+                print("error: bookmark ID must be an integer")
+                return
+            flow_id = args[1]
             note = " ".join(args[3:])
             for f in fm.list_flows():
                 if f.id.startswith(flow_id):
@@ -676,7 +691,12 @@ Top Domains:
             ok, path = ze.export_collection(self.bookmark_manager.get_all_bookmarks())
             print(f"{'wrote' if ok else 'failed'}: {path}")
         else:
-            bm = self.bookmark_manager.get_bookmark(int(args[0]))
+            try:
+                bid = int(args[0])
+            except ValueError:
+                print("error: bookmark ID must be an integer")
+                return
+            bm = self.bookmark_manager.get_bookmark(bid)
             if not bm: print("not found"); return
             ok, path = ze.export_one(bm)
             print(f"{'wrote' if ok else 'failed'}: {path}")
@@ -722,7 +742,12 @@ Top Domains:
             else: print("(empty)")
             return
         if sub in {"add", "done"} and len(args) >= 2:
-            bm = self.bookmark_manager.get_bookmark(int(args[1]))
+            try:
+                bid = int(args[1])
+            except ValueError:
+                print("error: bookmark ID must be an integer")
+                return
+            bm = self.bookmark_manager.get_bookmark(bid)
             if not bm: print("not found"); return
             if sub == "add":
                 ReadLaterQueue.enqueue(bm)
@@ -877,7 +902,7 @@ Top Domains:
         if not args:
             print("Usage: import-matter <path_to_matter_export.csv>")
             return
-        added, dupes = import_into(self.bookmark_manager, MatterImporter, args[0])
+        added, dupes = import_into(self.bookmark_manager, MatterImporter(), args[0])
         print(f"Matter import: {added} added, {dupes} duplicates skipped")
 
     def _cmd_import_zotero(self, args):
@@ -887,12 +912,16 @@ Top Domains:
             return
         bookmarks = import_zotero_rdf(args[0])
         added = 0
+        dupes = 0
         for bm in bookmarks:
+            if self.bookmark_manager.url_exists(bm.url):
+                dupes += 1
+                continue
             self.bookmark_manager.add_bookmark(bm, save=False)
             added += 1
         if added:
             self.bookmark_manager.save_bookmarks()
-        print(f"Zotero import: {added} bookmarks added")
+        print(f"Zotero import: {added} bookmarks added ({dupes} duplicates skipped)")
 
     def _cmd_zotero_export(self, args):
         from bookmark_organizer_pro.services.zotero_interop import export_zotero_rdf

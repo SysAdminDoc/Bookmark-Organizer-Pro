@@ -28,7 +28,13 @@ def import_zotero_rdf(path: str) -> List[Bookmark]:
         try:
             from defusedxml.ElementTree import parse as _parse
         except ImportError:
-            from xml.etree.ElementTree import parse as _parse
+            import xml.etree.ElementTree as _stdlib_ET
+
+            def _parse(source):
+                """Safe XML parse that disables external entities when defusedxml is unavailable."""
+                parser = _stdlib_ET.XMLParser()
+                parser.entity = {}
+                return _stdlib_ET.parse(source, parser=parser)
         tree = _parse(path)
         root = tree.getroot()
     except Exception as exc:
