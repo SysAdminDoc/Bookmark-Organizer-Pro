@@ -93,7 +93,8 @@ def normalize_url(url: str) -> str:
     if (scheme == 'http' and port == 80) or (scheme == 'https' and port == 443):
         port = None
 
-    # Upgrade http to https
+    # Normalize scheme for dedup only — the original bookmark URL is untouched.
+    # http and https variants of the same page should be considered duplicates.
     if scheme == 'http':
         scheme = 'https'
 

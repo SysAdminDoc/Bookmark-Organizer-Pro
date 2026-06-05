@@ -168,10 +168,20 @@ def t_hybrid_search(query: str, limit: int = 25) -> List[Dict]:
 
 def t_add_bookmark(url: str, title: str = "", category: str = "",
                    tags: Optional[List[str]] = None) -> Optional[Dict]:
-    bm = _services().bookmark_manager.add_bookmark_clean(
+    s = _services()
+    existing = s.bookmark_manager.find_by_url(url)
+    if existing:
+        d = _bm_to_dict(existing)
+        d["already_exists"] = True
+        return d
+    bm = s.bookmark_manager.add_bookmark_clean(
         url=url, title=title, category=category, tags=tags or [],
     )
-    return _bm_to_dict(bm) if bm else None
+    if bm:
+        d = _bm_to_dict(bm)
+        d["already_exists"] = False
+        return d
+    return None
 
 
 def t_list_tags(limit: int = 100) -> List[Dict]:

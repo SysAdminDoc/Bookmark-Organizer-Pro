@@ -99,6 +99,14 @@ class CollectionChat:
             log.warning(f"RAG chat failed: {exc}")
             return ChatTurn(answer=f"AI request failed: {exc}", sources=retrieved)
 
+        import re as _re
+        valid_ids = {f"c{i}" for i in range(len(retrieved))}
+        answer = _re.sub(
+            r'\[#(c\d+)\]',
+            lambda m: m.group(0) if m.group(1) in valid_ids else '',
+            answer,
+        )
+
         self.history.append(ChatMessage(role="user", content=question))
         self.history.append(ChatMessage(role="assistant", content=answer))
 
