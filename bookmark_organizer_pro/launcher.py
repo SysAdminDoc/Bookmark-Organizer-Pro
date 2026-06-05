@@ -46,7 +46,7 @@ def _show_first_run_privacy_notice(root: tk.Tk):
             pass
 
     banner = tk.Frame(root, bg="#0f766e", height=40)
-    banner.pack(fill=tk.X, side=tk.TOP, before=root.winfo_children()[0] if root.winfo_children() else None)
+    banner.pack(fill=tk.X, side=tk.TOP)
     banner.pack_propagate(False)
 
     tk.Label(
