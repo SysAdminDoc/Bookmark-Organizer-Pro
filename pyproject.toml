@@ -1,3 +1,42 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bookmark-organizer-pro"
+version = "6.0.0"
+description = "Professional bookmark manager with AI categorization, semantic search, MCP server, and HTML snapshots"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = [
+    "beautifulsoup4>=4.12",
+    "requests>=2.31",
+    "Pillow>=10.0",
+]
+
+[project.optional-dependencies]
+tray = ["pystray>=0.19"]
+ai = [
+    "trafilatura>=2.0",
+    "lingua-language-detector>=2.0",
+    "fastembed>=0.4,<1.0",
+    "lancedb>=0.13,<1.0",
+]
+encryption = ["cryptography>=42.0,<45.0"]
+mcp = ["mcp>=1.0,<2.0"]
+all = [
+    "bookmark-organizer-pro[tray,ai,encryption,mcp]",
+    "defusedxml>=0.7",
+]
+
+[project.scripts]
+bop = "bookmark_organizer_pro.cli:main"
+bop-mcp = "bookmark_organizer_pro.mcp_server:main"
+
+[tool.setuptools.packages.find]
+include = ["bookmark_organizer_pro*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
