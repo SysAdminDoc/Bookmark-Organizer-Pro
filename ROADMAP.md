@@ -70,7 +70,7 @@ Python/Tkinter bookmark manager with 4,224 categorization patterns, 5 AI provide
 - [ ] **BOP-050** MCP streaming for `chat_with_collection`
 - [ ] **BOP-051** Remove ~1,300 lines dead code (GridView, unused widgets, broken tray)
 - [ ] **BOP-052** Fix copy-pasted model docstrings on widget classes
-- [ ] **BOP-053** Move constants.py directory creation to `ensure_directories()`
+- [x] **BOP-053** Move constants.py directory creation to `ensure_directories()` | `constants.py`, `launcher.py`, `cli.py`, `mcp_server.py`
 - [x] **BOP-054** Validate RAG citation IDs, strip hallucinated tokens | `services/rag_chat.py`
 - [ ] **BOP-055** Extract health score to single shared utility
 - [ ] **BOP-056** Use keyring/DPAPI for API key storage on Windows

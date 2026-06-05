@@ -47,6 +47,8 @@ class BookmarkCLI:
         """
     
     def __init__(self):
+        from bookmark_organizer_pro.constants import ensure_directories
+        ensure_directories()
         self.category_manager = CategoryManager()
         self.tag_manager = TagManager()
         self.bookmark_manager = BookmarkManager(self.category_manager, self.tag_manager)

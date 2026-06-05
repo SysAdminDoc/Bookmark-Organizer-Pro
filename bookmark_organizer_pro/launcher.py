@@ -9,7 +9,7 @@ from tkinter import messagebox
 from typing import Sequence
 
 from bookmark_organizer_pro.cli import BookmarkCLI
-from bookmark_organizer_pro.constants import IS_WINDOWS, LOG_FILE
+from bookmark_organizer_pro.constants import IS_WINDOWS, LOG_FILE, ensure_directories
 from bookmark_organizer_pro.desktop_bootstrap import (
     import_dependencies,
     set_dark_title_bar,
@@ -35,6 +35,7 @@ def _configure_tk_scaling(root: tk.Tk):
 
 def main(argv: Sequence[str] | None = None):
     """Run the CLI or desktop GUI with professional error handling."""
+    ensure_directories()
     args = list(sys.argv[1:] if argv is None else argv)
 
     if IS_WINDOWS:
