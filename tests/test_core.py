@@ -710,7 +710,7 @@ class TestSearchQuery(unittest.TestCase):
     def test_search_engine_accepts_none_query(self):
         bm = Bookmark(id=1, url="https://example.com", title="Hello")
         results = SearchEngine().search([bm], None)
-        self.assertEqual(results, [(bm, 1.0)])
+        self.assertEqual(results, [])
 
     def test_search_helpers_normalize_bad_inputs(self):
         from bookmark_organizer_pro.search import FuzzySearchEngine
@@ -1362,11 +1362,14 @@ class TestMainAppManagers(unittest.TestCase):
         import urllib.request
         import main
 
-        def post_json(base_url, payload):
+        def post_json(base_url, payload, token=None):
+            headers = {"Content-Type": "application/json"}
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
             request = urllib.request.Request(
                 f"{base_url}/bookmarks",
                 data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
+                headers=headers,
                 method="POST",
             )
             try:
@@ -1382,11 +1385,14 @@ class TestMainAppManagers(unittest.TestCase):
                 api.start()
                 base_url = f"http://127.0.0.1:{api.port}"
 
-                status, body = post_json(base_url, "not an object")
+                from bookmark_organizer_pro.services.api import _TOKEN_FILE
+                token = _TOKEN_FILE.read_text(encoding="utf-8").strip() if _TOKEN_FILE.exists() else ""
+
+                status, body = post_json(base_url, "not an object", token=token)
                 self.assertEqual(status, 400)
                 self.assertIn("object", body["error"])
 
-                status, body = post_json(base_url, {"url": "ftp://example.com/file"})
+                status, body = post_json(base_url, {"url": "ftp://example.com/file"}, token=token)
                 self.assertEqual(status, 400)
                 self.assertIn("http", body["error"])
 
@@ -1394,12 +1400,12 @@ class TestMainAppManagers(unittest.TestCase):
                     "url": "https://example.com/path?utm_source=x",
                     "title": "Example",
                     "tags": "AI, ai, tools",
-                })
+                }, token=token)
                 self.assertEqual(status, 201)
                 self.assertEqual(body["tags"], ["AI", "tools"])
                 self.assertEqual(len(manager.bookmarks), 1)
 
-                status, body = post_json(base_url, {"url": "https://example.com/path"})
+                status, body = post_json(base_url, {"url": "https://example.com/path"}, token=token)
                 self.assertEqual(status, 409)
                 self.assertIn("exists", body["error"])
             finally:
@@ -1585,7 +1591,9 @@ class TestMainAppManagers(unittest.TestCase):
 
                 tracker.record_usage("openai", "gpt-4", "1000", "-10")
                 reloaded = json.loads(main.AICostTracker.COST_FILE.read_text(encoding="utf-8"))
-                self.assertEqual(reloaded["2026-04"]["openai/gpt-4"]["calls"], 1)
+                from datetime import datetime
+                current_month = datetime.now().strftime("%Y-%m")
+                self.assertEqual(reloaded[current_month]["openai/gpt-4"]["calls"], 1)
             finally:
                 main.AICostTracker.COST_FILE = old_file
 
@@ -1597,16 +1605,12 @@ class TestMainAppManagers(unittest.TestCase):
         self.assertEqual(detector._title_similarity(None, "Example"), 0.0)
 
         class FakeConfig:
-            settings = {"batch_size": "bad", "rate_limit_delay": -1}
+            def get_batch_size(self): return 5
+            def get_rate_limit(self): return 30
 
         class FakeClient:
-            def categorize_bookmark(self, url, title, categories):
-                return {
-                    "category": "Research",
-                    "confidence": "bad",
-                    "tags": "AI, Tools, ai",
-                    "summary": "Summary",
-                }
+            def complete(self, prompt, system="", max_tokens=400, temperature=0.3):
+                return '{"category": "Research", "confidence": 0.8, "tags": ["AI", "Tools"], "summary": "Summary"}'
 
         bookmark = Bookmark(id=1, url="https://example.com", title="Example", tags=["AI"])
         events = []

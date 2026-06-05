@@ -1,0 +1,444 @@
+"""Unit tests for the service layer.
+
+Exercises EmbeddingService, EncryptedStore, TagLinter, FlowManager,
+DailyDigestService, RSS feed parsing / FeedRegistry, ZipExporter,
+and ReadLaterQueue using isolated temp directories.
+"""
+
+import importlib
+import json
+import os
+import shutil
+import tempfile
+import unittest
+import zipfile
+from datetime import datetime, timedelta
+from pathlib import Path
+from unittest.mock import patch
+
+
+def _make_bookmark(**overrides):
+    """Helper — create a Bookmark with sensible defaults."""
+    from bookmark_organizer_pro.models import Bookmark
+
+    defaults = dict(
+        id=None,
+        url="https://example.com",
+        title="Example",
+    )
+    defaults.update(overrides)
+    return Bookmark(**defaults)
+
+
+class _IsolatedTestBase(unittest.TestCase):
+    """Redirect BOOKMARK_DATA_DIR to a temp dir, reload constants."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.mkdtemp(prefix="bop_svc_test_")
+        os.environ["BOOKMARK_DATA_DIR"] = cls._tmp
+
+        import bookmark_organizer_pro.constants as _c
+        importlib.reload(_c)
+        _c.ensure_directories()
+
+    @classmethod
+    def tearDownClass(cls):
+        os.environ.pop("BOOKMARK_DATA_DIR", None)
+        shutil.rmtree(cls._tmp, ignore_errors=True)
+
+
+# ── 1. EmbeddingService ──────────────────────────────────────────────
+
+class TestEmbeddingChunker(_IsolatedTestBase):
+    """Tests for EmbeddingService.chunk_text (pure, no backend needed)."""
+
+    def _svc(self):
+        from bookmark_organizer_pro.services.embeddings import EmbeddingService
+        return EmbeddingService
+
+    def test_chunk_text_basic(self):
+        text = "A" * 3000
+        chunks = self._svc().chunk_text(text, chunk_chars=1000, overlap=200)
+        self.assertGreater(len(chunks), 1)
+        # Verify overlap: each chunk (except the first) should start
+        # before the previous chunk ended.
+        for i in range(1, len(chunks)):
+            prev_end = chunks[i - 1]["char_end"]
+            curr_start = chunks[i]["char_start"]
+            self.assertLess(curr_start, prev_end,
+                            "Chunks should overlap")
+
+    def test_chunk_text_empty(self):
+        chunks = self._svc().chunk_text("")
+        self.assertEqual(chunks, [])
+
+    def test_chunk_text_short(self):
+        chunks = self._svc().chunk_text("Hello world", chunk_chars=5000)
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0]["text"], "Hello world")
+
+    def test_chunk_text_sentence_boundary(self):
+        # Build text with clear sentence breaks; chunk_chars chosen so a
+        # naive split would land mid-sentence but the boundary finder can
+        # snap to a period.
+        sentences = ["This is sentence one. ",
+                     "Here is sentence two. ",
+                     "And sentence number three. ",
+                     "Finally the fourth sentence. "]
+        text = "".join(sentences) * 10  # ~280 * 10 = ~2800 chars
+        chunks = self._svc().chunk_text(text, chunk_chars=300, overlap=50)
+        self.assertGreater(len(chunks), 1)
+        # At least one chunk should end at a sentence boundary (period)
+        ends_at_period = any(c["text"].rstrip().endswith(".") for c in chunks[:-1])
+        self.assertTrue(ends_at_period,
+                        "Chunker should break at sentence boundaries")
+
+    def test_stable_hash(self):
+        from bookmark_organizer_pro.services.embeddings import EmbeddingService
+        h1 = EmbeddingService.stable_hash("hello world")
+        h2 = EmbeddingService.stable_hash("hello world")
+        h3 = EmbeddingService.stable_hash("different input")
+        self.assertEqual(h1, h2, "Same input must produce same hash")
+        self.assertNotEqual(h1, h3, "Different input must produce different hash")
+        self.assertEqual(len(h1), 64, "SHA-256 hex digest is 64 chars")
+
+
+# ── 2. EncryptedStore ─────────────────────────────────────────────────
+
+class TestEncryptedStore(_IsolatedTestBase):
+
+    def _store(self, passphrase="test-secret-123"):
+        from bookmark_organizer_pro.services.encryption import EncryptedStore
+        return EncryptedStore(passphrase)
+
+    def test_encrypt_decrypt_roundtrip(self):
+        store = self._store()
+        original = b'{"bookmarks": [1, 2, 3]}'
+        blob = store.encrypt(original)
+        recovered = store.decrypt(blob)
+        self.assertEqual(recovered, original)
+
+    def test_wrong_key_fails(self):
+        store_a = self._store("key-alpha")
+        store_b = self._store("key-bravo")
+        blob = store_a.encrypt(b"secret data")
+        with self.assertRaises(Exception):
+            store_b.decrypt(blob)
+
+    def test_encrypt_file_roundtrip(self):
+        store = self._store()
+        src = Path(self._tmp) / "plain.json"
+        src.write_bytes(b'{"hello": "world"}')
+        enc_path = store.encrypt_file(src)
+        self.assertTrue(enc_path.exists())
+        dec_path = Path(self._tmp) / "decrypted.json"
+        store.decrypt_file(enc_path, dec_path)
+        self.assertEqual(dec_path.read_bytes(), b'{"hello": "world"}')
+
+    def test_decrypt_file_rejects_same_path(self):
+        store = self._store()
+        src = Path(self._tmp) / "same.json.enc"
+        src.write_bytes(store.encrypt(b"data"))
+        with self.assertRaises(ValueError):
+            store.decrypt_file(src, src)
+
+
+# ── 3. TagLinter ──────────────────────────────────────────────────────
+
+class TestTagLinter(_IsolatedTestBase):
+
+    def _linter(self):
+        from bookmark_organizer_pro.services.tag_linter import TagLinter
+        return TagLinter()
+
+    def test_no_issues_with_clean_tags(self):
+        bookmarks = [
+            _make_bookmark(url="https://a.com", tags=["rust"]),
+            _make_bookmark(url="https://b.com", tags=["golang"]),
+        ]
+        report = self._linter().lint(bookmarks)
+        self.assertEqual(len(report.suggestions), 0,
+                         "Unique, non-overlapping tags should produce no suggestions")
+
+    def test_detects_case_variants(self):
+        bookmarks = [
+            _make_bookmark(url="https://a.com", tags=["Python"]),
+            _make_bookmark(url="https://b.com", tags=["python"]),
+        ]
+        report = self._linter().lint(bookmarks)
+        self.assertGreater(len(report.suggestions), 0,
+                           "'Python' and 'python' should be flagged as near-duplicate")
+        variants = set()
+        for s in report.suggestions:
+            variants.add(s.canonical)
+            variants.update(s.variants)
+        self.assertIn("Python", variants)
+        self.assertIn("python", variants)
+
+
+# ── 4. FlowManager ───────────────────────────────────────────────────
+
+class TestFlowManager(_IsolatedTestBase):
+
+    def _manager(self):
+        from bookmark_organizer_pro.services.flows import FlowManager
+        fp = Path(self._tmp) / f"flows_{id(self)}.json"
+        return FlowManager(filepath=fp)
+
+    def test_create_flow(self):
+        mgr = self._manager()
+        flow = mgr.create("Research Trail", description="ML papers")
+        self.assertTrue(flow.id)
+        self.assertEqual(flow.name, "Research Trail")
+
+    def test_add_step(self):
+        mgr = self._manager()
+        flow = mgr.create("Trail")
+        ok = mgr.add_step(flow.id, bookmark_id=42, note="First read")
+        self.assertTrue(ok)
+        fetched = mgr.get(flow.id)
+        self.assertEqual(len(fetched.steps), 1)
+        self.assertEqual(fetched.steps[0].bookmark_id, 42)
+
+    def test_remove_step(self):
+        mgr = self._manager()
+        flow = mgr.create("Trail")
+        mgr.add_step(flow.id, bookmark_id=10)
+        mgr.add_step(flow.id, bookmark_id=20)
+        ok = mgr.remove_step(flow.id, bookmark_id=10)
+        self.assertTrue(ok)
+        fetched = mgr.get(flow.id)
+        self.assertEqual(len(fetched.steps), 1)
+        self.assertEqual(fetched.steps[0].bookmark_id, 20)
+
+    def test_reorder(self):
+        mgr = self._manager()
+        flow = mgr.create("Trail")
+        mgr.add_step(flow.id, bookmark_id=1)
+        mgr.add_step(flow.id, bookmark_id=2)
+        mgr.add_step(flow.id, bookmark_id=3)
+        ok = mgr.reorder(flow.id, [3, 1, 2])
+        self.assertTrue(ok)
+        fetched = mgr.get(flow.id)
+        ids_in_order = [s.bookmark_id for s in fetched.steps]
+        self.assertEqual(ids_in_order, [3, 1, 2])
+
+    def test_delete_flow(self):
+        mgr = self._manager()
+        flow = mgr.create("Temp")
+        self.assertIsNotNone(mgr.get(flow.id))
+        ok = mgr.delete(flow.id)
+        self.assertTrue(ok)
+        self.assertIsNone(mgr.get(flow.id))
+
+
+# ── 5. DailyDigestService ────────────────────────────────────────────
+
+class TestDailyDigest(_IsolatedTestBase):
+
+    def _svc(self):
+        from bookmark_organizer_pro.services.digest import DailyDigestService
+        return DailyDigestService()
+
+    def test_build_empty(self):
+        digest = self._svc().build([])
+        self.assertIsInstance(digest.sections, list)
+        self.assertEqual(len(digest.sections), 0,
+                         "No bookmarks should yield no digest sections")
+        self.assertTrue(digest.generated_at)
+
+    def test_build_with_bookmarks(self):
+        today = datetime.now()
+        # Bookmark saved on this day last year -> "On this day" section
+        last_year = today.replace(year=today.year - 1)
+        bm_old = _make_bookmark(
+            url="https://old.com",
+            title="Old",
+            created_at=last_year.isoformat(),
+        )
+        # Bookmark from 200 days ago, not archived -> "Rediscover" candidate
+        bm_rediscover = _make_bookmark(
+            url="https://rediscover.com",
+            title="Rediscover Me",
+            created_at=(today - timedelta(days=200)).isoformat(),
+        )
+        digest = self._svc().build([bm_old, bm_rediscover], today=today)
+        self.assertTrue(digest.generated_at)
+        section_titles = [s.title for s in digest.sections]
+        # At least one of the heuristic sections should fire
+        self.assertGreater(len(digest.sections), 0)
+        # "On this day" should fire for bm_old
+        self.assertIn("On this day", section_titles)
+
+
+# ── 6. RSS feeds ──────────────────────────────────────────────────────
+
+class TestParseFeed(_IsolatedTestBase):
+
+    def test_parse_rss2_feed(self):
+        from bookmark_organizer_pro.services.rss_feeds import parse_feed
+
+        xml = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Test Feed</title>
+    <item>
+      <title>First Post</title>
+      <link>https://blog.example.com/post-1</link>
+      <description>Summary of post 1</description>
+      <guid>guid-001</guid>
+    </item>
+    <item>
+      <title>Second Post</title>
+      <link>https://blog.example.com/post-2</link>
+    </item>
+  </channel>
+</rss>"""
+        items = parse_feed(xml)
+        self.assertEqual(len(items), 2)
+        self.assertEqual(items[0].title, "First Post")
+        self.assertEqual(items[0].link, "https://blog.example.com/post-1")
+        self.assertEqual(items[0].guid, "guid-001")
+
+    def test_parse_atom_feed(self):
+        from bookmark_organizer_pro.services.rss_feeds import parse_feed
+
+        xml = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Atom Feed</title>
+  <entry>
+    <title>Atom Entry</title>
+    <link href="https://atom.example.com/entry-1"/>
+    <id>urn:uuid:atom-001</id>
+    <summary>Atom summary</summary>
+    <updated>2025-01-01T00:00:00Z</updated>
+  </entry>
+</feed>"""
+        items = parse_feed(xml)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].title, "Atom Entry")
+        self.assertEqual(items[0].link, "https://atom.example.com/entry-1")
+        self.assertEqual(items[0].guid, "urn:uuid:atom-001")
+
+
+class TestFeedRegistry(_IsolatedTestBase):
+
+    def _registry(self):
+        from bookmark_organizer_pro.services.rss_feeds import FeedRegistry
+        fp = Path(self._tmp) / f"feeds_{id(self)}.json"
+        return FeedRegistry(filepath=fp)
+
+    @patch("bookmark_organizer_pro.url_utils.URLUtilities._is_safe_url",
+           return_value=True)
+    def test_feed_registry_crud(self, _mock_safe):
+        reg = self._registry()
+        cfg = reg.add(url="https://blog.example.com/feed.xml",
+                      name="Example Blog",
+                      default_tags=["blog"],
+                      ai_mode="DISABLED")
+        self.assertTrue(cfg.id)
+        self.assertEqual(cfg.name, "Example Blog")
+
+        # get
+        fetched = reg.get(cfg.id)
+        self.assertIsNotNone(fetched)
+        self.assertEqual(fetched.url, "https://blog.example.com/feed.xml")
+
+        # list
+        all_feeds = reg.list_feeds()
+        self.assertEqual(len(all_feeds), 1)
+
+        # remove
+        ok = reg.remove(cfg.id)
+        self.assertTrue(ok)
+        self.assertIsNone(reg.get(cfg.id))
+        self.assertEqual(len(reg.list_feeds()), 0)
+
+
+# ── 7. ZipExporter ───────────────────────────────────────────────────
+
+class TestZipExporter(_IsolatedTestBase):
+
+    def test_export_one(self):
+        from bookmark_organizer_pro.services.zip_export import ZipExporter
+
+        exports = Path(self._tmp) / "exports_test"
+        exports.mkdir(exist_ok=True)
+        exporter = ZipExporter(exports_dir=exports)
+
+        bm = _make_bookmark(url="https://zip-test.com", title="ZIP Test")
+        ok, path_str = exporter.export_one(bm)
+        self.assertTrue(ok)
+        zip_path = Path(path_str)
+        self.assertTrue(zip_path.exists())
+
+        with zipfile.ZipFile(zip_path) as z:
+            names = z.namelist()
+            self.assertIn("metadata.json", names)
+            self.assertIn("notes.md", names)
+            meta = json.loads(z.read("metadata.json"))
+            self.assertEqual(meta["url"], "https://zip-test.com")
+
+
+# ── 8. ReadLaterQueue ─────────────────────────────────────────────────
+
+class TestReadLaterQueue(_IsolatedTestBase):
+
+    def _queue(self):
+        from bookmark_organizer_pro.services.read_later import ReadLaterQueue
+        return ReadLaterQueue()
+
+    def test_enqueue_dequeue(self):
+        q = self._queue()
+        bm = _make_bookmark(url="https://readlater.com", title="Read Later")
+        self.assertFalse(bm.read_later)
+
+        q.enqueue(bm, position=0)
+        self.assertTrue(bm.read_later)
+
+        # list_queue should include it
+        queue_list = q.list_queue([bm])
+        self.assertEqual(len(queue_list), 1)
+        self.assertEqual(queue_list[0].url, "https://readlater.com")
+
+        q.dequeue(bm)
+        self.assertFalse(bm.read_later)
+        self.assertEqual(q.list_queue([bm]), [])
+
+    def test_peek_next(self):
+        q = self._queue()
+        bm1 = _make_bookmark(url="https://a.com", title="A")
+        bm2 = _make_bookmark(url="https://b.com", title="B")
+        q.enqueue(bm1, position=1)
+        q.enqueue(bm2, position=0)
+        nxt = q.peek_next([bm1, bm2])
+        self.assertIsNotNone(nxt)
+        self.assertEqual(nxt.url, "https://b.com",
+                         "peek_next should return the lowest-position item")
+
+    def test_complete(self):
+        q = self._queue()
+        bm = _make_bookmark(url="https://done.com", title="Done")
+        q.enqueue(bm)
+        q.complete(bm)
+        self.assertFalse(bm.read_later)
+        self.assertGreater(bm.visit_count, 0)
+
+    def test_reorder(self):
+        q = self._queue()
+        bm1 = _make_bookmark(url="https://r1.com", title="R1")
+        bm2 = _make_bookmark(url="https://r2.com", title="R2")
+        q.enqueue(bm1, position=0)
+        q.enqueue(bm2, position=1)
+        moved = q.reorder([bm1, bm2], [bm2.id, bm1.id])
+        self.assertGreater(moved, 0)
+        # After reorder, bm2 should be position 0
+        self.assertEqual(bm2.read_later_position, 0)
+        self.assertEqual(bm1.read_later_position, 1)
+
+
+if __name__ == "__main__":
+    unittest.main()
