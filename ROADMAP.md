@@ -169,7 +169,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
 | 🔲 R-43 | **Service layer test suite** — unit tests for embeddings, vector_store, encryption, rss_feeds, snapshot, dead_link_scanner, tag_linter, dup_hybrid, rag_chat. Target: 80% coverage of services/. | Now | L | [S-1] |
-| 🔲 R-44 | **MCP server integration tests** — send tool calls via `mcp` client, verify responses match expected schemas. | Now | M | [S-1] |
+| ✅ R-44 | **MCP server integration tests** — 20 tests covering all 19 tools, schema validation, dedup detection, flows CRUD. | Now | M | [S-1] |
 | 🔲 R-45 | **CLI smoke test suite** — automated `bop <command>` tests for all 30+ subcommands in CI. | Next | M | [S-1] |
 | ✅ R-46 | **Remove ~1,409 lines dead code** — GridView, BookmarkListView, MiniAnalyticsDashboard, SystemTray, BookmarkCard, CategoryDragDropManager, ViewMode.GRID, dead assignment. 9 files cleaned. | Now | S | [S-1] |
 | ✅ R-47 | **Fix copy-pasted model docstrings** — replaced in cli.py, api.py, widget_bookmark_editor.py, widget_lists.py, workflow_detail_panel.py. | Now | S | [S-1] |
@@ -352,7 +352,7 @@ Immediate priority. Ship within the next development cycle.
 - ✅ **R-39** Telemetry-free mode banner [S]
 - ✅ **R-42** Python version matrix in CI [S]
 - 🔲 **R-43** Service layer test suite [L]
-- 🔲 **R-44** MCP server integration tests [M]
+- ✅ **R-44** MCP server integration tests [M]
 - ✅ **R-36b** Upgrade Pillow to ≥12.2.0 (3 CVEs) [S]
 - ✅ **R-46** Remove ~1,300 lines dead code [S]
 - ✅ **R-47** Fix copy-pasted model docstrings [S]
