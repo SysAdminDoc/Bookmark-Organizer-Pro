@@ -6,8 +6,10 @@ history is supported but capped to keep prompts bounded.
 
 from __future__ import annotations
 
+import hashlib
+from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Iterable, List, Optional, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from bookmark_organizer_pro.ai import AIConfigManager, create_ai_client
 from bookmark_organizer_pro.logging_config import log
@@ -38,23 +40,45 @@ class ChatTurn:
 
 
 class CollectionChat:
-    """Stateful chat over a subset of bookmarks."""
+    """Stateful chat over a subset of bookmarks with answer caching."""
 
     def __init__(self, ai_config: AIConfigManager, vector_store: VectorStore,
-                 max_history: int = 6, retrieval_k: int = 6):
+                 max_history: int = 6, retrieval_k: int = 6,
+                 cache_size: int = 128):
         self.ai_config = ai_config
         self.vector_store = vector_store
         self.max_history = max_history
         self.retrieval_k = retrieval_k
         self.history: List[ChatMessage] = []
+        self._cache: OrderedDict[str, ChatTurn] = OrderedDict()
+        self._cache_size = cache_size
+
+    def _cache_key(self, question: str, restrict_ids: Optional[Iterable[int]]) -> str:
+        scope = ",".join(str(i) for i in sorted(restrict_ids)) if restrict_ids else ""
+        raw = f"{question.strip().lower()}|{scope}"
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
     def reset(self):
         self.history = []
 
+    def clear_cache(self):
+        self._cache.clear()
+
+    @property
+    def cache_stats(self) -> Dict[str, int]:
+        return {"size": len(self._cache), "max": self._cache_size}
+
     def ask(self, question: str,
-            restrict_ids: Optional[Iterable[int]] = None) -> ChatTurn:
+            restrict_ids: Optional[Iterable[int]] = None,
+            use_cache: bool = True) -> ChatTurn:
         if not question.strip():
             return ChatTurn(answer="")
+
+        if use_cache and not self.history:
+            key = self._cache_key(question, restrict_ids)
+            if key in self._cache:
+                self._cache.move_to_end(key)
+                return self._cache[key]
 
         retrieved = self.vector_store.search(
             question, k=self.retrieval_k, restrict_ids=restrict_ids
@@ -110,4 +134,12 @@ class CollectionChat:
         self.history.append(ChatMessage(role="user", content=question))
         self.history.append(ChatMessage(role="assistant", content=answer))
 
-        return ChatTurn(answer=answer, sources=retrieved, used_chunks=len(retrieved))
+        turn = ChatTurn(answer=answer, sources=retrieved, used_chunks=len(retrieved))
+
+        if use_cache and not self.history[:-2]:
+            key = self._cache_key(question, restrict_ids)
+            self._cache[key] = turn
+            while len(self._cache) > self._cache_size:
+                self._cache.popitem(last=False)
+
+        return turn

@@ -264,6 +264,44 @@ class RedditSavedImporter:
         return iter(out)
 
 
+class MatterImporter:
+    """Import from Matter app CSV export.
+
+    Matter exports a CSV with columns: Title, URL, Author, Tags, Status,
+    Highlight Count, Note Count, Date Saved. All fields are optional except URL.
+    """
+
+    @staticmethod
+    def from_path(path: str) -> List[Bookmark]:
+        bookmarks = []
+        try:
+            with open(path, "r", encoding="utf-8-sig") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    url = (row.get("URL") or row.get("url") or "").strip()
+                    if not url or not url.startswith(("http://", "https://")):
+                        continue
+                    title = (row.get("Title") or row.get("title") or url).strip()
+                    tags_raw = row.get("Tags") or row.get("tags") or ""
+                    tags = [t.strip() for t in tags_raw.split(",") if t.strip()]
+                    created = _ts(row.get("Date Saved") or row.get("date_saved") or "")
+                    bm = Bookmark(
+                        id=None,
+                        url=url,
+                        title=html_module.unescape(title),
+                        tags=tags,
+                        created_at=created,
+                        source_file=str(path),
+                    )
+                    status = (row.get("Status") or "").strip().lower()
+                    if status in ("queue", "later", "unread"):
+                        bm.read_later = True
+                    bookmarks.append(bm)
+        except Exception as exc:
+            log.error(f"Matter import failed: {exc}")
+        return bookmarks
+
+
 def import_into(manager, importer, path: str) -> Tuple[int, int]:
     """Helper: run any importer above through a BookmarkManager.
 

@@ -72,7 +72,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 | 🔲 R-08 | **Chunk-level provenance in RAG** — cite specific chunk offsets, not just bookmark ID. UI deep-links to the supporting span. | Next | M | [S-1] |
 | ✅ R-09 | **Time-weighted recall** — exponential decay factor with configurable half-life in hybrid search. `time_weight` param (0-1). | Next | S | [S-1] |
 | 🔲 R-10 | **Collections as retrieval scopes** — pin RAG chat to a collection or tag from the sidebar. | Next | M | [S-1][S-10] |
-| 🔲 R-11 | **Answer caching** — `(query_hash, scope_hash)` cache for repeat questions. | Later | S | [S-1] |
+| ✅ R-11 | **Answer caching** — LRU cache (128 entries) keyed on `(query_hash, scope_hash)`. Skips multi-turn. `clear_cache()` + `cache_stats`. | Later | S | [S-1] |
 | 🔲 R-12 | **YouTube transcript capture** — detect YouTube URLs at save time, fetch transcript via `yt-dlp --write-auto-sub --skip-download`, index as extracted text for semantic search + RAG. | Next | M | [S-6][S-18] |
 | ✅ R-13 | **Smart Collections** — `SmartCollectionManager` with tag/domain/date/keyword/content-type filters. CRUD + evaluate API. | Next | M | [S-10][S-19] |
 | 🔲 R-14 | **MCP auth token with per-tool scopes** — read-only vs. read-write tokens for multi-client environments. | Later | M | [S-14] |
@@ -116,8 +116,8 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
 | 🔲 R-27 | **Zotero RDF import/export** — bridge to academic reference managers. | Next | M | [S-1] |
-| 🔲 R-28 | **Matter export format** — import from Readwise-adjacent service. | Later | S | [S-1] |
-| 🔲 R-29 | **ATOM / JSON Feed output per collection** — share collections as RSS. | Later | S | [S-1] |
+| ✅ R-28 | **Matter CSV importer** — `MatterImporter` in `importers_extra.py`. CLI: `import-matter`. Reads Title/URL/Tags/Status/Date Saved. | Later | S | [S-1] |
+| ✅ R-29 | **Atom + JSON Feed export** — `services/feed_export.py` with `export_atom()` and `export_json_feed()`. CLI: `atom-export`, `json-feed`. | Later | S | [S-1] |
 | ✅ R-30 | **Obsidian vault export via CLI + MCP** — `services/obsidian_export.py` + MCP `export_to_obsidian` tool (20 total). Tag/category/date filters. | Next | M | [S-1][S-11] |
 
 ---
