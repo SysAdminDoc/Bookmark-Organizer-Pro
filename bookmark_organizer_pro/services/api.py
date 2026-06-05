@@ -1,19 +1,41 @@
-"""Small local HTTP API for bookmark access."""
+"""Small local HTTP API for bookmark access.
+
+Security: requires Bearer token for all mutating requests (POST/DELETE).
+Reads are unauthenticated but CORS-restricted to same-origin.
+Token is auto-generated on first start and stored in the data directory.
+"""
 
 from __future__ import annotations
 
 import json
+import os
+import secrets
 import threading
 import urllib.parse
 from dataclasses import asdict
 from typing import TYPE_CHECKING
 
-from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION
+from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION, DATA_DIR
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.utils import validate_url
 
 if TYPE_CHECKING:
     from bookmark_organizer_pro.managers import BookmarkManager
+
+_TOKEN_FILE = DATA_DIR / "api_token.txt"
+
+
+def _load_or_create_token() -> str:
+    if _TOKEN_FILE.exists():
+        token = _TOKEN_FILE.read_text(encoding="utf-8").strip()
+        if token:
+            return token
+    token = secrets.token_urlsafe(32)
+    _TOKEN_FILE.write_text(token, encoding="utf-8")
+    if os.name != "nt":
+        os.chmod(_TOKEN_FILE, 0o600)
+    log.info(f"API token written to {_TOKEN_FILE}")
+    return token
 
 
 # =============================================================================
@@ -59,7 +81,8 @@ class BookmarkAPI:
         from http.server import HTTPServer, BaseHTTPRequestHandler
         
         bookmark_manager = self.bookmark_manager
-        
+        api_token = _load_or_create_token()
+
         class APIHandler(BaseHTTPRequestHandler):
             def _send_json(self, data, status=200):
                 body = json.dumps(data, ensure_ascii=False, default=str).encode("utf-8")
@@ -67,8 +90,16 @@ class BookmarkAPI:
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.send_header('X-Content-Type-Options', 'nosniff')
                 self.send_header('Content-Length', str(len(body)))
+                self.send_header('Access-Control-Allow-Origin', 'null')
                 self.end_headers()
                 self.wfile.write(body)
+
+            def _check_auth(self) -> bool:
+                auth = self.headers.get('Authorization', '')
+                if auth == f'Bearer {api_token}':
+                    return True
+                self._send_json({"error": "Unauthorized. Provide Authorization: Bearer <token>"}, 401)
+                return False
             
             def _parse_path(self):
                 """Parse URL path and query params"""
@@ -167,8 +198,10 @@ class BookmarkAPI:
                     self._send_json({"error": "Not found"}, 404)
             
             def do_POST(self):
+                if not self._check_auth():
+                    return
                 path_parts, _ = self._parse_path()
-                
+
                 if path_parts and path_parts[0] == 'bookmarks':
                     try:
                         content_length = int(self.headers.get('Content-Length', 0))
@@ -227,6 +260,8 @@ class BookmarkAPI:
                     self._send_json({"error": "Not found"}, 404)
             
             def do_DELETE(self):
+                if not self._check_auth():
+                    return
                 path_parts, _ = self._parse_path()
                 
                 if path_parts and path_parts[0] == 'bookmarks' and len(path_parts) > 1:

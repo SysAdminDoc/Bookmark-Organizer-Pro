@@ -195,12 +195,15 @@ class DashboardActionsMixin:
     def _refresh_analytics(self):
         """Refresh analytics display with clear health and empty states."""
         theme = get_theme()
-        
-        # Clear existing
+
+        stats = self.bookmark_manager.get_statistics()
+
+        if hasattr(self, '_last_analytics_stats') and self._last_analytics_stats == stats:
+            return
+        self._last_analytics_stats = stats
+
         for widget in self.analytics_frame.winfo_children():
             widget.destroy()
-        
-        stats = self.bookmark_manager.get_statistics()
         total = stats.get('total_bookmarks', 0)
         
         # Health Score

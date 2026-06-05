@@ -1,18 +1,22 @@
-"""Background link checker with threading and redirect detection."""
+"""Background link checker with threading, redirect detection, and per-domain rate limiting."""
 
 import importlib
 import threading
+import time
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-from typing import Callable, List, Optional, Tuple
-from urllib.parse import urljoin
+from typing import Callable, Dict, List, Optional, Tuple
+from urllib.parse import urljoin, urlparse
 
 from .models import Bookmark
 from .url_utils import URLUtilities
 
+_USER_AGENT = "BookmarkOrganizerPro/6.0 LinkChecker"
+
 
 class LinkChecker:
-    """Background link checker with threading"""
+    """Background link checker with threading and per-domain rate limiting."""
 
     def __init__(self, callback: Callable = None, max_workers: int = 10):
         self.callback = callback
@@ -25,6 +29,8 @@ class LinkChecker:
         self._checked = 0
         self._total = 0
         self._lock = threading.Lock()
+        self._domain_locks: Dict[str, threading.Lock] = defaultdict(threading.Lock)
+        self._domain_last_request: Dict[str, float] = {}
 
     def check_links(self, bookmarks: List[Bookmark],
                    progress_callback: Callable = None):
@@ -79,13 +85,28 @@ class LinkChecker:
             if self.callback:
                 self.callback()
 
+    def _rate_limit(self, url: str):
+        """Per-domain rate limiting: max 1 request/second/domain."""
+        try:
+            domain = urlparse(url).hostname or ""
+        except Exception:
+            domain = ""
+        if not domain:
+            return
+        lock = self._domain_locks[domain]
+        with lock:
+            last = self._domain_last_request.get(domain, 0)
+            elapsed = time.monotonic() - last
+            if elapsed < 1.0:
+                time.sleep(1.0 - elapsed)
+            self._domain_last_request[domain] = time.monotonic()
+
     def _check_url(self, bookmark: Bookmark) -> Tuple[bool, int]:
-        """Check a single URL. Detects redirects and stores final URL."""
+        """Check a single URL. Detects redirects; returns (is_valid, status_code).
+        Redirect metadata is stored on bookmark.custom_data under the lock."""
         try:
             requests = importlib.import_module('requests')
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
+            headers = {'User-Agent': _USER_AGENT}
             current_url = bookmark.url
             redirects = []
             response = None
@@ -94,21 +115,19 @@ class LinkChecker:
                 if not URLUtilities._is_safe_url(current_url):
                     return False, 0
 
+                self._rate_limit(current_url)
+
                 response = requests.head(
-                    current_url,
-                    timeout=10,
-                    allow_redirects=False,
-                    headers=headers
+                    current_url, timeout=10,
+                    allow_redirects=False, headers=headers,
                 )
 
                 if response.status_code in (405, 403):
                     response.close()
+                    self._rate_limit(current_url)
                     response = requests.get(
-                        current_url,
-                        timeout=10,
-                        allow_redirects=False,
-                        stream=True,
-                        headers=headers
+                        current_url, timeout=10,
+                        allow_redirects=False, stream=True, headers=headers,
                     )
 
                 if response.status_code in (301, 302, 303, 307, 308):
@@ -131,14 +150,15 @@ class LinkChecker:
             if status_code in (301, 302, 303, 307, 308):
                 return False, status_code
 
-            if redirects and current_url != bookmark.url:
-                bookmark.custom_data['redirect_url'] = current_url
-                bookmark.custom_data['redirect_count'] = len(redirects)
-                bookmark.custom_data['redirect_chain'] = ' -> '.join(redirects[:5])
-            elif 'redirect_url' in bookmark.custom_data:
-                bookmark.custom_data.pop('redirect_url', None)
-                bookmark.custom_data.pop('redirect_count', None)
-                bookmark.custom_data.pop('redirect_chain', None)
+            with self._lock:
+                if redirects and current_url != bookmark.url:
+                    bookmark.custom_data['redirect_url'] = current_url
+                    bookmark.custom_data['redirect_count'] = len(redirects)
+                    bookmark.custom_data['redirect_chain'] = ' -> '.join(redirects[:5])
+                elif 'redirect_url' in bookmark.custom_data:
+                    bookmark.custom_data.pop('redirect_url', None)
+                    bookmark.custom_data.pop('redirect_count', None)
+                    bookmark.custom_data.pop('redirect_chain', None)
 
             return status_code < 400, status_code
         except Exception as e:

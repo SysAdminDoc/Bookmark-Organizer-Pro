@@ -570,19 +570,7 @@ class BookmarkManager:
 
         def refresh_one(bm):
             meta = fetch_page_metadata(bm.url, timeout=8)
-            changed = False
-            if meta['title'] and (not bm.title or bm.title == bm.url):
-                bm.title = meta['title']
-                changed = True
-            if meta['description'] and not bm.description:
-                bm.description = meta['description']
-                changed = True
-            if meta['favicon_url'] and not bm.favicon_url:
-                bm.favicon_url = meta['favicon_url']
-                changed = True
-            if changed:
-                bm.modified_at = datetime.now().isoformat()
-            return changed
+            return bm.id, meta
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(refresh_one, bm): bm for bm in targets}
@@ -590,8 +578,23 @@ class BookmarkManager:
             for future in as_completed(futures):
                 done += 1
                 try:
-                    if future.result():
-                        updated += 1
+                    bm_id, meta = future.result()
+                    with self._lock:
+                        bm = self.bookmarks.get(bm_id)
+                        if bm:
+                            changed = False
+                            if meta['title'] and (not bm.title or bm.title == bm.url):
+                                bm.title = meta['title']
+                                changed = True
+                            if meta['description'] and not bm.description:
+                                bm.description = meta['description']
+                                changed = True
+                            if meta['favicon_url'] and not bm.favicon_url:
+                                bm.favicon_url = meta['favicon_url']
+                                changed = True
+                            if changed:
+                                bm.modified_at = datetime.now().isoformat()
+                                updated += 1
                 except Exception:
                     pass
                 if progress_callback:
