@@ -145,22 +145,27 @@ Examples:
     
     def _cmd_list(self, args):
         """List bookmarks"""
-        if args:
-            category = ' '.join(args)
+        show_all = "--all" in args
+        filter_args = [a for a in args if a != "--all"]
+        if filter_args:
+            category = ' '.join(filter_args)
             bookmarks = self.bookmark_manager.get_bookmarks_by_category(category)
             print(f"\nBookmarks in '{category}':")
         else:
             bookmarks = self.bookmark_manager.get_all_bookmarks()
             print(f"\nAll Bookmarks ({len(bookmarks)}):")
-        
-        for bm in bookmarks[:50]:
+
+        limit = len(bookmarks) if show_all else 50
+        for bm in bookmarks[:limit]:
             pin = "📌 " if bm.is_pinned else ""
             print(f"  [{bm.id}] {pin}{bm.title[:50]}")
             print(f"       {bm.url[:60]}")
             if bm.tags:
                 print(f"       Tags: {', '.join(bm.tags)}")
             print()
-    
+        if not show_all and len(bookmarks) > limit:
+            print(f"  Showing {limit} of {len(bookmarks)}. Use --all to see everything.")
+
     def _cmd_add(self, args):
         """Add a bookmark"""
         if not args:
@@ -305,44 +310,42 @@ Top Domains:
             print(f"  {domain}: {count}")
     
     def _cmd_check(self, args):
-        """Check for broken links"""
+        """Check for broken links (multi-threaded)"""
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         bookmarks = self.bookmark_manager.get_all_bookmarks()
-        
+
         print(f"Checking {len(bookmarks)} bookmarks for broken links...")
-        print("(This may take a while)\n")
-        
-        broken = []
-        for i, bm in enumerate(bookmarks):
+        print("(Using 5 concurrent workers)\n")
+
+        def _check_one(bm):
             try:
                 if not URLUtilities._is_safe_url(bm.url):
-                    response = None
-                    status_code = 0
-                else:
-                    response = requests.head(
-                        bm.url,
-                        timeout=5,
-                        allow_redirects=False,
-                        headers={'User-Agent': 'Mozilla/5.0'}
-                    )
-                    try:
-                        status_code = response.status_code
-                    finally:
-                        response.close()
-                if status_code >= 400 or status_code == 0:
-                    broken.append((bm, status_code))
-                    bm.is_valid = False
-                else:
-                    bm.is_valid = True
-                bm.http_status = status_code
+                    return bm.id, 0, False
+                response = requests.head(
+                    bm.url, timeout=5, allow_redirects=False,
+                    headers={'User-Agent': 'BookmarkOrganizerPro/6.2 LinkChecker'},
+                )
+                status = response.status_code
+                response.close()
+                return bm.id, status, status < 400
             except Exception:
-                broken.append((bm, 0))
-                bm.is_valid = False
-                bm.http_status = 0
-            
-            # Progress
-            if (i + 1) % 10 == 0:
-                print(f"  Checked {i + 1}/{len(bookmarks)}...")
-        
+                return bm.id, 0, False
+
+        broken = []
+        checked = 0
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            futures = {pool.submit(_check_one, bm): bm for bm in bookmarks}
+            for future in as_completed(futures):
+                bm = futures[future]
+                bm_id, status, is_valid = future.result()
+                bm.http_status = status
+                bm.is_valid = is_valid
+                if not is_valid:
+                    broken.append((bm, status))
+                checked += 1
+                if checked % 20 == 0:
+                    print(f"  Checked {checked}/{len(bookmarks)}...")
+
         self.bookmark_manager.save_bookmarks()
 
         print(f"\n✓ Check complete. Found {len(broken)} broken links:\n")
