@@ -130,6 +130,7 @@ def export_epub(bookmarks: List[Bookmark], output_path: Optional[Path] = None,
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
+        zf.infolist()[0].extra = b""
         zf.writestr("META-INF/container.xml", container_xml)
         zf.writestr("OEBPS/content.opf", content_opf)
         zf.writestr("OEBPS/toc.xhtml", toc_xhtml)
