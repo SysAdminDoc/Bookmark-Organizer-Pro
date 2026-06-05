@@ -37,6 +37,7 @@ class ChatTurn:
     answer: str
     sources: List[dict] = field(default_factory=list)
     used_chunks: int = 0
+    chunk_provenance: List[dict] = field(default_factory=list)
 
 
 class CollectionChat:
@@ -90,10 +91,18 @@ class CollectionChat:
             )
 
         context_lines = []
+        provenance = []
         for i, hit in enumerate(retrieved):
             context_lines.append(
                 f"[#c{i}] (bookmark {hit['bookmark_id']}) {hit['text'][:600]}"
             )
+            provenance.append({
+                "citation_id": f"c{i}",
+                "bookmark_id": hit.get("bookmark_id"),
+                "char_start": hit.get("char_start", 0),
+                "char_end": hit.get("char_end", 0),
+                "text_preview": hit.get("text", "")[:100],
+            })
         context = "\n".join(context_lines) if context_lines else "(no matching context)"
 
         history_lines = []
@@ -134,7 +143,8 @@ class CollectionChat:
         self.history.append(ChatMessage(role="user", content=question))
         self.history.append(ChatMessage(role="assistant", content=answer))
 
-        turn = ChatTurn(answer=answer, sources=retrieved, used_chunks=len(retrieved))
+        turn = ChatTurn(answer=answer, sources=retrieved, used_chunks=len(retrieved),
+                        chunk_provenance=provenance)
 
         if use_cache and not self.history[:-2]:
             key = self._cache_key(question, restrict_ids)

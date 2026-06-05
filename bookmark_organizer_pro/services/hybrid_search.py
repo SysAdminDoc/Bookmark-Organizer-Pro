@@ -31,6 +31,18 @@ class HybridResult:
     snippet: str = ""
 
 
+def _try_rerank(query: str, texts: List[str]) -> Optional[List[float]]:
+    """Attempt cross-encoder re-ranking. Returns scores or None if unavailable."""
+    try:
+        from sentence_transformers import CrossEncoder
+        model = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+        pairs = [(query, t) for t in texts]
+        scores = model.predict(pairs)
+        return [float(s) for s in scores]
+    except Exception:
+        return None
+
+
 class HybridSearch:
     """Combined keyword + semantic search over a bookmark collection."""
 
@@ -54,7 +66,8 @@ class HybridSearch:
 
     def search(self, bookmarks: Sequence[Bookmark], query: str,
                limit: int = 50, semantic_k: int = 50,
-               time_weight: float = 0.0) -> List[HybridResult]:
+               time_weight: float = 0.0,
+               rerank: bool = False) -> List[HybridResult]:
         if not query:
             return []
 
@@ -100,4 +113,14 @@ class HybridSearch:
                 snippet=snippet_map.get(bid, ""),
             ))
         results.sort(key=lambda r: r.score, reverse=True)
-        return results[:limit]
+        results = results[:limit]
+
+        if rerank and results:
+            texts = [r.snippet or r.bookmark.title for r in results]
+            rerank_scores = _try_rerank(query, texts)
+            if rerank_scores:
+                for r, rs in zip(results, rerank_scores):
+                    r.score = rs
+                results.sort(key=lambda r: r.score, reverse=True)
+
+        return results

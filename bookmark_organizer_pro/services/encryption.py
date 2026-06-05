@@ -118,3 +118,18 @@ class EncryptedStore:
                 return f.read(len(MAGIC)) == MAGIC
         except OSError:
             return False
+
+    @staticmethod
+    def rotate_passphrase(path: Path, old_passphrase: str,
+                          new_passphrase: str) -> bool:
+        """Re-encrypt a file with a new passphrase. Creates audit log entry."""
+        try:
+            old_store = EncryptedStore(old_passphrase)
+            data = old_store.decrypt(path.read_bytes())
+            new_store = EncryptedStore(new_passphrase)
+            path.write_bytes(new_store.encrypt(data))
+            log.info(f"Passphrase rotated for {path.name} at {__import__('datetime').datetime.now().isoformat()}")
+            return True
+        except Exception as exc:
+            log.error(f"Passphrase rotation failed for {path.name}: {exc}")
+            return False
