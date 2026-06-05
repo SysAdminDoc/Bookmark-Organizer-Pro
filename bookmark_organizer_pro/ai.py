@@ -253,12 +253,35 @@ class AIConfigManager:
 
     def get_api_key(self, provider: str = None) -> str:
         provider = provider or self.get_provider()
-        key = self._config.get("api_keys", {}).get(provider, "")
+        key = self._get_key_from_keyring(provider)
+        if not key:
+            key = self._config.get("api_keys", {}).get(provider, "")
         if not key:
             info = AI_PROVIDERS.get(provider)
             if info and info.api_key_env:
                 key = os.environ.get(info.api_key_env, "")
         return key
+
+    @staticmethod
+    def _get_key_from_keyring(provider: str) -> str:
+        try:
+            import keyring
+            val = keyring.get_password("bookmark-organizer-pro", f"api_key_{provider}")
+            return val or ""
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _set_key_in_keyring(provider: str, key: str) -> bool:
+        try:
+            import keyring
+            if key:
+                keyring.set_password("bookmark-organizer-pro", f"api_key_{provider}", key)
+            else:
+                keyring.delete_password("bookmark-organizer-pro", f"api_key_{provider}")
+            return True
+        except Exception:
+            return False
 
     def set_provider(self, v):
         provider = str(v or "").strip().lower()
@@ -273,12 +296,16 @@ class AIConfigManager:
         provider = str(provider or "").strip().lower()
         if provider not in AI_PROVIDERS:
             return
-        keys = self._config.setdefault("api_keys", {})
         key = str(key or "").strip()
-        if key:
-            keys[provider] = key
+        if self._set_key_in_keyring(provider, key):
+            self._config.get("api_keys", {}).pop(provider, None)
+            log.info(f"API key for {provider} stored in OS keyring")
         else:
-            keys.pop(provider, None)
+            keys = self._config.setdefault("api_keys", {})
+            if key:
+                keys[provider] = key
+            else:
+                keys.pop(provider, None)
         self.save_config()
 
     def set_batch_size(self, v):
