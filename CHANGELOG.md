@@ -2,6 +2,62 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.2.1] - 2026-06-05
+
+Bugfix + hardening release. Fixes 2 crash bugs, 6 data-corruption risks,
+4 security gaps, 4 CLI parity gaps, and adds 34 new tests (222 total).
+
+### Fixed — Critical
+
+- **High-contrast theme crash** — `card_shadow` field added to `ThemeColors`
+  dataclass. Missing ~11 fields in high-contrast palette filled with dark
+  values. (A-01, B-06)
+- **MCP `export_to_obsidian` NameError** — `Path` now imported at module
+  level in `mcp_server.py`. (A-02)
+
+### Fixed — Data Integrity
+
+- **YAML frontmatter injection** in Obsidian export — all scalar values now
+  properly escaped via `_yaml_escape()`. (B-01)
+- **Smart Collections domain filter** — lowercased for case-insensitive
+  matching. (B-02)
+- **Smart Collections category filter** — changed from substring `in` to
+  exact `==` match. "AI" no longer matches "Email". (B-03)
+- **SingleFile backend MAX_BYTES** — now enforces 25MB limit like all other
+  backends. (B-04)
+- **EPUB mimetype extra field** — cleared after write for epubcheck
+  compliance. (B-05)
+
+### Fixed — Security
+
+- **SSRF via redirect in snapshot fallback** — now follows redirects manually
+  with `_is_safe_url()` check on each hop. (C-01)
+- **Filesystem write sandboxing** — MCP `export_to_obsidian` vault_path must
+  be under user's home directory. (C-02)
+- **Bookmarklet token warning** — prints sync-risk warning after generating
+  the bookmarklet URL. (C-03)
+- **Path traversal in exported text** — EPUB and Obsidian export now validate
+  `extracted_text_path` is under the data directory. (C-04)
+
+### Added
+
+- **4 CLI subcommands** — `smart-collections`, `nl-query`, `obsidian-export`,
+  `epub-export`. All v6.2 features now accessible via CLI. (D-01..D-04)
+- **CLI `--version` flag** — `bop --version` / `bop -V`. (E-10)
+- **CLI `list --all`** — shows full list with count message when capped. (E-05)
+- **CLI `check` multi-threading** — 5 concurrent workers instead of
+  single-threaded. (E-06)
+- **CLI help filename corrected** — references `main.py` instead of old
+  `bookmark_organizer.py`. (E-01)
+- **34 new tests** for SmartCollections (18), EPUB export (4), and Obsidian
+  export (12). Total: 222 tests passing.
+
+### Fixed — Cosmetic
+
+- `main.py` docstring version updated to v6.2.0. (E-02)
+- `CategoryColorManager` copy-pasted docstring replaced. (F-08)
+- ROADMAP MCP tool count corrected to 20. (F-02)
+
 ## [v6.2.0] - 2026-06-05
 
 Feature release with 22 roadmap items shipped. Consolidated ROADMAP v3 with

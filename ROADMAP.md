@@ -27,7 +27,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 
 - **AI:** 5 providers (OpenAI, Anthropic, Gemini, Groq, Ollama), auto-categorization with 4,224 patterns, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean + semantic vector (LanceDB + FastEmbed) + hybrid RRF
-- **MCP server:** 15 typed tools — one of only two OSS bookmark managers with MCP (Raindrop.io added one in 2026 — [S-60])
+- **MCP server:** 20 typed tools — one of a small group of OSS bookmark managers with MCP (Raindrop.io and Karakeep also added MCP in 2026)
 - **Preservation:** Single-file HTML snapshots (monolith/single-file/BS4), dead-link scanner, Wayback Machine
 - **Security:** AES-256-GCM encrypted DB, SSRF guards, prompt sanitization, API auth tokens
 - **Import/Export:** 13 importers, 7 exporters (HTML/JSON/CSV/OPML/XBEL/Markdown/ZIP)
