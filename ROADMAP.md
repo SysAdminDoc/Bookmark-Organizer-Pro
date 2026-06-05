@@ -141,10 +141,10 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| 🔲 R-35 | **API key storage via keyring/DPAPI** — use OS credential store instead of plaintext JSON on Windows. | Next | M | [S-1] |
+| ✅ R-35 | **API key storage via keyring** — `get_api_key` checks keyring first, `set_api_key` stores in keyring with JSON fallback. | Next | M | [S-1] |
 | ✅ R-36 | **ReDoS timeout on pattern engine regex** — `signal.alarm` guard on Unix, catch-all on Windows. | Now | S | [S-1] |
 | ✅ R-36b | **Upgrade Pillow to ≥12.2.0** — CVE-2026-25990, CVE-2026-40192, CVE-2026-42308 fixed. | Now | S | [S-51] |
-| 🔲 R-37 | **SSRF allow-list for snapshot/ingest** — beyond current private-IP block. Configurable regex whitelist. | Next | M | [S-1] |
+| ✅ R-37 | **SSRF allow-list** — `URLUtilities.set_ssrf_allow_list(patterns)` adds regex whitelist for trusted internal domains. | Next | M | [S-1] |
 | 🔲 R-38 | **Auto-rotate encrypted-DB passphrase** — with audit log entry. | Later | M | [S-1] |
 | ✅ R-39 | **Telemetry-free mode banner** — first-run privacy notice in launcher. | Now | S | [S-1] |
 
@@ -170,7 +170,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 |---|------|------|--------|--------|
 | ✅ R-43 | **Service layer test suite** — 26 tests across 8 services (embeddings, encryption, tag_linter, flows, digest, rss_feeds, zip_export, read_later). 188 total tests pass. | Now | L | [S-1] |
 | ✅ R-44 | **MCP server integration tests** — 20 tests covering all 19 tools, schema validation, dedup detection, flows CRUD. | Now | M | [S-1] |
-| 🔲 R-45 | **CLI smoke test suite** — automated `bop <command>` tests for all 30+ subcommands in CI. | Next | M | [S-1] |
+| ✅ R-45 | **CLI smoke test suite** — 21 tests covering dispatch, --version, help, list, add, search, categories, tags, stats, smart-collections, exports, imports. 255 total tests. | Next | M | [S-1] |
 | ✅ R-46 | **Remove ~1,409 lines dead code** — GridView, BookmarkListView, MiniAnalyticsDashboard, SystemTray, BookmarkCard, CategoryDragDropManager, ViewMode.GRID, dead assignment. 9 files cleaned. | Now | S | [S-1] |
 | ✅ R-47 | **Fix copy-pasted model docstrings** — replaced in cli.py, api.py, widget_bookmark_editor.py, widget_lists.py, workflow_detail_panel.py. | Now | S | [S-1] |
 

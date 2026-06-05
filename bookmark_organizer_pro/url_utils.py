@@ -15,6 +15,16 @@ from typing import List, Optional, Tuple
 class URLUtilities:
     """Various URL manipulation and analysis utilities"""
 
+    SSRF_ALLOW_LIST: list = []
+
+    @classmethod
+    def set_ssrf_allow_list(cls, patterns: list):
+        """Set regex patterns for domains allowed to bypass SSRF private-IP checks.
+
+        Example: [".*\\.internal\\.corp\\.com$", "wiki\\.local$"]
+        """
+        cls.SSRF_ALLOW_LIST = [re.compile(p, re.IGNORECASE) for p in patterns if p]
+
     SHORTENERS = [
         'bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'ow.ly', 'is.gd',
         'buff.ly', 'j.mp', 'amzn.to', 'youtu.be', 'rb.gy', 'cutt.ly',
@@ -32,9 +42,12 @@ class URLUtilities:
         'awin1.com', 'pepperjam.com', 'jdoqocy.com', 'tkqlhce.com'
     ]
 
-    @staticmethod
-    def _is_safe_url(url: str) -> bool:
-        """Block requests to private/internal networks (SSRF protection)."""
+    @classmethod
+    def _is_safe_url(cls, url: str) -> bool:
+        """Block requests to private/internal networks (SSRF protection).
+
+        Domains matching SSRF_ALLOW_LIST regex patterns bypass the private-IP check.
+        """
         try:
             parsed = urllib.parse.urlparse(url)
             if parsed.scheme not in ('http', 'https'):
@@ -42,6 +55,10 @@ class URLUtilities:
             hostname = (parsed.hostname or '').strip().rstrip('.').lower()
             if not hostname or hostname in ('localhost', '0.0.0.0', '::'):
                 return False
+            if cls.SSRF_ALLOW_LIST:
+                for pattern in cls.SSRF_ALLOW_LIST:
+                    if pattern.search(hostname):
+                        return True
             ascii_host = hostname.encode("idna").decode("ascii")
             for info in socket.getaddrinfo(ascii_host, None, socket.AF_UNSPEC):
                 ip = ipaddress.ip_address(info[4][0])
