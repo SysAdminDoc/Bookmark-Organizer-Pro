@@ -57,8 +57,9 @@ class AppShellMixin:
         style.map(
             "Treeview",
             background=[("selected", theme.selection), ("focus", theme.bg_hover)],
-            foreground=[("selected", theme.text_primary)]
+            foreground=[("selected", theme.text_primary)],
         )
+        style.configure("Treeview", focuscolor=theme.accent_primary)
     
     def _create_menu(self):
         """Create menu bar"""
@@ -127,7 +128,7 @@ class AppShellMixin:
             fg=theme.text_primary, font=FONTS.title(bold=True)
         ).pack(side=tk.LEFT)
         tk.Label(
-            brand, text="Library workspace for saved links",
+            brand, text="Your bookmark library",
             bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small()
         ).pack(anchor="w", pady=(2, 0))
         
@@ -139,28 +140,30 @@ class AppShellMixin:
         )
         search_frame.pack(side=tk.LEFT, padx=(0, 18), fill=tk.X, expand=True, pady=14)
         self.search_frame = search_frame
-        
-        tk.Label(
-            search_frame, text="Search", bg=theme.bg_secondary,
-            fg=theme.text_muted, font=FONTS.tiny(bold=True)
-        ).pack(side=tk.LEFT, padx=(12, 4))
-        
+
+        self._search_icon_label = tk.Label(
+            search_frame, text="\U0001f50d", bg=theme.bg_secondary,
+            fg=theme.text_muted, font=FONTS.small()
+        )
+        self._search_icon_label.pack(side=tk.LEFT, padx=(12, 4))
+
         self.search_var = tk.StringVar()
         self.search_var.trace_add('write', self._on_search_change)
-        
+
         self.search_entry = tk.Entry(
             search_frame, textvariable=self.search_var,
-            bg=theme.bg_secondary, fg=theme.text_muted,
+            bg=theme.bg_secondary, fg=theme.text_primary,
             insertbackground=theme.text_primary, bd=0,
             font=FONTS.body(), width=35
         )
-        self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=9, padx=5)
+        self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=7, padx=5)
         Tooltip(self.search_entry, "Search bookmarks by title, URL, category, or tags.\nSpecial filters: is:pinned, is:broken, is:recent, is:untagged, domain:xyz")
 
         # Placeholder text
-        self._search_placeholder = "Search links, domain:, #tag, or is:pinned…"
+        self._search_placeholder = "Search bookmarks…"
         self._suppress_search_callback = True
         self.search_entry.insert(0, self._search_placeholder)
+        self.search_entry.configure(fg=theme.text_muted)
         self._suppress_search_callback = False
         self.search_entry.bind("<FocusIn>", self._on_search_focus_in)
         self.search_entry.bind("<FocusOut>", self._on_search_focus_out)
@@ -263,8 +266,8 @@ class AppShellMixin:
         zoom_out_btn.pack(side=tk.LEFT, padx=1)
         
         self.zoom_label = tk.Label(
-            zoom_frame, text="100%", bg=theme.bg_secondary,
-            fg=theme.text_primary, font=FONTS.small(), width=5, padx=5, pady=4
+            zoom_frame, text=f"{self.zoom_level}%", bg=theme.bg_secondary,
+            fg=theme.text_primary, font=FONTS.small(), padx=8, pady=4
         )
         self.zoom_label.pack(side=tk.LEFT, padx=2)
         Tooltip(self.zoom_label, "Current zoom level - Use Ctrl+Scroll to zoom")

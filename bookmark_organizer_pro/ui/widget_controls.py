@@ -66,7 +66,7 @@ class Tooltip:
             >>> Tooltip(button, "Click to save", delay=500)
         """
     
-    def __init__(self, widget, text: str, delay: int = 500):
+    def __init__(self, widget, text: str, delay: int = 350):
         self.widget = widget
         self.text = text
         self.delay = delay
@@ -106,14 +106,16 @@ class Tooltip:
         except Exception:
             pass
 
-        # Style the tooltip
-        frame = tk.Frame(tw, bg=theme.border, bd=0, padx=1, pady=1)
+        # Style the tooltip with subtle shadow border
+        outer = tk.Frame(tw, bg=theme.text_muted, bd=0, padx=1, pady=1)
+        outer.pack()
+        frame = tk.Frame(outer, bg=theme.border, bd=0, padx=1, pady=1)
         frame.pack()
-        
+
         label = tk.Label(
             frame, text=self.text, bg=theme.bg_dark, fg=theme.text_primary,
-            font=FONTS.small(), padx=10, pady=6, justify=tk.LEFT,
-            wraplength=360
+            font=FONTS.small(), padx=DesignTokens.SPACE_SM, pady=DesignTokens.SPACE_SM,
+            justify=tk.LEFT, wraplength=300
         )
         label.pack()
         
@@ -147,7 +149,7 @@ class Tooltip:
         self.text = new_text
 
 
-def create_tooltip(widget, text: str, delay: int = 500) -> Tooltip:
+def create_tooltip(widget, text: str, delay: int = 350) -> Tooltip:
     """Helper function to create tooltips"""
     return Tooltip(widget, text, delay)
 
@@ -174,10 +176,10 @@ class ModernButton(tk.Frame, ThemedWidget):
             invoke(): Programmatically trigger click
         """
     
-    def __init__(self, parent, text="", command=None, 
+    def __init__(self, parent, text="", command=None,
                  bg=None, fg=None, hover_bg=None,
                  width=None, font=FONTS.small(), icon=None,
-                 state='normal', padx=15, pady=8, style="default",
+                 state='normal', padx=12, pady=7, style="default",
                  tooltip: str = None):
         
         theme = get_theme()
@@ -293,8 +295,18 @@ class ModernButton(tk.Frame, ThemedWidget):
             self.command()
 
     def _on_key_activate(self, e):
-        self._on_click(e)
+        if self.state == 'normal':
+            self._on_press(e)
+            self.after(100, lambda: self._on_release_and_fire(e))
         return "break"
+
+    def _on_release_and_fire(self, e):
+        bg = self.hover_bg if self._is_hovered else self.default_bg
+        fg = self.hover_fg if self._is_hovered else self.fg
+        self.configure(bg=bg)
+        self.label.configure(bg=bg, fg=fg)
+        if self.command:
+            self.command()
     
     def set_state(self, state):
         self.state = state
@@ -402,12 +414,14 @@ class ModernSearch(tk.Frame, ThemedWidget):
         textvariable.trace_add('write', self._on_text_change)
     
     def _on_focus(self, e):
-        self.border.configure(bg=self.theme.accent_primary)
-        self.icon_label.configure(fg=self.theme.accent_primary)
-    
+        theme = get_theme()
+        self.border.configure(bg=theme.accent_primary)
+        self.icon_label.configure(fg=theme.accent_primary)
+
     def _on_unfocus(self, e):
-        self.border.configure(bg=self.theme.border)
-        self.icon_label.configure(fg=self.theme.text_muted)
+        theme = get_theme()
+        self.border.configure(bg=theme.border)
+        self.icon_label.configure(fg=theme.text_muted)
     
     def _on_text_change(self, *args):
         if self.textvariable.get():
@@ -434,20 +448,13 @@ class ModernSearch(tk.Frame, ThemedWidget):
 # Tag Widget (for displaying and editing tags)
 # =============================================================================
 class TagWidget(tk.Frame, ThemedWidget):
+    """Visual tag chip displaying a tag name with optional remove button.
+
+    Attributes:
+        tag_name: The tag string to display.
+        color: Accent color for the tag text.
+        on_remove: Callback invoked with the tag name when removed.
     """
-        Represents a bookmark tag with metadata.
-        
-        Attributes:
-            name: Tag name (unique identifier)
-            color: Hex color code for display
-            description: Optional tag description
-            created_at: ISO timestamp of creation
-            usage_count: Number of bookmarks using this tag
-        
-        Methods:
-            to_dict(): Serialize to dictionary
-            from_dict(d): Deserialize from dictionary
-        """
     
     def __init__(self, parent, tag_name: str, color: str = None,
                  on_remove: Callable = None, removable: bool = True,
@@ -493,20 +500,13 @@ class TagWidget(tk.Frame, ThemedWidget):
 
 
 class TagEditor(tk.Frame, ThemedWidget):
+    """Inline tag editor with entry field, add button, and removable tag chips.
+
+    Attributes:
+        tags: Current list of tag strings.
+        available_tags: Suggestions for autocomplete (not yet wired).
+        on_change: Callback invoked with the updated tag list on add/remove.
     """
-        Represents a bookmark tag with metadata.
-        
-        Attributes:
-            name: Tag name (unique identifier)
-            color: Hex color code for display
-            description: Optional tag description
-            created_at: ISO timestamp of creation
-            usage_count: Number of bookmarks using this tag
-        
-        Methods:
-            to_dict(): Serialize to dictionary
-            from_dict(d): Deserialize from dictionary
-        """
     
     def __init__(self, parent, tags: List[str] = None, 
                  available_tags: List[str] = None,
@@ -540,7 +540,7 @@ class TagEditor(tk.Frame, ThemedWidget):
         
         self.add_btn = tk.Label(
             self.entry_frame, text="+", bg=theme.bg_secondary,
-            fg=theme.accent_primary, font=("Segoe UI", 12),
+            fg=theme.accent_primary, font=FONTS.header(),
             cursor="hand2", padx=8
         )
         self.add_btn.pack(side=tk.RIGHT)

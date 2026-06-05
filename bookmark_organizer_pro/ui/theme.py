@@ -43,7 +43,7 @@ class ThemeColors:
     text_link: str = "#0f766e"
 
     # Accents
-    accent_primary: str = "#14b8a6"
+    accent_primary: str = "#0d9488"
     accent_success: str = "#168a5c"
     accent_warning: str = "#b7791f"
     accent_error: str = "#d64545"
@@ -55,17 +55,17 @@ class ThemeColors:
     # UI Elements
     border: str = "#d8e1dd"
     border_muted: str = "#e5ece9"
-    border_active: str = "#14b8a6"
+    border_active: str = "#0d9488"
     selection: str = "#d7f7ee"
     selected: str = "#0f766e"
     hover: str = "#def7ee"
 
     # Drag & Drop
-    drag_target: str = "#14b8a6"
+    drag_target: str = "#0d9488"
     drag_target_bg: str = "#d7f7ee"
     drop_zone: str = "#eefbf7"
     drop_zone_active: str = "#d7f7ee"
-    drop_zone_border: str = "#14b8a6"
+    drop_zone_border: str = "#0d9488"
 
     # Status
     status_success: str = "#168a5c"
@@ -81,7 +81,7 @@ class ThemeColors:
     # Cards & Grid
     card_bg: str = "#ffffff"
     card_border: str = "#d8e1dd"
-    card_shadow: str = "#d8e1dd"
+    card_outline: str = "#d8e1dd"
     card_hover: str = "#f4faf7"
 
     # Special

@@ -22,9 +22,10 @@ from bookmark_organizer_pro.ui.widgets import set_widget_window_chrome_provider
 
 
 def _show_first_run_privacy_notice(root: tk.Tk):
-    """Show a one-time privacy notice on first launch."""
+    """Show a one-time privacy banner at the top of the window (non-modal)."""
     import json
     from bookmark_organizer_pro.constants import SETTINGS_FILE
+    from bookmark_organizer_pro.ui.foundation import FONTS
     try:
         if SETTINGS_FILE.exists():
             settings = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
@@ -35,22 +36,32 @@ def _show_first_run_privacy_notice(root: tk.Tk):
     except Exception:
         settings = {}
 
-    messagebox.showinfo(
-        "Privacy Notice",
-        "Bookmark Organizer Pro is fully local.\n\n"
-        "No data leaves your machine unless you explicitly\n"
-        "configure an AI provider API key in Settings > AI.\n\n"
-        "All bookmarks, snapshots, and search indexes\n"
-        "are stored in ~/.bookmark_organizer/.",
-        parent=root,
-    )
+    def _dismiss_banner():
+        banner.destroy()
+        settings["privacy_notice_shown"] = True
+        try:
+            SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+        except Exception:
+            pass
 
-    settings["privacy_notice_shown"] = True
-    try:
-        SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
-    except Exception:
-        pass
+    banner = tk.Frame(root, bg="#0f766e", height=40)
+    banner.pack(fill=tk.X, side=tk.TOP, before=root.winfo_children()[0] if root.winfo_children() else None)
+    banner.pack_propagate(False)
+
+    tk.Label(
+        banner,
+        text="Fully local -- no data leaves your machine unless you configure an AI API key.",
+        bg="#0f766e", fg="#ffffff", font=FONTS.small(),
+        anchor="w",
+    ).pack(side=tk.LEFT, padx=(16, 8), fill=tk.Y)
+
+    dismiss_btn = tk.Label(
+        banner, text="Got it", bg="#0f766e", fg="#ffffff",
+        font=FONTS.small(bold=True), cursor="hand2", padx=12,
+    )
+    dismiss_btn.pack(side=tk.RIGHT, padx=(0, 12), fill=tk.Y)
+    dismiss_btn.bind("<Button-1>", lambda e: _dismiss_banner())
 
 
 def _configure_tk_scaling(root: tk.Tk):
@@ -86,6 +97,9 @@ def main(argv: Sequence[str] | None = None):
         root = tk.Tk()
         root.withdraw()  # Hide while checking dependencies
 
+        # Configure DPI scaling BEFORE style init so sizes are correct
+        _configure_tk_scaling(root)
+
         # Initialize style manager
         style_manager.initialize(root)
 
@@ -98,9 +112,6 @@ def main(argv: Sequence[str] | None = None):
 
         # Import dependencies after check
         import_dependencies()
-
-        # Configure DPI scaling for tk
-        _configure_tk_scaling(root)
 
         root.deiconify()  # Show window
 

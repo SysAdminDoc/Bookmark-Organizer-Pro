@@ -18,14 +18,18 @@ class FontConfig:
     """Centralized font configuration for consistent typography."""
 
     family: str
-    size_title: int = 16
-    size_header: int = 12
-    size_body: int = 10
-    size_small: int = 9
-    size_tiny: int = 8
+    size_title: int = 18
+    size_subtitle: int = 14
+    size_header: int = 13
+    size_body: int = 11
+    size_small: int = 10
+    size_tiny: int = 9
 
     def title(self, bold: bool = True) -> Tuple[str, int, str]:
         return (self.family, self.size_title, "bold" if bold else "normal")
+
+    def subtitle(self, bold: bool = True) -> Tuple[str, int, str]:
+        return (self.family, self.size_subtitle, "bold" if bold else "normal")
 
     def header(self, bold: bool = True) -> Tuple[str, int, str]:
         return (self.family, self.size_header, "bold" if bold else "normal")
@@ -70,10 +74,12 @@ class DesignTokens:
     RADIUS_LG = 8
 
     BUTTON_HEIGHT = 34
+    BUTTON_PAD_X = 14
+    BUTTON_PAD_Y = 7
     INPUT_HEIGHT = 36
     ROW_HEIGHT = 32
-    TREEVIEW_ROW_HEIGHT = 42
-    HEADER_HEIGHT = 88
+    TREEVIEW_ROW_HEIGHT = 36
+    HEADER_HEIGHT = 76
     SUMMARY_STRIP_HEIGHT = 112
     STATUS_BAR_HEIGHT = 34
     TOUCH_TARGET_MIN = 36
@@ -83,13 +89,15 @@ class DesignTokens:
     ICON_MD = 20
     ICON_LG = 24
 
-    SIDEBAR_WIDTH = 276
-    SIDEBAR_MIN_WIDTH = 260
-    RIGHT_SIDEBAR_WIDTH = 310
-    CONTENT_PAD_X = 20
-    CONTENT_PAD_Y = 18
-    PANEL_PAD = 16
+    SIDEBAR_WIDTH = 256
+    SIDEBAR_MIN_WIDTH = 240
+    RIGHT_SIDEBAR_WIDTH = 280
+    CONTENT_PAD_X = 16
+    CONTENT_PAD_Y = 14
+    PANEL_PAD = 14
     TOOLBAR_GAP = 6
+
+    LINE_HEIGHT_FACTOR = 1.5
 
     ANIMATION_FAST = 100
     ANIMATION_NORMAL = 200
@@ -135,7 +143,11 @@ def display_or_fallback(value, fallback: str = "—") -> str:
 
 
 def readable_text_on(hex_color: str) -> str:
-    """Pick dark or light foreground text for a solid background color."""
+    """Pick dark or light foreground text for maximum contrast on a background.
+
+    Uses WCAG relative-luminance contrast ratio comparison against both
+    candidates and returns whichever gives the higher ratio.
+    """
     try:
         color = str(hex_color or "").lstrip("#")
         if len(color) == 3:
@@ -147,5 +159,11 @@ def readable_text_on(hex_color: str) -> str:
     def channel(c: float) -> float:
         return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
 
-    luminance = 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
-    return "#07100f" if luminance > 0.42 else "#ffffff"
+    bg_lum = 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+
+    # Contrast ratio against dark (#07100f ~ 0.012) and light (#ffffff = 1.0)
+    dark_lum = 0.012
+    light_lum = 1.0
+    contrast_dark = (max(bg_lum, dark_lum) + 0.05) / (min(bg_lum, dark_lum) + 0.05)
+    contrast_light = (max(bg_lum, light_lum) + 0.05) / (min(bg_lum, light_lum) + 0.05)
+    return "#07100f" if contrast_dark >= contrast_light else "#ffffff"
