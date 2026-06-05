@@ -76,6 +76,11 @@ class BookmarkCLI:
             "decrypt": self._cmd_decrypt,
             "read-later": self._cmd_read_later,
             "mcp-server": self._cmd_mcp_server,
+            # v6.2.1
+            "smart-collections": self._cmd_smart_collections,
+            "nl-query": self._cmd_nl_query,
+            "obsidian-export": self._cmd_obsidian_export,
+            "epub-export": self._cmd_epub_export,
         }
         
         if command in commands:
@@ -720,3 +725,94 @@ Top Domains:
     def _cmd_mcp_server(self, args):
         from bookmark_organizer_pro.mcp_server import main as _mcp_main
         _mcp_main()
+
+    def _cmd_smart_collections(self, args):
+        from bookmark_organizer_pro.services.smart_collections import SmartCollectionManager
+        mgr = SmartCollectionManager()
+        sub = args[0] if args else "list"
+        if sub == "list":
+            for sc in mgr.list_all():
+                print(f"  [{sc.id[:8]}] {sc.name}")
+                f = sc.filters
+                parts = []
+                if f.tags: parts.append(f"tags={f.tags}")
+                if f.categories: parts.append(f"categories={f.categories}")
+                if f.domains: parts.append(f"domains={f.domains}")
+                if f.keywords: parts.append(f"keywords={f.keywords}")
+                if parts:
+                    print(f"    Filters: {', '.join(parts)}")
+        elif sub == "eval" and len(args) > 1:
+            sc_id = args[1]
+            bms = self.bookmark_manager.get_all_bookmarks()
+            matches = mgr.evaluate(sc_id, bms)
+            print(f"Matches: {len(matches)}")
+            for bm in matches[:20]:
+                print(f"  {bm.title[:60]} — {bm.url[:60]}")
+        else:
+            print("Usage: smart-collections [list|eval <id>]")
+
+    def _cmd_nl_query(self, args):
+        query = " ".join(args) if args else ""
+        if not query:
+            print("Usage: nl-query <natural language query>")
+            return
+        try:
+            from bookmark_organizer_pro.services.nl_query import NLQueryService
+            from bookmark_organizer_pro.ai import AIConfigManager
+            config = AIConfigManager()
+            service = NLQueryService(config)
+            bms = self.bookmark_manager.get_all_bookmarks()
+            results = service.query(query, bms)
+            print(f"Results: {len(results)}")
+            for bm in results[:20]:
+                print(f"  {bm.title[:60]} — {bm.url[:60]}")
+        except Exception as e:
+            print(f"NL query failed: {e}")
+
+    def _cmd_obsidian_export(self, args):
+        from bookmark_organizer_pro.services.obsidian_export import export_collection
+        from pathlib import Path
+        if not args:
+            print("Usage: obsidian-export <vault_path> [--tag TAG] [--category CAT] [--since DATE]")
+            return
+        vault = Path(args[0]).expanduser()
+        tag_filter = None
+        cat_filter = None
+        since = None
+        i = 1
+        while i < len(args):
+            if args[i] == "--tag" and i + 1 < len(args):
+                tag_filter = args[i + 1]; i += 2
+            elif args[i] == "--category" and i + 1 < len(args):
+                cat_filter = args[i + 1]; i += 2
+            elif args[i] == "--since" and i + 1 < len(args):
+                since = args[i + 1]; i += 2
+            else:
+                i += 1
+        bms = self.bookmark_manager.get_all_bookmarks()
+        paths = export_collection(bms, vault, tag_filter=tag_filter,
+                                  category_filter=cat_filter, since=since)
+        print(f"Exported {len(paths)} bookmarks to {vault}")
+
+    def _cmd_epub_export(self, args):
+        from bookmark_organizer_pro.services.epub_export import export_epub
+        from pathlib import Path
+        title = "Bookmark Collection"
+        output = None
+        tag_filter = None
+        i = 0
+        while i < len(args):
+            if args[i] == "--title" and i + 1 < len(args):
+                title = args[i + 1]; i += 2
+            elif args[i] == "--output" and i + 1 < len(args):
+                output = Path(args[i + 1]); i += 2
+            elif args[i] == "--tag" and i + 1 < len(args):
+                tag_filter = args[i + 1]; i += 2
+            else:
+                i += 1
+        bms = self.bookmark_manager.get_all_bookmarks()
+        if tag_filter:
+            tag_l = tag_filter.lower()
+            bms = [b for b in bms if any(t.lower() == tag_l for t in b.tags)]
+        path = export_epub(bms, output_path=output, title=title)
+        print(f"EPUB exported: {path} ({len(bms)} bookmarks)")
