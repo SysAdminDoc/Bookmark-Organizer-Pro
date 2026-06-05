@@ -23,19 +23,18 @@ from bookmark_organizer_pro.logging_config import log
 OLLAMA_DEFAULT_URL = "http://localhost:11434"
 
 POPULAR_MODELS = [
-    ("qwen3.5", "4.8 GB", "Qwen 3.5 — newest, great quality"),
-    ("qwen3", "4.7 GB", "Qwen 3 — strong multilingual"),
-    ("llama3.2", "2.0 GB", "Llama 3.2 3B — fast and capable"),
-    ("llama3.3", "42 GB", "Llama 3.3 70B — top quality, needs 48 GB RAM"),
-    ("gemma3", "3.3 GB", "Gemma 3 4B — Google's compact model"),
-    ("phi4", "9.1 GB", "Phi-4 14B — Microsoft, strong reasoning"),
-    ("mistral", "4.1 GB", "Mistral 7B — fast general purpose"),
-    ("deepseek-r1:8b", "4.9 GB", "DeepSeek R1 8B — reasoning model"),
-    ("deepseek-r1", "4.7 GB", "DeepSeek R1 — default distill"),
-    ("codellama", "3.8 GB", "Code Llama 7B — code-focused"),
-    ("llava", "4.7 GB", "LLaVa 7B — multimodal (text + images)"),
-    ("mixtral", "26 GB", "Mixtral 8x7B — large MoE model"),
-    ("command-r", "20 GB", "Command R 35B — RAG-optimized"),
+    ("qwen3.5", "4.8 GB", "⭐ RECOMMENDED — Best overall quality. Smart, fast, great at tagging and categorizing."),
+    ("phi4", "9.1 GB", "⭐ RECOMMENDED — Excellent reasoning. Best if you have 16+ GB RAM."),
+    ("qwen3", "4.7 GB", "Great quality, strong with multiple languages."),
+    ("gemma3", "3.3 GB", "Good and lightweight. Works well on most computers."),
+    ("llama3.2", "2.0 GB", "Smallest download, runs on anything. OK quality for basic tasks."),
+    ("mistral", "4.1 GB", "Solid all-rounder. Good speed, decent quality."),
+    ("deepseek-r1:8b", "4.9 GB", "Thinks step-by-step. Good for complex analysis."),
+    ("deepseek-r1", "4.7 GB", "Smaller reasoning model. Fast on modest hardware."),
+    ("codellama", "3.8 GB", "Specialized for code. Best for developer bookmarks."),
+    ("llava", "4.7 GB", "Can understand images. Unique but niche."),
+    ("mixtral", "26 GB", "Very capable but large. Needs 32+ GB RAM."),
+    ("command-r", "20 GB", "Optimized for search/RAG. Needs 24+ GB RAM."),
 ]
 
 

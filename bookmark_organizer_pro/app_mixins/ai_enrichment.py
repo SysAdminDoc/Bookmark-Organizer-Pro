@@ -19,6 +19,34 @@ from bookmark_organizer_pro.ui.foundation import FONTS, pluralize
 from bookmark_organizer_pro.ui.widgets import ModernButton, apply_window_chrome, get_theme
 
 
+_SKIP_URL_PATTERNS = (
+    "/login", "/signin", "/sign-in", "/auth", "/oauth", "/account",
+    "/signup", "/sign-up", "/register", "/password", "/forgot",
+    "/logout", "/signout", "/session", "/sso", "/saml",
+    "/manage/", "/settings/", "/preferences/",
+)
+
+_SKIP_DOMAINS = {
+    "login.live.com", "login.microsoftonline.com", "accounts.google.com",
+    "login.paylocity.com", "login.one.com", "login.siteground.com",
+    "login.teamviewer.com", "auth.tiaa.org", "appleid.apple.com",
+    "account.xbox.com", "account.proton.me", "secure.paycor.com",
+}
+
+
+def _should_skip_for_ai(url: str) -> bool:
+    """Skip URLs that are login pages, account portals, or auth flows."""
+    lower = url.lower()
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(lower).hostname or ""
+        if host in _SKIP_DOMAINS:
+            return True
+    except Exception:
+        pass
+    return any(p in lower for p in _SKIP_URL_PATTERNS)
+
+
 class AiEnrichmentMixin:
     """AI tag suggestion and description-generation workflows with live feeds."""
 
@@ -120,6 +148,25 @@ class AiEnrichmentMixin:
             feed_frame.canvas.update_idletasks()
             feed_frame.canvas.yview_moveto(1.0)
 
+        def _clean_tags(tags, domain):
+            """Post-process AI tags: remove domain names and generic words."""
+            domain_parts = set()
+            if domain:
+                domain_parts = {p.lower() for p in domain.replace(".", " ").replace("-", " ").split() if len(p) > 2}
+                domain_parts.add(domain.split(".")[0].lower())
+            BAD_TAGS = {"blog", "website", "page", "online", "web", "app", "site",
+                        "home", "index", "default", "main", "login", "account",
+                        "www", "com", "org", "net", "http", "https"}
+            cleaned = []
+            for tag in tags:
+                t = tag.lower().strip()
+                if not t or len(t) < 2:
+                    continue
+                if t in BAD_TAGS or t in domain_parts:
+                    continue
+                cleaned.append(t)
+            return cleaned
+
         def _worker():
             client = create_failover_client(self.ai_config)
             categories = self.category_manager.get_sorted_categories()
@@ -130,6 +177,7 @@ class AiEnrichmentMixin:
 
             processed = 0
             tagged = 0
+            skipped_urls = 0
 
             for start in range(0, len(bookmarks), batch_size):
                 if cancelled[0]:
@@ -137,7 +185,30 @@ class AiEnrichmentMixin:
 
                 end = min(start + batch_size, len(bookmarks))
                 batch = bookmarks[start:end]
-                bm_data = [{"url": bm.url, "title": bm.title} for bm in batch]
+
+                # Filter out login/account pages
+                real_batch = []
+                skip_batch = []
+                for bm in batch:
+                    if _should_skip_for_ai(bm.url):
+                        skip_batch.append(bm)
+                    else:
+                        real_batch.append(bm)
+
+                # Show skipped entries
+                for bm in skip_batch:
+                    skipped_urls += 1
+                    processed += 1
+                    self.root.after(0, lambda b=bm: _add_entry(b, False, ["(skipped — login/auth page)"]))
+                    self.root.after(0, lambda p=processed: [
+                        stats_label.configure(text=f"{p} / {len(bookmarks)}"),
+                        bar_fill.place(relwidth=p / len(bookmarks)),
+                    ])
+
+                if not real_batch:
+                    continue
+
+                bm_data = [{"url": bm.url, "title": bm.title} for bm in real_batch]
 
                 self.root.after(0, lambda s=start, e=end: status_label.configure(
                     text=f"Processing {s+1}–{e} of {len(bookmarks)}…"))
@@ -148,18 +219,18 @@ class AiEnrichmentMixin:
                     result_map = {r.get("url", ""): r for r in results}
                 except Exception as exc:
                     log.warning(f"AI tag batch failed: {exc}")
-                    for bm in batch:
+                    for bm in real_batch:
                         processed += 1
                         self.root.after(0, lambda b=bm: _add_entry(b, False, []))
                     continue
 
-                for bm in batch:
+                for bm in real_batch:
                     if cancelled[0]:
                         break
 
                     result = result_map.get(bm.url, {})
-                    ai_tags = result.get("tags", [])
-                    ai_tags_clean = [t.lower().strip() for t in ai_tags if t and t.strip()]
+                    ai_tags_raw = result.get("tags", [])
+                    ai_tags_clean = _clean_tags(ai_tags_raw, bm.domain)
 
                     if ai_tags_clean:
                         old_tags = list(bm.tags)
@@ -208,10 +279,10 @@ class AiEnrichmentMixin:
                 bar_fill.place(relwidth=1.0)
                 cancel_btn.pack_forget()
                 done_btn.pack(side=tk.RIGHT)
-                status_label.configure(
-                    text=f"Done — {tagged} bookmarks tagged out of {processed}",
-                    fg=theme.text_primary,
-                )
+                summary = f"Done — {tagged} tagged, {processed - tagged - skipped_urls} unchanged"
+                if skipped_urls:
+                    summary += f", {skipped_urls} login/auth pages skipped"
+                status_label.configure(text=summary, fg=theme.text_primary)
                 self._refresh_all()
 
             self.root.after(0, _finish)
