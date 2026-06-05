@@ -106,6 +106,8 @@ class EncryptedStore:
 
     def decrypt_file(self, src: Path, dst: Optional[Path] = None) -> Path:
         dst = dst or src.with_suffix("")
+        if dst.resolve() == src.resolve():
+            raise ValueError("Destination must differ from source")
         data = src.read_bytes()
         dst.write_bytes(self.decrypt(data))
         return dst

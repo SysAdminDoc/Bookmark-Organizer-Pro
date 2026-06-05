@@ -162,11 +162,19 @@ class DeadLinkScanner:
         merged = {r.bookmark_id: r for r in existing}
         for r in records:
             merged[r.bookmark_id] = r
+        import tempfile, os
         try:
-            self.results_file.write_text(
-                json.dumps([r.to_dict() for r in merged.values()], indent=2),
-                encoding="utf-8",
+            fd, tmp = tempfile.mkstemp(
+                dir=self.results_file.parent, suffix=".tmp", text=True,
             )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump([r.to_dict() for r in merged.values()], f, indent=2)
+                os.replace(tmp, self.results_file)
+            except Exception:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+                raise
         except OSError as exc:
             log.warning(f"Could not persist dead-link records: {exc}")
 

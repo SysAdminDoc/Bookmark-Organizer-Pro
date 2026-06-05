@@ -86,14 +86,8 @@ class AIBatchProcessor:
     
     def _worker(self):
         """Worker thread for processing bookmarks"""
-        try:
-            batch_size = max(1, min(50, int(self.ai_config.settings.get("batch_size", 5))))
-        except (TypeError, ValueError):
-            batch_size = 5
-        try:
-            rate_limit_delay = max(0.0, float(self.ai_config.settings.get("rate_limit_delay", 1.0)))
-        except (TypeError, ValueError):
-            rate_limit_delay = 1.0
+        batch_size = self.ai_config.get_batch_size()
+        rate_limit_delay = max(0.1, 60.0 / max(1, self.ai_config.get_rate_limit()))
         
         with self._lock:
             total = len(self._queue)
@@ -180,25 +174,28 @@ Respond in JSON format:
 {{"category": "...", "tags": ["...", "..."], "summary": "...", "confidence": 0.0-1.0}}"""
         
         try:
-            response = self._client.categorize_bookmark(
-                bookmark.url, bookmark.title, []
-            )
-            
-            if response:
-                category = str(response.get("category") or bookmark.category).strip()
-                result["category"] = category or bookmark.category
-                result["confidence"] = max(0.0, min(1.0, safe_float(response.get("confidence", 0.5), 0.5)))
-                tags = response.get("tags", [])
-                if isinstance(tags, str):
-                    tags = tags.split(",")
-                result["tags"] = [
-                    str(tag).strip()
-                    for tag in (tags or [])
-                    if str(tag).strip()
-                ][:10]
-                result["summary"] = str(response.get("summary") or "")[:1000]
-        except Exception:
-            pass
+            response_text = self._client.complete(prompt, system="You are a bookmark analysis assistant. Respond only with valid JSON.", max_tokens=400, temperature=0.3)
+
+            if response_text:
+                import re as _re
+                json_match = _re.search(r'\{[\s\S]*\}', response_text)
+                if json_match:
+                    import json as _json
+                    parsed = _json.loads(json_match.group())
+                    category = str(parsed.get("category") or bookmark.category).strip()
+                    result["category"] = category or bookmark.category
+                    result["confidence"] = max(0.0, min(1.0, safe_float(parsed.get("confidence", 0.5), 0.5)))
+                    tags = parsed.get("tags", [])
+                    if isinstance(tags, str):
+                        tags = tags.split(",")
+                    result["tags"] = [
+                        str(tag).strip()
+                        for tag in (tags or [])
+                        if str(tag).strip()
+                    ][:10]
+                    result["summary"] = str(parsed.get("summary") or "")[:1000]
+        except Exception as e:
+            log.warning(f"AI processing failed for {bookmark.url}: {e}")
         
         return result
     
@@ -253,15 +250,20 @@ Notes: {bookmark.notes[:200] if bookmark.notes else 'None'}
 
 Return only a JSON array of tag strings: ["tag1", "tag2", ...]"""
             
-            # Use the client's categorize method but parse for tags
-            response = client.categorize_bookmark(bookmark.url, bookmark.title, [])
-            
-            if response and "tags" in response:
-                tags = response["tags"]
-                self._cache[cache_key] = tags
-                return tags
-        except Exception:
-            pass
+            response_text = client.complete(prompt, system="You are a tag suggestion assistant. Respond only with a JSON array of strings.", max_tokens=200, temperature=0.3)
+
+            if response_text:
+                import re as _re
+                arr_match = _re.search(r'\[[\s\S]*?\]', response_text)
+                if arr_match:
+                    import json as _json
+                    tags = _json.loads(arr_match.group())
+                    if isinstance(tags, list):
+                        cleaned = [str(t).strip().lower() for t in tags if str(t).strip()][:7]
+                        self._cache[cache_key] = cleaned
+                        return cleaned
+        except Exception as e:
+            log.warning(f"AI tag suggestion failed for {bookmark.url}: {e}")
         
         # Fallback: generate from content
         return self._generate_fallback_tags(bookmark)
@@ -439,28 +441,42 @@ class AICostTracker:
     
     COST_FILE = DATA_DIR / "ai_costs.json"
     
-    # Approximate costs per 1K tokens (as of 2024)
+    # Approximate costs per 1K tokens (as of mid-2026)
     COSTS = {
         "openai": {
-            "gpt-4": {"input": 0.03, "output": 0.06},
-            "gpt-4-turbo": {"input": 0.01, "output": 0.03},
+            "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
+            "gpt-4o": {"input": 0.0025, "output": 0.01},
+            "gpt-4.1": {"input": 0.002, "output": 0.008},
+            "gpt-4.1-mini": {"input": 0.0004, "output": 0.0016},
             "gpt-3.5-turbo": {"input": 0.0005, "output": 0.0015},
+            "default": {"input": 0.00015, "output": 0.0006},
         },
         "anthropic": {
-            "claude-3-opus": {"input": 0.015, "output": 0.075},
-            "claude-3-sonnet": {"input": 0.003, "output": 0.015},
-            "claude-3-haiku": {"input": 0.00025, "output": 0.00125},
+            "claude-sonnet-4-20250514": {"input": 0.003, "output": 0.015},
+            "claude-3-5-sonnet-20241022": {"input": 0.003, "output": 0.015},
+            "claude-3-5-haiku-20241022": {"input": 0.0008, "output": 0.004},
+            "claude-3-haiku-20240307": {"input": 0.00025, "output": 0.00125},
+            "default": {"input": 0.003, "output": 0.015},
         },
         "google": {
-            "gemini-pro": {"input": 0.00025, "output": 0.0005},
+            "gemini-2.0-flash": {"input": 0.0001, "output": 0.0004},
+            "gemini-2.0-flash-lite": {"input": 0.000075, "output": 0.0003},
+            "gemini-2.5-flash": {"input": 0.00015, "output": 0.0006},
+            "gemini-2.5-pro": {"input": 0.00125, "output": 0.01},
+            "gemini-1.5-flash": {"input": 0.000075, "output": 0.0003},
+            "default": {"input": 0.0001, "output": 0.0004},
         },
         "groq": {
-            "llama2-70b": {"input": 0.0007, "output": 0.0008},
-            "mixtral-8x7b": {"input": 0.00027, "output": 0.00027},
+            "llama-3.3-70b-versatile": {"input": 0.00059, "output": 0.00079},
+            "llama3-70b-8192": {"input": 0.00059, "output": 0.00079},
+            "llama3-8b-8192": {"input": 0.00005, "output": 0.00008},
+            "gemma2-9b-it": {"input": 0.0002, "output": 0.0002},
+            "mixtral-8x7b-32768": {"input": 0.00024, "output": 0.00024},
+            "default": {"input": 0.00059, "output": 0.00079},
         },
         "ollama": {
-            "default": {"input": 0, "output": 0},  # Local, no cost
-        }
+            "default": {"input": 0, "output": 0},
+        },
     }
     
     def __init__(self):

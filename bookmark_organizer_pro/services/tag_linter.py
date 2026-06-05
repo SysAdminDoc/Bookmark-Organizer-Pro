@@ -89,7 +89,6 @@ class TagLinter:
                     continue
                 slug = _slug(raw)
                 key = _depluralize(slug)
-                groups[key][raw].add if False else None  # noqa
                 groups[key][raw] = groups[key].get(raw, 0) + 1
                 tag_buckets[raw].add(bm.id)
 

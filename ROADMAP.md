@@ -1,128 +1,100 @@
 # Bookmark Organizer Pro — Roadmap
 
-Python/Tkinter bookmark manager with 4,224 categorization patterns, 5 AI providers, MCP server, local semantic search (lancedb + fastembed), hybrid RRF, single-file HTML snapshots, citation-aware AI summaries, RAG chat, encrypted DB, dead-link scanner. Post-v6.0.0.
+Single source of truth for all planned work. Consolidated from `ROADMAP.md` + `RESEARCH_FEATURE_PLAN_2026-06-05.md` on 2026-06-05.
+Completed items move to `COMPLETED.md` on each release.
 
-## Planned Features
+Python/Tkinter bookmark manager with 4,224 categorization patterns, 5 AI providers, MCP server, local semantic search (lancedb + fastembed), hybrid RRF, single-file HTML snapshots, citation-aware AI summaries, RAG chat, encrypted DB, dead-link scanner.
 
-### Core / Ingest
-- **Headless Chromium snapshot** via `playwright` when `monolith` / `single-file` both fail (heavy sites: Twitter/X, Substack gated content)
-- **Scheduled auto-snapshot** of selected bookmarks on a cadence (catch silent edits)
-- **Reading-progress** persistence per bookmark (scroll position + % read in the embedded viewer)
-- **Tags-on-save** inline prediction — show 3 suggestions as the user types
-- **Bulk tag replace** with preview + undo
+---
 
-### Semantic / RAG
-- **Re-rank step** after RRF using a lightweight cross-encoder (bge-reranker-base) — optional, gated on installed package
-- **Chunk-level provenance** in RAG answers (not just bookmark-level)
-- **Time-weighted recall** — down-weight old bookmarks unless explicitly requested
-- **Collections as retrieval scopes** — every chat can be pinned to a collection from the sidebar
-- **Answer caching** by (query_hash, scope_hash) to speed repeat questions
+## P0 — Must-fix (blocks core functionality)
 
-### MCP server
-- Add `create_flow` / `append_to_flow` tools so agents can curate research trails
-- Add `export_zip` / `list_snapshots` tools
-- Server-side auth token with per-tool scopes (some clients should be read-only)
-- Streaming responses for `chat_with_collection`
+- [x] **BOP-001** Fix AIBatchProcessor `.settings` / `categorize_bookmark` crashes — use `get_batch_size()`/`get_rate_limit()` + `client.complete()` | `services/ai_tools.py`
+- [x] **BOP-002** Fix chunk overlap infinite-loop — `start = end - overlap` + end-backward guard | `services/embeddings.py`
+- [x] **BOP-003** Type all 15 MCP tool schemas (proper JSON Schema per tool) | `mcp_server.py`
+- [x] **BOP-004** PyInstaller spec: add v6.0 hidden imports (all services/* + optional libs) | `packaging/bookmark_organizer.spec`
+- [x] **BOP-005** CI: add `gh release create` step before matrix upload | `.github/workflows/build.yml`
 
-### UI / UX
-- **Tree view alongside list view** for deeply nested categories
-- **Virtualized list** (current Tkinter `Treeview` chokes past ~10k rows)
-- **Graph view** — bookmarks as nodes, tags as edges, fruchterman-reingold layout
-- **Web client** — FastAPI + HTMX frontend reading the same SQLite/config
-- **Mobile PWA** companion (read-only + add-URL)
-- Replace some heavy Tk widgets with `sv-ttk` or migrate the whole shell to `CustomTkinter`
+## P1 — High impact (safety, UX, reliability)
 
-### Importers / Exporters
-- **Matter** export format
-- **Omnivore** export (already deprecated but users still have dumps)
-- **Zotero** `.rdf` import/export (bridge the academic side)
-- **Browser live sync** via a tiny companion extension (MV3) that pushes new bookmarks via localhost
-- **ATOM / JSON Feed** output per collection
+- [x] **BOP-011** Atomic writes for VectorStore and DeadLinkScanner | `services/vector_store.py`, `services/dead_link_scanner.py`
+- [x] **BOP-012** Log rotation (RotatingFileHandler 5MB/3 backups) + stderr fallback | `logging_config.py`
+- [x] **BOP-013** Update AICostTracker pricing to mid-2026 models | `services/ai_tools.py`
+- [x] **BOP-017** Use defusedxml for RSS feed parsing (XML bomb protection) | `services/rss_feeds.py`
+- [x] **BOP-018** Escape URL in snapshot banner (HTML injection) | `services/snapshot.py`
+- [ ] **BOP-006** Move AI network calls to background threads | `app_mixins/ai_enrichment.py`, `app_mixins/ai_titles.py`
+- [ ] **BOP-007** Move link checking to background thread | `app_mixins/tools.py`
+- [ ] **BOP-008** Per-domain rate limiting for LinkChecker (2 concurrent, 1s delay) | `link_checker.py`
+- [ ] **BOP-009** Fix `batch_refresh_metadata` thread safety | `managers/bookmarks.py`
+- [ ] **BOP-010** Fix dead-link scanner thread safety | `services/dead_link_scanner.py`, `link_checker.py`
+- [ ] **BOP-014** Use `client.complete()` in AI enrichment/titles instead of provider switch | `app_mixins/ai_enrichment.py`, `app_mixins/ai_titles.py`
+- [ ] **BOP-015** API server auth token + CORS deny | `services/api.py`
+- [ ] **BOP-016** Separate analytics refresh from bookmark list refresh in polling | `app_mixins/lifecycle.py`, `app_mixins/dashboard.py`
+- [ ] **BOP-019** List virtualization (tksheet or canvas-based) | `app_mixins/bookmarks.py`
+- [ ] **BOP-020** Add pyproject.toml `[project]` table with metadata, deps, entry points | `pyproject.toml`
 
-### Safety / Ops
-- SSRF allow-list regex (beyond the current private-IP block)
-- Auto-rotate encrypted-DB passphrase with audit log
-- Per-backup integrity hash + optional S3/B2 off-site upload
-- Telemetry-free mode banner on first run
+## P2 — Medium impact (competitive parity, quality of life)
+
+- [ ] **BOP-021** Browser extension (MV3) with one-click save + offline tag suggestions
+- [ ] **BOP-022** Web client (FastAPI + HTMX) with PWA
+- [ ] **BOP-023** Smart Collections with auto-matching rules (net-new)
+- [ ] **BOP-024** Duplicate-at-save-time detection (net-new)
+- [ ] **BOP-025** Headless Chromium snapshot fallback via playwright
+- [ ] **BOP-026** Cross-encoder re-rank after RRF
+- [ ] **BOP-027** Reader view with highlight and annotation (net-new)
+- [ ] **BOP-028** EPUB export of collections
+- [ ] **BOP-029** YouTube transcript capture and indexing via yt-dlp
+- [ ] **BOP-030** Sanitize user data in LLM prompts | `ai.py`, `citation_summarizer.py`, `rag_chat.py`, `nl_query.py`
+- [ ] **BOP-031** Fix URL normalization HTTP->HTTPS upgrade | `utils/url.py`
+- [ ] **BOP-032** Pre-restore backup in StorageManager *(done)*
+- [ ] **BOP-033** Thread safety for TagManager | `managers/tags.py`
+- [ ] **BOP-034** Fix `save_bookmarks` lock race | `managers/bookmarks.py`
+- [ ] **BOP-035** Deduplicate cross-category patterns | `core/default_categories.py`
+- [ ] **BOP-036** Fix overly broad plain patterns | `core/default_categories.py`, `core/pattern_engine.py`
+- [ ] **BOP-037** Intra-file dedup in importers | `importers.py`, `importers_extra.py`
+- [ ] **BOP-038** Fix GridView scroll stealing | `ui/widget_grid.py`, `ui/components.py`
+- [ ] **BOP-039** Fix command palette FocusOut | `ui/shell_widgets.py`
+- [ ] **BOP-040** Undo for bulk category moves and duplicate removal
+
+## P3 — Nice-to-have (polish, future positioning)
+
+- [ ] **BOP-041** Obsidian vault sync via MCP export tool
+- [ ] **BOP-042** Nuitka compilation for distribution
+- [ ] **BOP-043** tufup auto-update framework
+- [ ] **BOP-044** sv-ttk theme migration
+- [ ] **BOP-045** Behavioral triage: inbox with aging indicators
+- [ ] **BOP-046** Graph view of bookmarks
+- [ ] **BOP-047** ATOM/JSON Feed output per collection
+- [ ] **BOP-048** Matter/Omnivore/Zotero importers
+- [ ] **BOP-049** MCP auth token with per-tool scopes
+- [ ] **BOP-050** MCP streaming for `chat_with_collection`
+- [ ] **BOP-051** Remove ~1,300 lines dead code (GridView, unused widgets, broken tray)
+- [ ] **BOP-052** Fix copy-pasted model docstrings on widget classes
+- [ ] **BOP-053** Move constants.py directory creation to `ensure_directories()`
+- [ ] **BOP-054** Validate RAG citation IDs, strip hallucinated tokens
+- [ ] **BOP-055** Extract health score to single shared utility
+- [ ] **BOP-056** Use keyring/DPAPI for API key storage on Windows
+- [ ] **BOP-057** Add Ollama URL SSRF check (restrict to localhost)
+- [ ] **BOP-058** Remove `ensure_package` runtime pip install
+- [ ] **BOP-059** Make thum.io screenshot API opt-in with disclosure
+- [ ] **BOP-060** Keyboard accessibility for treeview
+
+## Quick Wins (done this pass)
+
+- [x] Chunk overlap bug (`embeddings.py:182`)
+- [x] Tag linter no-op line (`tag_linter.py:92`)
+- [x] Dead `_extract_text` conditional (`web_tools.py:444`)
+- [x] Snapshot URL escaping (`snapshot.py:182`)
+- [x] Log rotation + stderr fallback (`logging_config.py`)
+- [x] `remove_tag` case sensitivity (`models/bookmark.py`)
+- [x] `get_stale_bookmarks` ignores `days` param (`managers/bookmarks.py`)
+- [x] Search empty query returns `[]` (`search.py`)
+- [x] Date filter bad timestamps → `return False` (`search.py`)
+- [x] Pre-restore backup (`storage_manager.py`)
+- [x] `decrypt_file` dst validation (`encryption.py`)
+- [x] AICostTracker pricing update (`ai_tools.py`)
+- [x] defusedxml for RSS (`rss_feeds.py`)
 
 ## Competitive Research
-- **Linkwarden** ([linkwarden/linkwarden](https://github.com/linkwarden/linkwarden)) — self-hostable, PostgreSQL, screenshots + PDFs + HTML archives, highlights, Wayback integration, collaborative. Reference for team features; our advantage: no server needed, plus MCP + local vectors.
-- **Karakeep** ([karakeep-app/karakeep](https://github.com/karakeep-app/karakeep)) — Next.js + Meilisearch, AI auto-tagging. We already have AI tagging + vectors; match the UI polish.
-- **Raindrop.io** — cloud, not self-hostable. Reference UX bar. Our edge: fully local, encryptable DB.
-- **Readeck** — read-it-later with highlights, video transcripts, e-book export. Worth porting: e-book export + video transcript retrieval.
-- **Shaarli** — minimalist link share. Good inspiration for a future "share a collection as a public page" feature.
 
-## Nice-to-Haves
-- Browser-history import with dedup against existing bookmarks (one-off migration aid)
-- YouTube-video metadata + transcript capture via `yt-dlp` (no download, metadata only)
-- EPUB export of a collection for Kobo/Kindle sideload
-- Auto-highlight extraction — run local LLM on snapshot, persist N highlights per article
-- Public-share static export (single HTML file per collection) — no server required
-- Plugin API via `entry_points` so community can add importers without forking
-
-## Open-Source Research (Round 2)
-
-### Related OSS Projects
-- **Karakeep (formerly Hoarder)** — https://github.com/karakeep-app/karakeep — self-hostable "bookmark everything" (links, notes, images, PDFs, videos); AI auto-tagging via ChatGPT or Ollama; Meilisearch full-text; screenshots + full-page archive
-- **Linkwarden** — https://github.com/linkwarden/linkwarden — collaborative self-hosted manager; auto-capture screenshot/PDF/single-HTML; reader-view with highlight/annotate; Wayback integration; collections/sub-collections; local AI tagging
-- **Linkding** — https://github.com/sissbruecker/linkding — minimalist, fast, multi-user, browser extensions, REST API; great pattern for a "no-frills" mode
-- **Shiori** — https://github.com/go-shiori/shiori — Go-based Pocket-style bookmarking with offline archive
-- **Wallabag** — https://github.com/wallabag/wallabag — PHP, read-it-later focus, mature browser extensions and mobile apps
-- **ArchiveBox** — https://github.com/ArchiveBox/ArchiveBox — aggressive archiver; Singlefile/WARC/Wayback/DOM/screenshot multi-format snapshots
-- **Readeck** — https://github.com/readeck/readeck — Go, modern read-it-later with clean UI and selfhost focus
-- **Omnivore** — https://github.com/omnivore-app/omnivore — polished read-it-later with Obsidian/Logseq integration
-- **Briefkasten** — https://github.com/ndom91/briefkasten — minimal React/Next bookmark app
-- **LinkAce** — https://github.com/Kovah/LinkAce — PHP, share-collections, multi-user
-
-### Features to Borrow
-- Full-page single-HTML snapshot via monolith + WARC dual-archive for redundancy (Linkwarden + ArchiveBox)
-- Highlight + annotate on the reader view with per-annotation export to markdown (Linkwarden)
-- "Collections / sub-collections" hierarchy plus tags — hybrid of tree + facet (Linkwarden, Karakeep)
-- AI tagging with local Ollama as default; OpenAI/Anthropic only if user supplies a key (Karakeep — very privacy-forward)
-- Wayback Machine fallback resolver: if archive failed, re-query Wayback for the URL (Linkwarden)
-- Browser extension with one-click save, tag picker, and instant archive queue (every major player)
-- Multi-user with per-user spaces, shared collections, read/write/owner roles (Linkwarden)
-- Mobile PWA with "Share to BOP" intent target (Readeck, Linkwarden)
-- Meilisearch/Tantivy-backed full-text search over the archive body, not just title/URL (Karakeep)
-- REST + GraphQL API for user-built integrations (Linkding REST, Karakeep GraphQL)
-- Import from Pocket/Pinboard/Instapaper/Raindrop/Diigo/Netscape bookmarks.html (all major players support these)
-- "Digest" email/RSS: daily/weekly roll-up of newly-saved items with OG preview (community pattern)
-
-### Patterns & Architectures Worth Studying
-- Archiver-as-separate-service: saving a URL enqueues jobs for screenshot/PDF/HTML/WARC fetchers independently, each retryable (Linkwarden, ArchiveBox)
-- Meilisearch sidecar with BM25-style scoring; app writes docs, Meilisearch owns the index (Karakeep)
-- Ollama-vs-hosted-LLM abstraction: a Tagger interface with local/remote implementations, user picks at runtime (Karakeep)
-- Container-first deployment with docker-compose covering DB + Meili + worker + app + browser (all playwright-archiver based) (Karakeep, Linkwarden)
-- Plain-format export (SQLite dump + raw archive files + JSON of metadata) so migration to another tool is trivial (Linkding and others — "you're never locked in")
-
-## Implementation Deep Dive (Round 3)
-
-### Reference Implementations to Study
-- **lancedb/lancedb `python/python/lancedb/table.py`** — https://github.com/lancedb/lancedb/blob/main/python/python/lancedb/table.py — canonical embedded table API; `table.search(query).limit(k).to_list()` is the full hybrid-search signature.
-- **lancedb/lancedb hybrid search example** — https://lancedb.github.io/lancedb/notebooks/multi_lingual_example/ — `LinearCombinationReranker(weight=0.7)` for BM25+vector fusion; direct copy for bookmark hybrid search.
-- **qdrant/fastembed** — https://github.com/qdrant/fastembed — `TextEmbedding(model_name="BAAI/bge-small-en-v1.5")` — 384-dim ONNX, no PyTorch dep, 30MB model. Reference for `.embed(iterator)` streaming.
-- **sbalaraddi/lancedb-learning `02_vector_search.py`** — https://github.com/sbalaraddi/lancedb-learning — minimal CRUD + vector search walkthrough.
-- **Y2Z/monolith** — https://github.com/Y2Z/monolith — single-file HTML snapshot (CSS/JS/images inlined); shell out with `--no-js-errors --silent -o <file>.html <url>`.
-- **sqlite-utils `sqlite-utils enable-fts`** — https://sqlite-utils.datasette.io/en/stable/cli.html#full-text-search — hybrid BM25 + LanceDB vector; use FTS5 for exact-match fallback.
-- **Modelcontextprotocol/servers `src/sqlite`** — https://github.com/modelcontextprotocol/servers/tree/main/src/sqlite — reference MCP server pattern for exposing the bookmark DB to Claude/Cursor.
-- **BurntSushi/ripgrep `crates/core/app.rs`** — https://github.com/BurntSushi/ripgrep — reference for NL→structured-query parsing (tags, date ranges) with fast fallback.
-
-### Known Pitfalls from Similar Projects
-- LanceDB `connect()` creates a directory, not a file — `~/.bookmark-org/lance.db/` expands into N GB with WAL; document backup semantics.
-- fastembed on first run downloads ONNX from HuggingFace — fails behind corporate proxies without `HF_ENDPOINT=https://hf-mirror.com` or pre-bundled model files.
-- LinearCombinationReranker weight=0.7 favors vector — bookmarks with exact-URL queries rank worse; bias to 0.3 for URL/title-dominant corpora or switch per query type.
-- `pynetdicom` not relevant here; skip.
-- monolith with JS-heavy SPAs (React/Next) captures empty shell — shell out to `playwright` headless first, save rendered HTML, then monolith the static result.
-- AES-256-GCM nonce reuse on encrypted DB is catastrophic — use `os.urandom(12)` per-write, store nonce alongside ciphertext; do NOT use a KDF-derived static nonce.
-- lancedb Python wheel on Windows requires VC++ 2022 redist; bundle `vcruntime140.dll` or document prereq.
-- FTS5 MATCH + LanceDB vector results have different ID types — normalize to `int64` rowid in join layer or RRF breaks.
-
-### Library Integration Checklist
-- `lancedb==0.16.0` — https://github.com/lancedb/lancedb — key API: `db = lancedb.connect('./db'); tbl = db.create_table('bookmarks', schema=...)`. Gotcha: schema uses pyarrow types; `pa.list_(pa.float32(), 384)` for 384-dim vectors.
-- `fastembed==0.5.1` — https://github.com/qdrant/fastembed — `TextEmbedding('BAAI/bge-small-en-v1.5')`. Gotcha: caches model to `~/.cache/fastembed/`; ship offline with `cache_dir=` pointing to bundled path.
-- `pyarrow==18.1.0` — LanceDB dependency; pin or lancedb silently downgrades on `pip install -U`.
-- `cryptography==44.0.0` — `AESGCM.encrypt(nonce, plaintext, aad)` for AES-256-GCM. Gotcha: `nonce` MUST be 12 bytes and never reused per-key.
-- `monolith` (Rust binary) — https://github.com/Y2Z/monolith — ship via `cargo install monolith` in Dockerfile or vendor compiled binary per-platform.
-- `playwright==1.49.1` — for JS-rendered snapshot pre-processing. Gotcha: `playwright install chromium` is 180MB; document or bundle.
-- `mcp==1.1.2` — official MCP SDK — https://github.com/modelcontextprotocol/python-sdk — `@server.tool()` decorator for bookmark query tools.
-- `feedparser==6.0.11` — RSS ingestor; gotcha: Atom 1.0 `<link rel="alternate">` vs RSS `<link>` — feedparser normalizes to `entry.link`, trust it.
+See `RESEARCH_FEATURE_PLAN_2026-06-05.md` for the full competitive analysis (Linkwarden, Karakeep, Raindrop, Readeck, ArchiveBox, etc.), feature inventory, architecture audit, and detailed implementation notes.
