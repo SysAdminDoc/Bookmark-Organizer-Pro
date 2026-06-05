@@ -88,7 +88,9 @@ class TestSearch(MCPToolTestBase):
 
 class TestAddBookmark(MCPToolTestBase):
     def test_add_new(self):
-        result = self.ms.t_add_bookmark(url="https://new-bm.example.com", title="New BM")
+        import uuid
+        unique_url = f"https://new-bm-{uuid.uuid4().hex[:8]}.example.com"
+        result = self.ms.t_add_bookmark(url=unique_url, title="New BM")
         self.assertIsNotNone(result)
         self.assertFalse(result.get("already_exists", False))
 
