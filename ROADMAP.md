@@ -68,8 +68,8 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 |---|------|------|--------|--------|
 | ✅ R-05 | **FastMCP migration** — auto-schema from type hints with FastMCP when available, raw mcp SDK fallback. 19 tools registered in both paths. | Now | M | [S-14][S-15] |
 | ✅ R-06 | **MCP tools: `create_flow`, `append_to_flow`, `export_zip`, `list_snapshots`** — 4 new typed tools added (19 total). | Now | M | [S-14] |
-| 🔲 R-07 | **Cross-encoder re-rank** after RRF — optional `bge-reranker-base` step for ambiguous queries. Gated on installed package. | Next | M | [S-16][S-17] |
-| 🔲 R-08 | **Chunk-level provenance in RAG** — cite specific chunk offsets, not just bookmark ID. UI deep-links to the supporting span. | Next | M | [S-1] |
+| ✅ R-07 | **Cross-encoder re-rank** — optional `_try_rerank()` using ms-marco-MiniLM after RRF fusion. `rerank=True` param. | Next | M | [S-16][S-17] |
+| ✅ R-08 | **Chunk-level provenance** — `ChatTurn.chunk_provenance` list with `citation_id`, `bookmark_id`, `char_start`, `char_end`, `text_preview`. | Next | M | [S-1] |
 | ✅ R-09 | **Time-weighted recall** — exponential decay factor with configurable half-life in hybrid search. `time_weight` param (0-1). | Next | S | [S-1] |
 | ✅ R-10 | **Collections as retrieval scopes** — `restrict_tag` and `restrict_category` params on MCP `chat_with_collection` + FastMCP path. | Next | M | [S-1][S-10] |
 | ✅ R-11 | **Answer caching** — LRU cache (128 entries) keyed on `(query_hash, scope_hash)`. Skips multi-turn. `clear_cache()` + `cache_stats`. | Later | S | [S-1] |
@@ -145,7 +145,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 | ✅ R-36 | **ReDoS timeout on pattern engine regex** — `signal.alarm` guard on Unix, catch-all on Windows. | Now | S | [S-1] |
 | ✅ R-36b | **Upgrade Pillow to ≥12.2.0** — CVE-2026-25990, CVE-2026-40192, CVE-2026-42308 fixed. | Now | S | [S-51] |
 | ✅ R-37 | **SSRF allow-list** — `URLUtilities.set_ssrf_allow_list(patterns)` adds regex whitelist for trusted internal domains. | Next | M | [S-1] |
-| 🔲 R-38 | **Auto-rotate encrypted-DB passphrase** — with audit log entry. | Later | M | [S-1] |
+| ✅ R-38 | **Passphrase rotation** — `EncryptedStore.rotate_passphrase(path, old, new)` with audit log entry. | Later | M | [S-1] |
 | ✅ R-39 | **Telemetry-free mode banner** — first-run privacy notice in launcher. | Now | S | [S-1] |
 
 ---
