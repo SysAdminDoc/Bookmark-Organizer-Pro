@@ -10,6 +10,7 @@ from bookmark_organizer_pro.constants import APP_VERSION
 from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, format_compact_count, pluralize, truncate_middle
 from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable
 from bookmark_organizer_pro.ui.view_models import build_collection_summary
+from bookmark_organizer_pro.ui.components import EnhancedProgressBar, FaviconStatusDisplay
 from bookmark_organizer_pro.ui.widgets import ModernButton, Tooltip, get_theme
 
 
