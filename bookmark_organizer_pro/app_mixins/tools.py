@@ -291,64 +291,58 @@ class ToolsActionsMixin:
         broken_count = [0]  # Use list to allow modification in closure
         checked_count = [0]
         
-        def check_links_batch():
-            batch_size = 5
-            start_idx = checked_count[0]
-            end_idx = min(start_idx + batch_size, len(bookmarks))
-            
-            for i in range(start_idx, end_idx):
-                if self._link_check_cancelled:
-                    break
-                
-                bm = bookmarks[i]
-                try:
-                    if not URLUtilities._is_safe_url(bm.url):
-                        bm.http_status = 0
-                        bm.is_valid = False
-                    else:
-                        response = requests.head(
-                            bm.url,
-                            timeout=5,
-                            allow_redirects=False,
-                            headers={'User-Agent': 'Mozilla/5.0'}
-                        )
-                        bm.http_status = response.status_code
-                        bm.is_valid = response.status_code < 400
-                except Exception:
-                    bm.http_status = 0
-                    bm.is_valid = False
-                
-                if not bm.is_valid:
-                    broken_count[0] += 1
-                
+        import threading
+
+        def _check_one(bm):
+            status = 0
+            valid = False
+            try:
+                if URLUtilities._is_safe_url(bm.url):
+                    response = requests.head(bm.url, timeout=5, allow_redirects=False, headers={'User-Agent': 'BookmarkOrganizerPro/6.0 LinkChecker'})
+                    status = response.status_code
+                    valid = response.status_code < 400
+            except Exception:
+                pass
+            return bm.id, status, valid
+
+        def _worker():
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            with ThreadPoolExecutor(max_workers=5) as pool:
+                futures = {pool.submit(_check_one, bm): bm for bm in bookmarks}
+                for future in as_completed(futures):
+                    if self._link_check_cancelled:
+                        pool.shutdown(wait=False, cancel_futures=True)
+                        break
+                    bm_id, http_status, is_valid = future.result()
+                    self.root.after(0, lambda bid=bm_id, hs=http_status, iv=is_valid: _apply_result(bid, hs, iv))
+
+            self.root.after(0, _finish)
+
+        def _apply_result(bm_id, http_status, is_valid):
+            bm = self.bookmark_manager.get_bookmark(bm_id)
+            if bm:
+                bm.http_status = http_status
+                bm.is_valid = is_valid
                 bm.last_checked = datetime.now().isoformat()
+                if not is_valid:
+                    broken_count[0] += 1
                 checked_count[0] += 1
-            
-            # Update progress
-            progress = checked_count[0] / len(bookmarks)
-            progress_fill.place(relwidth=progress)
-            progress_label.configure(text=f"Checked {checked_count[0]}/{len(bookmarks)} - {broken_count[0]} broken")
-            
-            # Save periodically and refresh filter counts
-            if checked_count[0] % 20 == 0:
-                self.bookmark_manager.save_bookmarks()
-                self._refresh_analytics()
-            
-            # Continue or finish
-            if checked_count[0] < len(bookmarks) and not self._link_check_cancelled:
-                self.root.after(10, check_links_batch)
-            else:
-                # Complete
-                self.bookmark_manager.save_bookmarks()
-                progress_frame.destroy()
-                status = "Cancelled" if self._link_check_cancelled else "Complete"
-                self._set_status(f"{status}: Found {broken_count[0]} broken links")
-                self._refresh_all()
-                if not self._link_check_cancelled:
-                    self._show_toast(f"Checked {checked_count[0]} links, found {broken_count[0]} broken", "success" if broken_count[0] == 0 else "warning")
-        
-        # Start checking
-        self.root.after(100, check_links_batch)
+                progress = checked_count[0] / len(bookmarks)
+                progress_fill.place(relwidth=progress)
+                progress_label.configure(text=f"Checked {checked_count[0]}/{len(bookmarks)} - {broken_count[0]} broken")
+                if checked_count[0] % 20 == 0:
+                    self.bookmark_manager.save_bookmarks()
+
+        def _finish():
+            self.bookmark_manager.save_bookmarks()
+            progress_frame.destroy()
+            status = "Cancelled" if self._link_check_cancelled else "Complete"
+            self._set_status(f"{status}: Found {broken_count[0]} broken links")
+            self._refresh_all()
+            if not self._link_check_cancelled:
+                self._show_toast(f"Checked {checked_count[0]} links, found {broken_count[0]} broken", "success" if broken_count[0] == 0 else "warning")
+
+        threading.Thread(target=_worker, daemon=True).start()
 
     def _find_duplicates(self):
         """Find duplicates"""

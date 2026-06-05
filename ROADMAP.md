@@ -22,16 +22,16 @@ Python/Tkinter bookmark manager with 4,224 categorization patterns, 5 AI provide
 - [x] **BOP-013** Update AICostTracker pricing to mid-2026 models | `services/ai_tools.py`
 - [x] **BOP-017** Use defusedxml for RSS feed parsing (XML bomb protection) | `services/rss_feeds.py`
 - [x] **BOP-018** Escape URL in snapshot banner (HTML injection) | `services/snapshot.py`
-- [ ] **BOP-006** Move AI network calls to background threads | `app_mixins/ai_enrichment.py`, `app_mixins/ai_titles.py`
-- [ ] **BOP-007** Move link checking to background thread | `app_mixins/tools.py`
+- [x] **BOP-006** Move AI network calls to background threads | `app_mixins/ai_enrichment.py`, `app_mixins/ai_titles.py`
+- [x] **BOP-007** Move link checking to background thread | `app_mixins/tools.py`
+- [x] **BOP-014** Use `client.complete()` in AI enrichment/titles instead of provider switch | `app_mixins/ai_enrichment.py`, `app_mixins/ai_titles.py`
+- [x] **BOP-020** Add pyproject.toml `[project]` table with metadata, deps, entry points | `pyproject.toml`
 - [ ] **BOP-008** Per-domain rate limiting for LinkChecker (2 concurrent, 1s delay) | `link_checker.py`
 - [ ] **BOP-009** Fix `batch_refresh_metadata` thread safety | `managers/bookmarks.py`
 - [ ] **BOP-010** Fix dead-link scanner thread safety | `services/dead_link_scanner.py`, `link_checker.py`
-- [ ] **BOP-014** Use `client.complete()` in AI enrichment/titles instead of provider switch | `app_mixins/ai_enrichment.py`, `app_mixins/ai_titles.py`
 - [ ] **BOP-015** API server auth token + CORS deny | `services/api.py`
 - [ ] **BOP-016** Separate analytics refresh from bookmark list refresh in polling | `app_mixins/lifecycle.py`, `app_mixins/dashboard.py`
 - [ ] **BOP-019** List virtualization (tksheet or canvas-based) | `app_mixins/bookmarks.py`
-- [ ] **BOP-020** Add pyproject.toml `[project]` table with metadata, deps, entry points | `pyproject.toml`
 
 ## P2 — Medium impact (competitive parity, quality of life)
 

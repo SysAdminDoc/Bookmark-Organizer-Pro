@@ -44,24 +44,19 @@ class AiTitleImprovementMixin:
                 return
         
         self._set_status("Improving bookmark titles with AI…")
-        self.root.update()
-        
-        try:
-            client = self._get_ai_client()
-            if not client:
-                self._show_ai_client_error("AI title improvements")
-                return
-            
-            # Build prompt for title improvement
-            bm_list = []
-            for bm in bookmarks[:30]:  # Limit to 30
-                bm_list.append({
-                    "url": bm.url,
-                    "current_title": bm.title,
-                    "domain": bm.domain
-                })
-            
-            prompt = f"""Analyze these bookmarks and suggest better, more descriptive titles. 
+
+        import threading
+
+        client = self._get_ai_client()
+        if not client:
+            self._show_ai_client_error("AI title improvements")
+            return
+
+        bm_list = []
+        for bm in bookmarks[:30]:
+            bm_list.append({"url": bm.url, "current_title": bm.title, "domain": bm.domain})
+
+        prompt = f"""Analyze these bookmarks and suggest better, more descriptive titles.
 The new titles should be:
 - Clear and descriptive (explain what the page is about)
 - Concise (under 60 characters ideally)
@@ -75,74 +70,30 @@ Bookmarks:
 
 Respond with ONLY valid JSON in this exact format:
 {{"titles": [{{"url": "https://example.com", "new_title": "Improved Title Here"}}]}}"""
-            
-            # Use the client directly for custom prompt
-            provider = self.ai_config.get_provider()
-            
-            if provider == "openai":
-                response = client.client.chat.completions.create(
-                    model=client.model,
-                    messages=[
-                        {"role": "system", "content": "You improve bookmark titles to be more descriptive and useful. Respond only with valid JSON."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.3,
-                    response_format={"type": "json_object"}
-                )
-                text = (response.choices[0].message.content if response.choices else '')
-            elif provider == "anthropic":
-                response = client.client.messages.create(
-                    model=client.model,
-                    max_tokens=4096,
-                    messages=[{"role": "user", "content": prompt}]
-                )
-                text = (response.content[0].text if response.content else '')
-            elif provider == "google":
-                response = client.client.generate_content(prompt)
-                text = response.text
-            elif provider == "groq":
-                response = client.client.chat.completions.create(
-                    model=client.model,
-                    messages=[
-                        {"role": "system", "content": "You improve bookmark titles. Respond only with valid JSON."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.3,
-                    response_format={"type": "json_object"}
-                )
-                text = (response.choices[0].message.content if response.choices else '')
-            else:  # ollama
-                response = requests.post(
-                    f"{client.base_url}/api/generate",
-                    json={"model": client.model, "prompt": prompt, "stream": False},
-                    timeout=120
-                )
-                text = response.json()["response"]
-            
-            # Parse response
+
+        def _worker():
+            try:
+                text = client.complete(prompt, system="You improve bookmark titles to be more descriptive and useful. Respond only with valid JSON.", max_tokens=2048, temperature=0.3)
+                self.root.after(0, lambda: _on_done(text, None))
+            except Exception as exc:
+                self.root.after(0, lambda: _on_done(None, exc))
+
+        def _on_done(text, error):
+            if error:
+                log.warning("AI title improvement failed", exc_info=True)
+                messagebox.showerror("Title Improvement Failed", f"AI title suggestions could not be completed.\n\n{str(error)[:240]}", parent=self.root)
+                self._set_status("Title improvement failed")
+                return
             json_text = self._extract_json_object_text(text)
             if json_text:
                 data = json.loads(json_text)
                 titles = data.get("titles", [])
-                
-                # Show preview dialog before applying
                 self._show_title_preview(bookmarks, titles)
             else:
-                messagebox.showerror(
-                    "AI Response Not Applied",
-                    "The AI response was not valid JSON, so no bookmark titles were changed.",
-                    parent=self.root
-                )
+                messagebox.showerror("AI Response Not Applied", "The AI response was not valid JSON, so no bookmark titles were changed.", parent=self.root)
                 self._set_status("Title suggestions could not be applied")
-                
-        except Exception as e:
-            log.warning("AI title improvement failed", exc_info=True)
-            messagebox.showerror(
-                "Title Improvement Failed",
-                f"AI title suggestions could not be completed.\n\n{str(e)[:240]}",
-                parent=self.root
-            )
-            self._set_status("Title improvement failed")
+
+        threading.Thread(target=_worker, daemon=True).start()
     
     def _show_title_preview(self, bookmarks: List[Bookmark], titles: List[Dict]):
         """Show preview of title changes before applying"""

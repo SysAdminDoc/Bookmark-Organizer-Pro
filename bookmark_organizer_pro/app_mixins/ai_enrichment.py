@@ -31,54 +31,45 @@ class AiEnrichmentMixin:
         if not bookmarks:
             return
         
-        # Show progress
         self._set_status("Generating AI tags…")
-        self.root.update()
-        
-        try:
-            client = self._get_ai_client()
-            if not client:
-                self._show_ai_client_error("AI tag suggestions")
+
+        import threading
+
+        client = self._get_ai_client()
+        if not client:
+            self._show_ai_client_error("AI tag suggestions")
+            return
+
+        bm_data = [{"url": bm.url, "title": bm.title} for bm in bookmarks]
+        categories = self.category_manager.get_sorted_categories()
+
+        def _worker():
+            try:
+                results = client.categorize_bookmarks(bm_data, categories, allow_new=False, suggest_tags=True)
+                self.root.after(0, lambda: _on_done(results, None))
+            except Exception as exc:
+                self.root.after(0, lambda: _on_done(None, exc))
+
+        def _on_done(results, error):
+            if error:
+                log.warning("AI tag suggestions failed", exc_info=True)
+                messagebox.showerror("Tag Suggestions Failed", f"AI tag suggestions could not be completed.\n\n{str(error)[:240]}", parent=self.root)
+                self._set_status("Tag generation failed")
                 return
-            
-            # Prepare data
-            bm_data = [{"url": bm.url, "title": bm.title} for bm in bookmarks]
-            categories = self.category_manager.get_sorted_categories()
-            
-            # Get suggestions (always with tags)
-            results = client.categorize_bookmarks(bm_data, categories, 
-                                                  allow_new=False, suggest_tags=True)
-            
-            # Apply tags
             result_map = {r["url"]: r for r in results}
             tagged = 0
-            
             for bm in bookmarks:
                 result = result_map.get(bm.url)
                 if result and result.get("tags"):
                     bm.ai_tags = [t.lower().strip() for t in result["tags"] if t]
                     bm.modified_at = datetime.now().isoformat()
                     tagged += 1
-            
             self.bookmark_manager.save_bookmarks()
             self._refresh_bookmark_list()
-            
-            messagebox.showinfo(
-                "Tags Generated",
-                f"Generated AI tags for {tagged} bookmark(s).\n\n"
-                "AI tags stay separate from your manual tags until you choose to merge them.",
-                parent=self.root
-            )
+            messagebox.showinfo("Tags Generated", f"Generated AI tags for {tagged} bookmark(s).\n\nAI tags stay separate from your manual tags until you choose to merge them.", parent=self.root)
             self._set_status(f"Generated tags for {tagged} bookmarks")
-            
-        except Exception as e:
-            log.warning("AI tag suggestions failed", exc_info=True)
-            messagebox.showerror(
-                "Tag Suggestions Failed",
-                f"AI tag suggestions could not be completed.\n\n{str(e)[:240]}",
-                parent=self.root
-            )
-            self._set_status("Tag generation failed")
+
+        threading.Thread(target=_worker, daemon=True).start()
     
     def _ai_summarize(self):
         """AI generate descriptions for selected bookmarks"""
@@ -102,104 +93,52 @@ class AiEnrichmentMixin:
                 return
         
         self._set_status("Generating AI summaries…")
-        self.root.update()
-        
-        try:
-            client = self._get_ai_client()
-            if not client:
-                self._show_ai_client_error("AI summaries")
-                return
-            
-            # Build summary prompt
-            bm_list = "\n".join([f"- {bm.title} ({bm.url})" for bm in bookmarks[:20]])
-            prompt = f"""Analyze these bookmarks and provide a brief description (1-2 sentences) for each explaining what the site/page is about:
+
+        import threading
+
+        client = self._get_ai_client()
+        if not client:
+            self._show_ai_client_error("AI summaries")
+            return
+
+        bm_list = "\n".join([f"- {bm.title} ({bm.url})" for bm in bookmarks[:20]])
+        prompt = f"""Analyze these bookmarks and provide a brief description (1-2 sentences) for each explaining what the site/page is about:
 
 {bm_list}
 
 Respond with JSON: {{"summaries": [{{"url": "...", "description": "..."}}]}}"""
-            
-            # Use the client directly for custom prompt
-            provider = self.ai_config.get_provider()
-            
-            if provider == "openai":
-                response = client.client.chat.completions.create(
-                    model=client.model,
-                    messages=[
-                        {"role": "system", "content": "You summarize web pages. Respond only with valid JSON."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.3,
-                    response_format={"type": "json_object"}
-                )
-                text = (response.choices[0].message.content if response.choices else '')
-            elif provider == "anthropic":
-                response = client.client.messages.create(
-                    model=client.model,
-                    max_tokens=4096,
-                    messages=[{"role": "user", "content": prompt}]
-                )
-                text = (response.content[0].text if response.content else '')
-            elif provider == "google":
-                response = client.client.generate_content(prompt)
-                text = response.text
-            elif provider == "groq":
-                response = client.client.chat.completions.create(
-                    model=client.model,
-                    messages=[
-                        {"role": "system", "content": "You summarize web pages. Respond only with valid JSON."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.3,
-                    response_format={"type": "json_object"}
-                )
-                text = (response.choices[0].message.content if response.choices else '')
-            else:  # ollama
-                response = requests.post(
-                    f"{client.base_url}/api/generate",
-                    json={"model": client.model, "prompt": prompt, "stream": False},
-                    timeout=120
-                )
-                text = response.json()["response"]
-            
-            # Parse response
+
+        def _worker():
+            try:
+                text = client.complete(prompt, system="You summarize web pages. Respond only with valid JSON.", max_tokens=2048, temperature=0.3)
+                self.root.after(0, lambda: _on_done(text, None))
+            except Exception as exc:
+                self.root.after(0, lambda: _on_done(None, exc))
+
+        def _on_done(text, error):
+            if error:
+                log.warning("AI summary generation failed", exc_info=True)
+                messagebox.showerror("Summary Generation Failed", f"AI summaries could not be completed.\n\n{str(error)[:240]}", parent=self.root)
+                self._set_status("Summary generation failed")
+                return
             json_text = self._extract_json_object_text(text)
             if json_text:
                 data = json.loads(json_text)
                 summaries = data.get("summaries", [])
-                
-                # Apply summaries
                 summary_map = {s["url"]: s["description"] for s in summaries}
                 updated = 0
-                
                 for bm in bookmarks:
                     desc = summary_map.get(bm.url)
                     if desc:
                         bm.description = desc
                         bm.modified_at = datetime.now().isoformat()
                         updated += 1
-                
                 self.bookmark_manager.save_bookmarks()
                 self._refresh_bookmark_list()
-                
-                messagebox.showinfo(
-                    "Descriptions Generated",
-                    f"Generated descriptions for {updated} bookmark(s).",
-                    parent=self.root
-                )
+                messagebox.showinfo("Descriptions Generated", f"Generated descriptions for {updated} bookmark(s).", parent=self.root)
                 self._set_status(f"Generated {updated} summaries")
             else:
-                messagebox.showerror(
-                    "AI Response Not Applied",
-                    "The AI response was not valid JSON, so no bookmark descriptions were changed.",
-                    parent=self.root
-                )
+                messagebox.showerror("AI Response Not Applied", "The AI response was not valid JSON, so no bookmark descriptions were changed.", parent=self.root)
                 self._set_status("Summary response could not be applied")
-                
-        except Exception as e:
-            log.warning("AI summary generation failed", exc_info=True)
-            messagebox.showerror(
-                "Summary Generation Failed",
-                f"AI summaries could not be completed.\n\n{str(e)[:240]}",
-                parent=self.root
-            )
-            self._set_status("Summary generation failed")
+
+        threading.Thread(target=_worker, daemon=True).start()
