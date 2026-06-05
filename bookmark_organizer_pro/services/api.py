@@ -42,33 +42,7 @@ def _load_or_create_token() -> str:
 # REST API (Simple Flask-like API using built-in http.server)
 # =============================================================================
 class BookmarkAPI:
-    """
-        Represents a single bookmark with all metadata.
-        
-        Attributes:
-            id: Unique integer identifier
-            url: Bookmark URL
-            title: Display title
-            category: Category name
-            tags: List of tag names
-            ai_tags: List of AI-suggested tags
-            description: Optional description
-            favicon_url: URL to favicon image
-            created_at: ISO timestamp of creation
-            updated_at: ISO timestamp of last update
-            visited_at: ISO timestamp of last visit
-            visit_count: Number of times visited
-            is_valid: Whether URL validation passed
-            is_pinned: Whether bookmark is pinned
-            ai_category: AI-suggested category
-            ai_summary: AI-generated summary
-            notes: User notes
-        
-        Methods:
-            to_dict(): Serialize to dictionary
-            from_dict(d): Deserialize from dictionary
-            matches_search(query): Check if bookmark matches search
-        """
+    """Local HTTP API server for bookmark CRUD operations."""
     
     def __init__(self, bookmark_manager: BookmarkManager, port: int = 8765):
         self.bookmark_manager = bookmark_manager

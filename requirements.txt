@@ -1,7 +1,7 @@
 # Core (required)
 beautifulsoup4>=4.12
 requests>=2.31
-Pillow>=10.0
+Pillow>=12.2.0
 pystray>=0.19
 
 # v6.0.0 — recommended for the full feature set. Each package is optional;

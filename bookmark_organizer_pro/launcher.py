@@ -21,6 +21,38 @@ from bookmark_organizer_pro.ui.style_manager import style_manager
 from bookmark_organizer_pro.ui.widgets import set_widget_window_chrome_provider
 
 
+def _show_first_run_privacy_notice(root: tk.Tk):
+    """Show a one-time privacy notice on first launch."""
+    import json
+    from bookmark_organizer_pro.constants import SETTINGS_FILE
+    try:
+        if SETTINGS_FILE.exists():
+            settings = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+            if settings.get("privacy_notice_shown"):
+                return
+        else:
+            settings = {}
+    except Exception:
+        settings = {}
+
+    messagebox.showinfo(
+        "Privacy Notice",
+        "Bookmark Organizer Pro is fully local.\n\n"
+        "No data leaves your machine unless you explicitly\n"
+        "configure an AI provider API key in Settings > AI.\n\n"
+        "All bookmarks, snapshots, and search indexes\n"
+        "are stored in ~/.bookmark_organizer/.",
+        parent=root,
+    )
+
+    settings["privacy_notice_shown"] = True
+    try:
+        SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
 def _configure_tk_scaling(root: tk.Tk):
     """Apply Tk scaling for high-DPI displays when Tk reports a larger DPI."""
     try:
@@ -71,6 +103,8 @@ def main(argv: Sequence[str] | None = None):
         _configure_tk_scaling(root)
 
         root.deiconify()  # Show window
+
+        _show_first_run_privacy_notice(root)
 
         from bookmark_organizer_pro.app import FinalBookmarkOrganizerApp
 

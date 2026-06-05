@@ -89,8 +89,8 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 | 🔲 R-16 | **List virtualization via tksheet** — replace Treeview with tksheet for virtual scrolling. Handles millions of rows. Pure Python. | Now | L | [S-22][S-23] |
 | 🔲 R-17 | **Tree view alongside list view** — hierarchical category tree for deeply nested collections. | Next | M | [S-3][S-5] |
 | 🔲 R-18 | **sv-ttk theme integration** — Windows 11 Sun Valley look without CustomTkinter dependency. Lightweight, actively maintained. | Next | M | [S-24] |
-| 🔲 R-19 | **Fix command palette FocusOut** — clicking a palette item closes it before the click registers. `after(100)` delay on blur handler. | Now | S | [S-1] |
-| 🔲 R-20 | **Fix GridView scroll stealing** — `bind_all('<MouseWheel>')` steals scroll from sidebar. Replace with widget-scoped binding. | Now | S | [S-1] |
+| ✅ R-19 | **Fix command palette FocusOut** — clicking a palette item closes it before the click registers. `after(150)` delay + child-focus check. | Now | S | [S-1] |
+| ✅ R-20 | **Fix GridView scroll stealing** — `bind_all('<MouseWheel>')` replaced with widget-scoped binding. | Now | S | [S-1] |
 | 🔲 R-21 | **Reader view with highlight/annotation** — open extracted text in a reader pane. 4-color highlights, per-highlight notes. Export to Markdown. | Later | L | [S-3][S-10][S-11] |
 | 🔲 R-22 | **Graph view** — bookmarks as nodes, tags as edges, force-directed layout. | Later | L | [S-4] |
 
@@ -129,7 +129,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
 | 🔲 R-31 | **SQLite migration (optional)** — WAL mode unlocks concurrent access for web client. JSON remains default for backwards compat. Migration tool converts JSON → SQLite on opt-in. | Next | XL | [S-7][S-9] |
-| 🔲 R-32 | **Per-backup integrity hash** — SHA-256 checksum file alongside each backup. Verify on restore. | Now | S | [S-1] |
+| ✅ R-32 | **Per-backup integrity hash** — SHA-256 checksum file alongside each backup. Verify on restore. | Now | S | [S-1] |
 | 🔲 R-33 | **Deduplicate cross-category patterns** — retool.com, serverfault.com, hetzner.com appear in multiple categories. Audit + priority system. | Now | M | [S-1] |
 | 🔲 R-34 | **Fix overly broad plain patterns** — `click.`, `:3000` match too aggressively. Convert to typed `domain:` patterns. | Now | M | [S-1] |
 
@@ -142,11 +142,11 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
 | 🔲 R-35 | **API key storage via keyring/DPAPI** — use OS credential store instead of plaintext JSON on Windows. | Next | M | [S-1] |
-| 🔲 R-36 | **ReDoS timeout on pattern engine regex** — `re2` or `signal.alarm` guard on user-supplied patterns. | Now | S | [S-1] |
-| 🔲 R-36b | **Upgrade Pillow to ≥12.2.0** — CVE-2026-25990 (HIGH, OOB write in PSD), CVE-2026-40192 (gzip bomb), CVE-2026-42308 (int overflow in fonts). All fixed in 12.2.0. | Now | S | [S-51] |
+| ✅ R-36 | **ReDoS timeout on pattern engine regex** — `signal.alarm` guard on Unix, catch-all on Windows. | Now | S | [S-1] |
+| ✅ R-36b | **Upgrade Pillow to ≥12.2.0** — CVE-2026-25990, CVE-2026-40192, CVE-2026-42308 fixed. | Now | S | [S-51] |
 | 🔲 R-37 | **SSRF allow-list for snapshot/ingest** — beyond current private-IP block. Configurable regex whitelist. | Next | M | [S-1] |
 | 🔲 R-38 | **Auto-rotate encrypted-DB passphrase** — with audit log entry. | Later | M | [S-1] |
-| 🔲 R-39 | **Telemetry-free mode banner** — first-run notice confirming no data leaves the machine unless user configures an AI API key. | Now | S | [S-1] |
+| ✅ R-39 | **Telemetry-free mode banner** — first-run privacy notice in launcher. | Now | S | [S-1] |
 
 ---
 
@@ -158,7 +158,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 |---|------|------|--------|--------|
 | 🔲 R-40 | **Nuitka compilation** — Python-to-C, fewer AV false positives, 2-4x faster startup. Tkinter plugin available. | Next | L | [S-27] |
 | 🔲 R-41 | **tufup auto-update** — TUF-based binary diff patches. Works with PyInstaller or Nuitka. | Later | M | [S-28] |
-| 🔲 R-42 | **Python version matrix in CI** — test on 3.10, 3.11, 3.12, 3.13. Currently 3.12-only. | Now | S | [S-1] |
+| ✅ R-42 | **Python version matrix in CI** — test job on 3.10, 3.11, 3.12, 3.13 before build. | Now | S | [S-1] |
 
 ---
 
@@ -172,7 +172,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 | 🔲 R-44 | **MCP server integration tests** — send tool calls via `mcp` client, verify responses match expected schemas. | Now | M | [S-1] |
 | 🔲 R-45 | **CLI smoke test suite** — automated `bop <command>` tests for all 30+ subcommands in CI. | Next | M | [S-1] |
 | 🔲 R-46 | **Remove ~1,300 lines dead code** — GridView, BookmarkListView, MiniAnalyticsDashboard, 3 unused tray implementations, CategoryDragDropManager. All verified unreferenced. | Now | S | [S-1] |
-| 🔲 R-47 | **Fix copy-pasted model docstrings** — 6+ widget classes carry the Bookmark model's docstring. Misleads IDE tooltips. | Now | S | [S-1] |
+| ✅ R-47 | **Fix copy-pasted model docstrings** — replaced in cli.py, api.py, widget_bookmark_editor.py, widget_lists.py, workflow_detail_panel.py. | Now | S | [S-1] |
 
 ---
 
@@ -342,20 +342,20 @@ Immediate priority. Ship within the next development cycle.
 - 🔲 **R-05** FastMCP migration [M]
 - 🔲 **R-06** MCP tools: create_flow, append_to_flow, export_zip, list_snapshots [M]
 - 🔲 **R-16** List virtualization via tksheet [L]
-- 🔲 **R-19** Fix command palette FocusOut [S]
-- 🔲 **R-20** Fix GridView scroll stealing [S]
+- ✅ **R-19** Fix command palette FocusOut [S]
+- ✅ **R-20** Fix GridView scroll stealing [S]
 - 🔲 **R-23** Headless Chromium snapshot fallback [M]
-- 🔲 **R-32** Per-backup integrity hash [S]
+- ✅ **R-32** Per-backup integrity hash [S]
 - 🔲 **R-33** Deduplicate cross-category patterns [M]
 - 🔲 **R-34** Fix overly broad plain patterns [M]
-- 🔲 **R-36** ReDoS timeout on pattern engine [S]
-- 🔲 **R-39** Telemetry-free mode banner [S]
-- 🔲 **R-42** Python version matrix in CI [S]
+- ✅ **R-36** ReDoS timeout on pattern engine [S]
+- ✅ **R-39** Telemetry-free mode banner [S]
+- ✅ **R-42** Python version matrix in CI [S]
 - 🔲 **R-43** Service layer test suite [L]
 - 🔲 **R-44** MCP server integration tests [M]
-- 🔲 **R-36b** Upgrade Pillow to ≥12.2.0 (3 CVEs) [S]
+- ✅ **R-36b** Upgrade Pillow to ≥12.2.0 (3 CVEs) [S]
 - 🔲 **R-46** Remove ~1,300 lines dead code [S]
-- 🔲 **R-47** Fix copy-pasted model docstrings [S]
+- ✅ **R-47** Fix copy-pasted model docstrings [S]
 
 ## Next (v7.0) — 21 items
 

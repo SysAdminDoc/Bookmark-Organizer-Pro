@@ -395,9 +395,18 @@ class CommandPalette(tk.Toplevel, ThemedWidget):
         self.search_entry.bind("<Escape>", lambda e: self.destroy())
         self.search_entry.bind("<Up>", self._move_up)
         self.search_entry.bind("<Down>", self._move_down)
-        self.bind("<FocusOut>", lambda e: self.destroy())
-        
+        self.bind("<FocusOut>", lambda e: self.after(150, self._check_focus_lost))
+
         self.grab_set()
+
+    def _check_focus_lost(self):
+        """Destroy only if focus actually left the palette (not to a child widget)."""
+        try:
+            focused = self.focus_get()
+            if focused is None or not str(focused).startswith(str(self)):
+                self.destroy()
+        except Exception:
+            self.destroy()
     
     def _filter(self, *args):
         """Filter commands based on search"""

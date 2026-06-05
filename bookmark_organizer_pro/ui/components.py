@@ -629,8 +629,7 @@ class ScrollableFrame(tk.Frame):
         self.canvas.bind("<MouseWheel>", self._on_mousewheel)
         self.inner.bind("<MouseWheel>", self._on_mousewheel)
         
-        # Bind to all children
-        self.inner.bind_all("<MouseWheel>", self._on_mousewheel_global, add="+")
+        self.inner.bind("<MouseWheel>", self._on_mousewheel_global, add="+")
     
     def _on_frame_configure(self, event):
         """Update scroll region when inner frame changes"""
