@@ -75,8 +75,8 @@ Python/Tkinter bookmark manager with 4,224 categorization patterns, 5 AI provide
 - [ ] **BOP-055** Extract health score to single shared utility
 - [ ] **BOP-056** Use keyring/DPAPI for API key storage on Windows
 - [x] **BOP-057** Add Ollama URL SSRF check (restrict to localhost) | `ai.py`
-- [ ] **BOP-058** Remove `ensure_package` runtime pip install
-- [ ] **BOP-059** Make thum.io screenshot API opt-in with disclosure
+- [x] **BOP-058** Remove `ensure_package` runtime pip install — clear install instruction | `ai.py`
+- [x] **BOP-059** Make thum.io screenshot API opt-in (settings flag) | `services/web_tools.py`
 - [ ] **BOP-060** Keyboard accessibility for treeview
 
 ## Quick Wins (done this pass)

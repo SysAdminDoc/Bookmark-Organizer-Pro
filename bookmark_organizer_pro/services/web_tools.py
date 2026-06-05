@@ -518,7 +518,20 @@ class ScreenshotCapture:
         try:
             if not URLUtilities._is_safe_url(url):
                 return None
-            # Try using a screenshot API service
+            # thum.io sends the bookmark URL to a third-party service.
+            # Only proceed if the user has explicitly opted in via settings.
+            from bookmark_organizer_pro.constants import SETTINGS_FILE
+            import json as _json
+            _opt_in = False
+            try:
+                if SETTINGS_FILE.exists():
+                    _settings = _json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+                    _opt_in = bool(_settings.get("screenshot_api_enabled", False))
+            except Exception:
+                pass
+            if not _opt_in:
+                log.info("Screenshot API disabled (set screenshot_api_enabled=true in settings to enable)")
+                return None
             api_url = (
                 "https://image.thum.io/get/width/1280/crop/800/"
                 f"{urllib.parse.quote(url, safe='')}"

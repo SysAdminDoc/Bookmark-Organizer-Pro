@@ -19,22 +19,15 @@ from .logging_config import log
 
 
 def ensure_package(package: str, import_name: str = None):
-    """Ensure a package is installed, install if missing"""
+    """Import a package, raising a clear install instruction if missing."""
     import_name = import_name or package
     try:
         return importlib.import_module(import_name)
     except ImportError:
-        log.info(f"Installing missing package: {package}")
-        try:
-            subprocess.check_call(
-                [sys.executable, "-m", "pip", "install", package, "-q"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
-            return importlib.import_module(import_name)
-        except Exception as e:
-            log.error(f"Error installing {package}: {e}")
-            raise ImportError(f"Could not install {package}. Please install it manually.")
+        raise ImportError(
+            f"Required package '{package}' is not installed.\n"
+            f"Install it with: pip install {package}"
+        )
 
 
 @dataclass
