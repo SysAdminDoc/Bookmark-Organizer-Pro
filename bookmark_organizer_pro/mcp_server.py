@@ -308,6 +308,19 @@ def t_export_zip(bookmark_id: int) -> Dict:
     return {"error": path_or_err}
 
 
+def t_export_to_obsidian(vault_path: str, tag_filter: str = "",
+                         category_filter: str = "", since: str = "") -> Dict:
+    from bookmark_organizer_pro.services.obsidian_export import export_collection
+    s = _services()
+    bms = s.bookmark_manager.get_all_bookmarks()
+    vault = Path(vault_path).expanduser()
+    paths = export_collection(bms, vault, tag_filter=tag_filter or None,
+                              category_filter=category_filter or None,
+                              since=since or None)
+    return {"exported": len(paths), "vault": str(vault),
+            "files": [p.name for p in paths[:50]]}
+
+
 def t_list_snapshots(limit: int = 50) -> List[Dict]:
     out = []
     if not SNAPSHOTS_DIR.is_dir():
@@ -475,6 +488,18 @@ TOOLS = [
          },
          "required": ["bookmark_id"],
      }),
+    ("export_to_obsidian", t_export_to_obsidian,
+     "Export bookmarks to an Obsidian vault as Markdown files with YAML frontmatter.",
+     {
+         "type": "object",
+         "properties": {
+             "vault_path": {"type": "string", "description": "Path to the Obsidian vault directory"},
+             "tag_filter": {"type": "string", "description": "Only export bookmarks with this tag"},
+             "category_filter": {"type": "string", "description": "Only export bookmarks in this category"},
+             "since": {"type": "string", "description": "Only export bookmarks created after this ISO date"},
+         },
+         "required": ["vault_path"],
+     }),
     ("list_snapshots", t_list_snapshots,
      "List captured HTML snapshots sorted by most recent first.",
      {
@@ -639,6 +664,11 @@ def _build_fastmcp_server():
     @mcp_app.tool(description="Export a bookmark as a portable ZIP archive.")
     def export_zip(bookmark_id: int) -> dict:
         return t_export_zip(bookmark_id)
+
+    @mcp_app.tool(description="Export bookmarks to an Obsidian vault as Markdown with YAML frontmatter.")
+    def export_to_obsidian(vault_path: str, tag_filter: str = "",
+                           category_filter: str = "", since: str = "") -> dict:
+        return t_export_to_obsidian(vault_path, tag_filter, category_filter, since)
 
     @mcp_app.tool(description="List captured HTML snapshots.")
     def list_snapshots(limit: int = 50) -> list[dict]:
