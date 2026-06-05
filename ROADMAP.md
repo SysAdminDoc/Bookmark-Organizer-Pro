@@ -70,7 +70,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 | ✅ R-06 | **MCP tools: `create_flow`, `append_to_flow`, `export_zip`, `list_snapshots`** — 4 new typed tools added (19 total). | Now | M | [S-14] |
 | 🔲 R-07 | **Cross-encoder re-rank** after RRF — optional `bge-reranker-base` step for ambiguous queries. Gated on installed package. | Next | M | [S-16][S-17] |
 | 🔲 R-08 | **Chunk-level provenance in RAG** — cite specific chunk offsets, not just bookmark ID. UI deep-links to the supporting span. | Next | M | [S-1] |
-| 🔲 R-09 | **Time-weighted recall** — down-weight old bookmarks in semantic search unless query explicitly requests history. | Next | S | [S-1] |
+| ✅ R-09 | **Time-weighted recall** — exponential decay factor with configurable half-life in hybrid search. `time_weight` param (0-1). | Next | S | [S-1] |
 | 🔲 R-10 | **Collections as retrieval scopes** — pin RAG chat to a collection or tag from the sidebar. | Next | M | [S-1][S-10] |
 | 🔲 R-11 | **Answer caching** — `(query_hash, scope_hash)` cache for repeat questions. | Later | S | [S-1] |
 | 🔲 R-12 | **YouTube transcript capture** — detect YouTube URLs at save time, fetch transcript via `yt-dlp --write-auto-sub --skip-download`, index as extracted text for semantic search + RAG. | Next | M | [S-6][S-18] |
@@ -183,7 +183,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
 | 🔲 R-48 | **Keyboard accessibility** — tab order across treeview/sidebar/search/toolbar, column sort via keyboard, screen reader labels on major sections. WCAG 2.2 focus-appearance criteria (2.4.11, 2.4.13). Min 24×24px click targets (2.5.8). | Next | L | [S-29][S-63] |
-| 🔲 R-49 | **High-contrast theme** — WCAG AA compliant, validated with contrast checker. | Next | S | [S-29][S-63] |
+| ✅ R-49 | **High-contrast theme** — WCAG AA dark theme with yellow accents, white text on black. | Next | S | [S-29][S-63] |
 | 🔲 R-50 | **gettext i18n scaffolding** — extract all user-facing strings, `.po` file structure, `CONTRIBUTING.md` section for translators. No translations required yet — just the infrastructure. | Later | M | [S-30][S-68] |
 
 ---
@@ -365,7 +365,7 @@ High-value features and architectural investments.
 - 🔲 **R-03** Mobile PWA share-intent [M]
 - 🔲 **R-07** Cross-encoder re-rank after RRF [M]
 - 🔲 **R-08** Chunk-level RAG provenance [M]
-- 🔲 **R-09** Time-weighted recall [S]
+- ✅ **R-09** Time-weighted recall [S]
 - 🔲 **R-10** Collections as retrieval scopes [M]
 - 🔲 **R-12** YouTube transcript capture [M]
 - 🔲 **R-13** Smart Collections [M]
@@ -381,7 +381,7 @@ High-value features and architectural investments.
 - 🔲 **R-40** Nuitka compilation [L]
 - 🔲 **R-45** CLI smoke test suite [M]
 - 🔲 **R-48** Keyboard accessibility [L]
-- 🔲 **R-49** High-contrast theme [S]
+- ✅ **R-49** High-contrast theme [S]
 
 ## Later (v7.x+) — 11 items
 
