@@ -147,6 +147,10 @@ class AIConfigManager:
         self._config.setdefault("min_confidence", 0.5)
         self._config.setdefault("auto_apply", False)
         self._config.setdefault("suggest_tags", True)
+        self._config.setdefault("failover_enabled", False)
+        self._config.setdefault("failover_provider", "google")
+        self._config.setdefault("failover_model", "gemini-2.0-flash")
+        self._config.setdefault("failover_confidence_threshold", 0.6)
         self._normalize_config()
 
     def _bounded_int(self, value, default: int, lower: int, upper: int) -> int:
@@ -317,6 +321,31 @@ class AIConfigManager:
             else:
                 keys.pop(provider, None)
         self.save_config()
+
+    # Failover settings
+    def get_failover_enabled(self) -> bool:
+        return bool(self._config.get("failover_enabled", False))
+
+    def set_failover_enabled(self, v: bool):
+        self._config["failover_enabled"] = bool(v)
+        self.save_config()
+
+    def get_failover_provider(self) -> str:
+        return self._config.get("failover_provider", "google")
+
+    def set_failover_provider(self, v: str):
+        self._config["failover_provider"] = str(v or "google").strip().lower()
+        self.save_config()
+
+    def get_failover_model(self) -> str:
+        return self._config.get("failover_model", "gemini-2.0-flash")
+
+    def set_failover_model(self, v: str):
+        self._config["failover_model"] = str(v or "").strip()
+        self.save_config()
+
+    def get_failover_confidence_threshold(self) -> float:
+        return self._bounded_float(self._config.get("failover_confidence_threshold"), 0.6, 0.1, 1.0)
 
     def set_batch_size(self, v):
         self._config["batch_size"] = self._bounded_int(v, 20, 5, 50)
@@ -856,22 +885,117 @@ class OllamaClient(AIClient):
         return response.json().get("response", "")
 
 
-def create_ai_client(config: AIConfigManager) -> AIClient:
-    """Factory function to create the appropriate AI client"""
-    provider = config.get_provider()
-    model = config.get_model()
-
+def _create_client_for(config: AIConfigManager, provider: str, model: str) -> AIClient:
+    """Create a client for a specific provider/model pair."""
     if provider == "openai":
-        return OpenAIClient(config.get_api_key(), model)
+        return OpenAIClient(config.get_api_key("openai"), model)
     elif provider == "anthropic":
-        return AnthropicClient(config.get_api_key(), model)
+        return AnthropicClient(config.get_api_key("anthropic"), model)
     elif provider == "google":
-        return GoogleClient(config.get_api_key(), model)
+        return GoogleClient(config.get_api_key("google"), model)
     elif provider == "groq":
-        return GroqClient(config.get_api_key(), model)
+        return GroqClient(config.get_api_key("groq"), model)
     elif provider == "deepseek":
-        return DeepSeekClient(config.get_api_key(), model)
+        return DeepSeekClient(config.get_api_key("deepseek"), model)
     elif provider == "ollama":
         return OllamaClient(config.get_ollama_url(), model)
     else:
         raise ValueError(f"Unknown provider: {provider}")
+
+
+def create_ai_client(config: AIConfigManager) -> AIClient:
+    """Factory function to create the appropriate AI client."""
+    return _create_client_for(config, config.get_provider(), config.get_model())
+
+
+def create_failover_client(config: AIConfigManager) -> "FailoverAIClient":
+    """Create a client that falls back to a secondary provider on low confidence."""
+    primary = create_ai_client(config)
+    if not config.get_failover_enabled():
+        return FailoverAIClient(primary, None, config)
+    secondary = _create_client_for(
+        config, config.get_failover_provider(), config.get_failover_model(),
+    )
+    return FailoverAIClient(primary, secondary, config)
+
+
+class FailoverAIClient:
+    """Wraps a primary AI client with automatic failover to a secondary on low confidence.
+
+    On categorize: if ALL results from the primary are below the confidence threshold,
+    retries with the secondary. On individual low-confidence results, retries just those.
+    Callers see which provider was used via .last_provider / .last_model.
+    """
+
+    def __init__(self, primary: AIClient, secondary: Optional[AIClient],
+                 config: AIConfigManager):
+        self.primary = primary
+        self.secondary = secondary
+        self.config = config
+        self.threshold = config.get_failover_confidence_threshold()
+        self.last_provider = config.get_provider()
+        self.last_model = config.get_model()
+        self._failover_count = 0
+
+    @property
+    def failover_count(self) -> int:
+        return self._failover_count
+
+    def categorize_bookmarks(self, bookmarks: List[Dict], categories: List[str],
+                             allow_new: bool = True, suggest_tags: bool = True) -> List[Dict]:
+        results = self.primary.categorize_bookmarks(bookmarks, categories, allow_new, suggest_tags)
+        self.last_provider = self.config.get_provider()
+        self.last_model = self.config.get_model()
+
+        if not self.secondary:
+            return results
+
+        low_confidence = []
+        for i, r in enumerate(results):
+            conf = r.get("confidence", 0)
+            if conf < self.threshold:
+                low_confidence.append(i)
+
+        if low_confidence:
+            retry_bms = [bookmarks[i] for i in low_confidence]
+            try:
+                retry_results = self.secondary.categorize_bookmarks(
+                    retry_bms, categories, allow_new, suggest_tags,
+                )
+                for j, idx in enumerate(low_confidence):
+                    if j < len(retry_results):
+                        retry_conf = retry_results[j].get("confidence", 0)
+                        if retry_conf > results[idx].get("confidence", 0):
+                            results[idx] = retry_results[j]
+                            results[idx]["_failover"] = True
+                            results[idx]["_failover_provider"] = self.config.get_failover_provider()
+                            results[idx]["_failover_model"] = self.config.get_failover_model()
+                            self._failover_count += 1
+                            log.info(
+                                f"Failover: {bookmarks[idx].get('url', '')[:60]} "
+                                f"({results[idx].get('confidence', 0):.0%} from "
+                                f"{self.config.get_failover_provider()})"
+                            )
+            except Exception as exc:
+                log.warning(f"Failover provider failed: {exc}")
+
+        return results
+
+    def complete(self, prompt: str, system: str = "",
+                 max_tokens: int = 800, temperature: float = 0.2) -> str:
+        try:
+            result = self.primary.complete(prompt, system, max_tokens, temperature)
+            self.last_provider = self.config.get_provider()
+            self.last_model = self.config.get_model()
+            return result
+        except Exception as exc:
+            if self.secondary:
+                log.info(f"Primary AI failed, falling back: {exc}")
+                self.last_provider = self.config.get_failover_provider()
+                self.last_model = self.config.get_failover_model()
+                self._failover_count += 1
+                return self.secondary.complete(prompt, system, max_tokens, temperature)
+            raise
+
+    def test_connection(self) -> Tuple[bool, str]:
+        return self.primary.test_connection()

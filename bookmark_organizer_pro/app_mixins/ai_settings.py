@@ -369,6 +369,69 @@ class AiSettingsMixin:
         start_btn.command = _start_ollama
         refresh_btn.command = _refresh_ollama
 
+        # ── Failover settings ──
+        tk.Frame(body, bg=theme.border_muted, height=1).pack(fill=tk.X, pady=10)
+
+        failover_frame = tk.Frame(body, bg=theme.bg_primary)
+        failover_frame.pack(fill=tk.X, pady=(0, 8))
+
+        failover_enabled_var = tk.BooleanVar(value=self.ai_config.get_failover_enabled())
+        tk.Checkbutton(
+            failover_frame,
+            text="Enable failover — retry uncertain results with a second provider",
+            variable=failover_enabled_var,
+            bg=theme.bg_primary, fg=theme.text_primary,
+            activebackground=theme.bg_primary, activeforeground=theme.text_primary,
+            selectcolor=theme.bg_secondary, font=FONTS.body(),
+        ).pack(anchor="w")
+
+        failover_detail = tk.Frame(failover_frame, bg=theme.bg_primary, padx=20)
+        failover_detail.pack(fill=tk.X, pady=(4, 0))
+
+        tk.Label(
+            failover_detail, text="Failover provider:", bg=theme.bg_primary,
+            fg=theme.text_secondary, font=FONTS.small(),
+        ).grid(row=0, column=0, sticky="w", pady=2)
+
+        fo_providers = [n for n in AI_PROVIDERS if n != "ollama"]
+        fo_provider_var = tk.StringVar(value=self.ai_config.get_failover_provider())
+        fo_combo = ttk.Combobox(failover_detail, textvariable=fo_provider_var,
+                                values=fo_providers, state="readonly", width=16)
+        fo_combo.grid(row=0, column=1, padx=8, pady=2)
+
+        tk.Label(
+            failover_detail, text="Model:", bg=theme.bg_primary,
+            fg=theme.text_secondary, font=FONTS.small(),
+        ).grid(row=0, column=2, sticky="w", pady=2)
+
+        fo_model_var = tk.StringVar(value=self.ai_config.get_failover_model())
+        fo_model_combo = ttk.Combobox(failover_detail, textvariable=fo_model_var, width=20)
+        fo_model_combo.grid(row=0, column=3, padx=8, pady=2)
+
+        def _update_fo_models(*_):
+            fp = fo_provider_var.get()
+            info = AI_PROVIDERS.get(fp)
+            if info:
+                fo_model_combo["values"] = info.models
+                if fo_model_var.get() not in info.models:
+                    fo_model_var.set(info.default_model)
+        fo_provider_var.trace_add("write", _update_fo_models)
+        _update_fo_models()
+
+        tk.Label(
+            failover_detail, text="Threshold:", bg=theme.bg_primary,
+            fg=theme.text_secondary, font=FONTS.small(),
+        ).grid(row=1, column=0, sticky="w", pady=2)
+
+        fo_thresh_var = tk.DoubleVar(value=self.ai_config.get_failover_confidence_threshold())
+        ttk.Spinbox(failover_detail, from_=0.1, to=1.0, increment=0.1,
+                     textvariable=fo_thresh_var, width=6, format="%.1f").grid(row=1, column=1, padx=8, pady=2)
+
+        tk.Label(
+            failover_detail, text="Results below this confidence retry with the failover provider",
+            bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.small(),
+        ).grid(row=1, column=2, columnspan=2, sticky="w", pady=2)
+
         # ── Pacing settings ──
         tk.Frame(body, bg=theme.border_muted, height=1).pack(fill=tk.X, pady=10)
 
@@ -404,12 +467,12 @@ class AiSettingsMixin:
                 api_key_var.set(self.ai_config.get_api_key(provider))
 
             if provider == "ollama":
-                ollama_panel.pack(fill=tk.X, pady=(8, 4), before=settings_frame)
+                ollama_panel.pack(fill=tk.X, pady=(8, 4), before=failover_frame)
                 api_key_frame.pack_forget()
                 _refresh_ollama()
             else:
                 ollama_panel.pack_forget()
-                api_key_frame.pack(fill=tk.X, pady=(0, 8), before=settings_frame)
+                api_key_frame.pack(fill=tk.X, pady=(0, 8), before=failover_frame)
 
         provider_var.trace_add("write", on_provider_change)
         on_provider_change()
@@ -476,6 +539,11 @@ class AiSettingsMixin:
                 url = ollama_url_var.get().strip().rstrip("/")
                 if url:
                     self.ai_config._config["ollama_url"] = url
+            # Failover
+            self.ai_config._config["failover_enabled"] = failover_enabled_var.get()
+            self.ai_config._config["failover_provider"] = fo_provider_var.get()
+            self.ai_config._config["failover_model"] = fo_model_var.get()
+            self.ai_config._config["failover_confidence_threshold"] = fo_thresh_var.get()
             self.ai_config.save_config()
             dialog.destroy()
             self._show_toast("AI settings saved", "success")
