@@ -54,7 +54,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 | 🔲 R-01 | **Browser extension (MV3)** — one-click save popup with offline category/tag suggestions from the 4,224-pattern engine, native messaging to localhost API. Chrome + Firefox. | Now | L | [S-1][S-3][S-5][S-7][S-10] |
 | 🔲 R-02 | **Web client (FastAPI + HTMX)** — read/search/add from any device. PWA manifest for mobile install. Read-only by default, auth-gated mutations. Shares JSON storage via WAL-mode SQLite migration (see R-30). | Next | XL | [S-3][S-5][S-6][S-8][S-12] |
 | 🔲 R-03 | **Mobile PWA share-intent** — Android "Share to BOP" target via the web client, auto-categorize on receipt. | Next | M | [S-8][S-12] |
-| 🔲 R-04 | **Bookmarklet fallback** — single JS file for browsers without extension support. Sends URL+title+selection to localhost API. | Now | S | [S-6][S-10] |
+| ✅ R-04 | **Bookmarklet fallback** — `scripts/generate_bookmarklet.py` generates a JS bookmark with auth token. Sends URL+title+selection to localhost API with toast feedback. | Now | S | [S-6][S-10] |
 
 **Justification:** Every major competitor ships a browser extension ([S-3] Linkwarden, [S-5] Karakeep, [S-7] Linkding, [S-8] Wallabag, [S-10] Raindrop). "No extension" is the #1 complaint in r/selfhosted bookmark threads ([S-20]). The bookmarklet is a low-effort interim solution while the extension matures.
 
@@ -338,7 +338,7 @@ These ideas surfaced in research but need more validation before committing:
 Immediate priority. Ship within the next development cycle.
 
 - 🔲 **R-01** Browser extension (MV3) [L]
-- 🔲 **R-04** Bookmarklet fallback [S]
+- ✅ **R-04** Bookmarklet fallback [S]
 - 🔲 **R-05** FastMCP migration [M]
 - 🔲 **R-06** MCP tools: create_flow, append_to_flow, export_zip, list_snapshots [M]
 - 🔲 **R-16** List virtualization via tksheet [L]
