@@ -2,6 +2,106 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.1.0] - 2026-06-05
+
+Hardening and reliability release. 35 fixes across 30+ files, informed by an
+8-agent deep-audit research pass (`RESEARCH_FEATURE_PLAN_2026-06-05.md`).
+
+### Fixed — Critical (P0)
+
+- **AIBatchProcessor was dead code at runtime** — `.settings` attr and
+  `categorize_bookmark()` method did not exist. Replaced with
+  `get_batch_size()`/`get_rate_limit()` and `client.complete()`.
+  (`services/ai_tools.py`)
+- **Embedding chunk overlap infinite-loop** — `max(end-overlap, end)` always
+  returned `end`, producing zero overlap. Fixed to `end - overlap` with an
+  end-backward guard. (`services/embeddings.py`)
+- **MCP server had no typed tool schemas** — all 15 tools used
+  `additionalProperties: true`. Added proper JSON Schema for every tool with
+  parameter types, descriptions, and required markers. (`mcp_server.py`)
+- **PyInstaller spec missing all v6.0 hidden imports** — shipped binary
+  couldn't use any v6 feature. Added 25+ service modules and optional deps.
+  (`packaging/bookmark_organizer.spec`)
+- **CI release upload failed** — `gh release upload` ran before the release
+  existed. Added a `create-release` job before the matrix build.
+  (`.github/workflows/build.yml`)
+
+### Fixed — Reliability (P1)
+
+- **AI/link-check blocked the main thread** — moved all AI enrichment, title
+  improvement, and link checking to background threads with
+  `root.after(0, callback)` UI updates. (`app_mixins/ai_enrichment.py`,
+  `ai_titles.py`, `tools.py`)
+- **AI enrichment/titles duplicated provider switch blocks** — replaced with
+  `client.complete()` abstraction. (`app_mixins/ai_enrichment.py`, `ai_titles.py`)
+- **LinkChecker had no rate limiting** — added per-domain 1s delay with proper
+  `BookmarkOrganizerPro/6.0 LinkChecker` User-Agent. (`link_checker.py`)
+- **`batch_refresh_metadata` mutated bookmarks from worker threads** — now
+  collects results as data, applies under lock. (`managers/bookmarks.py`)
+- **Dead-link scanner mutated bookmarks without lock** — wrapped mutations
+  in `self._lock`. (`services/dead_link_scanner.py`)
+- **VectorStore and DeadLinkScanner non-atomic writes** — replaced with
+  tempfile + `os.replace`. (`services/vector_store.py`, `dead_link_scanner.py`)
+- **Log file grew unbounded** — replaced `FileHandler` with
+  `RotatingFileHandler(5MB, 3 backups)` + stderr fallback.
+  (`logging_config.py`)
+- **AICostTracker reported $0 for all models** — updated pricing table to
+  mid-2026 models. (`services/ai_tools.py`)
+- **API server had no auth** — added auto-generated bearer token for
+  POST/DELETE + CORS deny headers. (`services/api.py`)
+- **Analytics panel rebuilt all widgets every 30s** — now skips rebuild when
+  stats are unchanged. (`app_mixins/dashboard.py`)
+- **RSS parser vulnerable to XML bomb** — uses `defusedxml` when available.
+  (`services/rss_feeds.py`)
+- **Added `pyproject.toml`** with `[project]` table, optional dependency
+  groups (`[ai]`, `[encryption]`, `[mcp]`, `[all]`), and entry points.
+
+### Fixed — Data Safety (P2)
+
+- **`save_bookmarks` lock race** — lock now held through `storage.save()`.
+  (`managers/bookmarks.py`)
+- **`remove_tag` was case-sensitive** while `add_tag` was not. Now both are
+  case-insensitive. (`models/bookmark.py`)
+- **`get_stale_bookmarks` ignored its `days` parameter**. (`managers/bookmarks.py`)
+- **Search returned all bookmarks for empty query**. Now returns `[]`.
+  (`search.py`)
+- **Date filter included bookmarks with unparseable timestamps**. Now
+  excludes them. (`search.py`)
+- **`restore_backup` destroyed current data without safety net** — now
+  creates a pre-restore backup. (`core/storage_manager.py`)
+- **`decrypt_file` could overwrite source** — added src≠dst validation.
+  (`services/encryption.py`)
+- **TagManager had no thread safety** — added `RLock`. (`managers/tags.py`)
+- **Importers allowed intra-file duplicates** — added `_dedup_bookmarks`.
+  (`importers.py`)
+
+### Fixed — Security
+
+- **Snapshot banner HTML injection** — URL now escaped with `html.escape()`.
+  (`services/snapshot.py`)
+- **Prompt injection via unsanitized bookmark data** — added
+  `sanitize_for_prompt()` utility. (`utils/safe.py`, `services/ai_tools.py`)
+- **Ollama URL SSRF** — non-localhost URLs now rejected. (`ai.py`)
+- **Runtime pip install supply chain risk** — `ensure_package` no longer
+  auto-installs; shows clear install instruction. (`ai.py`)
+- **thum.io screenshot API privacy** — now opt-in via
+  `screenshot_api_enabled` setting. (`services/web_tools.py`)
+
+### Improved
+
+- **Duplicate-at-save-time detection** — `add_bookmark_clean` and MCP
+  `add_bookmark` now return the existing bookmark with `already_exists: true`
+  instead of silently returning None. (`managers/bookmarks.py`, `mcp_server.py`)
+- **RAG citation validation** — hallucinated `[#cN]` tokens referencing
+  non-existent chunks are stripped. (`services/rag_chat.py`)
+- **Constants side-effect cleanup** — directory creation deferred to
+  `ensure_directories()` called from entry points only. (`constants.py`,
+  `launcher.py`, `cli.py`, `mcp_server.py`)
+- **Tag linter no-op line removed**. (`services/tag_linter.py`)
+- **Dead `_extract_text` conditional fixed**. (`services/web_tools.py`)
+- **ROADMAP consolidated** as single source of truth with 60 prioritized
+  items. Old `ROADMAP.md` + research plan merged.
+
 ## [v6.0.0] - 2026-04-19
 
 Major release. Adds 18 new backend service modules and 20 new CLI
