@@ -189,7 +189,7 @@ class SearchQuery:
                 if created.replace(tzinfo=None) > self.date_before:
                     return False
             except Exception:
-                pass
+                return False
 
         if self.has_notes is True and not bookmark.notes:
             return False

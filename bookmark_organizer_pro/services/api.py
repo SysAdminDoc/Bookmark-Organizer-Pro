@@ -7,6 +7,7 @@ Token is auto-generated on first start and stored in the data directory.
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
 import secrets
@@ -70,7 +71,7 @@ class BookmarkAPI:
 
             def _check_auth(self) -> bool:
                 auth = self.headers.get('Authorization', '')
-                if auth == f'Bearer {api_token}':
+                if hmac.compare_digest(auth, f'Bearer {api_token}'):
                     return True
                 self._send_json({"error": "Unauthorized. Provide Authorization: Bearer <token>"}, 401)
                 return False

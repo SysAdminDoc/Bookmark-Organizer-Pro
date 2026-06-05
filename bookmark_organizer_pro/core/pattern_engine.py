@@ -104,15 +104,32 @@ class PatternEngine:
                         rule["matcher"] = re.compile(regex_str, re.IGNORECASE)
                         self._regex_rules.append(rule)
                     elif p_lower.startswith("domain:"):
-                        matcher = p_stripped[7:].lower().strip().rstrip(".").removeprefix("www.")
+                        raw_matcher = p_stripped[7:].lower().strip().removeprefix("www.")
+                        # Preserve trailing dot for IP prefix patterns (192.168.)
+                        # but strip for normal domains
+                        is_prefix = raw_matcher.endswith(".") and not raw_matcher.startswith(".")
+                        matcher = raw_matcher.rstrip(".")
                         if not matcher:
                             continue
                         rule["type"] = "domain"
                         rule["matcher"] = matcher
-                        if "." in matcher and not matcher.startswith("."):
+                        # Dot-prefixed patterns (e.g., ".local") are suffix-only
+                        if matcher.startswith("."):
+                            # Store without leading dot for suffix matching
+                            clean = matcher.lstrip(".")
+                            if clean:
+                                rule["matcher"] = clean
+                                rule["_suffix_only"] = True
+                                self._domain_suffix.append(rule)
+                        elif is_prefix:
+                            # IP prefix patterns (e.g., "192.168." -> match "192.168.x.x")
+                            rule["_is_prefix"] = True
+                            self._domain_suffix.append(rule)
+                        else:
+                            # Normal domain: exact match + suffix match
                             if matcher not in self._domain_exact:
                                 self._domain_exact[matcher] = category
-                        self._domain_suffix.append(rule)
+                            self._domain_suffix.append(rule)
                     elif p_lower.startswith("path:"):
                         matcher = p_stripped[5:].lower().strip()
                         if not matcher:
@@ -175,8 +192,17 @@ class PatternEngine:
             for rule in self._domain_suffix:
                 matcher = rule["matcher"]
                 try:
-                    if domain.endswith("." + matcher):
-                        return rule["category"]
+                    if rule.get("_is_prefix"):
+                        # IP prefix: "192.168" matches "192.168.1.1"
+                        if domain.startswith(matcher + ".") or domain == matcher:
+                            return rule["category"]
+                    elif rule.get("_suffix_only"):
+                        # Suffix-only: "local" matches "foo.local" and "local"
+                        if domain == matcher or domain.endswith("." + matcher):
+                            return rule["category"]
+                    else:
+                        if domain.endswith("." + matcher):
+                            return rule["category"]
                 except Exception:
                     continue
 

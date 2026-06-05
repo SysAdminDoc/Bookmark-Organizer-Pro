@@ -196,20 +196,25 @@ class SmartCollectionManager:
         return True
 
     def get(self, collection_id: str) -> Optional[SmartCollection]:
-        return self._collections.get(collection_id)
+        with self._lock:
+            return self._collections.get(collection_id)
 
     def list_all(self) -> List[SmartCollection]:
-        return list(self._collections.values())
+        with self._lock:
+            return list(self._collections.values())
 
     def evaluate(self, collection_id: str,
                  bookmarks: List[Bookmark]) -> List[Bookmark]:
-        sc = self._collections.get(collection_id)
+        with self._lock:
+            sc = self._collections.get(collection_id)
         if sc is None:
             return []
         return sc.evaluate(bookmarks)
 
     def evaluate_all(self, bookmarks: List[Bookmark]) -> Dict[str, List[Bookmark]]:
+        with self._lock:
+            collections = list(self._collections.values())
         return {
             sc.id: sc.evaluate(bookmarks)
-            for sc in self._collections.values()
+            for sc in collections
         }

@@ -12,7 +12,7 @@ import re
 import shutil
 import tempfile
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Tuple
 from urllib.parse import urlparse
@@ -148,8 +148,10 @@ class BrowserProfileImporter:
                     )
                     date_added = node.get("date_added", "0")
                     try:
-                        timestamp = (int(date_added) - 11644473600000000) / 1000000
-                        bm.created_at = datetime.fromtimestamp(timestamp).isoformat()
+                        # Chrome stores timestamps as microseconds since 1601-01-01.
+                        # Use timedelta to avoid negative Unix timestamps (OSError on Windows).
+                        chrome_epoch = datetime(1601, 1, 1)
+                        bm.created_at = (chrome_epoch + timedelta(microseconds=int(date_added))).isoformat()
                     except Exception:
                         pass
                     bookmarks.append(bm)

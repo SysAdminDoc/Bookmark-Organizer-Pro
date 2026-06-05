@@ -59,7 +59,11 @@ class HybridSearch:
             if not ts:
                 return 0.5
             dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-            age_days = max(0, (datetime.now() - dt.replace(tzinfo=None)).days)
+            # Use UTC consistently to avoid timezone-offset skew
+            from datetime import timezone
+            now_utc = datetime.now(timezone.utc)
+            dt_utc = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+            age_days = max(0, (now_utc - dt_utc).days)
             return math.exp(-0.693 * age_days / max(1, half_life_days))
         except Exception:
             return 0.5

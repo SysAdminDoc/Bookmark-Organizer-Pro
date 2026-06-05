@@ -38,6 +38,15 @@ def _try_import(name: str):
         return None
 
 
+def _fd_closed(fd: int) -> bool:
+    """Check if a file descriptor was already closed."""
+    try:
+        os.fstat(fd)
+        return False
+    except OSError:
+        return True
+
+
 class CryptoUnavailable(RuntimeError):
     pass
 
@@ -92,6 +101,8 @@ class EncryptedStore:
         salt = blob[offset:offset + SALT_LEN]; offset += SALT_LEN
         nonce = blob[offset:offset + NONCE_LEN]; offset += NONCE_LEN
         (ct_len,) = struct.unpack(">I", blob[offset:offset + 4]); offset += 4
+        if offset + ct_len > len(blob):
+            raise ValueError("Truncated encrypted file: ciphertext length exceeds available data")
         ct = blob[offset:offset + ct_len]
         key = self._derive(salt)
         aes = ciphers.AESGCM(key)
@@ -99,17 +110,41 @@ class EncryptedStore:
 
     # ----- convenience file API -----
     def encrypt_file(self, src: Path, dst: Optional[Path] = None) -> Path:
+        import tempfile
         dst = dst or src.with_suffix(src.suffix + ".enc")
         data = src.read_bytes()
-        dst.write_bytes(self.encrypt(data))
+        encrypted = self.encrypt(data)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=dst.resolve().parent, suffix=".tmp")
+        try:
+            os.write(fd, encrypted)
+            os.close(fd)
+            os.replace(tmp, dst)
+        except Exception:
+            os.close(fd) if not _fd_closed(fd) else None
+            if os.path.exists(tmp):
+                os.remove(tmp)
+            raise
         return dst
 
     def decrypt_file(self, src: Path, dst: Optional[Path] = None) -> Path:
+        import tempfile
         dst = dst or src.with_suffix("")
         if dst.resolve() == src.resolve():
             raise ValueError("Destination must differ from source")
         data = src.read_bytes()
-        dst.write_bytes(self.decrypt(data))
+        decrypted = self.decrypt(data)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=dst.resolve().parent, suffix=".tmp")
+        try:
+            os.write(fd, decrypted)
+            os.close(fd)
+            os.replace(tmp, dst)
+        except Exception:
+            os.close(fd) if not _fd_closed(fd) else None
+            if os.path.exists(tmp):
+                os.remove(tmp)
+            raise
         return dst
 
     def is_encrypted(self, path: Path) -> bool:
@@ -122,12 +157,23 @@ class EncryptedStore:
     @staticmethod
     def rotate_passphrase(path: Path, old_passphrase: str,
                           new_passphrase: str) -> bool:
-        """Re-encrypt a file with a new passphrase. Creates audit log entry."""
+        """Re-encrypt a file with a new passphrase. Atomic write prevents corruption."""
+        import tempfile
         try:
             old_store = EncryptedStore(old_passphrase)
             data = old_store.decrypt(path.read_bytes())
             new_store = EncryptedStore(new_passphrase)
-            path.write_bytes(new_store.encrypt(data))
+            new_blob = new_store.encrypt(data)
+            fd, tmp = tempfile.mkstemp(dir=path.resolve().parent, suffix=".tmp")
+            try:
+                os.write(fd, new_blob)
+                os.close(fd)
+                os.replace(tmp, path)
+            except Exception:
+                os.close(fd) if not _fd_closed(fd) else None
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+                raise
             log.info(f"Passphrase rotated for {path.name} at {__import__('datetime').datetime.now().isoformat()}")
             return True
         except Exception as exc:

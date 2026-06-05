@@ -96,7 +96,7 @@ class SnapshotArchiver:
             subprocess.run(
                 ["monolith", "--isolate", "--silent",
                  "--no-audio", "--no-video",
-                 "-o", str(out_path), url],
+                 "-o", str(out_path), "--", url],
                 check=True, timeout=120,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -120,7 +120,7 @@ class SnapshotArchiver:
             return False, "single-file CLI not installed"
         try:
             subprocess.run(
-                [cli, url, str(out_path)],
+                [cli, "--", url, str(out_path)],
                 check=True, timeout=180,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -174,7 +174,11 @@ class SnapshotArchiver:
                 )
                 if resp.status_code in (301, 302, 303, 307, 308):
                     location = resp.headers.get("Location", "")
-                    if not location or not URLUtilities._is_safe_url(location):
+                    if not location:
+                        return False, "redirect with no Location header"
+                    # Resolve relative redirect against current URL
+                    location = urljoin(current_url, location)
+                    if not URLUtilities._is_safe_url(location):
                         return False, "redirect to unsafe URL"
                     current_url = location
                     continue
@@ -239,10 +243,26 @@ class SnapshotArchiver:
         if not URLUtilities._is_safe_url(url):
             return None
         try:
-            r = requests.get(url, timeout=15)
+            r = requests.get(url, timeout=15, allow_redirects=False)
+            # Follow redirects manually with SSRF check on each hop
+            for _ in range(5):
+                if r.status_code not in (301, 302, 303, 307, 308):
+                    break
+                location = r.headers.get("Location", "")
+                r.close()
+                if not location:
+                    return None
+                location = urljoin(url, location)
+                if not URLUtilities._is_safe_url(location):
+                    return None
+                r = requests.get(location, timeout=15, allow_redirects=False)
             if r.status_code != 200:
                 return None
-            return r.text
+            # Cap response size to prevent memory exhaustion
+            content_len = r.headers.get("content-length")
+            if content_len and int(content_len) > 2_000_000:
+                return None
+            return r.text[:2_000_000]
         except Exception:
             return None
 
@@ -250,12 +270,28 @@ class SnapshotArchiver:
         if not URLUtilities._is_safe_url(url):
             return None
         try:
-            r = requests.get(url, timeout=15, stream=True)
+            r = requests.get(url, timeout=15, stream=True, allow_redirects=False)
+            # Follow redirects manually with SSRF check on each hop
+            for _ in range(5):
+                if r.status_code not in (301, 302, 303, 307, 308):
+                    break
+                location = r.headers.get("Location", "")
+                r.close()
+                if not location:
+                    return None
+                location = urljoin(url, location)
+                if not URLUtilities._is_safe_url(location):
+                    return None
+                r = requests.get(location, timeout=15, stream=True, allow_redirects=False)
             if r.status_code != 200:
                 return None
-            data = r.content
-            if len(data) > 2_000_000:
-                return None
+            # Read up to limit via streaming to avoid loading unbounded response
+            chunks = bytearray()
+            for chunk in r.iter_content(chunk_size=65536):
+                chunks.extend(chunk)
+                if len(chunks) > 2_000_000:
+                    return None
+            data = bytes(chunks)
             mime = r.headers.get("content-type", "application/octet-stream").split(";")[0].strip()
             b64 = base64.b64encode(data).decode("ascii")
             return f"data:{mime};base64,{b64}"

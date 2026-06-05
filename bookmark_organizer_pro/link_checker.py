@@ -3,7 +3,6 @@
 import importlib
 import threading
 import time
-from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Callable, Dict, List, Optional, Tuple
@@ -29,7 +28,7 @@ class LinkChecker:
         self._checked = 0
         self._total = 0
         self._lock = threading.Lock()
-        self._domain_locks: Dict[str, threading.Lock] = defaultdict(threading.Lock)
+        self._domain_locks: Dict[str, threading.Lock] = {}
         self._domain_last_request: Dict[str, float] = {}
 
     def check_links(self, bookmarks: List[Bookmark],
@@ -93,7 +92,8 @@ class LinkChecker:
             domain = ""
         if not domain:
             return
-        lock = self._domain_locks[domain]
+        # setdefault is atomic in CPython, avoiding the defaultdict race
+        lock = self._domain_locks.setdefault(domain, threading.Lock())
         with lock:
             last = self._domain_last_request.get(domain, 0)
             elapsed = time.monotonic() - last

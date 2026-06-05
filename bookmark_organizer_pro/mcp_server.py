@@ -171,7 +171,13 @@ def t_hybrid_search(query: str, limit: int = 25) -> List[Dict]:
 
 def t_add_bookmark(url: str, title: str = "", category: str = "",
                    tags: Optional[List[str]] = None) -> Optional[Dict]:
+    from bookmark_organizer_pro.utils import validate_url
     s = _services()
+    # Validate URL before processing (match HTTP API's behavior)
+    url = str(url or "").strip()
+    is_valid, error = validate_url(url)
+    if not is_valid or not url.startswith(("http://", "https://")):
+        return {"error": error or "URL must start with http:// or https://"}
     existing = s.bookmark_manager.find_by_url(url)
     if existing:
         d = _bm_to_dict(existing)
@@ -329,6 +335,8 @@ def t_export_to_obsidian(vault_path: str, tag_filter: str = "",
     home = Path.home().resolve()
     if not vault.is_relative_to(home):
         return {"error": "vault_path must be under the user's home directory"}
+    if not vault.is_dir():
+        return {"error": "vault_path must be an existing directory"}
     paths = export_collection(bms, vault, tag_filter=tag_filter or None,
                               category_filter=category_filter or None,
                               since=since or None)
@@ -575,7 +583,7 @@ async def serve_stdio() -> int:
             return [TextContent(type="text", text=f"Bad arguments: {exc}")]
         except Exception as exc:
             log.exception(f"MCP tool {name} failed")
-            return [TextContent(type="text", text=f"Error: {exc}")]
+            return [TextContent(type="text", text=f"Error: internal server error (see logs)")]
         return [TextContent(type="text",
                             text=json.dumps(result, indent=2, default=str))]
 

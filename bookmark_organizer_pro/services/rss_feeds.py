@@ -20,7 +20,14 @@ import threading
 try:
     from defusedxml.ElementTree import fromstring as _xml_fromstring
 except ImportError:
-    from xml.etree.ElementTree import fromstring as _xml_fromstring
+    import xml.etree.ElementTree as _stdlib_ET
+
+    def _xml_fromstring(text):
+        """Safe XML fromstring that disables external entities when defusedxml is unavailable."""
+        parser = _stdlib_ET.XMLParser()
+        # Disable entity expansion to prevent XXE / billion-laughs
+        parser.entity = {}
+        return _stdlib_ET.fromstring(text, parser=parser)
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
@@ -227,8 +234,24 @@ class FeedIngestor:
         if not URLUtilities._is_safe_url(cfg.url):
             return 0
         requests = importlib.import_module("requests")
-        resp = requests.get(cfg.url, timeout=20,
-                            headers={"User-Agent": "BookmarkOrganizerPro/6.0"})
+        current_url = cfg.url
+        resp = None
+        for _ in range(5):
+            resp = requests.get(current_url, timeout=20,
+                                headers={"User-Agent": "BookmarkOrganizerPro/6.0"},
+                                allow_redirects=False)
+            if resp.status_code in (301, 302, 303, 307, 308):
+                location = resp.headers.get("Location", "")
+                resp.close()
+                if not location:
+                    break
+                from urllib.parse import urljoin as _urljoin
+                location = _urljoin(current_url, location)
+                if not URLUtilities._is_safe_url(location):
+                    return 0
+                current_url = location
+                continue
+            break
         resp.raise_for_status()
         items = parse_feed(resp.text, base_url=cfg.url)
         seen = set(cfg.last_seen_guids or [])

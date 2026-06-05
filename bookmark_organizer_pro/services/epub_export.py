@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-from bookmark_organizer_pro.constants import EXPORTS_DIR
+from bookmark_organizer_pro.constants import APP_DIR, EXPORTS_DIR
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 
@@ -67,7 +67,7 @@ def export_epub(bookmarks: List[Bookmark], output_path: Optional[Path] = None,
         if include_text and bm.extracted_text_path:
             try:
                 text_path = Path(bm.extracted_text_path).resolve()
-                if text_path.is_relative_to(EXPORTS_DIR.parent.resolve()):
+                if text_path.is_relative_to(APP_DIR.resolve()):
                     text = text_path.read_text(encoding="utf-8")[:20000]
             except OSError:
                 pass
