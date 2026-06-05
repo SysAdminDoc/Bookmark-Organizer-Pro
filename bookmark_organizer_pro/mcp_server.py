@@ -34,7 +34,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 from bookmark_organizer_pro.ai import AIConfigManager
-from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION
+from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION, SNAPSHOTS_DIR
 from bookmark_organizer_pro.core import CategoryManager
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.managers import BookmarkManager, TagManager
@@ -45,6 +45,7 @@ from bookmark_organizer_pro.services.digest import DailyDigestService
 from bookmark_organizer_pro.services.embeddings import EmbeddingService
 from bookmark_organizer_pro.services.flows import FlowManager
 from bookmark_organizer_pro.services.hybrid_search import HybridSearch
+from bookmark_organizer_pro.services.zip_export import ZipExporter
 from bookmark_organizer_pro.services.rag_chat import CollectionChat
 from bookmark_organizer_pro.services.vector_store import VectorStore
 
@@ -93,6 +94,7 @@ class BookmarkServices:
         self.summarizer = CitationSummarizer(self.ai_config, self.embedder)
         self.chat = CollectionChat(self.ai_config, self.vector_store)
         self.flows = FlowManager()
+        self.zip_exporter = ZipExporter()
         self.digest = DailyDigestService()
         self.dead_links = DeadLinkScanner(
             get_bookmarks=lambda: self.bookmark_manager.get_all_bookmarks(),
@@ -281,6 +283,45 @@ def t_get_flow(flow_id: str) -> Optional[Dict]:
     return out
 
 
+def t_create_flow(name: str, description: str = "") -> Dict:
+    flow = _services().flows.create(name=name, description=description)
+    return flow.to_dict()
+
+
+def t_append_to_flow(flow_id: str, bookmark_id: int, note: str = "") -> Dict:
+    s = _services()
+    ok = s.flows.add_step(flow_id, int(bookmark_id), note=note)
+    if not ok:
+        return {"error": "Flow not found or bookmark already in flow"}
+    flow = s.flows.get(flow_id)
+    return flow.to_dict() if flow else {"error": "Flow not found"}
+
+
+def t_export_zip(bookmark_id: int) -> Dict:
+    s = _services()
+    bm = s.bookmark_manager.get_bookmark(int(bookmark_id))
+    if not bm:
+        return {"error": "Bookmark not found"}
+    ok, path_or_err = s.zip_exporter.export_one(bm)
+    if ok:
+        return {"path": path_or_err, "bookmark_id": bm.id}
+    return {"error": path_or_err}
+
+
+def t_list_snapshots(limit: int = 50) -> List[Dict]:
+    out = []
+    if not SNAPSHOTS_DIR.is_dir():
+        return out
+    for f in sorted(SNAPSHOTS_DIR.glob("*.html"), key=lambda p: p.stat().st_mtime, reverse=True)[:max(1, limit)]:
+        try:
+            stat = f.stat()
+            out.append({"filename": f.name, "size": stat.st_size,
+                        "modified": stat.st_mtime})
+        except OSError:
+            continue
+    return out
+
+
 # --- MCP integration --------------------------------------------------------
 
 TOOLS = [
@@ -403,6 +444,44 @@ TOOLS = [
              "flow_id": {"type": "string", "description": "The flow ID"},
          },
          "required": ["flow_id"],
+     }),
+    ("create_flow", t_create_flow,
+     "Create a new research flow (ordered bookmark sequence for a topic deep-dive).",
+     {
+         "type": "object",
+         "properties": {
+             "name": {"type": "string", "description": "Flow name"},
+             "description": {"type": "string", "description": "Optional description"},
+         },
+         "required": ["name"],
+     }),
+    ("append_to_flow", t_append_to_flow,
+     "Add a bookmark to an existing research flow, optionally with a per-step note.",
+     {
+         "type": "object",
+         "properties": {
+             "flow_id": {"type": "string", "description": "The flow ID to append to"},
+             "bookmark_id": {"type": "integer", "description": "Bookmark ID to add"},
+             "note": {"type": "string", "description": "Optional note for this step"},
+         },
+         "required": ["flow_id", "bookmark_id"],
+     }),
+    ("export_zip", t_export_zip,
+     "Export a bookmark as a portable ZIP archive containing metadata, snapshot, extracted text, and notes.",
+     {
+         "type": "object",
+         "properties": {
+             "bookmark_id": {"type": "integer", "description": "Bookmark ID to export"},
+         },
+         "required": ["bookmark_id"],
+     }),
+    ("list_snapshots", t_list_snapshots,
+     "List captured HTML snapshots sorted by most recent first.",
+     {
+         "type": "object",
+         "properties": {
+             "limit": {"type": "integer", "description": "Max snapshots to return (default 50)", "default": 50},
+         },
      }),
 ]
 
