@@ -463,6 +463,46 @@ BUILT_IN_THEMES: Dict[str, ThemeInfo] = {
             tag_text="#60a5fa",
         )
     ),
+
+    "high_contrast": ThemeInfo(
+        name="high_contrast",
+        display_name="High Contrast",
+        description="WCAG AA accessible — maximum contrast, bold focus indicators",
+        is_dark=True,
+        colors=ThemeColors(
+            bg_dark="#000000",
+            bg_primary="#000000",
+            bg_secondary="#1a1a1a",
+            bg_tertiary="#2d2d2d",
+            bg_hover="#3d3d00",
+            bg_card="#1a1a1a",
+            text_primary="#ffffff",
+            text_secondary="#e0e0e0",
+            text_muted="#b0b0b0",
+            text_link="#00d4ff",
+            accent_primary="#ffff00",
+            accent_success="#00ff00",
+            accent_warning="#ffaa00",
+            accent_error="#ff3333",
+            accent_purple="#cc99ff",
+            accent_cyan="#00ffff",
+            accent_pink="#ff66ff",
+            accent_orange="#ff8800",
+            border="#808080",
+            border_muted="#555555",
+            border_active="#ffff00",
+            selection="#3d3d00",
+            selected="#ffff00",
+            scrollbar_bg="#1a1a1a",
+            scrollbar_thumb="#808080",
+            card_border="#808080",
+            card_shadow="#000000",
+            card_hover="#2d2d2d",
+            ai_accent="#ffff00",
+            tag_bg="#333300",
+            tag_text="#ffff00",
+        )
+    ),
 }
 
 # Global theme manager instance

@@ -7,7 +7,9 @@ local VectorStore for semantic ranking, then merges the two with RRF
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from bookmark_organizer_pro.logging_config import log
@@ -37,8 +39,22 @@ class HybridSearch:
         self.vector_store = vector_store
         self.keyword_engine = keyword_engine or SearchEngine()
 
+    @staticmethod
+    def _recency_factor(bookmark: Bookmark, half_life_days: float = 180.0) -> float:
+        """Exponential decay factor based on bookmark age. 1.0 = new, ~0.5 at half_life_days."""
+        try:
+            ts = bookmark.last_visited or bookmark.created_at
+            if not ts:
+                return 0.5
+            dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            age_days = max(0, (datetime.now() - dt.replace(tzinfo=None)).days)
+            return math.exp(-0.693 * age_days / max(1, half_life_days))
+        except Exception:
+            return 0.5
+
     def search(self, bookmarks: Sequence[Bookmark], query: str,
-               limit: int = 50, semantic_k: int = 50) -> List[HybridResult]:
+               limit: int = 50, semantic_k: int = 50,
+               time_weight: float = 0.0) -> List[HybridResult]:
         if not query:
             return []
 
@@ -67,15 +83,21 @@ class HybridSearch:
         semantic_rank = {bid: i for i, bid in enumerate(semantic_ids)}
 
         results: List[HybridResult] = []
-        for bid, score in fused[:limit]:
+        tw = max(0.0, min(1.0, time_weight))
+        for bid, score in fused[:limit * 2]:
             bm = bm_lookup.get(bid)
             if bm is None:
                 continue
+            final_score = score
+            if tw > 0:
+                recency = self._recency_factor(bm)
+                final_score = score * (1 - tw) + score * recency * tw
             results.append(HybridResult(
                 bookmark=bm,
-                score=score,
+                score=final_score,
                 keyword_rank=keyword_rank.get(bid),
                 semantic_rank=semantic_rank.get(bid),
                 snippet=snippet_map.get(bid, ""),
             ))
-        return results
+        results.sort(key=lambda r: r.score, reverse=True)
+        return results[:limit]
