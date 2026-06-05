@@ -102,11 +102,10 @@ AI_PROVIDERS = {
         display_name="Ollama (Local)",
         api_key_url="https://ollama.com/download",
         api_key_env="",
-        models=["llama3.2", "llama3.3", "qwen3", "qwen3.5", "qwen2.5",
-                "gemma3", "phi4", "mistral", "mistral-nemo",
-                "deepseek-r1", "deepseek-r1:8b", "deepseek-coder-v2",
+        models=["qwen3.5", "phi4", "qwen3", "gemma3", "llama3.2",
+                "mistral", "deepseek-r1:8b", "deepseek-r1",
                 "codellama", "command-r", "mixtral", "llava"],
-        default_model="llama3.2",
+        default_model="qwen3.5",
         description="Run models locally via Ollama — completely free, no API key needed",
         requires_api_key=False,
         free_tier=True,
@@ -526,7 +525,13 @@ class AIClient:
         tags_instruction = ""
         if suggest_tags:
             tags_instruction = """
-5. Suggest 1-3 relevant tags for each bookmark (short, lowercase, no spaces)
+5. Suggest 3-5 DESCRIPTIVE tags for each bookmark (short, lowercase, hyphens-ok)
+   IMPORTANT TAG RULES:
+   - Tags must describe the CONTENT TOPIC, not the website name
+   - NEVER use the domain name as a tag (no "reddit", "youtube", "amazon", "github", etc.)
+   - NEVER use generic words like "blog", "website", "page", "online", "app", "site"
+   - Good tags: "python-tutorial", "home-repair", "stock-trading", "meal-prep", "cybersecurity"
+   - Bad tags: "reddit", "google", "amazon", "website", "blog", "account"
 6. Suggest a better title if the current one is poor (too generic, has junk like "Home |", etc.)"""
 
         return f"""You are a bookmark categorization expert. Analyze each bookmark and assign the most appropriate category.

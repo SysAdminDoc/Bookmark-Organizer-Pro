@@ -186,7 +186,11 @@ class AIBatchProcessor:
         # Build prompt for categorization + tags + summary
         prompt = f"""Analyze this bookmark and provide:
 1. Best category from common bookmark categories
-2. 3-5 relevant tags (single words, lowercase)
+2. 3-5 DESCRIPTIVE tags about the content topic (lowercase, hyphens ok)
+   - Tags must describe WHAT the content is about, NOT the website name
+   - NEVER use the domain name as a tag (no "reddit", "youtube", "github", "amazon")
+   - NEVER use generic words like "blog", "website", "page", "online"
+   - Good examples: "python-tutorial", "home-repair", "stock-trading", "cybersecurity"
 3. A brief 1-sentence summary
 
 URL: {sanitize_for_prompt(bookmark.url, 500)}
