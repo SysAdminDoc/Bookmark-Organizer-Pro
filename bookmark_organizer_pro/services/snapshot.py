@@ -129,6 +129,9 @@ class SnapshotArchiver:
             return False, f"single-file failed: {exc}"
         if not out_path.exists() or out_path.stat().st_size == 0:
             return False, "single-file produced no output"
+        if out_path.stat().st_size > self.MAX_BYTES:
+            out_path.unlink(missing_ok=True)
+            return False, "snapshot too large"
         return True, str(out_path)
 
     def _snapshot_playwright(self, url: str, out_path: Path) -> Tuple[bool, str]:
@@ -162,12 +165,23 @@ class SnapshotArchiver:
         if requests is None or bs4 is None:
             return False, "requests/bs4 not available"
         try:
-            resp = requests.get(
-                url,
-                headers={"User-Agent": "Mozilla/5.0 (BookmarkOrganizerPro/6.0)"},
-                timeout=30, allow_redirects=True,
-            )
-            resp.raise_for_status()
+            current_url = url
+            for _ in range(5):
+                resp = requests.get(
+                    current_url,
+                    headers={"User-Agent": "Mozilla/5.0 (BookmarkOrganizerPro/6.0)"},
+                    timeout=30, allow_redirects=False,
+                )
+                if resp.status_code in (301, 302, 303, 307, 308):
+                    location = resp.headers.get("Location", "")
+                    if not location or not URLUtilities._is_safe_url(location):
+                        return False, "redirect to unsafe URL"
+                    current_url = location
+                    continue
+                resp.raise_for_status()
+                break
+            else:
+                return False, "too many redirects"
             html = resp.text
         except Exception as exc:
             return False, f"fetch failed: {exc}"

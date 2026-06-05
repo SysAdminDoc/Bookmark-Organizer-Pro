@@ -81,6 +81,7 @@ class ThemeColors:
     # Cards & Grid
     card_bg: str = "#ffffff"
     card_border: str = "#d8e1dd"
+    card_shadow: str = "#d8e1dd"
     card_hover: str = "#f4faf7"
 
     # Special
