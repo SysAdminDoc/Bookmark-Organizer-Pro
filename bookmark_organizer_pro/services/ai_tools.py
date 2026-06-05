@@ -19,6 +19,7 @@ from bookmark_organizer_pro.search import levenshtein_distance
 from bookmark_organizer_pro.utils import safe_float
 from bookmark_organizer_pro.utils.safe import sanitize_for_prompt
 from bookmark_organizer_pro.utils.runtime import atomic_json_write as _atomic_json_write
+from bookmark_organizer_pro.services.ai_audit_log import log_batch_result
 
 
 class AIBatchProcessor:
@@ -106,17 +107,23 @@ class AIBatchProcessor:
                     break
                 
                 try:
+                    old_category = bookmark.category
+                    old_tags = list(bookmark.tags)
+                    old_title = bookmark.title
+
                     # Get AI categorization and tags
                     result = self._process_bookmark(bookmark)
                     with self._lock:
                         self._results[bookmark.id] = result
-                    
+
+                    applied = False
                     # Apply results
                     if result.get("category"):
                         bookmark.category = result["category"]
                         bookmark.ai_categorized = True
                         bookmark.ai_confidence = result.get("confidence", 0.0)
-                    
+                        applied = True
+
                     if result.get("tags"):
                         existing = {str(tag).lower() for tag in bookmark.tags}
                         for tag in result["tags"]:
@@ -124,11 +131,27 @@ class AIBatchProcessor:
                             if tag_text and tag_text.lower() not in existing:
                                 bookmark.tags.append(tag_text)
                                 existing.add(tag_text.lower())
-                    
+                        applied = True
+
                     if result.get("summary"):
                         if not bookmark.notes:
                             bookmark.notes = result["summary"]
-                    
+                            applied = True
+
+                    # Audit log
+                    try:
+                        provider = self.ai_config.get_provider()
+                        model = self.ai_config.get_model()
+                        log_batch_result(
+                            provider=provider, model=model,
+                            bookmark_id=bookmark.id, url=bookmark.url,
+                            old_category=old_category, old_tags=old_tags,
+                            old_title=old_title, result=result,
+                            applied=applied,
+                        )
+                    except Exception:
+                        pass
+
                 except Exception as e:
                     with self._lock:
                         self._errors.append((bookmark.id, str(e)))

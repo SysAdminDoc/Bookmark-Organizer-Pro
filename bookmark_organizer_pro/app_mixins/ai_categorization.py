@@ -10,6 +10,7 @@ from typing import Dict, List
 
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.ai_audit_log import log_categorize, log_title_improvement
 from bookmark_organizer_pro.ui.foundation import FONTS
 from bookmark_organizer_pro.ui.widgets import ModernButton, apply_window_chrome, get_theme
 
@@ -209,37 +210,70 @@ class AiCategorizationMixin:
                 continue
             
             confidence = result.get("confidence", 0)
+            provider = self.ai_config.get_provider()
+            model = self.ai_config.get_model()
+
             if confidence < min_confidence:
+                log_categorize(
+                    provider=provider, model=model,
+                    bookmark_id=bm.id, url=bm.url,
+                    old_category=bm.category,
+                    new_category=result.get("category", bm.category),
+                    confidence=confidence,
+                    ai_tags=result.get("tags", []),
+                    applied=False,
+                    reason=f"confidence {confidence:.2f} < threshold {min_confidence}",
+                )
                 continue
-            
+
+            old_category = bm.category
+            old_title = bm.title
+
             # Update category
             new_cat = result.get("category", bm.category)
             if new_cat and new_cat != bm.category:
-                # Add new category if needed
                 if result.get("new_category") and new_cat not in self.category_manager.categories:
                     self.category_manager.add_category(new_cat)
                     new_categories.add(new_cat)
-                
+
                 bm.category = new_cat
                 bm.ai_confidence = confidence
                 applied += 1
-            
+
+                log_categorize(
+                    provider=provider, model=model,
+                    bookmark_id=bm.id, url=bm.url,
+                    old_category=old_category, new_category=new_cat,
+                    confidence=confidence,
+                    ai_tags=result.get("tags", []),
+                    suggested_title=result.get("suggested_title", ""),
+                    summary=result.get("reasoning", ""),
+                    applied=True,
+                    reason=f"confidence {confidence:.2f} >= threshold {min_confidence}",
+                )
+
             # Update AI tags
             ai_tags = result.get("tags", [])
             if ai_tags:
                 bm.ai_tags = [t.lower().strip() for t in ai_tags if t]
-            
+
             # Update title if suggested
             suggested_title = result.get("suggested_title")
             if suggested_title and suggested_title != bm.title and suggested_title.lower() not in ["null", "none", ""]:
                 bm.title = suggested_title
                 titles_changed += 1
-            
+                log_title_improvement(
+                    provider=provider, model=model,
+                    bookmark_id=bm.id, url=bm.url,
+                    old_title=old_title, new_title=suggested_title,
+                    applied=True,
+                )
+
             # Store reasoning if available
             reasoning = result.get("reasoning", "")
             if reasoning and not bm.description:
                 bm.description = reasoning
-            
+
             bm.modified_at = datetime.now().isoformat()
         
         # Save changes
