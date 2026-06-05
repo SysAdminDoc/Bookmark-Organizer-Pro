@@ -2,6 +2,47 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.3.0] - 2026-06-05
+
+Feature release. 12 roadmap items shipped, 255 tests passing.
+
+### Added — Features
+
+- **Answer caching** (R-11) — LRU cache (128 entries) for RAG `ask()`.
+  `clear_cache()` + `cache_stats`. Skips multi-turn conversations.
+- **YouTube transcript capture** (R-12) — `services/youtube_transcript.py`.
+  Detects YouTube URLs, fetches via yt-dlp CLI or library, parses VTT.
+- **Atom + JSON Feed export** (R-29) — `services/feed_export.py`. CLI:
+  `atom-export`, `json-feed`. Atom 1.0 (RFC 4287) + JSON Feed 1.1.
+- **Matter CSV importer** (R-28) — `MatterImporter` in `importers_extra.py`.
+  CLI: `import-matter`. Reads Title/URL/Tags/Status/Date Saved.
+- **Zotero RDF import/export** (R-27) — `services/zotero_interop.py`. CLI:
+  `import-zotero`, `zotero-export`. dc:title, dc:subject, dcterms:abstract.
+- **Scheduled auto-snapshot** (R-24) — `services/auto_snapshot.py`.
+  Background daemon thread with add/remove/run_once/start/stop.
+- **Cross-encoder re-rank** (R-07) — optional `_try_rerank()` using
+  ms-marco-MiniLM after RRF. `rerank=True` param in HybridSearch.
+- **Chunk-level RAG provenance** (R-08) — `ChatTurn.chunk_provenance` with
+  citation_id, bookmark_id, char_start, char_end, text_preview.
+- **Collections as retrieval scopes** (R-10) — `restrict_tag` and
+  `restrict_category` params on MCP `chat_with_collection`.
+- **MCP auth scopes** (R-14) — `services/mcp_auth.py` with
+  `MCPTokenManager`. Create/revoke tokens, read-only vs read-write scope.
+- **Passphrase rotation** (R-38) — `EncryptedStore.rotate_passphrase()`
+  with audit log.
+
+### Improved — Security
+
+- **API key storage via keyring** (R-35) — `get_api_key` checks OS keyring
+  first, falls back to JSON. `set_api_key` stores in keyring when available.
+- **SSRF allow-list** (R-37) — `URLUtilities.set_ssrf_allow_list(patterns)`
+  adds regex whitelist for trusted internal domains.
+
+### Improved — Testing
+
+- **21 CLI smoke tests** (R-45) — dispatch routing, --version, help, list,
+  add, search, categories, tags, stats, exports, imports. 255 total tests.
+
 ## [v6.2.1] - 2026-06-05
 
 Bugfix + hardening release. Fixes 2 crash bugs, 6 data-corruption risks,
