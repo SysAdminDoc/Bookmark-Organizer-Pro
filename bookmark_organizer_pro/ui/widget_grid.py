@@ -75,7 +75,8 @@ class GridView(tk.Frame, ThemedWidget):
         # Bindings
         self.inner_frame.bind("<Configure>", self._on_frame_configure)
         self.canvas.bind("<Configure>", self._on_canvas_configure)
-        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+        self.canvas.bind("<MouseWheel>", self._on_mousewheel)
+        self.inner_frame.bind("<MouseWheel>", self._on_mousewheel)
     
     def _on_frame_configure(self, e):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))

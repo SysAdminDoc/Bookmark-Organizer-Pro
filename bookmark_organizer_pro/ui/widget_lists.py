@@ -18,33 +18,7 @@ from .widget_runtime import get_theme
 # Theme Selector Dialog
 # =============================================================================
 class BookmarkListView(tk.Frame, ThemedWidget):
-    """
-        Represents a single bookmark with all metadata.
-        
-        Attributes:
-            id: Unique integer identifier
-            url: Bookmark URL
-            title: Display title
-            category: Category name
-            tags: List of tag names
-            ai_tags: List of AI-suggested tags
-            description: Optional description
-            favicon_url: URL to favicon image
-            created_at: ISO timestamp of creation
-            updated_at: ISO timestamp of last update
-            visited_at: ISO timestamp of last visit
-            visit_count: Number of times visited
-            is_valid: Whether URL validation passed
-            is_pinned: Whether bookmark is pinned
-            ai_category: AI-suggested category
-            ai_summary: AI-generated summary
-            notes: User notes
-        
-        Methods:
-            to_dict(): Serialize to dictionary
-            from_dict(d): Deserialize from dictionary
-            matches_search(query): Check if bookmark matches search
-        """
+    """Compact list/table view of bookmarks (legacy, unused in active app shell)."""
     
     def __init__(self, parent, on_select: Callable = None,
                  on_open: Callable = None, on_context_menu: Callable = None,

@@ -1,5 +1,6 @@
 """Persistent JSON storage with atomic writes, backups, and corruption recovery."""
 
+import hashlib
 import json
 import os
 import shutil
@@ -70,6 +71,14 @@ class StorageManager:
                 backup_path = BACKUP_DIR / f"{self.filepath.stem}_{timestamp}_{counter}.json"
                 counter += 1
             shutil.copy2(self.filepath, backup_path)
+
+            try:
+                digest = hashlib.sha256(backup_path.read_bytes()).hexdigest()
+                backup_path.with_suffix(".sha256").write_text(
+                    f"{digest}  {backup_path.name}\n", encoding="utf-8",
+                )
+            except OSError as he:
+                log.warning(f"Could not write backup hash: {he}")
 
             backups = sorted(BACKUP_DIR.glob(f"{self.filepath.stem}_*.json"))
             while len(backups) > 10:
@@ -144,6 +153,17 @@ class StorageManager:
         if not backup_path.is_file():
             log.error(f"Backup not found: {backup_name}")
             return False
+        hash_path = backup_path.with_suffix(".sha256")
+        if hash_path.is_file():
+            try:
+                expected = hash_path.read_text(encoding="utf-8").split()[0].strip()
+                actual = hashlib.sha256(backup_path.read_bytes()).hexdigest()
+                if expected != actual:
+                    log.error(f"Backup integrity check failed for {backup_name}")
+                    return False
+                log.info(f"Backup integrity verified: {backup_name}")
+            except Exception as ve:
+                log.warning(f"Could not verify backup hash: {ve}")
         try:
             with self._lock:
                 self.filepath.parent.mkdir(parents=True, exist_ok=True)

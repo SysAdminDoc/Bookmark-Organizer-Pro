@@ -11,9 +11,35 @@ Supports multiple pattern types:
 """
 
 import re
+import signal
+import sys
 from collections.abc import Iterable
 from typing import Dict, List, Optional
 from urllib.parse import urlparse
+
+_IS_WINDOWS = sys.platform == "win32"
+_REGEX_TIMEOUT_SECONDS = 2
+
+
+def _safe_regex_search(pattern, text: str):
+    """Run regex search with a timeout guard (Unix signal or catch-all on Windows)."""
+    if _IS_WINDOWS:
+        try:
+            return pattern.search(text)
+        except (RecursionError, MemoryError):
+            return None
+    else:
+        def _alarm_handler(signum, frame):
+            raise TimeoutError("Regex match timed out")
+        old = signal.signal(signal.SIGALRM, _alarm_handler)
+        signal.alarm(_REGEX_TIMEOUT_SECONDS)
+        try:
+            return pattern.search(text)
+        except (TimeoutError, RecursionError, MemoryError):
+            return None
+        finally:
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, old)
 
 
 class PatternEngine:
@@ -127,7 +153,7 @@ class PatternEngine:
                     if path.endswith(f".{matcher}"):
                         return rule["category"]
                 elif rtype == "regex":
-                    if matcher.search(url_text) or matcher.search(title_text):
+                    if _safe_regex_search(matcher, url_text) or _safe_regex_search(matcher, title_text):
                         return rule["category"]
                 elif rtype == "plain":
                     if matcher in domain or matcher in url_lower or matcher in title_lower:
