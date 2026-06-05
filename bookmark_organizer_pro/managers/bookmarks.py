@@ -114,10 +114,10 @@ class BookmarkManager:
         self._load_bookmarks()
 
     def save_bookmarks(self):
-        """Save all bookmarks to storage (thread-safe snapshot)"""
+        """Save all bookmarks to storage (thread-safe — holds lock through write)."""
         with self._lock:
             snapshot = list(self.bookmarks.values())
-        self.storage.save([bm.to_dict() for bm in snapshot])
+            self.storage.save([bm.to_dict() for bm in snapshot])
 
     def add_bookmark(self, bookmark: Bookmark, save: bool = True) -> Bookmark:
         """Add a new bookmark. Set save=False for batch operations."""
@@ -628,12 +628,11 @@ class BookmarkManager:
         if url.startswith('http://') and clean.startswith('https://'):
             clean = 'http://' + clean[8:]
 
-        # Check for existing
         canonical = normalize_url(url)
         with self._lock:
             for bm in self.bookmarks.values():
                 if normalize_url(bm.url) == canonical:
-                    return None  # Duplicate
+                    return bm  # Already exists — return existing rather than creating duplicate
 
         # Auto-categorize
         if not category:

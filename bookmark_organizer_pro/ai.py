@@ -197,6 +197,14 @@ class AIConfigManager:
         ollama_url = str(self._config.get("ollama_url") or "http://localhost:11434").strip().rstrip("/")
         if not ollama_url.startswith(("http://", "https://")):
             ollama_url = "http://localhost:11434"
+        try:
+            from urllib.parse import urlparse as _urlparse
+            host = _urlparse(ollama_url).hostname or ""
+            if host not in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+                log.warning(f"Ollama URL '{ollama_url}' is not localhost — restricting to localhost for SSRF safety")
+                ollama_url = "http://localhost:11434"
+        except Exception:
+            ollama_url = "http://localhost:11434"
         self._config["ollama_url"] = ollama_url
 
     def save_config(self):

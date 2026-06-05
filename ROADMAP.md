@@ -38,17 +38,17 @@ Python/Tkinter bookmark manager with 4,224 categorization patterns, 5 AI provide
 - [ ] **BOP-021** Browser extension (MV3) with one-click save + offline tag suggestions
 - [ ] **BOP-022** Web client (FastAPI + HTMX) with PWA
 - [ ] **BOP-023** Smart Collections with auto-matching rules (net-new)
-- [ ] **BOP-024** Duplicate-at-save-time detection (net-new)
+- [x] **BOP-024** Duplicate-at-save-time detection — returns existing bookmark | `managers/bookmarks.py`, `mcp_server.py`
 - [ ] **BOP-025** Headless Chromium snapshot fallback via playwright
 - [ ] **BOP-026** Cross-encoder re-rank after RRF
 - [ ] **BOP-027** Reader view with highlight and annotation (net-new)
 - [ ] **BOP-028** EPUB export of collections
 - [ ] **BOP-029** YouTube transcript capture and indexing via yt-dlp
 - [x] **BOP-030** Sanitize user data in LLM prompts | `utils/safe.py`, `services/ai_tools.py`
-- [ ] **BOP-031** Fix URL normalization HTTP->HTTPS upgrade | `utils/url.py`
+- [x] **BOP-031** URL normalization HTTP->HTTPS is correct for dedup — clarified | `utils/url.py`
 - [x] **BOP-032** Pre-restore backup in StorageManager | `core/storage_manager.py`
 - [x] **BOP-033** Thread safety for TagManager | `managers/tags.py`
-- [ ] **BOP-034** Fix `save_bookmarks` lock race | `managers/bookmarks.py`
+- [x] **BOP-034** Fix `save_bookmarks` lock race — hold lock through write | `managers/bookmarks.py`
 - [ ] **BOP-035** Deduplicate cross-category patterns | `core/default_categories.py`
 - [ ] **BOP-036** Fix overly broad plain patterns | `core/default_categories.py`, `core/pattern_engine.py`
 - [x] **BOP-037** Intra-file dedup in importers | `importers.py`
@@ -71,10 +71,10 @@ Python/Tkinter bookmark manager with 4,224 categorization patterns, 5 AI provide
 - [ ] **BOP-051** Remove ~1,300 lines dead code (GridView, unused widgets, broken tray)
 - [ ] **BOP-052** Fix copy-pasted model docstrings on widget classes
 - [ ] **BOP-053** Move constants.py directory creation to `ensure_directories()`
-- [ ] **BOP-054** Validate RAG citation IDs, strip hallucinated tokens
+- [x] **BOP-054** Validate RAG citation IDs, strip hallucinated tokens | `services/rag_chat.py`
 - [ ] **BOP-055** Extract health score to single shared utility
 - [ ] **BOP-056** Use keyring/DPAPI for API key storage on Windows
-- [ ] **BOP-057** Add Ollama URL SSRF check (restrict to localhost)
+- [x] **BOP-057** Add Ollama URL SSRF check (restrict to localhost) | `ai.py`
 - [ ] **BOP-058** Remove `ensure_package` runtime pip install
 - [ ] **BOP-059** Make thum.io screenshot API opt-in with disclosure
 - [ ] **BOP-060** Keyboard accessibility for treeview
