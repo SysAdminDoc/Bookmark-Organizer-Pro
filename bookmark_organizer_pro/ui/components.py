@@ -5,12 +5,12 @@ from __future__ import annotations
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
-from typing import Callable, Dict, List
+from typing import Callable, List
 
 from .foundation import FONTS, DesignTokens
 from .theme import ThemeManager
 from .tk_interactions import make_keyboard_activatable
-from .widgets import ModernButton, ThemedWidget, Tooltip, get_theme
+from .widgets import ModernButton, ThemedWidget, get_theme
 
 
 # =============================================================================
@@ -371,161 +371,6 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
             self.formats_label.configure(text="HTML, JSON, CSV, OPML, and text URL files")
             self.browse_btn.pack_configure(pady=(14, 6))
 
-
-
-
-
-# =============================================================================
-# MINI ANALYTICS DASHBOARD (for main UI)
-# =============================================================================
-class MiniAnalyticsDashboard(tk.Frame, ThemedWidget):
-    """Compact analytics dashboard for main UI sidebar"""
-    
-    def __init__(self, parent, bookmark_manager: BookmarkManager):
-        theme = get_theme()
-        super().__init__(parent, bg=theme.bg_secondary)
-        
-        self.bookmark_manager = bookmark_manager
-        
-        # Header
-        header = tk.Frame(self, bg=theme.bg_tertiary)
-        header.pack(fill=tk.X)
-        
-        tk.Label(
-            header, text="📊 Analytics", bg=theme.bg_tertiary,
-            fg=theme.text_primary, font=("Segoe UI", 10, "bold"),
-            padx=10, pady=8
-        ).pack(side=tk.LEFT)
-        
-        self.refresh_btn = tk.Label(
-            header, text="↻", bg=theme.bg_tertiary,
-            fg=theme.text_muted, font=FONTS.header(bold=False),
-            cursor="hand2", padx=10
-        )
-        self.refresh_btn.pack(side=tk.RIGHT)
-        make_keyboard_activatable(self.refresh_btn, self.refresh)
-        Tooltip(self.refresh_btn, "Refresh Analytics")
-        
-        # Stats container
-        self.stats_frame = tk.Frame(self, bg=theme.bg_secondary)
-        self.stats_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        self.refresh()
-    
-    def refresh(self):
-        """Refresh analytics"""
-        theme = get_theme()
-        
-        # Clear existing
-        for widget in self.stats_frame.winfo_children():
-            widget.destroy()
-        
-        stats = self.bookmark_manager.get_statistics()
-        
-        # Health Score
-        health = self._calculate_health_score(stats)
-        health_color = theme.accent_success if health >= 70 else (theme.accent_warning if health >= 40 else theme.accent_error)
-        
-        health_frame = tk.Frame(self.stats_frame, bg=theme.bg_secondary)
-        health_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        tk.Label(
-            health_frame, text="Health Score", bg=theme.bg_secondary,
-            fg=theme.text_secondary, font=FONTS.small()
-        ).pack(side=tk.LEFT)
-        
-        tk.Label(
-            health_frame, text=f"{health}%", bg=theme.bg_secondary,
-            fg=health_color, font=FONTS.title(bold=False)
-        ).pack(side=tk.RIGHT)
-        
-        # Health bar
-        bar_bg = tk.Frame(self.stats_frame, bg=theme.bg_tertiary, height=6)
-        bar_bg.pack(fill=tk.X, pady=(0, 15))
-        
-        bar_fill = tk.Frame(bar_bg, bg=health_color, height=6)
-        bar_fill.place(x=0, y=0, relheight=1.0, relwidth=health/100)
-        
-        # Quick stats
-        quick_stats = [
-            ("Total", stats['total_bookmarks'], theme.text_primary),
-            ("Categories", stats['total_categories'], theme.accent_primary),
-            ("Tags", stats['total_tags'], theme.accent_purple),
-            ("Broken", stats['broken'], theme.accent_error),
-            ("Uncategorized", stats['uncategorized'], theme.accent_warning),
-        ]
-        
-        for label, value, color in quick_stats:
-            row = tk.Frame(self.stats_frame, bg=theme.bg_secondary)
-            row.pack(fill=tk.X, pady=2)
-            
-            tk.Label(
-                row, text=label, bg=theme.bg_secondary,
-                fg=theme.text_muted, font=FONTS.small()
-            ).pack(side=tk.LEFT)
-            
-            tk.Label(
-                row, text=str(value), bg=theme.bg_secondary,
-                fg=color, font=("Segoe UI", 9, "bold")
-            ).pack(side=tk.RIGHT)
-        
-        # Top categories chart (mini)
-        tk.Label(
-            self.stats_frame, text="Top Categories", bg=theme.bg_secondary,
-            fg=theme.text_secondary, font=FONTS.small(bold=True),
-            anchor="w"
-        ).pack(fill=tk.X, pady=(15, 5))
-        
-        sorted_cats = sorted(stats['category_counts'].items(), key=lambda x: -x[1])[:5]
-        max_count = max(sorted_cats[0][1], 1) if sorted_cats else 1
-        
-        for cat, count in sorted_cats:
-            cat_row = tk.Frame(self.stats_frame, bg=theme.bg_secondary)
-            cat_row.pack(fill=tk.X, pady=1)
-            
-            # Mini bar
-            bar_width = int((count / max_count) * 100)
-            
-            tk.Label(
-                cat_row, text=cat[:15], bg=theme.bg_secondary,
-                fg=theme.text_muted, font=FONTS.tiny(),
-                width=15, anchor="w"
-            ).pack(side=tk.LEFT)
-            
-            bar_frame = tk.Frame(cat_row, bg=theme.bg_tertiary, height=8, width=80)
-            bar_frame.pack(side=tk.LEFT, padx=5)
-            bar_frame.pack_propagate(False)
-            
-            fill = tk.Frame(bar_frame, bg=theme.accent_primary, height=8)
-            fill.place(x=0, y=0, relheight=1.0, relwidth=bar_width/100)
-            
-            tk.Label(
-                cat_row, text=str(count), bg=theme.bg_secondary,
-                fg=theme.text_muted, font=FONTS.tiny()
-            ).pack(side=tk.RIGHT)
-    
-    def _calculate_health_score(self, stats: Dict) -> int:
-        """Calculate health score"""
-        score = 100
-        total = stats['total_bookmarks'] or 1
-        
-        # Penalties
-        broken_pct = (stats['broken'] / total) * 100
-        uncat_pct = (stats['uncategorized'] / total) * 100
-        dupe_pct = (stats['duplicate_bookmarks'] / total) * 100
-        
-        score -= min(30, broken_pct * 3)
-        score -= min(20, uncat_pct * 0.5)
-        score -= min(15, dupe_pct * 2)
-        
-        # Bonuses
-        tagged_pct = (stats['with_tags'] / total) * 100
-        noted_pct = (stats['with_notes'] / total) * 100
-        
-        score += min(10, tagged_pct * 0.1)
-        score += min(5, noted_pct * 0.1)
-        
-        return max(0, min(100, int(score)))
 
 
 # =============================================================================

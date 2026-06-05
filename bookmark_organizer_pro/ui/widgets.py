@@ -23,10 +23,7 @@ from .widget_controls import (
     Tooltip,
     create_tooltip,
 )
-from .widget_grid import GridView
 from .widget_dashboard_panel import DashboardPanel
-from .widget_tray import SystemTrayManager
-from .widget_lists import BookmarkListView, CategorySidebar
 from .widget_theme_dialogs import ThemeCreatorDialog, ThemeSelectorDialog
 from .widget_analytics import AnalyticsDashboard
 from .widget_bookmark_editor import BookmarkEditorDialog
@@ -34,13 +31,9 @@ from .widget_bookmark_editor import BookmarkEditorDialog
 __all__ = [
     "AnalyticsDashboard",
     "BookmarkEditorDialog",
-    "BookmarkListView",
-    "CategorySidebar",
     "DashboardPanel",
-    "GridView",
     "ModernButton",
     "ModernSearch",
-    "SystemTrayManager",
     "TagEditor",
     "TagWidget",
     "ThemeCreatorDialog",
