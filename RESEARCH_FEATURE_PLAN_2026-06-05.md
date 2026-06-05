@@ -1,7 +1,8 @@
-# Research Feature Plan -- Bookmark Organizer Pro v6.2.0
+# Research Feature Plan -- Bookmark Organizer Pro v6.2.0 → v6.2.1
 
 > **Date:** 2026-06-05 | **Analyst:** 8-agent code audit + ecosystem research + UX walkthrough
 > **Scope:** Net-new findings not already on ROADMAP.md v3. Complements, does not duplicate.
+> **Status:** All P0 and P1 findings resolved in v6.2.1. See CHANGELOG.md.
 
 ---
 
