@@ -465,9 +465,6 @@ class TagWidget(tk.Frame, ThemedWidget):
             hash_val = sum(ord(c) for c in tag_name)
             color = colors[hash_val % len(colors)]
         
-        # Create semi-transparent background
-        bg_color = color + "26"  # Add alpha
-        
         super().__init__(parent, bg=theme.bg_primary)
         
         self.tag_name = tag_name

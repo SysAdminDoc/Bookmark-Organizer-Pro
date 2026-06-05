@@ -29,13 +29,11 @@ from .components import (
     DragDropImportArea,
     EnhancedProgressBar,
     FaviconStatusDisplay,
-    MiniAnalyticsDashboard,
     ScrollableFrame,
     ThemeDropdown,
 )
 from .density import DENSITY_SETTINGS, DensityManager, DisplayDensity
 from .dependencies import DependencyCheckDialog, check_and_install_dependencies
-from .drag_drop import CategoryDragDropManager
 from .feedback import EmptyState, FilteredEmptyState, HoverPreview, ToastNotification
 from .infrastructure import NonBlockingTaskRunner, WindowTransparency
 from .management_dialogs import CategoryManagementDialog, CustomFaviconDialog
@@ -57,11 +55,9 @@ from .secondary_views import (
     TimelineView,
 )
 from .shell_widgets import (
-    BookmarkCard,
     CommandPalette,
     StatusBar,
     StyledDropdownMenu,
-    SystemTray,
     ViewMode,
     show_styled_menu,
 )
@@ -106,7 +102,6 @@ __all__ = [
     "DragDropImportArea",
     "EnhancedProgressBar",
     "FaviconStatusDisplay",
-    "MiniAnalyticsDashboard",
     "ScrollableFrame",
     "ThemeDropdown",
     "display_or_fallback",
@@ -120,7 +115,6 @@ __all__ = [
     "DisplayDensity",
     "DependencyCheckDialog",
     "check_and_install_dependencies",
-    "CategoryDragDropManager",
     "EmptyState",
     "FilteredEmptyState",
     "HoverPreview",
@@ -144,11 +138,9 @@ __all__ = [
     "ReadingListView",
     "TagCloudView",
     "TimelineView",
-    "BookmarkCard",
     "CommandPalette",
     "StatusBar",
     "StyledDropdownMenu",
-    "SystemTray",
     "ViewMode",
     "show_styled_menu",
     "StyleManager",
