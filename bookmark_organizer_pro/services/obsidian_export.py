@@ -74,9 +74,9 @@ def export_bookmark(bookmark: Bookmark, vault_dir: Path,
         f"created: {_yaml_escape(bookmark.created_at)}",
     ]
     if bookmark.language:
-        lines.append(f"language: {bookmark.language}")
+        lines.append(f"language: {_yaml_escape(bookmark.language)}")
     if bookmark.content_type:
-        lines.append(f"content_type: {bookmark.content_type}")
+        lines.append(f"content_type: {_yaml_escape(bookmark.content_type)}")
     if bookmark.reading_time:
         lines.append(f"reading_time: {bookmark.reading_time}")
     lines.append("---")
@@ -100,7 +100,7 @@ def export_bookmark(bookmark: Bookmark, vault_dir: Path,
         try:
             from bookmark_organizer_pro.constants import APP_DIR
             text_path = Path(bookmark.extracted_text_path).resolve()
-            if str(text_path).startswith(str(APP_DIR.resolve())):
+            if text_path.is_relative_to(APP_DIR.resolve()):
                 text = text_path.read_text(encoding="utf-8")
                 if text.strip():
                     lines.append("## Content")

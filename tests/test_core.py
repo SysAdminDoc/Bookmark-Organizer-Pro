@@ -292,6 +292,83 @@ class TestPatternEngine(unittest.TestCase):
         self.assertEqual(suspects, [])
 
 
+class TestPatternEngineTwoPass(unittest.TestCase):
+    """Test two-pass priority: domain rules beat keyword rules across categories."""
+
+    def test_domain_beats_keyword_across_categories(self):
+        engine = PatternEngine({
+            "Generic": ["keyword:community"],
+            "Design": ["domain:figma.com"],
+        })
+        self.assertEqual(
+            engine.match("https://figma.com/community"),
+            "Design",
+        )
+
+    def test_domain_beats_keyword_reverse_order(self):
+        engine = PatternEngine({
+            "Design": ["domain:dribbble.com"],
+            "Forums": ["keyword:shots"],
+        })
+        self.assertEqual(
+            engine.match("https://dribbble.com/shots"),
+            "Design",
+        )
+
+    def test_keyword_fires_when_no_domain_match(self):
+        engine = PatternEngine({
+            "Finance": ["keyword:stock market"],
+            "News": ["domain:cnn.com"],
+        })
+        self.assertEqual(
+            engine.match("https://obscure-blog.com/page", "stock market analysis"),
+            "Finance",
+        )
+
+    def test_regex_in_pass2_after_domain_miss(self):
+        engine = PatternEngine({
+            "Education": ["regex:\\.edu(/|$)"],
+            "News": ["domain:cnn.com"],
+        })
+        self.assertEqual(
+            engine.match("https://mit.edu/courses"),
+            "Education",
+        )
+
+
+class TestPatternEngineIntegration(unittest.TestCase):
+    """Smoke test with the real DEFAULT_CATEGORIES (7,500+ patterns)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from bookmark_organizer_pro.core.default_categories import DEFAULT_CATEGORIES
+        cls.engine = PatternEngine(DEFAULT_CATEGORIES)
+
+    def test_github_to_software_development(self):
+        self.assertEqual(self.engine.match("https://github.com/torvalds/linux"), "Software Development")
+
+    def test_youtube_to_video(self):
+        self.assertEqual(self.engine.match("https://www.youtube.com/watch?v=dQw4w9WgXcQ"), "Video")
+
+    def test_amazon_to_shopping(self):
+        self.assertEqual(self.engine.match("https://www.amazon.com/dp/B0123"), "Shopping")
+
+    def test_cnn_to_news(self):
+        self.assertEqual(self.engine.match("https://www.cnn.com/2025/article"), "News")
+
+    def test_figma_community_to_design(self):
+        self.assertEqual(self.engine.match("https://figma.com/community"), "Design")
+
+    def test_unknown_domain_unmatched(self):
+        self.assertIsNone(self.engine.match("https://totallyunknown98765.zzz/page", "Totally Unknown Page"))
+
+    def test_weather_gov(self):
+        self.assertEqual(self.engine.match("https://weather.gov/forecast"), "Weather")
+
+    def test_zillow_to_real_estate(self):
+        self.assertEqual(self.engine.match("https://www.zillow.com/homes/123"), "Real Estate")
+
+
 class TestURLNormalization(unittest.TestCase):
     """Test URL normalization for deduplication."""
 

@@ -205,8 +205,7 @@ def t_get_extracted_text(bookmark_id: int) -> str:
     if not bm or not bm.extracted_text_path:
         return ""
     try:
-        from pathlib import Path as _P
-        return _P(bm.extracted_text_path).read_text(encoding="utf-8")
+        return Path(bm.extracted_text_path).read_text(encoding="utf-8")
     except OSError:
         return ""
 
@@ -316,7 +315,7 @@ def t_export_to_obsidian(vault_path: str, tag_filter: str = "",
     bms = s.bookmark_manager.get_all_bookmarks()
     vault = Path(vault_path).expanduser().resolve()
     home = Path.home().resolve()
-    if not str(vault).startswith(str(home)):
+    if not vault.is_relative_to(home):
         return {"error": "vault_path must be under the user's home directory"}
     paths = export_collection(bms, vault, tag_filter=tag_filter or None,
                               category_filter=category_filter or None,
