@@ -130,8 +130,8 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 |---|------|------|--------|--------|
 | 🔲 R-31 | **SQLite migration (optional)** — WAL mode unlocks concurrent access for web client. JSON remains default for backwards compat. Migration tool converts JSON → SQLite on opt-in. | Next | XL | [S-7][S-9] |
 | ✅ R-32 | **Per-backup integrity hash** — SHA-256 checksum file alongside each backup. Verify on restore. | Now | S | [S-1] |
-| 🔲 R-33 | **Deduplicate cross-category patterns** — retool.com, serverfault.com, hetzner.com appear in multiple categories. Audit + priority system. | Now | M | [S-1] |
-| 🔲 R-34 | **Fix overly broad plain patterns** — `click.`, `:3000` match too aggressively. Convert to typed `domain:` patterns. | Now | M | [S-1] |
+| ✅ R-33 | **Deduplicate cross-category patterns** — removed 8 within-category + 29 cross-category duplicates. | Now | M | [S-1] |
+| ✅ R-34 | **Fix overly broad plain patterns** — converted 25+ plain patterns to typed `domain:`/`keyword:`/`regex:`. | Now | M | [S-1] |
 
 ---
 
@@ -346,8 +346,8 @@ Immediate priority. Ship within the next development cycle.
 - ✅ **R-20** Fix GridView scroll stealing [S]
 - 🔲 **R-23** Headless Chromium snapshot fallback [M]
 - ✅ **R-32** Per-backup integrity hash [S]
-- 🔲 **R-33** Deduplicate cross-category patterns [M]
-- 🔲 **R-34** Fix overly broad plain patterns [M]
+- ✅ **R-33** Deduplicate cross-category patterns [M]
+- ✅ **R-34** Fix overly broad plain patterns [M]
 - ✅ **R-36** ReDoS timeout on pattern engine [S]
 - ✅ **R-39** Telemetry-free mode banner [S]
 - ✅ **R-42** Python version matrix in CI [S]

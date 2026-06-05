@@ -7,11 +7,11 @@ Pattern types supported: plain, domain:, keyword:, regex:, path:, title:.
 
 DEFAULT_CATEGORIES = {
     "Uncategorized / Needs Review": [
-        "example.com", "example.org", "test.", "demo.", "staging."
+        "example.com", "example.org", "domain:test.", "domain:demo.", "domain:staging."
     ],
     "Adult & Mature Content": [
         "pornhub.com", "xvideos.com", "xnxx.com", "xhamster.com", "redtube.com",
-        "porn.", "xxx.", "chaturbate.com", "onlyfans.com", "fansly.com",
+        "domain:porn.", "chaturbate.com", "onlyfans.com", "fansly.com",
         "youporn.com", "tube8.com", "spankbang.com", "eporner.com",
         "motherless.com", "youjizz.com", "fuq.com", "nudevista.com",
         "domain:tabootube.xxx", "domain:filtradas.com",
@@ -23,17 +23,17 @@ DEFAULT_CATEGORIES = {
     "Redirects, Trackers & Shorteners": [
         "domain:bit.ly", "domain:bitly.com", "domain:tinyurl.com",
         "domain:t.co", "domain:goo.gl", "domain:ow.ly",
-        "domain:linktr.ee", "domain:linkin.bio",
+        "domain:linkin.bio",
         "domain:rebrand.ly", "domain:cutt.ly", "domain:is.gd",
         "domain:v.gd", "domain:shorturl.at",
         "domain:linkvertise.com", "domain:adf.ly", "domain:ouo.io",
-        "redirect.", "tracking.", "click.",
-        "utm_source=", "fbclid=", "gclid=", "mc_eid="
+        "domain:redirect.", "domain:tracking.", "domain:click.",
+        "keyword:utm_source=", "keyword:fbclid=", "keyword:gclid=", "keyword:mc_eid="
     ],
     "Internal Tools & Dashboards": [
-        "localhost", "127.0.0.1", "192.168.", "10.0.", "172.16.", ".local",
-        ".internal", ".lan", ":3000", ":8080", ":8443", ":9090", ":5000",
-        "/admin", "/dashboard", "admin.", "dashboard.", "internal.", "intranet.",
+        "domain:localhost", "domain:127.0.0.1", "domain:192.168.", "domain:10.0.", "domain:172.16.", "domain:.local",
+        "domain:.internal", "domain:.lan", "regex::\\d{4}",
+        "/admin", "/dashboard", "domain:admin.", "domain:dashboard.", "domain:internal.", "domain:intranet.",
         "domain:pfsense", "domain:opnsense", "domain:unifi",
     
         # Category-focused deep research (pass 3)
@@ -53,14 +53,13 @@ DEFAULT_CATEGORIES = {
         "keyword:management console",
     
         # Comprehensive research pass 4 (11 parallel agents)
-        "domain:retool.com",
         "keyword:low-code platform",
     ],
     "Privacy & Security": [
         "domain:1password.com", "domain:lastpass.com", "domain:bitwarden.com",
         "domain:protonmail.com", "domain:proton.me", "domain:nordvpn.com",
         "domain:expressvpn.com", "domain:mullvad.net", "domain:torproject.org",
-        "domain:signal.org", "domain:haveibeenpwned.com", "domain:privacyguides.org",
+        "domain:haveibeenpwned.com", "domain:privacyguides.org",
         "domain:privacytools.io", "domain:virustotal.com", "domain:keepassxc.org",
         "domain:tails.boum.org", "domain:whonix.org",
         "keyword:vpn", "keyword:privacy", "keyword:encrypt",
@@ -221,7 +220,6 @@ DEFAULT_CATEGORIES = {
         "domain:overseerr.dev",
         "domain:ombi.io",
         "domain:jackett.github.io",
-        "domain:nzbget.com",
         "domain:nginxproxymanager.com",
         "domain:traefik.io",
         "domain:caddyserver.com",
@@ -318,7 +316,7 @@ DEFAULT_CATEGORIES = {
         "domain:splashtop.com", "domain:screenconnect.com", "domain:connectwise.com",
         "domain:ninjaone.com", "domain:pdq.com", "domain:teamviewer.com",
         "domain:anydesk.com", "domain:remotedesktop.google.com",
-        "domain:sync.com", "domain:info.easyvista.com", "domain:easyvista.com",
+        "domain:info.easyvista.com", "domain:easyvista.com",
         "domain:teamlogicit.com", "domain:tech-keys.com",
         "domain:nexttechconsultants.com",
         # Status pages
@@ -376,17 +374,14 @@ DEFAULT_CATEGORIES = {
         "domain:accounts.bdrive.com", "domain:bdrive.com",
         # File sharing / storage / backup (sysadmin context)
         "domain:wetransfer.com", "domain:sendspace.com",
-        "domain:box.net", "domain:box.com", "domain:wuala.com",
+        "domain:box.net", "domain:wuala.com",
         "domain:ammyy.com", "domain:airdroid.com", "domain:web.airdroid.com",
         "domain:dragshare.com", "domain:whatbox.ca", "domain:whatbox.com",
-        "domain:hetzner.com", "domain:hetzner.online",
         "domain:ovhcloud.com", "domain:ovh.com",
-        "domain:vultr.com", "domain:linode.com",
         # pfSense / security hardware
         "domain:netgate.com", "domain:pfsense.com",
         # Printer / hardware vendors
-        "domain:global-print-driver.com", "domain:xerox.com",
-        "domain:hp.com", "domain:epson.com", "domain:brother.com",
+        "domain:global-print-driver.com", "domain:epson.com",
         # Other SysAdmin resources / utilities
         "domain:ez.lol",  # browser ID/extension tester
         "keyword:managed it", "keyword:it services", "keyword:it support",
@@ -435,7 +430,7 @@ DEFAULT_CATEGORIES = {
         "domain:gist.github.com", "domain:raw.githubusercontent.com",
         # Q&A & Community
         "domain:stackoverflow.com", "domain:stackexchange.com",
-        "domain:superuser.com", "domain:serverfault.com", "domain:dev.to",
+        "domain:superuser.com", "domain:dev.to",
         # IDEs & Playgrounds
         "domain:codepen.io", "domain:jsfiddle.net", "domain:replit.com",
         "domain:codesandbox.io", "domain:stackblitz.com",
@@ -453,7 +448,7 @@ DEFAULT_CATEGORIES = {
         "domain:chromewebstore.google.com", "domain:addons.mozilla.org",
         "domain:uso.kkx.one",
         # Web Development
-        "domain:themeforest.net", "domain:tailwindcss.com",
+        "domain:tailwindcss.com",
         "domain:vercel.com", "domain:netlify.com", "domain:heroku.com",
         # Dev Tools
         "domain:regex101.com", "domain:jsonformatter.org",
@@ -625,7 +620,7 @@ DEFAULT_CATEGORIES = {
         "domain:apollo.io", "domain:jeneratex.com",
         "domain:app.patientimage.ai", "domain:app.vivalabs.ai",
         "domain:jobo.world", "domain:app.bio.link",
-        "domain:tunemymusic.com", "domain:photopea.com",
+        "domain:photopea.com",
         "domain:gab.ai", "domain:freedom-gpt.com",
         "domain:venice.ai", "domain:agnai.chat",
         "domain:you.com", "domain:phind.com",
@@ -688,14 +683,14 @@ DEFAULT_CATEGORIES = {
         "domain:aws.amazon.com", "domain:console.aws.amazon.com",
         "domain:azure.microsoft.com", "domain:portal.azure.com",
         "domain:cloud.google.com", "domain:digitalocean.com",
-        "domain:linode.com", "domain:vultr.com", "domain:hetzner.com",
+        "domain:linode.com", "domain:vultr.com", "domain:hetzner.com", "domain:hetzner.online",
         "domain:cloudflare.com", "domain:dash.cloudflare.com",
         "domain:namecheap.com", "domain:godaddy.com", "domain:domains.google.com",
         "domain:squarespace.com", "domain:wordpress.com", "domain:wordpress.org",
         "domain:cpanel.com", "domain:one.com", "domain:siteground.com",
         "domain:hostinger.com", "domain:bluehost.com", "domain:dreamhost.com",
         "keyword:docker", "keyword:kubernetes", "keyword:terraform",
-        "keyword:ansible", "keyword:vmware", "keyword:esxi", "keyword:proxmox",
+        "keyword:ansible", "keyword:esxi", "keyword:proxmox",
         "keyword:aws", "keyword:azure", "keyword:cloud hosting",
         "keyword:cdn", "keyword:ssl certificate", "keyword:domain name",
     
@@ -813,14 +808,14 @@ DEFAULT_CATEGORIES = {
         "domain:libertylinks.io",
         # Local news / regional
         "domain:whio.com", "domain:whiotv.com",
-        "domain:thinktv.org", "domain:downtowndayton.org",
+        "domain:thinktv.org",
         # Alternative / political
-        "domain:infogalactic.com", "domain:bellingcat.gitbook.io", "domain:bellingcat.com",
+        "domain:bellingcat.gitbook.io", "domain:bellingcat.com",
         "domain:dailywire.com", "domain:mises.org",
         "domain:frontier.com", "domain:theepochtimes.com", "domain:theconservativetreehouse.com",
-        "domain:zerohedge.com", "domain:citizenfreepress.com",
+        "domain:citizenfreepress.com",
         # Science / education news
-        "domain:nuclearsecrecy.com", "domain:sciencedaily.com",
+        "domain:sciencedaily.com",
         "domain:phys.org", "domain:space.com",
         "domain:arstechnica.com", "domain:hackernoon.com",
         # General interest / lifestyle
@@ -919,7 +914,6 @@ DEFAULT_CATEGORIES = {
         "domain:venturebeat.com",
         "domain:geekwire.com",
         "domain:protocol.com",
-        "domain:hbr.org",
         "domain:mckinsey.com",
         "domain:bcg.com",
         "domain:bain.com",
@@ -1175,8 +1169,8 @@ DEFAULT_CATEGORIES = {
         "domain:gab.com", "domain:truthsocial.com", "domain:minds.com",
         "domain:parler.com", "domain:gettr.com", "domain:ruqqus.com",
         "domain:8ch.net", "domain:8kun.top",
-        "domain:patriots.win", "domain:communities.win",
-        "domain:kiwifarms.st", "domain:kiwifarms.net",
+        "domain:patriots.win",
+        "domain:kiwifarms.st",
         "domain:16chan.xyz", "domain:16chan.to",
         "domain:ar15.com", "domain:thehighroad.org",
         "domain:forum.aprelteam.su", "domain:aprelteam.su",
@@ -1296,7 +1290,7 @@ DEFAULT_CATEGORIES = {
         "domain:publicstorage.com", "domain:cubesmart.com",
         # Misc specialty
         "domain:laserpointerpro.com", "domain:woodhullusa.com",
-        "domain:northerner.com", "domain:drizly.com",
+        "domain:northerner.com",
         "domain:zero.com",
         # Tobacco / vape
         "domain:gotsmoke.com", "domain:smokershub.com",
@@ -1470,7 +1464,7 @@ DEFAULT_CATEGORIES = {
         "domain:banned.video", "domain:warroom.org", "domain:pandemic.warroom.org",
         "domain:ome.tv", "domain:chaturbate.com",
         # Professional streaming infrastructure
-        "domain:dacast.com", "domain:brightcove.com", "domain:vimeo.com",
+        "domain:dacast.com", "domain:brightcove.com",
         "domain:storyblocks.com",
         "domain:myslingstudio.com", "domain:gatesair.com",
         "domain:kapwing.com", "domain:heroturko.me",
@@ -1661,7 +1655,7 @@ DEFAULT_CATEGORIES = {
         "domain:paypal.com", "domain:venmo.com", "domain:robinhood.com",
         "domain:fidelity.com", "domain:coinbase.com", "domain:mint.com",
         "domain:creditkarma.com", "domain:turbotax.com",
-        "domain:irs.gov", "domain:stripe.com", "domain:square.com",
+        "domain:stripe.com", "domain:square.com",
         "domain:quickbooks.intuit.com", "domain:freshbooks.com",
         "domain:gusto.com", "domain:paylocity.com",
         # Credit unions / regional banks
@@ -1704,7 +1698,6 @@ DEFAULT_CATEGORIES = {
         "domain:nerdwallet.com",
         "domain:bankrate.com",
         "domain:annualcreditreport.com",
-        "domain:treasury.gov",
         "keyword:stock market",
         "keyword:mutual fund",
         "keyword:credit score",
@@ -1854,7 +1847,6 @@ DEFAULT_CATEGORIES = {
         "domain:academia.edu",
         "domain:photomath.com",
         "domain:socratic.org",
-        "domain:grammarly.com",
         "domain:turnitin.com",
         "keyword:e-learning",
         "keyword:mooc",
@@ -1887,7 +1879,6 @@ DEFAULT_CATEGORIES = {
         "domain:clozemaster.com",
         "domain:mindtools.com",
         "domain:hbr.org",
-        "domain:mckinsey.com",
         "keyword:scholarship",
         "keyword:financial aid",
         "keyword:college admission",
@@ -1965,7 +1956,7 @@ DEFAULT_CATEGORIES = {
         "domain:merriam-webster.com", "domain:dictionary.com",
         "domain:scholar.google.com", "domain:arxiv.org", "domain:pubmed.gov",
         "domain:wolframalpha.com", "domain:archive.org", "domain:web.archive.org",
-        "domain:biblegateway.com", "domain:quora.com",
+        "domain:biblegateway.com",
         # Flight & Ship Tracking
         "domain:globe.airplanes.live", "domain:globe.adsbexchange.com",
         "domain:flightradar24.com", "domain:flightaware.com",
@@ -1996,7 +1987,6 @@ DEFAULT_CATEGORIES = {
         "domain:worldometers.info", "domain:numbeo.com",
         "domain:timeanddate.com", "domain:convertunits.com",
         "domain:unitconversion.org", "domain:calculator.net",
-        "domain:stackexchange.com",
         "keyword:definition", "keyword:meaning of",
         "keyword:encyclopedia", "keyword:wiki", "keyword:lookup",
         "keyword:calculator", "keyword:converter", "keyword:translate",
@@ -2343,7 +2333,6 @@ DEFAULT_CATEGORIES = {
         "domain:inkdrop.co", "domain:tattoo.com",
         # General health
         "domain:medscape.com", "domain:mercola.com",
-        "domain:manage.myassurantpolicy.com",
         # DICOM viewers / imaging tools
         "domain:weasis.org", "domain:osirix-viewer.com",
         "domain:radiantviewer.com", "domain:horosproject.org",
@@ -2526,7 +2515,7 @@ DEFAULT_CATEGORIES = {
         "domain:flexjobs.com", "domain:workingnomads.co",
         "domain:weworkremotely.com", "domain:remote.co",
         # Career / freelance platforms
-        "domain:toptal.com", "domain:guru.com", "domain:99designs.com",
+        "domain:toptal.com", "domain:guru.com",
         # Subdomain patterns for company career pages
         "keyword:careers.", "keyword:jobs.",
         "keyword:job opening", "keyword:careers at", "keyword:staffing",
@@ -2716,7 +2705,6 @@ DEFAULT_CATEGORIES = {
         "domain:landandfarm.com",
         "domain:land.com",
         "domain:landsofamerica.com",
-        "domain:fundrise.com",
         "domain:roofstock.com",
         "domain:crowdstreet.com",
         "domain:diversyfund.com",
@@ -3193,7 +3181,6 @@ DEFAULT_CATEGORIES = {
         "domain:ultra.cc",
         "domain:feral.io",
         "domain:cdromance.com",
-        "domain:retroarch.com",
         "domain:fmhy.pages.dev",
         "keyword:repacks",
         "keyword:cracked",
@@ -3344,7 +3331,7 @@ DEFAULT_CATEGORIES = {
         # More popular apps
         "domain:obsidian.md", "domain:logseq.com", "domain:anytype.io",
         "domain:zotero.org", "domain:calibre-ebook.com",
-        "domain:keepass.info", "domain:keepassxc.org",
+        "domain:keepass.info",
         "domain:veracrypt.fr", "domain:truecrypt.ch",
         "domain:everything.voidtools.com",
         "domain:fastcopy.jp", "domain:teracopy.com",
@@ -3458,7 +3445,7 @@ DEFAULT_CATEGORIES = {
         # Calendar / scheduling
         "domain:calendly.com", "domain:doodle.com",
         # Password managers (primary utility for many)
-        "domain:1password.com", "domain:dashlane.com",
+        "domain:dashlane.com",
         # Google.com catch-all (last fallback for generic searches/accounts).
         # Keep at the very end so specific subdomain rules in other
         # categories (News, AI, Cloud, Reference) match first.
