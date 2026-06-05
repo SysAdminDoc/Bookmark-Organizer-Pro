@@ -553,10 +553,115 @@ async def serve_stdio() -> int:
     return 0
 
 
+def _build_fastmcp_server():
+    """Build an MCP server using FastMCP 3.x if available. Returns None if not installed."""
+    fastmcp_mod = _try_import("fastmcp")
+    if fastmcp_mod is None:
+        return None
+    FastMCP = getattr(fastmcp_mod, "FastMCP", None)
+    if FastMCP is None:
+        return None
+    try:
+        mcp_app = FastMCP("bookmark-organizer-pro")
+    except Exception:
+        return None
+
+    @mcp_app.tool(description="List bookmarks with optional category/tag/read-later filters, sorted newest first.")
+    def list_bookmarks(limit: int = 50, offset: int = 0, category: str | None = None,
+                       tag: str | None = None, read_later_only: bool = False) -> list[dict]:
+        return t_list_bookmarks(limit, offset, category, tag, read_later_only)
+
+    @mcp_app.tool(description="Get a single bookmark by its numeric ID.")
+    def get_bookmark(bookmark_id: int) -> dict | None:
+        return t_get_bookmark(bookmark_id)
+
+    @mcp_app.tool(description="Keyword search across bookmark titles, URLs, tags, and descriptions.")
+    def search_bookmarks(query: str, limit: int = 25) -> list[dict]:
+        return t_search(query, limit)
+
+    @mcp_app.tool(description="Semantic vector search over ingested bookmark content.")
+    def semantic_search(query: str, k: int = 10) -> list[dict]:
+        return t_semantic_search(query, k)
+
+    @mcp_app.tool(description="Hybrid keyword+semantic search via Reciprocal Rank Fusion.")
+    def hybrid_search(query: str, limit: int = 25) -> list[dict]:
+        return t_hybrid_search(query, limit)
+
+    @mcp_app.tool(description="Add a new bookmark with auto-categorization and URL cleaning.")
+    def add_bookmark(url: str, title: str = "", category: str = "",
+                     tags: list[str] | None = None) -> dict | None:
+        return t_add_bookmark(url, title, category, tags)
+
+    @mcp_app.tool(description="List all tags with usage counts.")
+    def list_tags(limit: int = 100) -> list[dict]:
+        return t_list_tags(limit)
+
+    @mcp_app.tool(description="List all categories with bookmark counts.")
+    def list_categories() -> list[dict]:
+        return t_list_categories()
+
+    @mcp_app.tool(description="Return extracted readable text for a bookmark.")
+    def get_extracted_text(bookmark_id: int) -> str:
+        return t_get_extracted_text(bookmark_id)
+
+    @mcp_app.tool(description="Conversational RAG over the bookmark library.")
+    def chat_with_collection(question: str, restrict_ids: list[int] | None = None) -> dict:
+        return t_chat(question, restrict_ids)
+
+    @mcp_app.tool(description="AI summary with inline citations back to source spans.")
+    def summarize_bookmark(bookmark_id: int) -> dict:
+        return t_summarize(bookmark_id)
+
+    @mcp_app.tool(description="Daily digest: on-this-day, rediscover, read-later, stale picks.")
+    def daily_digest() -> dict:
+        return t_daily_digest()
+
+    @mcp_app.tool(description="List bookmarks flagged as broken/redirected by the dead-link scanner.")
+    def list_dead_links() -> list[dict]:
+        return t_dead_links()
+
+    @mcp_app.tool(description="List all research flows.")
+    def list_flows() -> list[dict]:
+        return t_list_flows()
+
+    @mcp_app.tool(description="Get a research flow with its steps and bookmarks.")
+    def get_flow(flow_id: str) -> dict | None:
+        return t_get_flow(flow_id)
+
+    @mcp_app.tool(description="Create a new research flow.")
+    def create_flow(name: str, description: str = "") -> dict:
+        return t_create_flow(name, description)
+
+    @mcp_app.tool(description="Add a bookmark to a research flow.")
+    def append_to_flow(flow_id: str, bookmark_id: int, note: str = "") -> dict:
+        return t_append_to_flow(flow_id, bookmark_id, note)
+
+    @mcp_app.tool(description="Export a bookmark as a portable ZIP archive.")
+    def export_zip(bookmark_id: int) -> dict:
+        return t_export_zip(bookmark_id)
+
+    @mcp_app.tool(description="List captured HTML snapshots.")
+    def list_snapshots(limit: int = 50) -> list[dict]:
+        return t_list_snapshots(limit)
+
+    return mcp_app
+
+
 def main():
     from bookmark_organizer_pro.constants import ensure_directories
     ensure_directories()
     log.info(f"{APP_NAME} MCP server v{APP_VERSION} starting (stdio)")
+
+    fastmcp_app = _build_fastmcp_server()
+    if fastmcp_app is not None:
+        log.info("Using FastMCP transport (auto-schema + ToolAnnotations)")
+        try:
+            fastmcp_app.run(transport="stdio")
+        except KeyboardInterrupt:
+            pass
+        return
+
+    log.info("FastMCP not available, using raw mcp SDK fallback")
     try:
         sys.exit(asyncio.run(serve_stdio()))
     except KeyboardInterrupt:

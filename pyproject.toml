@@ -24,7 +24,7 @@ ai = [
     "lancedb>=0.13,<1.0",
 ]
 encryption = ["cryptography>=42.0,<45.0"]
-mcp = ["mcp>=1.0,<2.0"]
+mcp = ["mcp>=1.0,<2.0", "fastmcp>=2.0"]
 all = [
     "bookmark-organizer-pro[tray,ai,encryption,mcp]",
     "defusedxml>=0.7",
