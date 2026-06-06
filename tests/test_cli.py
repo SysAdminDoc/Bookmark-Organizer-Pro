@@ -167,6 +167,27 @@ class TestCLISearchAndCheck(CLITestBase):
         api.stop.assert_called_once()
         self.assertIn("Local API running", out)
 
+    @patch("bookmark_organizer_pro.mcp_server.serve_http")
+    def test_mcp_http_server_rejects_invalid_port(self, serve_http):
+        out = self._run(["mcp-http-server", "--port", "bad"])
+
+        self.assertIn("usage: mcp-http-server", out)
+        serve_http.assert_not_called()
+
+    @patch("bookmark_organizer_pro.mcp_server.serve_http")
+    def test_mcp_http_server_passes_endpoint_options(self, serve_http):
+        out = self._run([
+            "mcp-http-server",
+            "--host",
+            "127.0.0.1",
+            "--port=9011",
+            "--path",
+            "/mcp",
+        ])
+
+        serve_http.assert_called_once_with(host="127.0.0.1", port=9011, path="/mcp")
+        self.assertIsInstance(out, str)
+
     def test_digest(self):
         out = self._run(["digest"])
         self.assertIsInstance(out, str)

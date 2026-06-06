@@ -78,6 +78,7 @@ class BookmarkCLI:
             "read-later": self._cmd_read_later,
             "api-server": self._cmd_api_server,
             "mcp-server": self._cmd_mcp_server,
+            "mcp-http-server": self._cmd_mcp_http_server,
             # v6.2.1
             "smart-collections": self._cmd_smart_collections,
             "nl-query": self._cmd_nl_query,
@@ -148,6 +149,8 @@ v6.0.0 commands:
   read-later {{add|next|done|list}} <id>   Manage the read-later queue
   api-server [--port N]          Run the local HTTP API for extensions/bookmarklet
   mcp-server                    Run the MCP server (stdio) for compatible clients.
+  mcp-http-server [--host H] [--port N] [--path /mcp]
+                                Run the MCP Streamable HTTP server on loopback.
 
 Examples:
   python main.py list
@@ -155,6 +158,7 @@ Examples:
   python main.py hybrid "python async tutorials"
   python main.py ingest        # ingest all
   python main.py mcp-server    # expose to an MCP-compatible client
+  python main.py mcp-http-server --port 8766
 """)
     
     def _cmd_list(self, args):
@@ -797,6 +801,63 @@ Top Domains:
     def _cmd_mcp_server(self, args):
         from bookmark_organizer_pro.mcp_server import main as _mcp_main
         _mcp_main()
+
+    def _cmd_mcp_http_server(self, args):
+        from bookmark_organizer_pro.mcp_server import serve_http
+        host = "127.0.0.1"
+        port = 8766
+        path = "/mcp"
+        usage = "usage: mcp-http-server [--host HOST] [--port N] [--path /mcp]"
+        i = 0
+        while i < len(args):
+            arg = args[i]
+            if arg == "--host":
+                if i + 1 >= len(args):
+                    print(usage)
+                    return
+                host = args[i + 1]
+                i += 2
+                continue
+            if arg.startswith("--host="):
+                host = arg.partition("=")[2]
+                i += 1
+                continue
+            if arg == "--port":
+                if i + 1 >= len(args):
+                    print(usage)
+                    return
+                try:
+                    port = int(args[i + 1])
+                except ValueError:
+                    print(usage)
+                    return
+                i += 2
+                continue
+            if arg.startswith("--port="):
+                try:
+                    port = int(arg.partition("=")[2])
+                except ValueError:
+                    print(usage)
+                    return
+                i += 1
+                continue
+            if arg == "--path":
+                if i + 1 >= len(args):
+                    print(usage)
+                    return
+                path = args[i + 1]
+                i += 2
+                continue
+            if arg.startswith("--path="):
+                path = arg.partition("=")[2]
+                i += 1
+                continue
+            print(usage)
+            return
+        if not host or port < 1 or port > 65535 or not path:
+            print(usage)
+            return
+        serve_http(host=host, port=port, path=path)
 
     def _cmd_api_server(self, args):
         from bookmark_organizer_pro.services.api import BookmarkAPI
