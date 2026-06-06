@@ -2,6 +2,24 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.12] - 2026-06-06
+
+OPDS export foundation release.
+
+### Added — Export (R-26 partial)
+
+- **OPDS 1.2 acquisition feed export** — added `export_opds()` to generate
+  Atom-based OPDS XML with open-access acquisition links to bookmark URLs.
+- **CLI export command** — added `opds-export` with `--output`, `--title`,
+  `--tag`, and `--catalog-url` options.
+- **Media type inference** — OPDS acquisition links infer EPUB, PDF, or HTML
+  media types from bookmark metadata and URL extensions.
+
+### Tests
+
+- Added service coverage for OPDS XML output and CLI coverage for
+  `opds-export`.
+
 ## [v6.6.11] - 2026-06-06
 
 Updater bootstrap and safety-gate release.

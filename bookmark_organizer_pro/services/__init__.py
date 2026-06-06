@@ -26,6 +26,7 @@ from .dup_hybrid import (
 from .embeddings import EmbeddingService
 from .encryption import CryptoUnavailable, EncryptedStore
 from .favicons import FaviconWrapperGenerator, HighSpeedFaviconManager
+from .feed_export import export_opds
 from .flows import Flow, FlowManager, FlowStep
 from .hybrid_search import HybridResult, HybridSearch
 from .icons import AIIconSuggester, IconLibrary
@@ -69,6 +70,7 @@ __all__ = [
     "AIBatchProcessor", "AICostTracker", "AITagSuggester",
     "SemanticDuplicateDetector", "BookmarkAPI",
     "FaviconWrapperGenerator", "HighSpeedFaviconManager",
+    "export_opds",
     "AIIconSuggester", "IconLibrary",
     "BackupScheduler", "CategoryColorManager", "FontManager", "VersionHistory",
     "Collection", "CollectionManager", "FrequentlyUsedManager",

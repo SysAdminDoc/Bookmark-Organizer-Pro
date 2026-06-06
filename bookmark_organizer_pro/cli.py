@@ -89,6 +89,7 @@ class BookmarkCLI:
             # v6.3
             "atom-export": self._cmd_atom_export,
             "json-feed": self._cmd_json_feed,
+            "opds-export": self._cmd_opds_export,
             "import-matter": self._cmd_import_matter,
             "import-zotero": self._cmd_import_zotero,
             "zotero-export": self._cmd_zotero_export,
@@ -145,6 +146,7 @@ v6.0.0 commands:
   import-reddit <json>          Import Reddit saved.json
   import-wallabag <json>        Import Wallabag JSON export
   import-arc <json>             Import Arc Browser StorableSidebar.json
+  opds-export [--output PATH]   Export an OPDS 1.2 acquisition feed
   zip-export [id|all] [path]    Per-bookmark or whole-collection ZIP export
   encrypt <pass> [src] [dst]    Encrypt a JSON file with AES-256-GCM
   decrypt <pass> <src> [dst]    Decrypt an encrypted JSON file
@@ -1184,6 +1186,32 @@ Top Domains:
             bms = [b for b in bms if any(t.lower() == tag_l for t in b.tags)]
         path = export_json_feed(bms, title=title, output_path=output)
         print(f"JSON Feed exported: {path} ({len(bms)} items)")
+
+    def _cmd_opds_export(self, args):
+        from bookmark_organizer_pro.services.feed_export import export_opds
+        from pathlib import Path
+        title = "Bookmarks"
+        output = None
+        tag_filter = None
+        catalog_url = ""
+        i = 0
+        while i < len(args):
+            if args[i] == "--title" and i + 1 < len(args):
+                title = args[i + 1]; i += 2
+            elif args[i] == "--output" and i + 1 < len(args):
+                output = Path(args[i + 1]); i += 2
+            elif args[i] == "--tag" and i + 1 < len(args):
+                tag_filter = args[i + 1]; i += 2
+            elif args[i] == "--catalog-url" and i + 1 < len(args):
+                catalog_url = args[i + 1]; i += 2
+            else:
+                i += 1
+        bms = self.bookmark_manager.get_all_bookmarks()
+        if tag_filter:
+            tag_l = tag_filter.lower()
+            bms = [b for b in bms if any(t.lower() == tag_l for t in b.tags)]
+        path = export_opds(bms, title=title, output_path=output, catalog_url=catalog_url)
+        print(f"OPDS feed exported: {path} ({len(bms)} entries)")
 
     def _cmd_import_matter(self, args):
         from bookmark_organizer_pro.importers_extra import MatterImporter, import_into

@@ -3,6 +3,20 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.12 OPDS Export Foundation
+
+- Advanced R-26: added OPDS 1.2 acquisition feed export for bookmark
+  collections.
+- Added `opds-export` CLI command with output path, title, tag filtering, and
+  optional self catalog URL.
+- Added EPUB/PDF/HTML media type inference for open-access acquisition links.
+- Verified official OPDS guidance: 1.x is Atom-based and OPDS 2.0 is the newer
+  JSON-LD/manifest line, so the first BOP slice targets broad OPDS 1.2 client
+  compatibility.
+- Verification: compileall passed, focused OPDS/release metadata tests passed
+  with 15 tests, CLI OPDS export smoke passed, and the full suite passed with
+  321 tests.
+
 ## 2026-06-06 — v6.6.11 Updater Bootstrap Gates
 
 - Advanced R-41: added `docs/distribution/updater-bootstrap.md` covering

@@ -21,9 +21,9 @@
 
 ---
 
-## State of the Project (v6.6.11)
+## State of the Project (v6.6.12)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.11:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.12:
 
 - **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
@@ -171,6 +171,16 @@ has explicit `updates download` and `updates apply` commands that refuse to run
 until mutating update behavior is fully designed and tested. Details:
 `docs/audit/2026-06-06-v6.6.11-updater-bootstrap-audit.md`.
 
+### Cycle Note — v6.6.12 (2026-06-06)
+
+R-26 is in progress. Live OPDS reference checks showed OPDS 1.2 is the
+Atom-based catalog format used for acquisition feeds, while OPDS 2.0 is the
+newer JSON-LD/manifest line. BOP now exports an OPDS 1.2 acquisition feed with
+open-access links to bookmark URLs, EPUB/PDF/HTML media type inference, and an
+`opds-export` CLI command. Serving the catalog over loopback remains for the
+next R-26 slice. Details:
+`docs/audit/2026-06-06-v6.6.12-opds-export-audit.md`.
+
 ### Hard Constraints
 
 - MIT license
@@ -285,7 +295,7 @@ until mutating update behavior is fully designed and tested. Details:
 | ✅ R-23 | Headless Chromium snapshot fallback (playwright) | Done | M | [S-1][S-3] |
 | ✅ R-24 | Scheduled auto-snapshot | Done | M | [S-1] |
 | ✅ R-25 | EPUB export of collections | Done | M | [S-6][S-18] |
-| 🔲 R-26 | **OPDS catalog** — serve collections to e-reader apps (Readeck-style). | Later | M | [S-6] |
+| 🔄 R-26 | **OPDS catalog** — OPDS 1.2 acquisition feed export and `opds-export` CLI shipped in v6.6.12. Loopback serving for e-reader apps remains. | In Progress | M | [S-6][S-89][S-90] |
 
 ---
 
@@ -414,6 +424,7 @@ All items below shipped in v6.0.0 through v6.4.1. Full details in [CHANGELOG.md]
 | R-41A | Updater policy foundation and disabled updates CLI | v6.6.9 |
 | R-41B | Non-applying tufup availability check adapter | v6.6.10 |
 | R-41C | Updater bootstrap docs and download/apply gates | v6.6.11 |
+| R-26A | OPDS 1.2 acquisition feed export | v6.6.12 |
 | BUG-01 through BUG-14 | All 14 known bugs fixed | v6.2.0-v6.4.1 |
 | + 30 v6.1.0 fixes | AI batch processor, chunk overlap, MCP schemas, CI flow, thread safety, etc. | v6.1.0 |
 
@@ -473,7 +484,7 @@ All Next-tier items have shipped through v6.6.8. Continue with Later-tier
 distribution and UI work, starting with R-41 unless a higher-priority audit
 finding appears.
 
-### Later — v7.x+ (7 remaining, R-41 in progress, R-17/R-50 shipped in v6.5.2)
+### Later — v7.x+ (7 remaining, R-26/R-41 in progress, R-17/R-50 shipped in v6.5.2)
 
 | # | Item | Effort | Category |
 |---|------|--------|----------|
@@ -578,6 +589,8 @@ finding appears.
 | S-86 | Arc Browser shutdown (May 2025) — arc-export community tools | https://github.com/nicehash/ArcEscape |
 | S-87 | Nuitka 4.0/4.1: 1500% compile speedup, Tkinter plugin | https://nuitka.net/posts/nuitka-release-40.html |
 | S-88 | tufup 0.10.0 on PyPI | https://pypi.org/project/tufup/ |
+| S-89 | OPDS Catalog 1.2 specification | https://specs.opds.io/opds-1.2.html |
+| S-90 | OPDS specifications overview | https://specs.opds.io/ |
 | S-89 | Bookmark Lens — local-first MCP bookmark manager on LanceDB | https://github.com/cornelcroi/bookmark-lens |
 | S-90 | bookmark-manager-mcp (infinitepi-io) | https://github.com/infinitepi-io/bookmark-manager-mcp |
 | S-91 | HN: MCP-connected bookmark manager | https://news.ycombinator.com/item?id=47384765 |

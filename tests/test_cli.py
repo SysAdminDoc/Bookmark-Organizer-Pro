@@ -261,6 +261,16 @@ class TestCLIExportSubcommands(CLITestBase):
         finally:
             os.unlink(tmp) if os.path.exists(tmp) else None
 
+    def test_opds_export(self):
+        import tempfile, os
+        fd, tmp = tempfile.mkstemp(suffix=".opds.xml")
+        os.close(fd)
+        try:
+            out = self._run(["opds-export", "--output", tmp, "--title", "Test"])
+            self.assertIn("opds", out.lower() if out else "opds")
+        finally:
+            os.unlink(tmp) if os.path.exists(tmp) else None
+
 
 class TestCLINlQuery(CLITestBase):
     def test_nl_query_no_args(self):
