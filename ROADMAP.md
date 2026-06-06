@@ -21,9 +21,9 @@
 
 ---
 
-## State of the Project (v6.6.10)
+## State of the Project (v6.6.11)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.10:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.11:
 
 - **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
@@ -161,6 +161,15 @@ that path in `UpdateManager.check_for_updates()`, requires local trusted
 `root.json`, reports structured availability, and updates `updates check` to
 use the non-applying adapter. Download/apply remains unavailable. Details:
 `docs/audit/2026-06-06-v6.6.10-updater-check-audit.md`.
+
+### Cycle Note — v6.6.11 (2026-06-06)
+
+R-41 remains in progress. BOP now documents the tufup repository bootstrap,
+client trusted-root placement, target naming, repository-owner checklist, and
+active safety gates in `docs/distribution/updater-bootstrap.md`. The CLI also
+has explicit `updates download` and `updates apply` commands that refuse to run
+until mutating update behavior is fully designed and tested. Details:
+`docs/audit/2026-06-06-v6.6.11-updater-bootstrap-audit.md`.
 
 ### Hard Constraints
 
@@ -316,7 +325,7 @@ use the non-applying adapter. Download/apply remains unavailable. Details:
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
 | ✅ R-40 | **Nuitka compilation smoke** — build helper, optional Nuitka 4.1+ extra, Tkinter plugin app path, Windows metadata, bounded `--jobs`, smoke target, local standalone compile, report/assets, and artifact `--version` validation shipped in v6.6.6-v6.6.8. Full GUI bundle validation remains release hardening before any installer switch. | Done | L | [S-27][S-87] |
-| 🔄 R-41 | **tufup auto-update** — optional tufup 0.10.x extra, disabled-by-default update policy, HTTPS repository guard, trusted-root readiness, non-applying tufup availability checks, and `updates` CLI surface shipped in v6.6.9-v6.6.10. Repository bootstrap and download/apply gates remain. | In Progress | M | [S-28][S-88] |
+| 🔄 R-41 | **tufup auto-update** — optional tufup 0.10.x extra, disabled-by-default update policy, HTTPS repository guard, trusted-root readiness, non-applying tufup checks, bootstrap docs, and explicit download/apply refusal gates shipped in v6.6.9-v6.6.11. Mutating download/apply implementation remains gated. | In Progress | M | [S-28][S-88] |
 | ✅ R-42 | Python version matrix in CI (3.10-3.13) | Done | S | [S-1] |
 
 ---
@@ -404,6 +413,7 @@ All items below shipped in v6.0.0 through v6.4.1. Full details in [CHANGELOG.md]
 | R-40C | Nuitka smoke target and artifact validation | v6.6.8 |
 | R-41A | Updater policy foundation and disabled updates CLI | v6.6.9 |
 | R-41B | Non-applying tufup availability check adapter | v6.6.10 |
+| R-41C | Updater bootstrap docs and download/apply gates | v6.6.11 |
 | BUG-01 through BUG-14 | All 14 known bugs fixed | v6.2.0-v6.4.1 |
 | + 30 v6.1.0 fixes | AI batch processor, chunk overlap, MCP schemas, CI flow, thread safety, etc. | v6.1.0 |
 

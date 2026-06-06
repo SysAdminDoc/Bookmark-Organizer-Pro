@@ -1,14 +1,20 @@
-# Bookmark Organizer Pro v6.6.10
+# Bookmark Organizer Pro v6.6.11
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **single-file HTML snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
-![Version](https://img.shields.io/badge/version-6.6.10-blue.svg)
+![Version](https://img.shields.io/badge/version-6.6.11-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
 
 ![Bookmark Organizer Pro Screenshot](assets/screenshot.png)
+
+## What's new in v6.6.11
+
+- **Updater bootstrap guide** — documented tufup repository setup, trusted
+  root placement, target naming, status/check commands, and explicit
+  download/apply refusal gates.
 
 ## What's new in v6.6.10
 
