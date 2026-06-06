@@ -1,8 +1,8 @@
 # Bookmark Organizer Pro — Roadmap
 
-> **Version:** 3.2 · **Date:** 2026-06-06 · **Covers:** v6.4.2 → v7.x
-> **Single source of truth** for all planned work.  
-> Supersedes prior `ROADMAP.md` (v2) and consolidates the dated research plan now archived under `docs/research/`.
+> **Version:** 4.0 · **Date:** 2026-06-05 · **Covers:** v6.4.1 → v8.x
+> **Single source of truth** for all planned work.
+> Supersedes ROADMAP v3.x. Prior research archived under `docs/research/`.
 
 ---
 
@@ -10,33 +10,66 @@
 
 | Symbol | Meaning |
 |--------|---------|
-| ✅ | Done (shipped in v6.4.2 or earlier) |
+| ✅ | Done (shipped in v6.4.1 or earlier) |
 | 🔲 | Open — implementation not started |
 | 🚧 | In progress or partially shipped |
 | S/M/L/XL | Effort estimate (days: 0.5 / 1-2 / 3-5 / 1-2 weeks) |
 
-**Tiers:** Now (v6.2) → Next (v7.0) → Later (v7.x+) → Under Consideration → Rejected
+**Tiers:** Now (ship before next release) → Next (v7.0) → Later (v7.x+) → Under Consideration → Rejected
 
 **Every item is traceable** to a source in the [Appendix](#appendix-sources). Items without sources are rejected.
 
 ---
 
-## State of the Project (v6.4.2)
+## State of the Project (v6.4.1)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.4.2 it ships:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.4.1:
 
-- **AI:** 5 providers (OpenAI, Anthropic, Gemini, Groq, Ollama), auto-categorization with 4,224 patterns, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
-- **Search:** Full-text boolean + semantic vector (LanceDB + FastEmbed) + hybrid RRF
-- **MCP server:** 20 typed tools — one of a small group of OSS bookmark managers with MCP (Raindrop.io and Karakeep also added MCP in 2026)
-- **Preservation:** Single-file HTML snapshots (monolith/single-file/BS4), dead-link scanner, Wayback Machine
-- **Security:** AES-256-GCM encrypted DB, SSRF guards, prompt sanitization, API auth tokens
-- **Import/Export:** 13 importers, 7 exporters (HTML/JSON/CSV/OPML/XBEL/Markdown/ZIP)
-- **UI:** 10+ themes, command palette, toast notifications, zoom, high-DPI
-- **Browser capture:** MV3 extension MVP plus bookmarklet, both backed by the local API token flow
+- **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
+- **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
+- **MCP server:** 20 typed tools — one of ~4 bookmark managers with MCP (alongside Raindrop.io, Karakeep, Burn 451) [S-60][S-74][S-78]
+- **Preservation:** Single-file HTML snapshots (4-backend chain: monolith → singlefile → playwright → python), dead-link scanner, Wayback Machine, auto-snapshot scheduler
+- **Security:** AES-256-GCM encrypted DB, SSRF guards, prompt sanitization, API auth tokens, keyring storage
+- **Import/Export:** 14 importers (incl. Pocket, Readwise, Pinboard, Instapaper, Reddit, Matter, Zotero), 12 export formats (HTML/JSON/CSV/OPML/XBEL/Markdown/ZIP/Obsidian/EPUB/Atom/JSON Feed/Zotero RDF)
+- **UI:** 11 themes (incl. WCAG AA high-contrast), command palette, toast notifications, zoom, high-DPI, dashboard analytics
+- **CLI:** 37 subcommands, 255 tests across 5 files
+- **Desktop:** Python ≥3.10, Tkinter, PyInstaller binary, cross-platform (Windows primary, macOS/Linux)
 
-**What v6.1.0 fixed (35 items):** AI batch processor crashes, chunk overlap infinite-loop, untyped MCP schemas, PyInstaller missing hidden imports, CI release flow, thread-safety across 5 services, main-thread blocking, per-domain rate limiting, atomic writes, log rotation, defusedxml, API auth, prompt sanitization, and 13 quick wins. See [CHANGELOG.md](CHANGELOG.md).
+### Competitive Position (June 2026)
 
-**Hard constraints:**
+| Competitor | Stars | MCP | Browser Ext | Semantic Search | AI Tag | Local-First | Desktop GUI |
+|-----------|-------|-----|-------------|-----------------|--------|-------------|-------------|
+| Karakeep | 25.9K | ✅ | ✅ Chrome/FF/Safari | Meilisearch FTS | ✅ | ❌ Docker | ❌ Web |
+| Linkwarden | 18.5K | Community | ✅ Chrome/FF | Meilisearch FTS | ✅ | ❌ Docker | ❌ Web |
+| Wallabag | 12.8K | ❌ | ✅ Chrome/FF | FTS | ❌ | ❌ Docker | ❌ Web |
+| Linkding | 10.7K | Community | ✅ Chrome/FF | FTS | ❌ | ❌ Docker | ❌ Web |
+| ArchiveBox | 27.6K | Community | ❌ | ❌ | Plugin | ❌ Docker | ❌ Web |
+| Buku | 7.1K | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ CLI |
+| Faved | 1.1K | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ Web/PWA |
+| Raindrop.io | N/A | ✅ | ✅ All | ✅ (Pro) | ✅ Stella | ❌ Cloud | ❌ Web |
+| Burn 451 | N/A | ✅ 22 tools | ✅ Chrome | ✅ | ✅ | ❌ Cloud | ❌ Web |
+| Bookmark Lens | small | ✅ | ❌ | ✅ LanceDB | ✅ | ✅ | ❌ MCP-only |
+| **BOP** | public | ✅ 20 tools | ❌ | ✅ LanceDB | ✅ 6 providers | ✅ | ✅ Tkinter |
+
+**BOP's uncontested niche:** Desktop-native + local-first + MCP + semantic search + AI. No competitor occupies this exact intersection. **BOP is the only OSS bookmark manager with semantic/vector search** — zero competitors ship embeddings or vector similarity. The threat is not direct competition — it's Karakeep/Linkwarden web UIs accessed via local Docker, and Burn 451/Raindrop.io MCP servers that integrate better with AI workflows.
+
+**Competitive window narrowing:** Karakeep shipped MCP (v0.24.0), browser extensions (Chrome/FF/Safari + SingleFile-in-extension), and grew to 25.9K stars. Raindrop.io launched Stella (AI chat over bookmarks + MCP). Burn 451 has 22 MCP tools vs BOP's 20. Bookmark Lens entered the local-first + LanceDB + MCP niche. New entrants: Faved (1.1K stars, local-first), LazyCat Bookmark Cleaner (1.8K stars, AI extension), Eclaire (864 stars, local-first AI PKM). The browser extension gap (R-01) and GUI chat panel are critical differentiators to ship.
+
+**What BOP offers free that commercial tools paywall ($38-156/yr):** Full-text search, AI auto-tagging, semantic search, page archiving, MCP server, conversational RAG, citation-aware summaries, dead-link scanning. The biggest missing feature vs commercial tools is highlights/annotations (R-21) — paywalled at Raindrop ($38/yr), Readwise ($120/yr), and Diigo ($40/yr).
+
+### Cycle Note — v4.0 (2026-06-05)
+
+This roadmap revision is a ground-up rewrite informed by 99 cited sources across OSS competitors, commercial services, dependency changelogs, CVE databases, MCP spec evolution, community forums, and review articles. Key changes from v3.x:
+
+- **Elevated security:** 2 new CVEs in `cryptography` (buffer overflow + cert bypass). MCP zero-auth and XXE vulnerabilities escalated to Now tier.
+- **MCP ecosystem shift:** MCP is no longer unique — Raindrop.io, Karakeep, Burn 451, and Bookmark Lens all ship MCP servers. BOP must add write tools and migrate to the 2026-07-28 stateless spec to stay competitive.
+- **Commercial intelligence:** Features BOP offers free (full-text search, AI tagging, page archiving, MCP) are paywalled at $38-156/year across commercial tools. Highlights/annotations (R-21) is the biggest gap vs Readwise Reader ($120/yr) and Linkwarden.
+- **New items:** 28 new roadmap items (R-51 through R-78). 40 completed items collapsed into summary.
+- **Web client dropped to Later:** XL effort + SQLite prerequisite chain makes it unrealistic before v7.x.
+- **Nuitka promoted:** 4.0/4.1 release (April 2026) with 1500% compile speedup and confirmed Tkinter support makes it production-ready. Promoted from Later to Next.
+
+### Hard Constraints
+
 - MIT license
 - Python ≥ 3.10, Tkinter GUI (no Electron/Tauri rewrite)
 - Local-first: no mandatory server, no cloud dependency, no Docker requirement
@@ -44,128 +77,141 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 - Windows-primary, cross-platform (macOS, Linux)
 - User data sovereignty: AI assists, user decides; never auto-delete or auto-merge
 
-## Cycle Note — 2026-06-06
+---
 
-This cycle validated the existing roadmap against current competitor and dependency signals rather than adding duplicate work:
+## Theme 1 — Security & Hardening
 
-- Browser capture remains the highest platform gap: Linkwarden documents a browser extension and Karakeep highlights browser extensions/mobile apps, reinforcing R-01/R-03. [S-69][S-70]
-- `tksheet` remains a viable Tkinter virtualization path for R-16, with 7.6.0 listed as a current 2026 release. [S-71]
-- `sv-ttk` remains the lightweight ttk visual refresh candidate for R-18, with 2.6.1 still listed as the current package version. [S-72]
-- FastMCP continues to evolve around MCP app/tool surfaces, keeping R-15 streaming worth tracking after the existing typed-tool migration. [S-73]
+*Three critical vulnerabilities identified in the v6.4.0 audit remain open. Two new CVEs affect core dependencies.*
 
-## Cycle Note — 2026-06-06, Pass 2
+| # | Item | Tier | Effort | Source |
+|---|------|------|--------|--------|
+| 🔲 R-51 | **Bump `cryptography` to ≥46.0.7** — CVE-2026-39892 (buffer overflow on non-contiguous buffers, affects 45.0-46.0.6) and CVE-2026-34073 (certificate validation bypass, fixed 46.0.6). Current floor is 42.0. | Now | S | [S-75][S-76] |
+| 🔲 R-52 | **Wire MCP authentication enforcement** — `MCPTokenManager` in `services/mcp_auth.py` is complete but never imported by `mcp_server.py`. 20 tools exposed with zero auth. Any MCP client can add bookmarks, export data, trigger AI calls. | Now | M | [S-1] |
+| 🔲 R-53 | **Fix XXE in OPML/XBEL importers** — `importers.py` uses `ET.parse()` without defusedxml. `io_formats/xbel.py` uses `ET.fromstring()` directly. `rss_feeds.py` already has the correct pattern to copy. | Now | S | [S-1][S-38] |
+| 🔲 R-54 | **Sanitize LocalArchiver HTML output** — `web_tools.py` embeds raw fetched HTML in archive via f-string. Stored XSS: scripts execute in file:// origin. Strip `<script>` tags + add CSP meta header. | Now | S | [S-1] |
+| 🔲 R-55 | **Windows ACL on sensitive files** — `ai_config.json`, `api_token.txt`, `mcp_tokens.json` have no Windows ACL restriction. `os.name != 'nt'` guard skips permissions on primary platform. Use `icacls` after write. | Next | S | [S-1] |
+| 🔲 R-56 | **REST API GET auth** — `do_GET` never calls `_check_auth()`. Entire bookmark library readable by any local process. Add Bearer token requirement matching POST/DELETE. | Next | S | [S-1] |
+| ✅ R-36 | ReDoS timeout on pattern engine regex | Done | S | [S-1] |
+| ✅ R-36b | Pillow upgraded to ≥12.2.0 (3 CVEs) | Done | S | [S-51] |
+| ✅ R-37 | SSRF allow-list | Done | M | [S-1] |
+| ✅ R-38 | Passphrase rotation | Done | M | [S-1] |
+| ✅ R-39 | Telemetry-free mode banner | Done | S | [S-1] |
+| ✅ R-35 | API key storage via keyring | Done | M | [S-1] |
 
-R-01 moved from not-started to partial: the repo now includes a Manifest V3
-extension scaffold with popup/options flows and an `api-server` CLI command for
-the existing localhost API. Current WebExtension guidance supports the chosen
-`activeTab`, `scripting`, `storage`, and `host_permissions` permission set.
-Native messaging and offline category/tag suggestions are still open under R-01.
-[S-74][S-75]
+**Justification:** CVE-2026-39892 is a buffer overflow rated Moderate but could cause DoS in any BOP workflow that uses encryption. MCP zero-auth is the single biggest security gap — any process on localhost can manipulate the library. XXE and stored XSS are standard OWASP top-10 that damage credibility for a tool advertising "privacy-centric" and "local-first."
 
 ---
 
-## Theme 1 — Platform Reach
+## Theme 2 — Platform Reach
 
 *The single biggest limitation: BOP has no browser extension, no web client, no mobile access.*
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| 🚧 R-01 | **Browser extension (MV3)** — MVP popup/options scaffold ships in v6.4.2 with local API save. Remaining: offline category/tag suggestions from the 4,224-pattern engine, native messaging, packaged Chrome + Firefox validation. | Now | L | [S-1][S-3][S-5][S-7][S-10][S-74][S-75] |
-| 🔲 R-02 | **Web client (FastAPI + HTMX)** — read/search/add from any device. PWA manifest for mobile install. Read-only by default, auth-gated mutations. Shares JSON storage via WAL-mode SQLite migration (see R-30). | Next | XL | [S-3][S-5][S-6][S-8][S-12] |
-| 🔲 R-03 | **Mobile PWA share-intent** — Android "Share to BOP" target via the web client, auto-categorize on receipt. | Next | M | [S-8][S-12] |
-| ✅ R-04 | **Bookmarklet fallback** — `scripts/generate_bookmarklet.py` generates a JS bookmark with auth token. Sends URL+title+selection to localhost API with toast feedback. | Now | S | [S-6][S-10] |
+| 🔲 R-01 | **Browser extension (MV3)** — one-click save popup with offline category/tag suggestions from the 7,500-pattern engine (ship as bundled JSON lookup), native messaging to localhost API. Chrome + Firefox. | Now | L | [S-3][S-5][S-7][S-10][S-20][S-69][S-70] |
+| ✅ R-04 | Bookmarklet fallback | Done | S | [S-6][S-10] |
+| 🔲 R-02 | **Web client (FastAPI + HTMX)** — read/search/add from any device. PWA manifest for mobile install. Read-only by default, auth-gated mutations. Depends on SQLite migration (R-31). | Later | XL | [S-3][S-5][S-6][S-8][S-12] |
+| 🔲 R-03 | **Mobile PWA share-intent** — Android "Share to BOP" target via the web client, auto-categorize on receipt. | Later | M | [S-8][S-12] |
 
-**Justification:** Every major competitor ships a browser extension ([S-3] Linkwarden, [S-5] Karakeep, [S-7] Linkding, [S-8] Wallabag, [S-10] Raindrop). "No extension" is the #1 complaint in r/selfhosted bookmark threads ([S-20]). The bookmarklet is a low-effort interim solution while the extension matures.
-
----
-
-## Theme 2 — AI & Search Quality
-
-*BOP's MCP server + RAG + semantic search combo is unique. Protect and extend the lead.*
-
-| # | Item | Tier | Effort | Source |
-|---|------|------|--------|--------|
-| ✅ R-05 | **FastMCP migration** — auto-schema from type hints with FastMCP when available, raw mcp SDK fallback. 19 tools registered in both paths. | Now | M | [S-14][S-15] |
-| ✅ R-06 | **MCP tools: `create_flow`, `append_to_flow`, `export_zip`, `list_snapshots`** — 4 new typed tools added (19 total). | Now | M | [S-14] |
-| ✅ R-07 | **Cross-encoder re-rank** — optional `_try_rerank()` using ms-marco-MiniLM after RRF fusion. `rerank=True` param. | Next | M | [S-16][S-17] |
-| ✅ R-08 | **Chunk-level provenance** — `ChatTurn.chunk_provenance` list with `citation_id`, `bookmark_id`, `char_start`, `char_end`, `text_preview`. | Next | M | [S-1] |
-| ✅ R-09 | **Time-weighted recall** — exponential decay factor with configurable half-life in hybrid search. `time_weight` param (0-1). | Next | S | [S-1] |
-| ✅ R-10 | **Collections as retrieval scopes** — `restrict_tag` and `restrict_category` params on MCP `chat_with_collection` + FastMCP path. | Next | M | [S-1][S-10] |
-| ✅ R-11 | **Answer caching** — LRU cache (128 entries) keyed on `(query_hash, scope_hash)`. Skips multi-turn. `clear_cache()` + `cache_stats`. | Later | S | [S-1] |
-| ✅ R-12 | **YouTube transcript capture** — `services/youtube_transcript.py`: detects YouTube URLs, fetches via yt-dlp CLI or library, parses VTT, stores as extracted text. | Next | M | [S-6][S-18] |
-| ✅ R-13 | **Smart Collections** — `SmartCollectionManager` with tag/domain/date/keyword/content-type filters. CRUD + evaluate API. | Next | M | [S-10][S-19] |
-| ✅ R-14 | **MCP auth scopes** — `services/mcp_auth.py` with `MCPTokenManager`. Create/revoke tokens, read-only vs read-write scope per tool. | Later | M | [S-14] |
-| 🔲 R-15 | **MCP streaming** for `chat_with_collection` — stream RAG responses token-by-token. | Later | M | [S-14] |
+**Justification:** "No extension" is the #1 complaint in r/selfhosted bookmark threads [S-20]. Every major competitor ships one: Karakeep (Chrome/FF/Safari with SingleFile integrated) [S-70], Linkwarden (Chrome/FF) [S-69], Linkding, Wallabag, Raindrop.io, Burn 451. The bookmarklet (R-04) is an interim bridge. Web client dropped to Later because SQLite prerequisite (R-31) makes it an XL chain.
 
 ---
 
-## Theme 3 — UI & Performance
+## Theme 3 — MCP & AI Integration
 
-*Tkinter is the stack. Modernize within it, don't fight it.*
+*BOP's MCP server + RAG + semantic search combo is shared with only 3 other tools (Raindrop, Karakeep, Burn 451). Protect the lead and adapt to the evolving spec.*
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| 🔲 R-16 | **List virtualization via tksheet** — replace Treeview with tksheet for virtual scrolling. Handles millions of rows. Pure Python. | Now | L | [S-22][S-23] |
+| 🔲 R-57 | **MCP write tools** — add 6 tools: `delete_bookmark`, `update_bookmark`, `toggle_pin`, `mark_read_later`, `add_tags`, `remove_tags`. Burn 451 has 22 tools; BOP needs curation parity. | Now | M | [S-1][S-78] |
+| 🔲 R-58 | **MCP 2026-07-28 spec migration** — adapt to stateless protocol (no Mcp-Session-Id), add Mcp-Method/Mcp-Name headers, implement ttlMs + cacheScope on list results. Required for SDK Tier 1 compliance. | Next | L | [S-79][S-80] |
+| 🔲 R-59 | **FastMCP 3.x upgrade** — bump from ≥2.0 to ≥3.4. Gains: OAuth auto-enable for HTTPS, OTEL spans on tool execution, fastmcp-remote for connecting stdio hosts to remote servers, meta-tools. | Next | M | [S-81] |
+| 🔲 R-60 | **GUI chat panel** — sidebar or dialog for RAG chat. User types question, gets cited answers with bookmark links. `rag_chat.py` backend is complete but GUI-invisible. Most differentiating feature. Markwise and Raindrop Stella define the category. | Next | L | [S-1][S-65][S-82] |
+| 🔲 R-61 | **Nomic Embed v2 support** — 137M params, CPU-first, Matryoshka dims (768→64), 8192-token context. Best quality-to-size ratio for local deployment. Add as recommended model in embedding config. | Next | S | [S-83] |
+| ✅ R-05 | FastMCP migration (2.x) | Done | M | [S-14][S-15] |
+| ✅ R-06 | MCP tools: create_flow, append_to_flow, export_zip, list_snapshots | Done | M | [S-14] |
+| ✅ R-07 | Cross-encoder re-rank | Done | M | [S-16][S-17] |
+| ✅ R-08 | Chunk-level RAG provenance | Done | M | [S-1] |
+| ✅ R-09 | Time-weighted recall | Done | S | [S-1] |
+| ✅ R-10 | Collections as retrieval scopes | Done | M | [S-1][S-10] |
+| ✅ R-11 | Answer caching | Done | S | [S-1] |
+| ✅ R-12 | YouTube transcript capture | Done | M | [S-6][S-18] |
+| ✅ R-13 | Smart Collections | Done | M | [S-10][S-19] |
+| ✅ R-14 | MCP auth scopes | Done | M | [S-14] |
+| 🔲 R-15 | **MCP streaming** for `chat_with_collection` — stream RAG responses token-by-token. Depends on FastMCP 3.x streaming support. | Later | M | [S-14][S-79] |
+
+**Justification:** MCP write tools are needed for AI agent curation workflows (Burn 451 already ships delete/update). The 2026-07-28 spec is the biggest MCP revision since launch — going stateless, adding caching, aligning with OAuth 2.0 [S-79]. FastMCP 3.4 brings OTEL observability and remote server support [S-81]. GUI chat panel is the #1 feature gap vs Raindrop Stella and Markwise.
+
+---
+
+## Theme 4 — UI Quality & Performance
+
+*Tkinter is the stack. Modernize within it. Fix the GUI-CLI parity gap (15+ CLI-only features).*
+
+| # | Item | Tier | Effort | Source |
+|---|------|------|--------|--------|
+| 🔲 R-62 | **Help menu with Search Syntax, Shortcuts, About** — no Help menu exists. `get_syntax_help()` returns docs for 15+ filter types but is unreachable. AboutDialog is fully built but not wired. | Now | S | [S-1] |
+| 🔲 R-63 | **Remove AI reference from About credits** — `about.py` line 290: "Developed with assistance from assistant tooling". Violates no-AI-refs rule. | Now | S | [S-1] |
+| 🔲 R-64 | **Fix About dialog false feature claims** — Features tab lists System Tray and drag-and-drop removed in v6.3.0. | Now | S | [S-1] |
+| 🔲 R-65 | **Replace 35+ hardcoded Segoe UI fonts** — 12 UI files bypass FONTS system. Breaks macOS/Linux rendering. | Now | M | [S-1] |
+| 🔲 R-66 | **Remove 4 dead UI view classes** — KanbanView, TimelineView, ReadingListView, TagCloudView (~670 lines). Never instantiated. | Now | S | [S-1] |
+| 🔲 R-16 | **List virtualization via tksheet** — replace Treeview with tksheet for virtual scrolling. Handles millions of rows. Pure Python. v7.6.0 is maintenance-only but stable. | Now | L | [S-22][S-23][S-71] |
+| 🔲 R-67 | **GUI surfaces for Read Later, Flows, RSS** — 3 complete backend services with zero GUI exposure. Add collapsible sidebar sections. | Next | L | [S-1] |
+| 🔲 R-68 | **GUI import/export parity** — 7 importers and 6 export formats are CLI-only. Add to Import menu and Export dialog. | Next | M | [S-1] |
+| 🔲 R-69 | **Expand command palette to 35+ commands** — only 18 of 40+ actions registered. Add Toggle Pin, Copy URL, Delete, About, all Tools/AI actions. | Next | M | [S-1] |
+| 🔲 R-70 | **Extend bookmark editor** — only shows URL/title/category/tags. Add notes, description, pin, read-later fields. Scrollable content. | Next | M | [S-1] |
+| 🔲 R-71 | **Theme-aware DependencyCheckDialog** — 40 hardcoded Catppuccin Mocha colors ignore active theme. Replace with `get_theme()` tokens. | Next | M | [S-1] |
+| 🔲 R-72 | **Add Escape-to-close on 8 modal dialogs** — standard desktop UX. BulkTagEditor, EmojiPicker, Analytics, ThemeSelector, AI dialogs. | Next | S | [S-1] |
+| 🔲 R-73 | **Batch save context manager** — every single-bookmark mutation triggers full file serialization. Add `BookmarkManager.batch()` for bulk ops. | Now | M | [S-1] |
+| 🔲 R-74 | **File-change watching for MCP+GUI co-existence** — MCP and GUI create independent managers. Poll `mtime` every 5s, reload on external change. | Next | M | [S-1] |
 | 🔲 R-17 | **Tree view alongside list view** — hierarchical category tree for deeply nested collections. | Next | M | [S-3][S-5] |
-| 🔲 R-18 | **sv-ttk theme integration** — Windows 11 Sun Valley look without CustomTkinter dependency. Lightweight, actively maintained. | Next | M | [S-24] |
-| ✅ R-19 | **Fix command palette FocusOut** — clicking a palette item closes it before the click registers. `after(150)` delay + child-focus check. | Now | S | [S-1] |
-| ✅ R-20 | **Fix GridView scroll stealing** — `bind_all('<MouseWheel>')` replaced with widget-scoped binding. | Now | S | [S-1] |
-| 🔲 R-21 | **Reader view with highlight/annotation** — open extracted text in a reader pane. 4-color highlights, per-highlight notes. Export to Markdown. | Later | L | [S-3][S-10][S-11] |
+| 🔲 R-18 | **sv-ttk theme integration** — Windows 11 Sun Valley look. v2.6.1 actively maintained, Python 3.9-3.13. | Later | M | [S-24][S-72] |
+| ✅ R-19 | Fix command palette FocusOut | Done | S | [S-1] |
+| ✅ R-20 | Fix GridView scroll stealing | Done | S | [S-1] |
+| 🔲 R-21 | **Reader view with highlight/annotation** — open extracted text in a reader pane. 4-color highlights, per-highlight notes. Export to Markdown. Linkwarden 2.14 ships this. | Later | L | [S-3][S-10][S-11][S-84] |
 | 🔲 R-22 | **Graph view** — bookmarks as nodes, tags as edges, force-directed layout. | Later | L | [S-4] |
 
 ---
 
-## Theme 4 — Preservation & Content
+## Theme 5 — Preservation & Content
 
-*Snapshots and content extraction are a differentiator vs. minimal tools like Linkding/Buku.*
+*Snapshots and content extraction differentiate BOP vs minimal tools like Linkding/Buku.*
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| ✅ R-23 | **Headless Chromium snapshot fallback** — playwright backend added as 3rd in chain (monolith → singlefile → playwright → python). | Now | M | [S-1][S-3] |
-| ✅ R-24 | **Scheduled auto-snapshot** — `services/auto_snapshot.py`: SnapshotScheduler with add/remove/run_once/start/stop. Background daemon thread. | Next | M | [S-1] |
-| ✅ R-25 | **EPUB export of collections** — EPUB 3.0 via manual ZIP. Each bookmark = chapter. No external deps. | Next | M | [S-6][S-18] |
+| ✅ R-23 | Headless Chromium snapshot fallback (playwright) | Done | M | [S-1][S-3] |
+| ✅ R-24 | Scheduled auto-snapshot | Done | M | [S-1] |
+| ✅ R-25 | EPUB export of collections | Done | M | [S-6][S-18] |
 | 🔲 R-26 | **OPDS catalog** — serve collections to e-reader apps (Readeck-style). | Later | M | [S-6] |
 
 ---
 
-## Theme 5 — Import / Export / Interop
+## Theme 6 — Import / Export / Interop
 
-*Pocket and Omnivore are dead ([S-25][S-26]). BOP should be the landing pad.*
+*Pocket and Omnivore are dead. Arc Browser shut down May 2025. BOP is the landing pad.*
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| ✅ R-27 | **Zotero RDF import/export** — `services/zotero_interop.py`. CLI: `import-zotero`, `zotero-export`. Reads/writes dc:title, dc:subject, dcterms:abstract. | Next | M | [S-1] |
-| ✅ R-28 | **Matter CSV importer** — `MatterImporter` in `importers_extra.py`. CLI: `import-matter`. Reads Title/URL/Tags/Status/Date Saved. | Later | S | [S-1] |
-| ✅ R-29 | **Atom + JSON Feed export** — `services/feed_export.py` with `export_atom()` and `export_json_feed()`. CLI: `atom-export`, `json-feed`. | Later | S | [S-1] |
-| ✅ R-30 | **Obsidian vault export via CLI + MCP** — `services/obsidian_export.py` + MCP `export_to_obsidian` tool (20 total). Tag/category/date filters. | Next | M | [S-1][S-11] |
+| ✅ R-27 | Zotero RDF import/export | Done | M | [S-1] |
+| ✅ R-28 | Matter CSV importer | Done | S | [S-1] |
+| ✅ R-29 | Atom + JSON Feed export | Done | S | [S-1] |
+| ✅ R-30 | Obsidian vault export | Done | M | [S-1][S-11] |
+| 🔲 R-75 | **Wallabag JSON importer** — Wallabag (12K stars) is the primary Pocket refugee destination. Parse title/url/content/tags/is_starred/created_at. Map is_starred to pinned. Optionally store full article as extracted text. | Later | S | [S-8][S-85] |
+| 🔲 R-76 | **Arc Browser importer** — parse `StorableSidebar.json`. Community tools (arc-export, 1,200+ stars) prove demand. Time-limited opportunity. | Later | S | [S-86] |
+| 🔲 R-77 | **Shell completion scripts** — BOP has 37 CLI subcommands with no tab completion. Generate via `shtab` or `argcomplete`. Ship bash/zsh/fish. Buku ships all three. | Later | S | [S-31] |
 
 ---
 
-## Theme 6 — Data Architecture
+## Theme 7 — Data Architecture
 
 *JSON file storage works for thousands of bookmarks but won't scale to 100K+.*
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| 🔲 R-31 | **SQLite migration (optional)** — WAL mode unlocks concurrent access for web client. JSON remains default for backwards compat. Migration tool converts JSON → SQLite on opt-in. | Next | XL | [S-7][S-9] |
-| ✅ R-32 | **Per-backup integrity hash** — SHA-256 checksum file alongside each backup. Verify on restore. | Now | S | [S-1] |
-| ✅ R-33 | **Deduplicate cross-category patterns** — removed 8 within-category + 29 cross-category duplicates. | Now | M | [S-1] |
-| ✅ R-34 | **Fix overly broad plain patterns** — converted 25+ plain patterns to typed `domain:`/`keyword:`/`regex:`. | Now | M | [S-1] |
-
----
-
-## Theme 7 — Security & Privacy
-
-*Local-first is a privacy claim. Back it up.*
-
-| # | Item | Tier | Effort | Source |
-|---|------|------|--------|--------|
-| ✅ R-35 | **API key storage via keyring** — `get_api_key` checks keyring first, `set_api_key` stores in keyring with JSON fallback. | Next | M | [S-1] |
-| ✅ R-36 | **ReDoS timeout on pattern engine regex** — `signal.alarm` guard on Unix, catch-all on Windows. | Now | S | [S-1] |
-| ✅ R-36b | **Upgrade Pillow to ≥12.2.0** — CVE-2026-25990, CVE-2026-40192, CVE-2026-42308 fixed. | Now | S | [S-51] |
-| ✅ R-37 | **SSRF allow-list** — `URLUtilities.set_ssrf_allow_list(patterns)` adds regex whitelist for trusted internal domains. | Next | M | [S-1] |
-| ✅ R-38 | **Passphrase rotation** — `EncryptedStore.rotate_passphrase(path, old, new)` with audit log entry. | Later | M | [S-1] |
-| ✅ R-39 | **Telemetry-free mode banner** — first-run privacy notice in launcher. | Now | S | [S-1] |
+| 🔲 R-31 | **SQLite migration (optional)** — WAL mode unlocks concurrent access for web client. JSON remains default. Migration tool on opt-in. | Next | XL | [S-7][S-9] |
+| ✅ R-32 | Per-backup integrity hash (SHA-256) | Done | S | [S-1] |
+| ✅ R-33 | Deduplicate cross-category patterns | Done | M | [S-1] |
+| ✅ R-34 | Fix overly broad plain patterns | Done | M | [S-1] |
 
 ---
 
@@ -175,23 +221,24 @@ Native messaging and offline category/tag suggestions are still open under R-01.
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| 🔲 R-40 | **Nuitka compilation** — Python-to-C, fewer AV false positives, 2-4x faster startup. Tkinter plugin available. | Next | L | [S-27] |
-| 🔲 R-41 | **tufup auto-update** — TUF-based binary diff patches. Works with PyInstaller or Nuitka. | Later | M | [S-28] |
-| ✅ R-42 | **Python version matrix in CI** — test job on 3.10, 3.11, 3.12, 3.13 before build. | Now | S | [S-1] |
+| 🔲 R-40 | **Nuitka compilation** — Python-to-C, fewer AV false positives, 2-4x faster startup. Nuitka 4.0/4.1 shipped April 2026 with 1500% compilation speedup and confirmed Tkinter support. Now production-ready. | Next | L | [S-27][S-87] |
+| 🔲 R-41 | **tufup auto-update** — TUF-based binary diff patches. Works with PyInstaller or Nuitka. v0.10.0 on PyPI, actively maintained. | Later | M | [S-28][S-88] |
+| ✅ R-42 | Python version matrix in CI (3.10-3.13) | Done | S | [S-1] |
 
 ---
 
 ## Theme 9 — Testing & Quality
 
-*142 test methods in 1 file. Zero coverage of v6 service modules.*
+*255 test methods across 5 files. 27 of 35 service modules still untested.*
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| ✅ R-43 | **Service layer test suite** — 26 tests across 8 services (embeddings, encryption, tag_linter, flows, digest, rss_feeds, zip_export, read_later). 188 total tests pass. | Now | L | [S-1] |
-| ✅ R-44 | **MCP server integration tests** — 20 tests covering all 19 tools, schema validation, dedup detection, flows CRUD. | Now | M | [S-1] |
-| ✅ R-45 | **CLI smoke test suite** — 21 tests covering dispatch, --version, help, list, add, search, categories, tags, stats, smart-collections, exports, imports. 255 total tests. | Next | M | [S-1] |
-| ✅ R-46 | **Remove ~1,409 lines dead code** — GridView, BookmarkListView, MiniAnalyticsDashboard, SystemTray, BookmarkCard, CategoryDragDropManager, ViewMode.GRID, dead assignment. 9 files cleaned. | Now | S | [S-1] |
-| ✅ R-47 | **Fix copy-pasted model docstrings** — replaced in cli.py, api.py, widget_bookmark_editor.py, widget_lists.py, workflow_detail_panel.py. | Now | S | [S-1] |
+| ✅ R-43 | Service layer test suite (26 tests) | Done | L | [S-1] |
+| ✅ R-44 | MCP server integration tests (20 tests) | Done | M | [S-1] |
+| ✅ R-45 | CLI smoke test suite (21 tests) | Done | M | [S-1] |
+| ✅ R-46 | Remove ~1,409 lines dead code | Done | S | [S-1] |
+| ✅ R-47 | Fix copy-pasted model docstrings | Done | S | [S-1] |
+| 🔲 R-78 | **Untested service coverage** — 27 of 35 service modules lack tests. Priority: `snapshot.py`, `hybrid_search.py`, `rag_chat.py`, `nl_query.py`, `dead_link_scanner.py`. | Next | L | [S-1] |
 
 ---
 
@@ -201,72 +248,61 @@ Native messaging and offline category/tag suggestions are still open under R-01.
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| 🔲 R-48 | **Keyboard accessibility** — tab order across treeview/sidebar/search/toolbar, column sort via keyboard, screen reader labels on major sections. WCAG 2.2 focus-appearance criteria (2.4.11, 2.4.13). Min 24×24px click targets (2.5.8). | Next | L | [S-29][S-63] |
-| ✅ R-49 | **High-contrast theme** — WCAG AA dark theme with yellow accents, white text on black. | Next | S | [S-29][S-63] |
-| 🔲 R-50 | **gettext i18n scaffolding** — extract all user-facing strings, `.po` file structure, `CONTRIBUTING.md` section for translators. No translations required yet — just the infrastructure. | Later | M | [S-30][S-68] |
+| 🔲 R-48 | **Keyboard accessibility** — tab order across treeview/sidebar/search/toolbar, column sort via keyboard, screen reader labels. WCAG 2.2 focus-appearance (2.4.11, 2.4.13). Min 24×24px click targets (2.5.8). | Next | L | [S-29][S-63] |
+| ✅ R-49 | High-contrast WCAG AA theme | Done | S | [S-29][S-63] |
+| 🔲 R-50 | **gettext i18n scaffolding** — extract user-facing strings, `.po` file structure, `CONTRIBUTING.md` section for translators. Infrastructure only, no translations yet. | Later | M | [S-30][S-68] |
 
 ---
 
-## Known Bugs (from research pass 3)
+## Completed Items Summary
 
-*All identified in audit, all verified. Fix before next release.*
+All items below shipped in v6.0.0 through v6.4.1. Full details in [CHANGELOG.md](CHANGELOG.md).
 
-| # | Bug | Severity | Effort | Status |
-|---|-----|----------|--------|--------|
-| BUG-01 | 6 domain patterns with embedded spaces — will never match | P0 | S | ✅ |
-| BUG-02 | 48 dead `domain:path` patterns — converted to `regex:` | P0 | M | ✅ |
-| BUG-03 | 3 misplaced domains (photopea→Design, ifixit→Technology, apollo.io→Business) | P1 | S | ✅ |
-| BUG-04 | `plain` type dead code removed from pattern engine | P1 | S | ✅ |
-| BUG-05 | Obsidian export: 3 optional fields now YAML-escaped | P1 | S | ✅ |
-| BUG-06 | Redundant local `Path as _P` import removed | P2 | S | ✅ |
-| BUG-07 | Path sandbox upgraded to `Path.is_relative_to()` (3 files) | P2 | S | ✅ |
-| BUG-08 | Pattern engine O(1) domain dict lookup (was O(n) linear scan) | P2 | M | ✅ |
-| BUG-09 | 18 overly broad keywords removed (bond, stream, analysis, etc.) | P2 | M | ✅ |
-| BUG-10 | 4 tests added for two-pass priority behavior | P1 | S | ✅ |
-| BUG-11 | 8 tests added for PatternEngine with real DEFAULT_CATEGORIES | P1 | S | ✅ |
-| BUG-12 | Pre-existing test failure — already fixed in prior commit | P2 | S | ✅ |
-| BUG-13 | CLI `scan --hours N` ignored documented space-separated syntax and could run unrestricted scans | P1 | S | ✅ |
-| BUG-14 | `pyproject.toml` console script pointed at missing `bookmark_organizer_pro.cli:main` | P1 | S | ✅ |
+<details>
+<summary>40 completed roadmap items (click to expand)</summary>
 
----
+| ID | Item | Version |
+|----|------|---------|
+| R-04 | Bookmarklet generator | v6.2.0 |
+| R-05 | FastMCP 2.x migration | v6.2.0 |
+| R-06 | 4 new MCP tools (create_flow, append_to_flow, export_zip, list_snapshots) | v6.2.0 |
+| R-07 | Cross-encoder re-rank after RRF | v6.3.0 |
+| R-08 | Chunk-level RAG provenance | v6.3.0 |
+| R-09 | Time-weighted recall | v6.2.0 |
+| R-10 | Collections as retrieval scopes | v6.3.0 |
+| R-11 | Answer caching (LRU 128 entries) | v6.3.0 |
+| R-12 | YouTube transcript capture | v6.3.0 |
+| R-13 | Smart Collections | v6.2.0 |
+| R-14 | MCP auth scopes (MCPTokenManager) | v6.3.0 |
+| R-19 | Fix command palette FocusOut | v6.2.0 |
+| R-20 | Fix GridView scroll stealing | v6.2.0 |
+| R-23 | Headless Chromium snapshot (playwright) | v6.2.0 |
+| R-24 | Scheduled auto-snapshot | v6.3.0 |
+| R-25 | EPUB export | v6.2.0 |
+| R-27 | Zotero RDF import/export | v6.3.0 |
+| R-28 | Matter CSV importer | v6.3.0 |
+| R-29 | Atom + JSON Feed export | v6.3.0 |
+| R-30 | Obsidian vault export (CLI + MCP) | v6.2.0 |
+| R-32 | Per-backup SHA-256 integrity hash | v6.2.0 |
+| R-33 | Deduplicate cross-category patterns | v6.2.0 |
+| R-34 | Fix overly broad plain patterns | v6.2.0 |
+| R-35 | API key storage via keyring | v6.3.0 |
+| R-36 | ReDoS timeout on pattern engine regex | v6.2.0 |
+| R-36b | Pillow upgraded to ≥12.2.0 (3 CVEs) | v6.2.0 |
+| R-37 | SSRF allow-list | v6.3.0 |
+| R-38 | Passphrase rotation | v6.3.0 |
+| R-39 | Telemetry-free mode banner | v6.2.0 |
+| R-42 | Python version matrix in CI | v6.2.0 |
+| R-43 | Service layer test suite (26 tests) | v6.2.0 |
+| R-44 | MCP server integration tests (20 tests) | v6.2.0 |
+| R-45 | CLI smoke test suite (21 tests) | v6.3.0 |
+| R-46 | Remove ~1,409 lines dead code | v6.2.0 |
+| R-47 | Fix copy-pasted model docstrings | v6.2.0 |
+| R-49 | High-contrast WCAG AA theme | v6.2.0 |
+| BUG-01 through BUG-14 | All 14 known bugs fixed | v6.2.0-v6.4.1 |
+| + 30 v6.1.0 fixes | AI batch processor, chunk overlap, MCP schemas, CI flow, thread safety, etc. | v6.1.0 |
 
-## Completed (v6.1.0)
-
-All v6.1.0 fixes are recorded in [CHANGELOG.md](CHANGELOG.md). Key items that were previously on this roadmap:
-
-| ID | Item | Status |
-|----|------|--------|
-| BOP-001 | AI batch processor crashes | ✅ v6.1.0 |
-| BOP-002 | Chunk overlap infinite-loop | ✅ v6.1.0 |
-| BOP-003 | Typed MCP tool schemas | ✅ v6.1.0 |
-| BOP-004 | PyInstaller v6 hidden imports | ✅ v6.1.0 |
-| BOP-005 | CI release creation step | ✅ v6.1.0 |
-| BOP-006 | AI calls off main thread | ✅ v6.1.0 |
-| BOP-007 | Link check off main thread | ✅ v6.1.0 |
-| BOP-008 | Per-domain rate limiting | ✅ v6.1.0 |
-| BOP-009 | batch_refresh_metadata thread safety | ✅ v6.1.0 |
-| BOP-010 | Dead-link scanner thread safety | ✅ v6.1.0 |
-| BOP-011 | Atomic writes (VectorStore, DeadLinkScanner) | ✅ v6.1.0 |
-| BOP-012 | Log rotation | ✅ v6.1.0 |
-| BOP-013 | AI cost tracker pricing update | ✅ v6.1.0 |
-| BOP-014 | client.complete() abstraction | ✅ v6.1.0 |
-| BOP-015 | API auth + CORS | ✅ v6.1.0 |
-| BOP-016 | Analytics skip-unchanged | ✅ v6.1.0 |
-| BOP-017 | defusedxml for RSS | ✅ v6.1.0 |
-| BOP-018 | Snapshot URL escaping | ✅ v6.1.0 |
-| BOP-020 | pyproject.toml | ✅ v6.1.0 |
-| BOP-024 | Duplicate-at-save-time detection | ✅ v6.1.0 |
-| BOP-030 | Prompt sanitization | ✅ v6.1.0 |
-| BOP-032 | Pre-restore backup | ✅ v6.1.0 |
-| BOP-033 | TagManager thread safety | ✅ v6.1.0 |
-| BOP-034 | save_bookmarks lock race | ✅ v6.1.0 |
-| BOP-037 | Importer intra-file dedup | ✅ v6.1.0 |
-| BOP-053 | ensure_directories() refactor | ✅ v6.1.0 |
-| BOP-054 | RAG citation validation | ✅ v6.1.0 |
-| BOP-057 | Ollama SSRF guard | ✅ v6.1.0 |
-| BOP-058 | Remove runtime pip install | ✅ v6.1.0 |
-| BOP-059 | thum.io opt-in | ✅ v6.1.0 |
-| + 5 more | Quick wins (tag case, stale days, search empty, date filter, decrypt validation) | ✅ v6.1.0 |
+</details>
 
 ---
 
@@ -274,15 +310,17 @@ All v6.1.0 fixes are recorded in [CHANGELOG.md](CHANGELOG.md). Key items that we
 
 | Idea | Source | Reason |
 |------|--------|--------|
-| Multi-user / team features | [S-3][S-7] | Contradicts local-first single-user design. Linkwarden and Linkding cover teams. |
+| Multi-user / team features | [S-3][S-7] | Contradicts local-first single-user design. Linkwarden and Linkding serve teams. |
 | Docker as primary deployment | [S-5][S-3] | No-Docker is a differentiator. Docker *support* is fine but never required. |
 | Meilisearch/Elasticsearch sidecar | [S-5] | Built-in FTS + LanceDB is a simplicity advantage. No external search infra. |
-| Cloud-hosted SaaS | — | Premature. Stabilize first, revisit post-v7. |
-| Native mobile apps (iOS/Android) | — | PWA via web client covers 90%. Native is too expensive for a single maintainer. |
+| Cloud-hosted SaaS | — | Premature. Stabilize desktop + MCP + extension first. |
+| Native mobile apps (iOS/Android) | — | PWA via web client covers 90%. Native too expensive for single maintainer. |
 | Full language rewrite (Rust/Go/TS) | — | Python ecosystem (fastembed, lancedb, mcp, trafilatura) is the stack. Nuitka for perf. |
-| AI-only organization (no manual) | [S-19] | "AI assists, user decides" is core philosophy. Never remove manual control. |
+| AI-only organization (no manual) | [S-19] | "AI assists, user decides" is core philosophy. |
 | Browser-history import (full) | — | Privacy risk too high. One-off migration aid only if explicitly requested. |
-| CustomTkinter migration | [S-24] | Stagnating (no releases in 12+ months, maintainer absent). sv-ttk is the alternative. |
+| CustomTkinter migration | [S-24] | Stagnating (no releases in 12+ months). sv-ttk is the alternative. |
+| Subscription pricing | — | BOP is free and local-first. Compete on sovereignty and features, not price. |
+| 24-hour triage/auto-delete | [S-78] | Burn 451's model causes data anxiety. Contradicts archival philosophy. |
 
 ---
 
@@ -295,8 +333,76 @@ These ideas surfaced in research but need more validation before committing:
 | **Plugin API via `entry_points`** — community importers without forking | [S-1] | Is there demand? No community contributors yet. Ship when there's a second contributor. |
 | **WARC dual-archive** alongside HTML snapshots | [S-4] | Storage cost doubles. Only if a user requests archival-grade preservation. |
 | **Public-share static export** — single HTML per collection, no server | [S-1] | Nice but niche. Build only if the web client ships first. |
-| **Auto-highlight extraction** — local LLM finds N highlights per article | [S-1][S-11] | Cool but depends on reader view (R-21) landing first. |
-| **Behavioral triage inbox** — amber 7d, red 30d aging indicators | [S-19] | Could cause data anxiety (Burn 451's biggest complaint). Needs UX research. |
+| **Auto-highlight extraction** — local LLM finds N highlights per article | [S-1][S-11] | Depends on reader view (R-21) landing first. |
+| **Behavioral triage inbox** — amber 7d, red 30d aging indicators | [S-19] | Could cause data anxiety. Needs UX research. |
+| **Externalize `default_categories.py` to JSON** — 5,768 lines of inline data | [S-1] | Enables user customization but adds load-time complexity. Ship when the editor exists. |
+| **Lazy imports in `__init__.py`** — `__getattr__` for heavyweight subsystems | [S-1] | Measurable startup benefit? Needs profiling. |
+| **Embedding model tier selection in GUI** — Fast/Balanced/Best with download progress | [S-1][S-83] | Good UX but depends on model ecosystem stabilizing. |
+| **Search history persistence** — persist to settings.json, show dropdown on focus | [S-1] | Low effort, moderate value. Bundle with a UI polish release. |
+| **Deduplicate Settings gear / Tools menu** — 3 items appear in both | [S-1] | UX improvement but low severity. |
+| **Theme-aware title bar** — light title bar on light themes (Windows) | [S-1] | Nice polish. Bundle with sv-ttk integration. |
+
+---
+
+## Tier Summary
+
+### Now — Ship Before Next Release (13 items)
+
+| # | Item | Effort | Category |
+|---|------|--------|----------|
+| R-51 | Bump `cryptography` to ≥46.0.7 (2 CVEs) | S | Security |
+| R-52 | Wire MCP authentication enforcement | M | Security |
+| R-53 | Fix XXE in OPML/XBEL importers | S | Security |
+| R-54 | Sanitize LocalArchiver HTML output | S | Security |
+| R-57 | MCP write tools (6 new: delete, update, tag, pin, read-later) | M | MCP |
+| R-62 | Help menu (Search Syntax, Shortcuts, About) | S | UI |
+| R-63 | Remove AI reference from About credits | S | UI |
+| R-64 | Fix About dialog false feature claims | S | UI |
+| R-65 | Replace 35+ hardcoded Segoe UI fonts | M | UI |
+| R-66 | Remove 4 dead UI view classes (~670 lines) | S | Quality |
+| R-73 | Batch save context manager | M | Performance |
+| R-01 | Browser extension (MV3) — Chrome + Firefox | L | Platform |
+| R-16 | List virtualization via tksheet | L | Performance |
+
+### Next — v7.0 (14 items)
+
+| # | Item | Effort | Category |
+|---|------|--------|----------|
+| R-55 | Windows ACL on sensitive files | S | Security |
+| R-56 | REST API GET auth | S | Security |
+| R-58 | MCP 2026-07-28 spec migration | L | MCP |
+| R-59 | FastMCP 3.x upgrade | M | MCP |
+| R-60 | GUI chat panel for RAG | L | AI |
+| R-61 | Nomic Embed v2 model support | S | AI |
+| R-67 | GUI surfaces for Read Later, Flows, RSS | L | UI |
+| R-68 | GUI import/export parity | M | UI |
+| R-69 | Expand command palette to 35+ commands | M | UI |
+| R-70 | Extend bookmark editor (notes, pin, read-later) | M | UI |
+| R-31 | SQLite migration (optional) | XL | Architecture |
+| R-40 | Nuitka compilation | L | Distribution |
+| R-48 | Keyboard accessibility (WCAG 2.2) | L | Accessibility |
+| R-78 | Service module test coverage expansion | L | Quality |
+
+### Later — v7.x+ (16 items)
+
+| # | Item | Effort | Category |
+|---|------|--------|----------|
+| R-15 | MCP streaming for RAG chat | M | MCP |
+| R-17 | Tree view alongside list view | M | UI |
+| R-18 | sv-ttk Sun Valley theme integration | M | UI |
+| R-21 | Reader view with highlight/annotation | L | UI |
+| R-22 | Graph view (force-directed) | L | UI |
+| R-26 | OPDS catalog for e-readers | M | Export |
+| R-41 | tufup auto-update | M | Distribution |
+| R-50 | gettext i18n scaffolding | M | i18n |
+| R-71 | Theme-aware DependencyCheckDialog | M | UI |
+| R-72 | Escape-to-close on 8 modal dialogs | S | UI |
+| R-74 | File-change watching (MCP+GUI sync) | M | Architecture |
+| R-75 | Wallabag JSON importer | S | Import |
+| R-76 | Arc Browser importer | S | Import |
+| R-77 | Shell completion scripts (bash/zsh/fish) | S | CLI |
+| R-02 | Web client (FastAPI + HTMX + PWA) | XL | Platform |
+| R-03 | Mobile PWA share-intent | M | Platform |
 
 ---
 
@@ -305,11 +411,11 @@ These ideas surfaced in research but need more validation before committing:
 | ID | Source | URL / Reference |
 |----|--------|-----------------|
 | S-1 | BOP internal audit (multi-pass review, 2026-06-05) | `docs/research/research-feature-plan-2026-06-05.md` (local) |
-| S-2 | BOP v6.1.0 CHANGELOG | `CHANGELOG.md` (local) |
+| S-2 | BOP CHANGELOG | `CHANGELOG.md` (local) |
 | S-3 | Linkwarden — self-hosted bookmark manager | https://github.com/linkwarden/linkwarden |
-| S-4 | ArchiveBox — aggressive multi-format archiver | https://github.com/ArchiveBox/ArchiveBox |
+| S-4 | ArchiveBox — multi-format archiver | https://github.com/ArchiveBox/ArchiveBox |
 | S-5 | Karakeep (ex-Hoarder) — AI bookmark everything | https://github.com/karakeep-app/karakeep |
-| S-6 | Readeck — Go read-it-later with EPUB/OPDS | https://github.com/readeck/readeck |
+| S-6 | Readeck — Go read-it-later with EPUB/OPDS | https://codeberg.org/readeck/readeck |
 | S-7 | Linkding — minimalist self-hosted | https://github.com/sissbruecker/linkding |
 | S-8 | Wallabag — PHP read-it-later | https://github.com/wallabag/wallabag |
 | S-9 | Shiori — Go Pocket alternative | https://github.com/go-shiori/shiori |
@@ -317,16 +423,16 @@ These ideas surfaced in research but need more validation before committing:
 | S-11 | Readwise Reader — highlight/annotation SaaS | https://readwise.io/read |
 | S-12 | Omnivore (dead Nov 2024) — read-it-later | https://github.com/omnivore-app/omnivore |
 | S-13 | Shaarli — minimalist link share | https://github.com/shaarli/Shaarli |
-| S-14 | FastMCP — Python MCP framework | https://github.com/jlowin/fastmcp |
+| S-14 | FastMCP — Python MCP framework | https://github.com/PrefectHQ/fastmcp |
 | S-15 | MCP specification | https://modelcontextprotocol.io/specification |
 | S-16 | LanceDB — embedded vector database | https://github.com/lancedb/lancedb |
 | S-17 | FastEmbed — ONNX embedding inference | https://github.com/qdrant/fastembed |
 | S-18 | yt-dlp — video metadata/transcript | https://github.com/yt-dlp/yt-dlp |
-| S-19 | mymind / Burn 451 — AI-first bookmarking | https://mymind.com / https://burn451.com |
-| S-20 | r/selfhosted bookmark threads | https://reddit.com/r/selfhosted (search: bookmark) |
+| S-19 | mymind / Burn 451 — AI-first bookmarking | https://mymind.com |
+| S-20 | r/selfhosted bookmark threads | https://reddit.com/r/selfhosted |
 | S-21 | Pocket shutdown (July 2025) | https://support.mozilla.org/en-US/kb/pocket |
 | S-22 | tksheet — virtual scrolling for Tkinter | https://github.com/ragardner/tksheet |
-| S-23 | Tkinter Treeview performance limits | [S-1] internal audit, `app_mixins/bookmarks.py` |
+| S-23 | tksheet 7.6.0 (maintenance-only) | https://pypi.org/project/tksheet/ |
 | S-24 | sv-ttk — Sun Valley theme for ttk | https://github.com/rdbende/Sun-Valley-ttk-theme |
 | S-25 | Pocket dead — user migration | https://blog.mozilla.org/en/mozilla/update-on-pocket/ |
 | S-26 | Omnivore dead — acquihired by ElevenLabs | https://blog.omnivore.app/p/details-on-omnivore-shutting-down |
@@ -335,115 +441,75 @@ These ideas surfaced in research but need more validation before committing:
 | S-29 | WCAG 2.2 quick reference | https://www.w3.org/WAI/WCAG22/quickref/ |
 | S-30 | Python gettext documentation | https://docs.python.org/3/library/gettext.html |
 | S-31 | Buku — CLI bookmark manager | https://github.com/jarun/Buku |
-| S-32 | Grimoire — bookmark manager | https://github.com/goniszewski/grimoire |
-| S-33 | awesome-selfhosted bookmarks | https://github.com/awesome-selfhosted/awesome-selfhosted#bookmarks-and-link-sharing |
+| S-32 | Grimoire — SvelteKit bookmark manager | https://github.com/goniszewski/grimoire |
+| S-33 | awesome-selfhosted bookmarks | https://github.com/awesome-selfhosted/awesome-selfhosted |
 | S-34 | Pinboard — paid minimalist bookmarking | https://pinboard.in |
 | S-35 | Diigo — social bookmarking + annotations | https://www.diigo.com |
 | S-36 | Memex (WorldBrain) — browser annotations | https://github.com/WorldBrain/Memex |
 | S-37 | GoodLinks — macOS/iOS bookmarking | https://goodlinks.app |
 | S-38 | defusedxml — safe XML parsing | https://github.com/tiran/defusedxml |
 | S-39 | monolith — single-file HTML snapshot | https://github.com/Y2Z/monolith |
-| S-40 | trafilatura — web content extraction | https://github.com/adbar/trafilatura |
+| S-40 | trafilatura — web content extraction (v2.0.0) | https://github.com/adbar/trafilatura |
 | S-41 | Servas — Laravel/Vue multi-user bookmarks | https://github.com/beromir/Servas |
 | S-42 | LinkAce — auto-Wayback + link monitoring | https://github.com/Kovah/LinkAce |
 | S-43 | Slash — short-link + bookmark hybrid | https://github.com/yourselfhosted/slash |
 | S-44 | Espial — Haskell Pinboard clone | https://github.com/jonschoning/espial |
-| S-45 | Grimoire — SvelteKit bookmark manager | https://github.com/goniszewski/grimoire |
-| S-46 | Buku — CLI-first SQLite bookmarks | https://github.com/jarun/Buku |
 | S-47 | awesome-selfhosted bookmarks category | https://awesome-selfhosted.net/tags/bookmarks-and-link-sharing.html |
 | S-48 | Self-hosted bookmark comparison (alexn.org) | https://alexn.org/blog/2025/02/14/self-hosted-bookmarks-manager/ |
 | S-49 | Karakeep review (ReviewNexa) | https://reviewnexa.com/karakeep-review/ |
 | S-50 | openalternative.co bookmark managers | https://openalternative.co/categories/bookmark-managers/self-hosted |
-| S-51 | Pillow CVEs 2026 (25990, 40192, 42308) | https://www.cvedetails.com/vulnerability-list/vendor_id-10210/product_id-27460/Python-Pillow.html |
-| S-52 | FastMCP 3.4.0 changelog | https://gofastmcp.com/changelog |
-| S-53 | MCP 2026 roadmap (2026-07-28 spec) | https://blog.modelcontextprotocol.io/posts/2026-mcp-roadmap/ |
+| S-51 | Pillow CVEs 2026 (25990, 40192, 42308) | https://www.cvedetails.com/product/27460/Python-Pillow.html |
+| S-52 | FastMCP 3.4.0 changelog | https://gofastmcp.com/updates |
+| S-53 | MCP 2026 roadmap | https://blog.modelcontextprotocol.io/posts/2026-mcp-roadmap/ |
 | S-54 | LanceDB 0.33.0 releases | https://github.com/lancedb/lancedb/releases |
-| S-55 | nomic-embed-text benchmarks | https://mixpeek.com/curated-lists/best-embedding-models |
+| S-55 | Nomic Embed v2 benchmarks | https://mixpeek.com/curated-lists/best-embedding-models |
 | S-56 | Nuitka vs PyInstaller 2026 | https://ahmedsyntax.com/2026-comparison-pyinstaller-vs-cx-freeze-vs-nui/ |
 | S-57 | tksheet 7.6.0 on PyPI | https://pypi.org/project/tksheet/ |
 | S-58 | sv-ttk 2.6.1 on PyPI | https://pypi.org/project/sv-ttk/ |
 | S-59 | MCP 2026-07-28 release candidate | https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/ |
-| S-60 | Raindrop.io MCP server (official) | https://help.raindrop.io/mcp |
+| S-60 | Raindrop.io MCP server (official) | https://developer.raindrop.io/mcp/mcp |
 | S-61 | HN: How Do You Bookmark? (Jan 2025) | https://news.ycombinator.com/item?id=42648006 |
-| S-62 | TechCrunch: Pocket shutdown alternatives | https://techcrunch.com/2025/05/27/read-it-later-app-pocket-is-shutting-down-here-are-the-best-alternatives/ |
+| S-62 | TechCrunch: Pocket shutdown alternatives | https://techcrunch.com/2025/05/27/read-it-later-app-pocket-is-shutting-down/ |
 | S-63 | WCAG 2.2 ISO/IEC 40500:2025 | https://www.w3.org/TR/WCAG22/ |
 | S-64 | TabMark: AI Bookmark Managers survey | https://tabmark.dev/blog/posts/ai-bookmark-managers/ |
 | S-65 | Markwise — chat-with-bookmarks app | https://markwise.app/ |
-| S-66 | Chinmay Panda: 2026 bookmark manager comparison | https://chinmaypanda.com/linkwarden-vs-slash-vs-karakeep-vs-linkding-for-bookmark-managers-in-2026/ |
+| S-66 | Chinmay Panda: 2026 bookmark comparison | https://chinmaypanda.com/linkwarden-vs-slash-vs-karakeep-vs-linkding/ |
 | S-67 | MDN: MV3 native messaging | https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_messaging |
 | S-68 | Lokalise: Python i18n guide | https://lokalise.com/blog/beginners-guide-to-python-i18n/ |
 | S-69 | Linkwarden browser extension docs | https://docs.linkwarden.app/getting-started/browser-extension |
 | S-70 | Karakeep apps and extensions | https://karakeep.app/apps |
-| S-71 | tksheet PyPI release listing | https://pypi.org/project/tksheet/ |
-| S-72 | sv-ttk PyPI release listing | https://pypi.org/project/sv-ttk/ |
-| S-73 | FastMCP changelog | https://gofastmcp.com/changelog |
-| S-74 | MDN WebExtensions permissions | https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/permissions |
-| S-75 | Chrome Extensions scripting API | https://developer.chrome.com/docs/extensions/reference/api/scripting |
-
----
-
-## Now (v6.2) — 19 items
-
-Immediate priority. Ship within the next development cycle.
-
-- 🚧 **R-01** Browser extension (MV3) [L]
-- ✅ **R-04** Bookmarklet fallback [S]
-- ✅ **R-05** FastMCP migration [M]
-- ✅ **R-06** MCP tools: create_flow, append_to_flow, export_zip, list_snapshots [M]
-- 🔲 **R-16** List virtualization via tksheet [L]
-- ✅ **R-19** Fix command palette FocusOut [S]
-- ✅ **R-20** Fix GridView scroll stealing [S]
-- ✅ **R-23** Headless Chromium snapshot fallback [M]
-- ✅ **R-32** Per-backup integrity hash [S]
-- ✅ **R-33** Deduplicate cross-category patterns [M]
-- ✅ **R-34** Fix overly broad plain patterns [M]
-- ✅ **R-36** ReDoS timeout on pattern engine [S]
-- ✅ **R-39** Telemetry-free mode banner [S]
-- ✅ **R-42** Python version matrix in CI [S]
-- ✅ **R-43** Service layer test suite [L]
-- ✅ **R-44** MCP server integration tests [M]
-- ✅ **R-36b** Upgrade Pillow to ≥12.2.0 (3 CVEs) [S]
-- ✅ **R-46** Remove ~1,300 lines dead code [S]
-- ✅ **R-47** Fix copy-pasted model docstrings [S]
-
-## Next (v7.0) — 21 items
-
-High-value features and architectural investments.
-
-- 🔲 **R-02** Web client (FastAPI + HTMX + PWA) [XL]
-- 🔲 **R-03** Mobile PWA share-intent [M]
-- ✅ **R-07** Cross-encoder re-rank after RRF [M]
-- ✅ **R-08** Chunk-level RAG provenance [M]
-- ✅ **R-09** Time-weighted recall [S]
-- ✅ **R-10** Collections as retrieval scopes [M]
-- ✅ **R-12** YouTube transcript capture [M]
-- ✅ **R-13** Smart Collections [M]
-- 🔲 **R-17** Tree view alongside list [M]
-- 🔲 **R-18** sv-ttk theme integration [M]
-- ✅ **R-24** Scheduled auto-snapshot [M]
-- ✅ **R-25** EPUB export of collections [M]
-- ✅ **R-27** Zotero RDF import/export [M]
-- ✅ **R-30** Obsidian vault export [M]
-- 🔲 **R-31** SQLite migration (optional) [XL]
-- ✅ **R-35** API key storage via keyring [M]
-- ✅ **R-37** SSRF allow-list for snapshot/ingest [M]
-- 🔲 **R-40** Nuitka compilation [L]
-- ✅ **R-45** CLI smoke test suite [M]
-- 🔲 **R-48** Keyboard accessibility [L]
-- ✅ **R-49** High-contrast theme [S]
-
-## Later (v7.x+) — 11 items
-
-Valuable but not urgent. Build when the foundation supports it.
-
-- ✅ **R-11** Answer caching [S]
-- ✅ **R-14** MCP per-tool scoped auth [M]
-- 🔲 **R-15** MCP streaming for RAG chat [M]
-- 🔲 **R-21** Reader view with highlights [L]
-- 🔲 **R-22** Graph view [L]
-- 🔲 **R-26** OPDS catalog [M]
-- ✅ **R-28** Matter export format [S]
-- ✅ **R-29** ATOM/JSON Feed output [S]
-- ✅ **R-38** Auto-rotate encrypted-DB passphrase [M]
-- 🔲 **R-41** tufup auto-update [M]
-- 🔲 **R-50** gettext i18n scaffolding [M]
+| S-71 | tksheet: development ceased except bug fixes | https://deepwiki.com/ragardner/tksheet |
+| S-72 | sv-ttk 2.6.1 releases | https://github.com/rdbende/Sun-Valley-ttk-theme/releases |
+| S-73 | FastMCP updates page | https://gofastmcp.com/updates |
+| S-74 | Karakeep MCP server docs | https://docs.karakeep.app/integrations/mcp/ |
+| S-75 | CVE-2026-39892: cryptography buffer overflow (≥46.0.7) | https://www.sentinelone.com/vulnerability-database/cve-2026-39892/ |
+| S-76 | CVE-2026-34073: cryptography cert validation bypass (≥46.0.6) | https://www.sentinelone.com/vulnerability-database/cve-2026-34073/ |
+| S-77 | Bookmarkjar — AI bookmark manager (commercial) | https://bookmarkjar.com/ |
+| S-78 | Burn 451 — AI bookmark with 22-tool MCP + triage | https://www.burn451.cloud/ |
+| S-79 | MCP 2026-07-28 RC: stateless protocol, OAuth, caching | https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/ |
+| S-80 | MCP spec breaking changes migration guide | https://dev.to/akaranjkar08/mcp-spec-ships-july-28-every-breaking-change-and-how-to-migrate-4co8 |
+| S-81 | FastMCP 3.4.0: fastmcp-remote, OAuth, OTEL | https://pypi.org/project/fastmcp/ |
+| S-82 | Raindrop.io Stella AI assistant | https://help.raindrop.io/stella |
+| S-83 | Nomic Embed v2 — 137M, CPU-first, Matryoshka | https://pecollective.com/tools/best-embedding-models/ |
+| S-84 | Linkwarden 2.14 — reader view, highlights, annotations | https://github.com/linkwarden/linkwarden/releases |
+| S-85 | Wallabag 2.6.14 — latest stable, iOS app transition | https://github.com/wallabag/wallabag/releases |
+| S-86 | Arc Browser shutdown (May 2025) — arc-export community tools | https://github.com/nicehash/ArcEscape |
+| S-87 | Nuitka 4.0/4.1: 1500% compile speedup, Tkinter plugin | https://nuitka.net/posts/nuitka-release-40.html |
+| S-88 | tufup 0.10.0 on PyPI | https://pypi.org/project/tufup/ |
+| S-89 | Bookmark Lens — local-first MCP bookmark manager on LanceDB | https://github.com/cornelcroi/bookmark-lens |
+| S-90 | bookmark-manager-mcp (infinitepi-io) | https://github.com/infinitepi-io/bookmark-manager-mcp |
+| S-91 | HN: MCP-connected bookmark manager | https://news.ycombinator.com/item?id=47384765 |
+| S-92 | Best AI Bookmark Manager 2026 (Burn 451 blog) | https://www.burn451.cloud/blog/best-ai-bookmark-manager-2026 |
+| S-93 | Bookmarkjar review (Tooliverse) | https://tooliverse.ai/tools/bookmarkjar |
+| S-94 | ArchiveBox 0.7.4 (May 2026) | https://github.com/ArchiveBox/ArchiveBox/releases |
+| S-95 | LanceDB 0.33.0: streaming, IVF_HNSW_FLAT, session cache | https://docs.lancedb.com/changelog/changelog |
+| S-96 | Trafilatura 2.0.0 documentation | https://trafilatura.readthedocs.io/ |
+| S-97 | Universal Bookmark Manager (MV3 + native messaging) | https://github.com/lazyengineer-eth/universal-bookmark-manager |
+| S-98 | Best Bookmark Managers 2026 (bookmarker.cc) | https://bookmarker.cc/blog/best-bookmark-managers-2026 |
+| S-99 | MCP ecosystem: 97M+ monthly SDK downloads, 81K+ stars | https://en.wikipedia.org/wiki/Model_Context_Protocol |
+| S-100 | Faved — local-first bookmark manager (1.1K stars) | https://github.com/denho/faved |
+| S-101 | LazyCat Bookmark Cleaner — AI Chrome extension (1.8K stars) | https://github.com/Alanrk/LazyCat-Bookmark-Cleaner |
+| S-102 | Eclaire — local-first AI PKM (864 stars) | https://github.com/eclaire-labs/eclaire |
+| S-103 | Floccus — cross-browser bookmark sync via XBEL/WebDAV | https://github.com/floccusaddon/floccus |
+| S-104 | Linkwarden 2.14 — reader view with highlights + annotations | https://linkwarden.app/blog/releases/2.11 |
+| S-105 | Karakeep v0.32 — SingleFile in-extension + Safari + skills | https://github.com/karakeep-app/karakeep/releases |
