@@ -2,6 +2,29 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.10] - 2026-06-06
+
+Updater availability-check release.
+
+### Added — Distribution (R-41 partial)
+
+- **Non-applying tufup adapter** — `UpdateManager.check_for_updates()` now
+  constructs `tufup.client.Client` only when updates are enabled, repositories
+  are configured, tufup is importable, and local trusted `root.json` metadata is
+  present.
+- **Structured availability result** — update checks return current version,
+  latest version, target name/path, readiness reason, and error details without
+  downloading targets or applying updates.
+- **CLI check behavior** — `updates check` now reports update availability,
+  no-update, not-ready, or check-failed status from the adapter.
+- **Trusted root readiness** — `updates status` now shows whether local trusted
+  root metadata is present.
+
+### Tests
+
+- Added fake-client coverage proving the update check path calls
+  `check_for_updates()` without invoking download/apply behavior.
+
 ## [v6.6.9] - 2026-06-06
 
 Updater policy foundation release.

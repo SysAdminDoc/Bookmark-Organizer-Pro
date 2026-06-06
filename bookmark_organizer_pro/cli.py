@@ -914,12 +914,16 @@ Top Domains:
             self._print_update_status(manager.status())
             return
         if sub == "check":
-            status = manager.status()
-            self._print_update_status(status)
-            if status.can_check:
-                print("Update check ready; download and apply are not enabled in this release.")
+            result = manager.check_for_updates()
+            if result.update_available:
+                print(f"Update available: {result.latest_version}")
+                print(f"Target: {result.target_name}")
+            elif result.checked:
+                print(f"No update available: {result.reason}")
             else:
-                print(f"Update check not ready: {status.reason}")
+                print(f"Update check not ready: {result.reason}")
+            if result.error:
+                print(f"Error: {result.error}")
             return
         if sub == "configure":
             self._configure_updates(manager, args[1:])
@@ -933,6 +937,7 @@ Top Domains:
         print(f"Channel: {policy.channel}")
         print(f"Current version: {status.current_version}")
         print(f"tufup: {'available' if status.tufup_installed else 'not installed'}")
+        print(f"Trusted root: {'present' if status.trusted_root_exists else 'missing'}")
         print(f"Status: {status.reason}")
 
     def _configure_updates(self, manager, args):

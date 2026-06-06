@@ -61,6 +61,7 @@ class TestUpdateManager(_IsolatedTestBase):
         updates = self._updates_module()
         if updates.UPDATE_CONFIG_FILE.exists():
             updates.UPDATE_CONFIG_FILE.unlink()
+        shutil.rmtree(updates.UPDATE_CACHE_DIR, ignore_errors=True)
 
     def test_default_status_is_disabled(self):
         updates = self._updates_module()
@@ -100,6 +101,8 @@ class TestUpdateManager(_IsolatedTestBase):
             metadata_url="https://updates.example.com/metadata",
             targets_url="https://updates.example.com/targets",
         )
+        manager.metadata_dir.mkdir(parents=True, exist_ok=True)
+        manager.trusted_root_path.write_text("{}", encoding="utf-8")
 
         with patch.object(updates, "tufup_available", return_value=True):
             status = manager.status()
@@ -107,12 +110,64 @@ class TestUpdateManager(_IsolatedTestBase):
         self.assertTrue(status.can_check)
         self.assertEqual(status.reason, "ready")
 
+    def test_status_requires_trusted_root_metadata(self):
+        updates = self._updates_module()
+        manager = updates.UpdateManager()
+        manager.configure(
+            enabled=True,
+            metadata_url="https://updates.example.com/metadata",
+            targets_url="https://updates.example.com/targets",
+        )
+
+        with patch.object(updates, "tufup_available", return_value=True):
+            status = manager.status()
+
+        self.assertFalse(status.can_check)
+        self.assertEqual(status.reason, "trusted root metadata missing")
+
+    def test_check_for_updates_uses_client_without_downloading(self):
+        updates = self._updates_module()
+        manager = updates.UpdateManager(current_version="6.6.10")
+        manager.configure(
+            enabled=True,
+            metadata_url="https://updates.example.com/metadata",
+            targets_url="https://updates.example.com/targets",
+        )
+        manager.metadata_dir.mkdir(parents=True, exist_ok=True)
+        manager.trusted_root_path.write_text("{}", encoding="utf-8")
+
+        class FakeTarget:
+            version = "6.7.0"
+            filename = "BookmarkOrganizerPro-6.7.0.tar.gz"
+            target_path_str = "BookmarkOrganizerPro-6.7.0.tar.gz"
+
+        class FakeClient:
+            created_with = None
+            checked_with = None
+
+            def __init__(self, **kwargs):
+                FakeClient.created_with = kwargs
+
+            def check_for_updates(self, **kwargs):
+                FakeClient.checked_with = kwargs
+                return FakeTarget()
+
+        with patch.object(updates, "tufup_available", return_value=True):
+            result = manager.check_for_updates(client_cls=FakeClient)
+
+        self.assertTrue(result.checked)
+        self.assertTrue(result.update_available)
+        self.assertEqual(result.latest_version, "6.7.0")
+        self.assertEqual(FakeClient.created_with["metadata_dir"], manager.metadata_dir)
+        self.assertEqual(FakeClient.created_with["target_dir"], manager.target_dir)
+        self.assertEqual(FakeClient.checked_with, {"pre": None, "patch": True})
+
     def test_version_comparison(self):
         updates = self._updates_module()
 
-        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.9"))
-        self.assertFalse(updates.is_newer_version("6.6.9", "6.6.9"))
-        self.assertFalse(updates.is_newer_version("6.6.8", "6.6.9"))
+        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.10"))
+        self.assertFalse(updates.is_newer_version("6.6.10", "6.6.10"))
+        self.assertFalse(updates.is_newer_version("6.6.9", "6.6.10"))
 
 
 # ── 1. EmbeddingService ──────────────────────────────────────────────

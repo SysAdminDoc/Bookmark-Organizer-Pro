@@ -3,6 +3,22 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.10 Updater Availability Check
+
+- Advanced R-41: added a non-applying tufup client adapter for trusted metadata
+  availability checks.
+- Added local trusted-root readiness: checks require `root.json` under the
+  updater metadata cache before the tufup client is constructed.
+- Added structured `UpdateCheckResult` output for available, no-update,
+  not-ready, and failed checks.
+- Updated `updates check` to report adapter results while keeping download/apply
+  unavailable.
+- Verified tufup 0.10.0's installed API exposes `Client.check_for_updates()`
+  and pins `tuf==4.0.*` internally.
+- Verification: compileall passed, focused updater/CLI/release metadata tests
+  passed with 19 tests, `updates check` reported disabled/not-ready correctly,
+  and the full suite passed with 317 tests.
+
 ## 2026-06-06 — v6.6.9 Updater Policy Foundation
 
 - Advanced R-41: added an optional `updates` dependency extra for tufup 0.10.x.

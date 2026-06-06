@@ -53,7 +53,7 @@ from .rss_feeds import (
 )
 from .snapshot import SnapshotArchiver
 from .tag_linter import LintReport, TagLinter, TagSuggestion
-from .updates import UpdateManager, UpdatePolicy, UpdateStatus
+from .updates import UpdateCheckResult, UpdateManager, UpdatePolicy, UpdateStatus
 from .vector_store import VectorStore, reciprocal_rank_fusion
 from .web_tools import (
     AISummarizer,
@@ -93,7 +93,7 @@ __all__ = [
     "FeedRegistry", "parse_feed",
     "SnapshotArchiver",
     "LintReport", "TagLinter", "TagSuggestion",
-    "UpdateManager", "UpdatePolicy", "UpdateStatus",
+    "UpdateCheckResult", "UpdateManager", "UpdatePolicy", "UpdateStatus",
     "VectorStore", "reciprocal_rank_fusion",
     "ZipExporter",
 ]
