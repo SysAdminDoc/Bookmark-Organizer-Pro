@@ -534,6 +534,18 @@ class TestStorageAndExportSafety(unittest.TestCase):
             finally:
                 conn.close()
 
+    def test_sqlite_storage_preserves_unsigned_bookmark_ids(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "bookmarks.sqlite"
+            manager = SQLiteStorageManager(target)
+            large_id = 2**63 + 99
+
+            manager.save([Bookmark(id=large_id, url="https://large-id.example", title="Large").to_dict()])
+            loaded = manager.load()
+
+            self.assertEqual(len(loaded), 1)
+            self.assertEqual(loaded[0].id, large_id)
+
     def test_sqlite_storage_skips_corrupt_rows(self):
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "bookmarks.sqlite"

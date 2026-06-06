@@ -3,6 +3,19 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.5 SQLite Runtime Selection
+
+- Completed R-31: `BookmarkManager` now supports opt-in SQLite runtime storage
+  through a constructor argument, `.sqlite`/`.db` file paths, or
+  `BOOKMARK_STORAGE_BACKEND=sqlite`.
+- Preserved JSON as the default runtime backend.
+- Fixed SQLite storage to preserve unsigned 64-bit bookmark IDs by storing the
+  indexed ID column as text while preserving integer IDs in payload JSON.
+- Added manager-level backend selection tests and unsigned bookmark ID
+  persistence coverage.
+- Verification: compileall passed, targeted manager/storage/CLI/browser-extension
+  tests passed with 32 tests, and the full suite passed with 303 tests.
+
 ## 2026-06-06 — v6.6.4 SQLite Migration Foundation
 
 - Advanced R-31: added a WAL-enabled `SQLiteStorageManager` with the same
