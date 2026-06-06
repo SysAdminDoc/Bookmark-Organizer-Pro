@@ -108,7 +108,7 @@ This roadmap revision is a ground-up rewrite informed by 99 cited sources across
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| 🔲 R-01 | **Browser extension (MV3)** — one-click save popup with offline category/tag suggestions from the 7,500-pattern engine (ship as bundled JSON lookup), native messaging to localhost API. Chrome + Firefox. | Now | L | [S-3][S-5][S-7][S-10][S-20][S-69][S-70] |
+| 🔲 R-01 | **Browser extension (MV3)** — one-click save popup with offline category/tag suggestions from the 7,500-pattern engine (ship as bundled JSON lookup), native messaging to localhost API. Chrome + Firefox. Chrome 138+ Prompt API (Gemini Nano) enables in-browser AI categorization with zero API cost. | Now | L | [S-3][S-5][S-7][S-10][S-20][S-69][S-70][S-106] |
 | ✅ R-04 | Bookmarklet fallback | Done | S | [S-6][S-10] |
 | 🔲 R-02 | **Web client (FastAPI + HTMX)** — read/search/add from any device. PWA manifest for mobile install. Read-only by default, auth-gated mutations. Depends on SQLite migration (R-31). | Later | XL | [S-3][S-5][S-6][S-8][S-12] |
 | 🔲 R-03 | **Mobile PWA share-intent** — Android "Share to BOP" target via the web client, auto-categorize on receipt. | Later | M | [S-8][S-12] |
@@ -513,3 +513,10 @@ These ideas surfaced in research but need more validation before committing:
 | S-103 | Floccus — cross-browser bookmark sync via XBEL/WebDAV | https://github.com/floccusaddon/floccus |
 | S-104 | Linkwarden 2.14 — reader view with highlights + annotations | https://linkwarden.app/blog/releases/2.11 |
 | S-105 | Karakeep v0.32 — SingleFile in-extension + Safari + skills | https://github.com/karakeep-app/karakeep/releases |
+| S-106 | Chrome Prompt API (Gemini Nano) — stable in Chrome 138+ extensions | https://developer.chrome.com/docs/ai/prompt-api |
+| S-107 | CVE-2026-41066: lxml XXE injection in iterparse() | https://security.snyk.io/package/pip/lxml |
+| S-108 | fastembed 0.8.0 — auto-CUDA, Python 3.14, ColModernVBERT | https://pypi.org/project/fastembed/ |
+| S-109 | model2vec 0.8.2 — int8 quantization, potion-retrieval-32M | https://github.com/MinishLab/model2vec |
+| S-110 | Zotero browser connector architecture (translator pattern) | https://github.com/zotero/zotero-connectors |
+| S-111 | Perplexica/Vane — citation architecture (inline [1][2] badges) | https://github.com/ItzCrazyKns/Perplexica |
+| S-112 | AnythingLLM — MCP host, workspaces as tools | https://github.com/Mintplex-Labs/anything-llm |
