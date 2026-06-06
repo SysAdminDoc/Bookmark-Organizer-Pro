@@ -131,6 +131,20 @@ class UpdateCheckResult:
     error: str = ""
 
 
+@dataclass(frozen=True)
+class UpdateDownloadResult:
+    checked: bool
+    update_available: bool
+    downloaded: bool
+    current_version: str
+    latest_version: str
+    target_name: str
+    target_path: str
+    staged_paths: tuple[str, ...]
+    reason: str
+    error: str = ""
+
+
 class UpdateManager:
     """Manage local update policy without applying updates automatically."""
 
@@ -224,46 +238,28 @@ class UpdateManager:
             checked_at=datetime.now(timezone.utc).isoformat(),
         )
 
-    def check_for_updates(self, client_cls=None) -> UpdateCheckResult:
-        """Check trusted metadata for an available update without downloading."""
-        status = self.status()
-        if not status.can_check:
-            return UpdateCheckResult(
-                checked=False,
-                update_available=False,
-                current_version=self.current_version,
-                latest_version="",
-                target_name="",
-                target_path="",
-                reason=status.reason,
-            )
+    def _pre_release_level(self) -> str | None:
+        return "a" if self.policy.allow_prerelease else None
+
+    def _build_client(self, client_cls=None):
         self.metadata_dir.mkdir(parents=True, exist_ok=True)
         self.target_dir.mkdir(parents=True, exist_ok=True)
-        try:
-            if client_cls is None:
-                from tufup.client import Client as client_cls
-            client = client_cls(
-                app_name=UPDATE_APP_NAME,
-                app_install_dir=Path(sys.executable).resolve().parent,
-                current_version=self.current_version,
-                metadata_dir=self.metadata_dir,
-                metadata_base_url=self.policy.metadata_url,
-                target_dir=self.target_dir,
-                target_base_url=self.policy.targets_url,
-            )
-            pre = "a" if self.policy.allow_prerelease else None
-            target_meta = client.check_for_updates(pre=pre, patch=True)
-        except Exception as exc:
-            return UpdateCheckResult(
-                checked=True,
-                update_available=False,
-                current_version=self.current_version,
-                latest_version="",
-                target_name="",
-                target_path="",
-                reason="check failed",
-                error=f"{type(exc).__name__}: {exc}",
-            )
+        if client_cls is None:
+            from tufup.client import Client as client_cls
+        return client_cls(
+            app_name=UPDATE_APP_NAME,
+            app_install_dir=Path(sys.executable).resolve().parent,
+            current_version=self.current_version,
+            metadata_dir=self.metadata_dir,
+            metadata_base_url=self.policy.metadata_url,
+            target_dir=self.target_dir,
+            target_base_url=self.policy.targets_url,
+        )
+
+    def _run_update_check(self, client):
+        return client.check_for_updates(pre=self._pre_release_level(), patch=True)
+
+    def _check_result_from_target(self, target_meta) -> UpdateCheckResult:
         if target_meta is None:
             return UpdateCheckResult(
                 checked=True,
@@ -282,4 +278,131 @@ class UpdateManager:
             target_name=str(getattr(target_meta, "filename", "")),
             target_path=str(getattr(target_meta, "target_path_str", "")),
             reason="update available",
+        )
+
+    def _download_result_from_check(
+        self,
+        check: UpdateCheckResult,
+        *,
+        downloaded: bool = False,
+        staged_paths: tuple[str, ...] = (),
+        reason: str | None = None,
+        error: str = "",
+    ) -> UpdateDownloadResult:
+        return UpdateDownloadResult(
+            checked=check.checked,
+            update_available=check.update_available,
+            downloaded=downloaded,
+            current_version=check.current_version,
+            latest_version=check.latest_version,
+            target_name=check.target_name,
+            target_path=check.target_path,
+            staged_paths=staged_paths,
+            reason=check.reason if reason is None else reason,
+            error=error or check.error,
+        )
+
+    def _selected_target_infos(self, client) -> list:
+        targets = getattr(client, "new_targets", None)
+        if isinstance(targets, dict) and targets:
+            return list(targets.values())
+        archive_info = getattr(client, "new_archive_info", None)
+        return [archive_info] if archive_info is not None else []
+
+    def _ensure_staged_path(self, path_value: str) -> str:
+        path = Path(path_value)
+        target_root = self.target_dir.resolve()
+        resolved = path.resolve()
+        try:
+            resolved.relative_to(target_root)
+        except ValueError as exc:
+            raise ValueError("downloaded target escaped the update target cache") from exc
+        return str(resolved)
+
+    def check_for_updates(self, client_cls=None) -> UpdateCheckResult:
+        """Check trusted metadata for an available update without downloading."""
+        status = self.status()
+        if not status.can_check:
+            return UpdateCheckResult(
+                checked=False,
+                update_available=False,
+                current_version=self.current_version,
+                latest_version="",
+                target_name="",
+                target_path="",
+                reason=status.reason,
+            )
+        try:
+            client = self._build_client(client_cls)
+            target_meta = self._run_update_check(client)
+        except Exception as exc:
+            return UpdateCheckResult(
+                checked=True,
+                update_available=False,
+                current_version=self.current_version,
+                latest_version="",
+                target_name="",
+                target_path="",
+                reason="check failed",
+                error=f"{type(exc).__name__}: {exc}",
+            )
+        return self._check_result_from_target(target_meta)
+
+    def download_update(self, client_cls=None) -> UpdateDownloadResult:
+        """Stage trusted update targets in the cache without applying them."""
+        status = self.status()
+        if not status.can_check:
+            check = UpdateCheckResult(
+                checked=False,
+                update_available=False,
+                current_version=self.current_version,
+                latest_version="",
+                target_name="",
+                target_path="",
+                reason=status.reason,
+            )
+            return self._download_result_from_check(check)
+        try:
+            client = self._build_client(client_cls)
+            target_meta = self._run_update_check(client)
+            check = self._check_result_from_target(target_meta)
+            if not check.update_available:
+                return self._download_result_from_check(check)
+            target_infos = self._selected_target_infos(client)
+            if not target_infos:
+                return self._download_result_from_check(
+                    check,
+                    reason="download target metadata unavailable",
+                )
+            staged_paths = []
+            for target_info in target_infos:
+                staged_path = client.download_target(
+                    target_info,
+                    target_base_url=self.policy.targets_url,
+                )
+                staged_paths.append(self._ensure_staged_path(staged_path))
+        except Exception as exc:
+            fallback = locals().get(
+                "check",
+                UpdateCheckResult(
+                    checked=True,
+                    update_available=False,
+                    current_version=self.current_version,
+                    latest_version="",
+                    target_name="",
+                    target_path="",
+                    reason="download failed",
+                ),
+            )
+            return self._download_result_from_check(
+                fallback,
+                downloaded=False,
+                reason="download failed",
+                error=f"{type(exc).__name__}: {exc}",
+            )
+        return self._download_result_from_check(
+            check,
+            downloaded=True,
+            staged_paths=tuple(staged_paths),
+            reason="download staged",
         )

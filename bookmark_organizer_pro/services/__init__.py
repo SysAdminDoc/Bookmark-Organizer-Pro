@@ -80,7 +80,13 @@ from .rss_feeds import (
 )
 from .snapshot import SnapshotArchiver
 from .tag_linter import LintReport, TagLinter, TagSuggestion
-from .updates import UpdateCheckResult, UpdateManager, UpdatePolicy, UpdateStatus
+from .updates import (
+    UpdateCheckResult,
+    UpdateDownloadResult,
+    UpdateManager,
+    UpdatePolicy,
+    UpdateStatus,
+)
 from .vector_store import VectorStore, reciprocal_rank_fusion
 from .web_tools import (
     AISummarizer,
@@ -127,7 +133,8 @@ __all__ = [
     "FeedRegistry", "parse_feed",
     "SnapshotArchiver",
     "LintReport", "TagLinter", "TagSuggestion",
-    "UpdateCheckResult", "UpdateManager", "UpdatePolicy", "UpdateStatus",
+    "UpdateCheckResult", "UpdateDownloadResult",
+    "UpdateManager", "UpdatePolicy", "UpdateStatus",
     "VectorStore", "reciprocal_rank_fusion",
     "ZipExporter",
 ]

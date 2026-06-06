@@ -3,6 +3,17 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.23 Updater Download Staging
+
+- Advanced R-41: added trusted tufup target staging through
+  `UpdateManager.download_update()` and the `updates download` CLI path.
+- Kept update application blocked while allowing selected target files to be
+  downloaded into the update cache after all readiness gates pass.
+- Added a cache boundary guard so staged paths must remain inside
+  `updates/targets/` before they are reported.
+- Verification: compileall passed, focused updater/release metadata tests
+  passed with 25 tests, and the full suite passed with 347 tests.
+
 ## 2026-06-06 — v6.6.22 Desktop Graph View
 
 - Completed R-22: added a Tk-native graph canvas for bookmark, tag, category,

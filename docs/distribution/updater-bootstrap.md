@@ -1,8 +1,9 @@
 # Updater Bootstrap
 
 Bookmark Organizer Pro uses a disabled-by-default tufup policy for update
-readiness. The current implementation can configure repositories and check
-trusted metadata, but it does not download or apply updates.
+readiness. The current implementation can configure repositories, check trusted
+metadata, and stage selected target files in the update cache. It does not
+extract, install, or apply updates.
 
 ## Client Files
 
@@ -31,6 +32,7 @@ The project depends on tufup rather than pinning tuf directly because tufup
 python main.py updates configure --enable --metadata-url https://updates.example.com/metadata --targets-url https://updates.example.com/targets
 python main.py updates status
 python main.py updates check
+python main.py updates download
 ```
 
 Repository URLs must use HTTPS. Checks remain opt-in and disabled until
@@ -55,6 +57,7 @@ The client adapter uses `BookmarkOrganizerPro` as the tufup app name.
 5. Ship or document trusted-root placement for clients.
 6. Verify `updates status` reports `Trusted root: present`.
 7. Verify `updates check` reports either no update or a newer target.
+8. Verify `updates download` stages only files under `updates/targets/`.
 
 ## Safety Gates
 
@@ -62,6 +65,8 @@ The client adapter uses `BookmarkOrganizerPro` as the tufup app name.
 - Repository URLs must use HTTPS.
 - `updates check` requires local trusted root metadata.
 - `updates check` does not download or apply target files.
-- `updates download` and `updates apply` are explicit refusal gates in this
-  release. They must stay gated until download, extraction, install directory
-  isolation, rollback, and user confirmation are covered by tests.
+- `updates download` only stages trusted target files in `updates/targets/`.
+  It does not extract, install, execute, or replace application files.
+- `updates apply` is an explicit refusal gate in this release. It must stay
+  gated until extraction, install directory isolation, rollback, and user
+  confirmation are covered by tests.
