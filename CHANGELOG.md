@@ -2,6 +2,25 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.11] - 2026-06-06
+
+Updater bootstrap and safety-gate release.
+
+### Added — Distribution (R-41 partial)
+
+- **Updater bootstrap guide** — added `docs/distribution/updater-bootstrap.md`
+  with client policy paths, trusted `root.json` placement, optional dependency
+  install, HTTPS repository configuration, target naming, repository owner
+  checklist, and safety gates.
+- **Download/apply refusal gates** — `updates download` and `updates apply`
+  now exist as explicit non-mutating commands that refuse to run and point users
+  back to `updates check`.
+
+### Tests
+
+- Added CLI coverage for the download/apply gates and documentation coverage for
+  trusted root placement and target naming.
+
 ## [v6.6.10] - 2026-06-06
 
 Updater availability-check release.

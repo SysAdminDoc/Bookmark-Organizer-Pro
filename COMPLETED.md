@@ -3,6 +3,19 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.11 Updater Bootstrap Gates
+
+- Advanced R-41: added `docs/distribution/updater-bootstrap.md` covering
+  update policy files, trusted `root.json` placement, optional dependency
+  install, HTTPS repository configuration, tufup target naming, and repository
+  owner checklist.
+- Added explicit `updates download` and `updates apply` CLI gates that refuse
+  mutating update actions in this release.
+- Added tests for the mutation gates and bootstrap documentation invariants.
+- Verification: compileall passed, focused CLI/packaging/release metadata tests
+  passed with 14 tests, both refusal-gate CLI smokes passed, and the full suite
+  passed with 319 tests.
+
 ## 2026-06-06 — v6.6.10 Updater Availability Check
 
 - Advanced R-41: added a non-applying tufup client adapter for trusted metadata

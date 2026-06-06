@@ -68,6 +68,12 @@ class TestCLIDispatch(CLITestBase):
         self.assertIn("Updates:", out)
         self.assertIn("Current version:", out)
 
+    def test_updates_mutating_commands_are_gated(self):
+        for command in ("download", "apply"):
+            out = self._run(["updates", command])
+            self.assertIn("disabled in this release", out)
+            self.assertIn("updates check", out)
+
     def test_main_entrypoint_accepts_argv(self):
         from bookmark_organizer_pro.cli import main
 

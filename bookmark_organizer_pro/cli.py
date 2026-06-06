@@ -155,7 +155,7 @@ v6.0.0 commands:
                                 Run the MCP Streamable HTTP server on loopback.
   sqlite-migrate [--source JSON] [--dest DB]
                                 Copy JSON bookmarks into an opt-in SQLite DB.
-  updates [status|check|configure]
+  updates [status|check|configure|download|apply]
                                 Manage disabled-by-default update policy.
 
 Examples:
@@ -928,7 +928,10 @@ Top Domains:
         if sub == "configure":
             self._configure_updates(manager, args[1:])
             return
-        print("Usage: updates [status|check|configure]")
+        if sub in ("download", "apply"):
+            self._print_update_mutation_gate(manager, sub)
+            return
+        print("Usage: updates [status|check|configure|download|apply]")
 
     def _print_update_status(self, status):
         policy = status.policy
@@ -939,6 +942,13 @@ Top Domains:
         print(f"tufup: {'available' if status.tufup_installed else 'not installed'}")
         print(f"Trusted root: {'present' if status.trusted_root_exists else 'missing'}")
         print(f"Status: {status.reason}")
+
+    def _print_update_mutation_gate(self, manager, action: str):
+        status = manager.status()
+        print(f"Update {action} is disabled in this release.")
+        print("Run updates check to verify trusted metadata readiness first.")
+        if not status.can_check:
+            print(f"Readiness: {status.reason}")
 
     def _configure_updates(self, manager, args):
         enabled = None
