@@ -3,6 +3,21 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.4 SQLite Migration Foundation
+
+- Advanced R-31: added a WAL-enabled `SQLiteStorageManager` with the same
+  `load()`/`save()` shape as the existing JSON storage manager.
+- Added `sqlite-migrate [--source JSON] [--dest DB]` to copy JSON bookmarks to
+  SQLite without changing the default JSON workflow.
+- Added SQLite indexes for URL, category, created-at, and modified-at fields
+  while preserving full bookmark payload JSON for compatibility.
+- Added storage and CLI tests for WAL mode, round-trip fidelity, corrupt-row
+  tolerance, migration, and command parsing.
+- Verification: compileall passed, targeted storage/CLI/browser-extension tests
+  passed with 28 tests, and the full suite passed with 299 tests.
+- Remaining R-31 work: add a runtime selection/config path before using SQLite
+  as an active app backend.
+
 ## 2026-06-06 — v6.6.3 MCP Streamable HTTP
 
 - Completed R-58: added an opt-in `mcp-http-server` command for FastMCP

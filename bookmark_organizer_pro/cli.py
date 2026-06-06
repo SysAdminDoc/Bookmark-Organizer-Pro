@@ -8,7 +8,7 @@ from typing import List
 
 import requests
 
-from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION
+from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION, MASTER_BOOKMARKS_FILE
 from bookmark_organizer_pro.core import CategoryManager, get_category_icon
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.managers import BookmarkManager, TagManager
@@ -79,6 +79,7 @@ class BookmarkCLI:
             "api-server": self._cmd_api_server,
             "mcp-server": self._cmd_mcp_server,
             "mcp-http-server": self._cmd_mcp_http_server,
+            "sqlite-migrate": self._cmd_sqlite_migrate,
             # v6.2.1
             "smart-collections": self._cmd_smart_collections,
             "nl-query": self._cmd_nl_query,
@@ -151,6 +152,8 @@ v6.0.0 commands:
   mcp-server                    Run the MCP server (stdio) for compatible clients.
   mcp-http-server [--host H] [--port N] [--path /mcp]
                                 Run the MCP Streamable HTTP server on loopback.
+  sqlite-migrate [--source JSON] [--dest DB]
+                                Copy JSON bookmarks into an opt-in SQLite DB.
 
 Examples:
   python main.py list
@@ -159,6 +162,7 @@ Examples:
   python main.py ingest        # ingest all
   python main.py mcp-server    # expose to an MCP-compatible client
   python main.py mcp-http-server --port 8766
+  python main.py sqlite-migrate
 """)
     
     def _cmd_list(self, args):
@@ -858,6 +862,44 @@ Top Domains:
             print(usage)
             return
         serve_http(host=host, port=port, path=path)
+
+    def _cmd_sqlite_migrate(self, args):
+        from bookmark_organizer_pro.core import migrate_json_to_sqlite
+        source = MASTER_BOOKMARKS_FILE
+        dest = MASTER_BOOKMARKS_FILE.with_suffix(".sqlite")
+        usage = "usage: sqlite-migrate [--source JSON] [--dest DB]"
+        i = 0
+        while i < len(args):
+            arg = args[i]
+            if arg == "--source":
+                if i + 1 >= len(args):
+                    print(usage)
+                    return
+                source = Path(args[i + 1]).expanduser()
+                i += 2
+                continue
+            if arg.startswith("--source="):
+                source = Path(arg.partition("=")[2]).expanduser()
+                i += 1
+                continue
+            if arg == "--dest":
+                if i + 1 >= len(args):
+                    print(usage)
+                    return
+                dest = Path(args[i + 1]).expanduser()
+                i += 2
+                continue
+            if arg.startswith("--dest="):
+                dest = Path(arg.partition("=")[2]).expanduser()
+                i += 1
+                continue
+            print(usage)
+            return
+        if not source or not dest:
+            print(usage)
+            return
+        count = migrate_json_to_sqlite(source, dest)
+        print(f"Migrated {count} bookmarks to {dest}")
 
     def _cmd_api_server(self, args):
         from bookmark_organizer_pro.services.api import BookmarkAPI

@@ -2,6 +2,24 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.4] - 2026-06-06
+
+SQLite migration foundation release.
+
+### Added — Storage (R-31 partial)
+
+- **SQLite storage backend** — added `SQLiteStorageManager`, a WAL-enabled
+  backend with the same `load()`/`save()` shape as the JSON storage manager.
+- **Opt-in migration command** — added `sqlite-migrate [--source JSON]
+  [--dest DB]` to copy the current JSON library into SQLite.
+- **Indexed payload rows** — SQLite rows preserve the full bookmark JSON payload
+  while indexing URL, category, created-at, and modified-at fields.
+
+### Tests
+
+- Added SQLite WAL, round-trip, corrupt-row tolerance, JSON-to-SQLite
+  migration, and CLI parser coverage.
+
 ## [v6.6.3] - 2026-06-06
 
 MCP Streamable HTTP release.

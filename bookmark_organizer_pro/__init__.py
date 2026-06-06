@@ -42,7 +42,8 @@ from .utils import (
     validate_environment,
 )
 from .core import (
-    PatternEngine, StorageManager, CategoryManager,
+    PatternEngine, StorageManager, SQLiteStorageManager, migrate_json_to_sqlite,
+    CategoryManager,
     CATEGORY_ICONS, get_category_icon,
 )
 from .commands import (
@@ -137,7 +138,7 @@ __all__ = [
     "get_user_friendly_error", "open_external_url", "run_with_timeout",
     "validate_environment",
     # Core managers
-    "PatternEngine", "StorageManager", "CategoryManager",
+    "PatternEngine", "StorageManager", "SQLiteStorageManager", "migrate_json_to_sqlite", "CategoryManager",
     "CATEGORY_ICONS", "get_category_icon",
     "BookmarkManager", "TagManager",
     # Commands
