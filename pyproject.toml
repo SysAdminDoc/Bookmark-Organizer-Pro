@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bookmark-organizer-pro"
-version = "6.6.7"
+version = "6.6.8"
 description = "Professional bookmark manager with AI categorization, semantic search, MCP server, and HTML snapshots"
 readme = "README.md"
 license = {text = "MIT"}

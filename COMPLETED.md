@@ -3,6 +3,20 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.8 Nuitka Compile Smoke
+
+- Completed the local compile-smoke checkpoint for R-40.
+- Added `--target smoke` to `packaging/nuitka_build.py`, preserving the default
+  app target while enabling a small console artifact for compiler validation.
+- Added `packaging/nuitka_smoke.py` with app-version output and tests that keep
+  its metadata in sync with the application constants.
+- Confirmed the package-import smoke attempt was too broad because it compiled
+  the app dependency graph; the final self-contained target compiled 6 C files.
+- Verification: smoke entrypoint source run passed, smoke dry-run passed,
+  standalone Nuitka smoke compile completed, generated artifact `--version`
+  passed, compileall passed, targeted packaging/release metadata tests passed
+  with 11 tests, and the full suite passed with 309 tests.
+
 ## 2026-06-06 — v6.6.7 Nuitka Build Controls
 
 - Advanced R-40: installed and verified Nuitka 4.1.2 in the active Python 3.12

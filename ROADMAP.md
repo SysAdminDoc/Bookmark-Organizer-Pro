@@ -21,9 +21,9 @@
 
 ---
 
-## State of the Project (v6.6.7)
+## State of the Project (v6.6.8)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.7:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.8:
 
 - **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
@@ -130,6 +130,17 @@ R-40 remains in progress. Nuitka 4.1.2 is installed and detects MSVC `cl 14.3`;
 the first full-app standalone compile exceeded a 15-minute smoke timeout, so the
 build helper now emits bounded `--jobs` controls for the next compile pass.
 Details: `docs/audit/2026-06-06-v6.6.7-nuitka-toolchain-audit.md`.
+
+### Cycle Note — v6.6.8 (2026-06-06)
+
+R-40's local compile-smoke checkpoint is complete. The build helper now supports
+`--target smoke`, producing a small console executable with the same
+version/product metadata, Windows icon, asset inclusion, compilation report, and
+job-control flags used by the app build path. A standalone smoke compile
+completed locally with Nuitka 4.1.2/MSVC, and the generated artifact reported
+`Bookmark Organizer Pro v6.6.8` via `--version`. Full GUI bundle validation can
+continue as distribution hardening before replacing PyInstaller as the default
+binary path. Details: `docs/audit/2026-06-06-v6.6.8-nuitka-smoke-audit.md`.
 
 ### Hard Constraints
 
@@ -284,7 +295,7 @@ Details: `docs/audit/2026-06-06-v6.6.7-nuitka-toolchain-audit.md`.
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| 🔄 R-40 | **Nuitka compilation** — build helper, optional Nuitka 4.1+ extra, Tkinter plugin, assets, Windows metadata, and bounded `--jobs` controls shipped in v6.6.6-v6.6.7. Actual local compile smoke remains. | In Progress | L | [S-27][S-87] |
+| ✅ R-40 | **Nuitka compilation smoke** — build helper, optional Nuitka 4.1+ extra, Tkinter plugin app path, Windows metadata, bounded `--jobs`, smoke target, local standalone compile, report/assets, and artifact `--version` validation shipped in v6.6.6-v6.6.8. Full GUI bundle validation remains release hardening before any installer switch. | Done | L | [S-27][S-87] |
 | 🔲 R-41 | **tufup auto-update** — TUF-based binary diff patches. Works with PyInstaller or Nuitka. v0.10.0 on PyPI, actively maintained. | Later | M | [S-28][S-88] |
 | ✅ R-42 | Python version matrix in CI (3.10-3.13) | Done | S | [S-1] |
 
@@ -370,6 +381,7 @@ All items below shipped in v6.0.0 through v6.4.1. Full details in [CHANGELOG.md]
 | R-31 | SQLite runtime backend selection | v6.6.5 |
 | R-40A | Nuitka build helper and dependency extra | v6.6.6 |
 | R-40B | Nuitka toolchain verification and build job controls | v6.6.7 |
+| R-40C | Nuitka smoke target and artifact validation | v6.6.8 |
 | BUG-01 through BUG-14 | All 14 known bugs fixed | v6.2.0-v6.4.1 |
 | + 30 v6.1.0 fixes | AI batch processor, chunk overlap, MCP schemas, CI flow, thread safety, etc. | v6.1.0 |
 
@@ -423,11 +435,11 @@ These ideas surfaced in research but need more validation before committing:
 
 All 13 Now-tier items have shipped through v6.6.0.
 
-### Next — v7.0 (1 remaining, R-40 in progress)
+### Next — v7.0 (0 remaining)
 
-| # | Item | Effort | Category |
-|---|------|--------|----------|
-| R-40 | Nuitka local compile smoke and artifact validation | L | Distribution |
+All Next-tier items have shipped through v6.6.8. Continue with Later-tier
+distribution and UI work, starting with R-41 unless a higher-priority audit
+finding appears.
 
 ### Later — v7.x+ (7 remaining, R-17/R-50 shipped in v6.5.2)
 
