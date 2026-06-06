@@ -161,7 +161,7 @@ v6.0.0 commands:
                                 Run the MCP Streamable HTTP server on loopback.
   sqlite-migrate [--source JSON] [--dest DB]
                                 Copy JSON bookmarks into an opt-in SQLite DB.
-  updates [status|check|configure|download|staged|apply]
+  updates [status|check|configure|download|staged|apply [--dry-run]]
                                 Manage disabled-by-default update policy.
 
 Examples:
@@ -1053,9 +1053,12 @@ Top Domains:
             self._print_staged_update(manager.staged_update())
             return
         if sub == "apply":
+            if any(arg in ("--dry-run", "--preflight") for arg in args[1:]):
+                self._print_update_apply_preflight(manager.apply_preflight())
+                return
             self._print_update_apply_gate(manager)
             return
-        print("Usage: updates [status|check|configure|download|staged|apply]")
+        print("Usage: updates [status|check|configure|download|staged|apply [--dry-run]]")
 
     def _print_update_status(self, status):
         policy = status.policy
@@ -1112,6 +1115,17 @@ Top Domains:
         print("Run updates check to verify trusted metadata readiness first.")
         if not status.can_check:
             print(f"Readiness: {status.reason}")
+
+    def _print_update_apply_preflight(self, result):
+        print(f"Update apply preflight: {result.reason}")
+        if result.latest_version:
+            print(f"Target version: {result.latest_version}")
+        if result.target_name:
+            print(f"Target: {result.target_name}")
+        for staged_path in result.staged_paths:
+            print(f"Staged: {staged_path}")
+        for blocker in result.blockers:
+            print(f"Blocker: {blocker}")
 
     def _configure_updates(self, manager, args):
         enabled = None

@@ -2,6 +2,24 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.25] - 2026-06-06
+
+Updater apply preflight release.
+
+### Added — Distribution (R-41 partial)
+
+- **Apply preflight** — added `UpdateManager.apply_preflight()` to report staged
+  update readiness and blockers without mutating files.
+- **CLI dry run** — `updates apply --dry-run` and `updates apply --preflight`
+  now print target details, staged paths, and explicit blockers.
+- **Persistent apply gate** — real `updates apply` remains blocked while the
+  dry-run path makes missing staged updates and disabled application visible.
+
+### Tests
+
+- Added updater service coverage for unstaged and staged preflight results.
+- Added CLI coverage for `updates apply --dry-run` blocker output.
+
 ## [v6.6.24] - 2026-06-06
 
 Updater staging manifest release.
