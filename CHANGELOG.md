@@ -2,6 +2,22 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.30] - 2026-06-06
+
+MCP HTTP compatibility release.
+
+### Changed — MCP (R-15/R-58 hardening)
+
+- **Optional mirrored headers** — Streamable HTTP requests no longer require
+  `Mcp-Method` and `Mcp-Name` headers, matching standard MCP clients.
+- **Validation preserved** — when mirrored headers are present, they still must
+  match the JSON-RPC method and tool/resource/prompt name.
+
+### Tests
+
+- Added middleware coverage proving missing mirrored headers replay to the
+  downstream MCP app, while existing mismatched-header rejection remains intact.
+
 ## [v6.6.29] - 2026-06-06
 
 MCP stdio contract smoke release.

@@ -3,6 +3,15 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.30 MCP HTTP Compatibility
+
+- Advanced R-15/R-58 hardening: Streamable HTTP mirrored headers are optional
+  for standard MCP clients.
+- Preserved mismatch validation when `Mcp-Method` or `Mcp-Name` is supplied.
+- Added middleware regression coverage for missing mirrored headers.
+- Verification: compileall passed, focused MCP/release metadata tests passed
+  with 26 tests, and the full suite passed with 361 tests.
+
 ## 2026-06-06 — v6.6.29 MCP Stdio Stream Contract Smoke
 
 - Advanced R-15: added subprocess stdio transport validation for

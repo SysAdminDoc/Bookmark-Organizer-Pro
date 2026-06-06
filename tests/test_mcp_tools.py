@@ -597,6 +597,35 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
         self.assertEqual(seen["body"], body)
         self.assertEqual(sent[0]["status"], 200)
 
+    def test_http_header_validation_allows_missing_mirrored_headers(self):
+        sent = []
+
+        async def app(scope, receive, send):
+            sent.append({"type": "downstream"})
+
+        middleware = self.ms.MCPHTTPHeaderValidationMiddleware(app)
+        body = json.dumps({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "list_bookmarks", "arguments": {}},
+        }).encode("utf-8")
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "headers": [],
+        }
+
+        async def receive():
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        async def send(message):
+            sent.append(message)
+
+        asyncio.run(middleware(scope, receive, send))
+
+        self.assertEqual(sent, [{"type": "downstream"}])
+
 
 if __name__ == "__main__":
     unittest.main()
