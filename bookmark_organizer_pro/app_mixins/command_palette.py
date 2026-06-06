@@ -40,6 +40,7 @@ class CommandPaletteActionsMixin:
             ("Check All Links", "", self._check_all_links),
             ("Find Duplicates", "", self._find_duplicates),
             ("Clean Tracking Parameters", "", self._clean_urls),
+            ("Open Graph View", "", self._open_graph_view),
             ("Manage Categories", "", self._show_category_manager),
             ("Flatten All Folders", "", self._flatten_all_folders),
             ("Clear All Categories", "", self._clear_all_categories),

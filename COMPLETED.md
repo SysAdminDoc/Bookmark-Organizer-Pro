@@ -3,6 +3,15 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.22 Desktop Graph View
+
+- Completed R-22: added a Tk-native graph canvas for bookmark, tag, category,
+  and domain relationships with deterministic force-layout coordinates.
+- Added pan/zoom, node selection details, bookmark-node opening, Graph JSON
+  export, and Tools/command-palette entry points.
+- Verification: compileall passed, focused graph/release metadata tests passed
+  with 25 tests, and the full suite passed with 344 tests.
+
 ## 2026-06-06 — v6.6.21 Graph Export Foundation
 
 - Advanced R-22: added bookmark graph nodes/edges for bookmark-to-tag,

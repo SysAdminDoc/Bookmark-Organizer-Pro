@@ -17,6 +17,7 @@ from bookmark_organizer_pro.core.category_manager import get_category_icon
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Category
 from bookmark_organizer_pro.ui.foundation import FONTS, pluralize
+from bookmark_organizer_pro.ui.graph_view import GraphViewDialog
 from bookmark_organizer_pro.ui.management_dialogs import CategoryManagementDialog, CustomFaviconDialog
 from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog
 from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable
@@ -70,6 +71,7 @@ class ToolsActionsMixin:
         menu.add_command(label="  Clean Tracking Parameters", command=self._clean_urls)
         menu.add_separator()
         menu.add_command(label="  Reader View", command=self._open_reader_view)
+        menu.add_command(label="  Graph View", command=self._open_graph_view)
         menu.add_command(label="  Full Analytics", command=self._show_analytics)
         menu.add_command(label="  Backup Now", command=self._backup_now)
         menu.add_separator()
@@ -618,3 +620,12 @@ class ToolsActionsMixin:
             return
         ReaderViewDialog(self.root, bookmark)
         self._set_status(f"Reader opened for {bookmark.title[:60]}")
+
+    def _open_graph_view(self):
+        """Open the bookmark relationship graph."""
+        bookmarks = self.bookmark_manager.get_all_bookmarks()
+        if not bookmarks:
+            self._show_toast("No bookmarks to graph", "info")
+            return
+        GraphViewDialog(self.root, bookmarks, on_open_bookmark=self._open_bookmark)
+        self._set_status(f"Graph opened with {len(bookmarks)} bookmark(s)")
