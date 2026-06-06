@@ -22,6 +22,15 @@ def _load_nuitka_build():
     return module
 
 
+def _load_nuitka_smoke():
+    path = ROOT / "packaging" / "nuitka_smoke.py"
+    spec = importlib.util.spec_from_file_location("bop_nuitka_smoke", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
 class TestNuitkaBuildHelper(unittest.TestCase):
     def test_command_includes_tk_assets_and_version_metadata(self):
         module = _load_nuitka_build()
@@ -30,7 +39,7 @@ class TestNuitkaBuildHelper(unittest.TestCase):
             mode="onefile",
             output_dir=Path("dist/nuitka"),
             python_executable="python",
-            version="6.6.7",
+            version="6.6.8",
             root=ROOT,
         )
 
@@ -39,8 +48,8 @@ class TestNuitkaBuildHelper(unittest.TestCase):
         self.assertIn("--enable-plugin=tk-inter", command)
         self.assertIn("--include-package=bookmark_organizer_pro", command)
         self.assertIn("--jobs=4", command)
-        self.assertIn("--file-version=6.6.7.0", command)
-        self.assertIn("--product-version=6.6.7.0", command)
+        self.assertIn("--file-version=6.6.8.0", command)
+        self.assertIn("--product-version=6.6.8.0", command)
         self.assertTrue(any(arg.startswith("--include-data-files=") for arg in command))
         self.assertEqual(command[-1], str(ROOT / "main.py"))
 
@@ -57,9 +66,29 @@ class TestNuitkaBuildHelper(unittest.TestCase):
     def test_command_accepts_custom_jobs(self):
         module = _load_nuitka_build()
 
-        command = module.build_command(jobs=2, version="6.6.7", root=ROOT)
+        command = module.build_command(jobs=2, version="6.6.8", root=ROOT)
 
         self.assertIn("--jobs=2", command)
+
+    def test_smoke_target_uses_console_entrypoint(self):
+        module = _load_nuitka_build()
+
+        command = module.build_command(target="smoke", version="6.6.8", root=ROOT)
+
+        self.assertIn("--output-filename=BookmarkOrganizerProSmoke", command)
+        self.assertFalse(any(arg.startswith("--include-module=") for arg in command))
+        self.assertNotIn("--include-package=bookmark_organizer_pro", command)
+        if sys.platform.startswith("win"):
+            self.assertIn("--windows-console-mode=force", command)
+        self.assertEqual(command[-1], str(ROOT / "packaging" / "nuitka_smoke.py"))
+
+    def test_smoke_entrypoint_version_matches_app(self):
+        from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION
+
+        module = _load_nuitka_smoke()
+
+        self.assertEqual(module.APP_NAME, APP_NAME)
+        self.assertEqual(module.APP_VERSION, APP_VERSION)
 
     def test_nuitka_extra_is_declared(self):
         pyproject_text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")

@@ -2,6 +2,29 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.8] - 2026-06-06
+
+Nuitka compile-smoke release.
+
+### Added — Distribution (R-40)
+
+- **Smoke compile target** — `packaging/nuitka_build.py` now accepts
+  `--target smoke` to build a small console executable that exercises Nuitka
+  metadata, icon, asset, report, output, and job-control flags without pulling
+  in the full GUI import graph.
+- **Smoke entrypoint** — added `packaging/nuitka_smoke.py`, a self-contained
+  version-printing executable entrypoint kept in sync with app metadata by
+  tests.
+- **Artifact validation** — the local standalone smoke compile completed with
+  Nuitka 4.1.2/MSVC, emitted `compilation-report.xml`, included icon assets,
+  and the generated `BookmarkOrganizerProSmoke.exe --version` reported
+  `Bookmark Organizer Pro v6.6.8`.
+
+### Tests
+
+- Added packaging-helper coverage for smoke target command generation and
+  smoke entrypoint version sync.
+
 ## [v6.6.7] - 2026-06-06
 
 Nuitka build-control release.
