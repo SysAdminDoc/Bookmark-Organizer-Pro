@@ -96,6 +96,12 @@ class TestCLIDispatch(CLITestBase):
         self.assertIn("disabled in this release", out)
         self.assertIn("updates check", out)
 
+    def test_updates_apply_dry_run_reports_preflight_blockers(self):
+        out = self._run(["updates", "apply", "--dry-run"])
+        self.assertIn("Update apply preflight", out)
+        self.assertIn("Blocker: no staged update", out)
+        self.assertIn("Blocker: update application is disabled in this release", out)
+
     def test_main_entrypoint_accepts_argv(self):
         from bookmark_organizer_pro.cli import main
 

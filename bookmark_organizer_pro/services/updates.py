@@ -161,6 +161,17 @@ class StagedUpdateStatus:
     error: str = ""
 
 
+@dataclass(frozen=True)
+class UpdateApplyPreflightResult:
+    allowed: bool
+    current_version: str
+    latest_version: str
+    target_name: str
+    staged_paths: tuple[str, ...]
+    blockers: tuple[str, ...]
+    reason: str
+
+
 class UpdateManager:
     """Manage local update policy without applying updates automatically."""
 
@@ -426,6 +437,25 @@ class UpdateManager:
             channel=str(raw.get("channel") or self.policy.channel),
             staged_at=str(raw.get("staged_at") or ""),
             reason=reason,
+        )
+
+    def apply_preflight(self) -> UpdateApplyPreflightResult:
+        """Report staged update readiness without applying any files."""
+        staged = self.staged_update()
+        blockers = []
+        if not staged.available:
+            blockers.append(staged.reason)
+        elif not staged.complete:
+            blockers.append(staged.reason)
+        blockers.append("update application is disabled in this release")
+        return UpdateApplyPreflightResult(
+            allowed=False,
+            current_version=self.current_version,
+            latest_version=staged.latest_version,
+            target_name=staged.target_name,
+            staged_paths=staged.staged_paths,
+            blockers=tuple(blockers),
+            reason="apply gated",
         )
 
     def check_for_updates(self, client_cls=None) -> UpdateCheckResult:

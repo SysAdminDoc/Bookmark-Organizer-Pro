@@ -3,6 +3,16 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.25 Updater Apply Preflight
+
+- Advanced R-41: added a dry-run update apply preflight that reports staged
+  target readiness and blockers without mutating files.
+- Added `UpdateManager.apply_preflight()` and `updates apply --dry-run`.
+- Kept real update application blocked while surfacing the exact preflight
+  blockers for future install/rollback work.
+- Verification: compileall passed, focused updater/release metadata tests
+  passed with 31 tests, and the full suite passed with 353 tests.
+
 ## 2026-06-06 — v6.6.24 Updater Staging Manifest
 
 - Advanced R-41: successful updater target staging now writes a durable

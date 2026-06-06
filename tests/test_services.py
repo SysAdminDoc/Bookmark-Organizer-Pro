@@ -127,7 +127,7 @@ class TestUpdateManager(_IsolatedTestBase):
 
     def test_check_for_updates_uses_client_without_downloading(self):
         updates = self._updates_module()
-        manager = updates.UpdateManager(current_version="6.6.24")
+        manager = updates.UpdateManager(current_version="6.6.25")
         manager.configure(
             enabled=True,
             metadata_url="https://updates.example.com/metadata",
@@ -164,7 +164,7 @@ class TestUpdateManager(_IsolatedTestBase):
 
     def test_download_update_stages_target_without_applying(self):
         updates = self._updates_module()
-        manager = updates.UpdateManager(current_version="6.6.24")
+        manager = updates.UpdateManager(current_version="6.6.25")
         manager.configure(
             enabled=True,
             metadata_url="https://updates.example.com/metadata",
@@ -228,12 +228,12 @@ class TestUpdateManager(_IsolatedTestBase):
 
     def test_staged_update_status_reports_missing_targets(self):
         updates = self._updates_module()
-        manager = updates.UpdateManager(current_version="6.6.24")
+        manager = updates.UpdateManager(current_version="6.6.25")
         manager.target_dir.mkdir(parents=True, exist_ok=True)
         missing = manager.target_dir / "BookmarkOrganizerPro-6.7.0.tar.gz"
         manager.staged_manifest_path.parent.mkdir(parents=True, exist_ok=True)
         manager.staged_manifest_path.write_text(json.dumps({
-            "current_version": "6.6.24",
+            "current_version": "6.6.25",
             "latest_version": "6.7.0",
             "target_name": "BookmarkOrganizerPro-6.7.0.tar.gz",
             "target_path": "BookmarkOrganizerPro-6.7.0.tar.gz",
@@ -248,9 +248,44 @@ class TestUpdateManager(_IsolatedTestBase):
         self.assertFalse(staged.complete)
         self.assertEqual(staged.reason, "staged target files missing")
 
+    def test_apply_preflight_reports_no_staged_update(self):
+        updates = self._updates_module()
+        manager = updates.UpdateManager(current_version="6.6.25")
+
+        result = manager.apply_preflight()
+
+        self.assertFalse(result.allowed)
+        self.assertEqual(result.reason, "apply gated")
+        self.assertIn("no staged update", result.blockers)
+        self.assertIn("update application is disabled in this release", result.blockers)
+
+    def test_apply_preflight_reports_staged_update_and_apply_gate(self):
+        updates = self._updates_module()
+        manager = updates.UpdateManager(current_version="6.6.25")
+        staged_path = manager.target_dir / "BookmarkOrganizerPro-6.7.0.tar.gz"
+        staged_path.parent.mkdir(parents=True, exist_ok=True)
+        staged_path.write_bytes(b"archive")
+        manager.staged_manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        manager.staged_manifest_path.write_text(json.dumps({
+            "current_version": "6.6.25",
+            "latest_version": "6.7.0",
+            "target_name": "BookmarkOrganizerPro-6.7.0.tar.gz",
+            "target_path": "BookmarkOrganizerPro-6.7.0.tar.gz",
+            "staged_paths": [str(staged_path)],
+            "channel": "stable",
+            "staged_at": "2026-06-06T00:00:00+00:00",
+        }), encoding="utf-8")
+
+        result = manager.apply_preflight()
+
+        self.assertFalse(result.allowed)
+        self.assertEqual(result.latest_version, "6.7.0")
+        self.assertEqual(result.staged_paths, (str(staged_path.resolve()),))
+        self.assertEqual(result.blockers, ("update application is disabled in this release",))
+
     def test_download_update_rejects_target_paths_outside_cache(self):
         updates = self._updates_module()
-        manager = updates.UpdateManager(current_version="6.6.24")
+        manager = updates.UpdateManager(current_version="6.6.25")
         manager.configure(
             enabled=True,
             metadata_url="https://updates.example.com/metadata",
@@ -286,9 +321,9 @@ class TestUpdateManager(_IsolatedTestBase):
     def test_version_comparison(self):
         updates = self._updates_module()
 
-        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.24"))
-        self.assertFalse(updates.is_newer_version("6.6.24", "6.6.24"))
-        self.assertFalse(updates.is_newer_version("6.6.23", "6.6.24"))
+        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.25"))
+        self.assertFalse(updates.is_newer_version("6.6.25", "6.6.25"))
+        self.assertFalse(updates.is_newer_version("6.6.24", "6.6.25"))
 
 
 # ── 1. EmbeddingService ──────────────────────────────────────────────
