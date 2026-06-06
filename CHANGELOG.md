@@ -2,6 +2,31 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.16] - 2026-06-06
+
+MCP progress notification release.
+
+### Added — MCP (R-15 partial)
+
+- **FastMCP progress notifications** — `chat_with_collection_stream` now accepts
+  FastMCP's injected context and reports progress for each ordered chunk event
+  when the client provides a progress token.
+- **Progress replay helper** — added a tested helper that maps stream events to
+  bounded progress messages and a final `complete` notification.
+- **Schema guard** — FastMCP catalog coverage now verifies the injected context
+  is not exposed as a user-provided tool argument.
+
+### Notes
+
+- The final MCP tool result remains unchanged for clients that do not consume
+  progress notifications.
+- End-to-end client progress smoke testing remains open until a local MCP client
+  harness can assert notifications over the transport.
+
+### Tests
+
+- Added MCP coverage for progress reporting and FastMCP context schema hygiene.
+
 ## [v6.6.15] - 2026-06-06
 
 Provider streaming release.

@@ -314,6 +314,10 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
             tools["chat_with_collection_stream"]["_meta"]["io.modelcontextprotocol/name"],
             "chat_with_collection_stream",
         )
+        self.assertNotIn(
+            "ctx",
+            tools["chat_with_collection_stream"]["inputSchema"].get("properties", {}),
+        )
         self.assertTrue(tools["list_bookmarks"]["_meta"]["io.modelcontextprotocol/statelessReady"])
         self.assertEqual(tools["list_bookmarks"]["_meta"]["io.modelcontextprotocol/method"], "tools/call")
         self.assertEqual(tools["list_bookmarks"]["_meta"]["io.modelcontextprotocol/name"], "list_bookmarks")
@@ -341,9 +345,42 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
             tools["chat_with_collection_stream"]["_meta"]["io.modelcontextprotocol/name"],
             "chat_with_collection_stream",
         )
+        self.assertNotIn(
+            "ctx",
+            tools["chat_with_collection_stream"]["inputSchema"].get("properties", {}),
+        )
         self.assertTrue(tools["list_bookmarks"]["_meta"]["io.modelcontextprotocol/statelessReady"])
         self.assertEqual(tools["list_bookmarks"]["_meta"]["io.modelcontextprotocol/method"], "tools/call")
         self.assertEqual(tools["list_bookmarks"]["_meta"]["io.modelcontextprotocol/name"], "list_bookmarks")
+
+    def test_chat_stream_progress_reports_chunk_events(self):
+        class FakeContext:
+            def __init__(self):
+                self.calls = []
+
+            async def report_progress(self, progress, total=None, message=None):
+                self.calls.append({
+                    "progress": progress,
+                    "total": total,
+                    "message": message,
+                })
+
+        ctx = FakeContext()
+        result = {
+            "events": [
+                {"type": "chunk", "text": "alpha"},
+                {"type": "chunk", "text": "beta"},
+                {"type": "complete"},
+            ],
+        }
+
+        asyncio.run(self.ms._report_chat_stream_progress(ctx, result))
+
+        self.assertEqual(ctx.calls, [
+            {"progress": 1, "total": 2, "message": "alpha"},
+            {"progress": 2, "total": 2, "message": "beta"},
+            {"progress": 2, "total": 2, "message": "complete"},
+        ])
 
     def test_serve_http_requires_fastmcp(self):
         with patch.object(self.ms, "_build_fastmcp_server", return_value=None):
