@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 from typing import List
 
 import requests
@@ -139,14 +140,14 @@ v6.0.0 commands:
   encrypt <pass> [src] [dst]    Encrypt a JSON file with AES-256-GCM
   decrypt <pass> <src> [dst]    Decrypt an encrypted JSON file
   read-later {{add|next|done|list}} <id>   Manage the read-later queue
-  mcp-server                    Run the MCP server (stdio) for Claude/Cursor/etc.
+  mcp-server                    Run the MCP server (stdio) for compatible clients.
 
 Examples:
   python main.py list
   python main.py add https://example.com "Example Site"
   python main.py hybrid "python async tutorials"
   python main.py ingest        # ingest all
-  python main.py mcp-server    # expose to Claude Desktop
+  python main.py mcp-server    # expose to an MCP-compatible client
 """)
     
     def _cmd_list(self, args):
@@ -560,13 +561,10 @@ Top Domains:
 
     def _cmd_scan(self, args):
         from bookmark_organizer_pro.services.dead_link_scanner import DeadLinkScanner
-        hours = 0
-        for a in args:
-            if a.startswith("--hours"):
-                _, _, val = a.partition("=")
-                if val:
-                    try: hours = int(val)
-                    except ValueError: pass
+        hours = self._parse_hours_option(args)
+        if hours is None:
+            print("usage: scan [--hours N]")
+            return
         scanner = DeadLinkScanner(
             get_bookmarks=lambda: self.bookmark_manager.get_all_bookmarks()
         )
@@ -575,6 +573,30 @@ Top Domains:
         print(f"Scan complete. {len(records)} dead/redirected links recorded.")
         for r in records[:20]:
             print(f"  {r.status} {r.url}  ({r.error})")
+
+    @staticmethod
+    def _parse_hours_option(args):
+        """Parse scan recency as either '--hours N' or '--hours=N'."""
+        hours = 0
+        i = 0
+        while i < len(args):
+            arg = args[i]
+            if arg == "--hours":
+                if i + 1 >= len(args):
+                    return None
+                try:
+                    hours = int(args[i + 1])
+                except ValueError:
+                    return None
+                i += 2
+                continue
+            if arg.startswith("--hours="):
+                try:
+                    hours = int(arg.partition("=")[2])
+                except ValueError:
+                    return None
+            i += 1
+        return max(0, hours)
 
     def _cmd_digest(self, args):
         from bookmark_organizer_pro.services.digest import DailyDigestService
@@ -930,3 +952,13 @@ Top Domains:
         bms = self.bookmark_manager.get_all_bookmarks()
         path = export_zotero_rdf(bms, output_path=output)
         print(f"Zotero RDF export: {path} ({len(bms)} items)")
+
+
+def main(argv=None):
+    """Console-script and module entry point."""
+    args = sys.argv[1:] if argv is None else list(argv)
+    BookmarkCLI().run(args)
+
+
+if __name__ == "__main__":
+    main()

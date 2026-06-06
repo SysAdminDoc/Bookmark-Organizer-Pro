@@ -2,6 +2,26 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.4.1] - 2026-06-06
+
+CLI reliability release.
+
+### Fixed
+
+- `scan --hours N` now honors the documented space-separated argument form.
+  The existing `--hours=N` form remains supported.
+- Invalid `scan --hours` values now print usage and do not start an
+  unrestricted dead-link scan.
+- `bookmark_organizer_pro.cli:main` now exists, so the `bop` console script and
+  `python -m bookmark_organizer_pro.cli` entrypoint work.
+- Package-level `BookmarkCLI` export is lazy-loaded so `python -m
+  bookmark_organizer_pro.cli` runs without a `runpy` pre-import warning.
+
+### Improved
+
+- Added regression coverage for both accepted `scan --hours` forms, invalid
+  input handling, the CLI entrypoint, and the package-level CLI export.
+
 ## [v6.4.0] - 2026-06-05
 
 Usability & bulk operations release.
@@ -189,7 +209,7 @@ items. Total test suite: 188 methods across 3 files.
 ## [v6.1.0] - 2026-06-05
 
 Hardening and reliability release. 35 fixes across 30+ files, informed by an
-8-agent deep-audit research pass (`RESEARCH_FEATURE_PLAN_2026-06-05.md`).
+multi-pass deep-audit research plan (`docs/research/research-feature-plan-2026-06-05.md`).
 
 ### Fixed — Critical (P0)
 
@@ -397,7 +417,7 @@ extra installs.
   daily_digest, list_dead_links, list_flows, get_flow. Run with
   `python -m bookmark_organizer_pro.mcp_server`. **No OSS bookmark
   manager exposes itself as MCP today** — first-mover. Makes BOP a
-  first-class citizen in Claude Desktop / Claude Code / Cursor / Codex.
+  first-class citizen for MCP-compatible clients.
 
 ### Added — CLI
 
@@ -432,7 +452,7 @@ unchanged.
   citation-aware RAG). Top-20 prioritized improvement list informed v6.
 - `requirements.txt` extended with optional v6 deps (trafilatura,
   fastembed, lancedb, cryptography, mcp) using Python version markers.
-- `CLAUDE.md` rewritten for v6.
+- Local working notes rewritten for v6.
 
 ## Unreleased
 
@@ -494,7 +514,7 @@ deletions.
   `APP_VERSION = "5.2.0"` (was stuck at `4.1.0`).
 - `version_info.txt` bumped from `4.6.0.0` → `5.2.0.0` so PyInstaller-built
   binaries report the correct Windows version metadata.
-- README, CLAUDE.md, and all docs updated to reference `main.py`.
+- README, local working notes, and all docs updated to reference `main.py`.
 
 ## [v5.2.0] - 2026-04-19
 

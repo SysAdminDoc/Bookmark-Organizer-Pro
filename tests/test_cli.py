@@ -62,6 +62,23 @@ class TestCLIDispatch(CLITestBase):
         out = self._run(["help"])
         self.assertIn("Usage", out)
 
+    def test_main_entrypoint_accepts_argv(self):
+        from bookmark_organizer_pro.cli import main
+
+        old_stdout = sys.stdout
+        sys.stdout = captured = StringIO()
+        try:
+            main(["--version"])
+        finally:
+            sys.stdout = old_stdout
+
+        self.assertIn("Bookmark Organizer Pro", captured.getvalue())
+
+    def test_package_bookmark_cli_export_is_available(self):
+        from bookmark_organizer_pro import BookmarkCLI
+
+        self.assertTrue(callable(BookmarkCLI))
+
 
 class TestCLIList(CLITestBase):
     def test_list_empty(self):
@@ -101,6 +118,33 @@ class TestCLISearchAndCheck(CLITestBase):
     def test_search_empty(self):
         out = self._run(["search", "nonexistent-term-xyz"])
         self.assertIsInstance(out, str)
+
+    @patch("bookmark_organizer_pro.services.dead_link_scanner.DeadLinkScanner")
+    def test_scan_accepts_space_separated_hours(self, scanner_cls):
+        scanner = scanner_cls.return_value
+        scanner.scan_now.return_value = []
+
+        out = self._run(["scan", "--hours", "12"])
+
+        self.assertIn("Scan complete", out)
+        scanner.scan_now.assert_called_once_with(only_unchecked_for_hours=12)
+
+    @patch("bookmark_organizer_pro.services.dead_link_scanner.DeadLinkScanner")
+    def test_scan_accepts_equals_hours(self, scanner_cls):
+        scanner = scanner_cls.return_value
+        scanner.scan_now.return_value = []
+
+        out = self._run(["scan", "--hours=8"])
+
+        self.assertIn("Scan complete", out)
+        scanner.scan_now.assert_called_once_with(only_unchecked_for_hours=8)
+
+    @patch("bookmark_organizer_pro.services.dead_link_scanner.DeadLinkScanner")
+    def test_scan_rejects_invalid_hours(self, scanner_cls):
+        out = self._run(["scan", "--hours", "soon"])
+
+        self.assertIn("usage: scan", out)
+        scanner_cls.assert_not_called()
 
     def test_digest(self):
         out = self._run(["digest"])

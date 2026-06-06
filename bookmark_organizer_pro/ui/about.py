@@ -286,13 +286,9 @@ Logs:           {LOG_FILE.name}
         text.pack(fill=tk.BOTH, expand=True)
         
         credits = f"""
-DEVELOPMENT
-───────────────────────────────────
-Developed with assistance from Claude (Anthropic)
-
 TECHNOLOGIES
 ───────────────────────────────────
-• Python 3.8+
+• Python 3.10+
 • Tkinter/ttk (GUI framework)
 • BeautifulSoup (HTML parsing)
 • Pillow (Image processing)
@@ -335,4 +331,3 @@ Data: {APP_DIR}"""
         original_title = self.title()
         self.title("✅ Copied to clipboard!")
         self.after(1500, lambda: self.title(original_title))
-

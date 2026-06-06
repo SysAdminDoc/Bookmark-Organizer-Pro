@@ -1,8 +1,8 @@
 # Bookmark Organizer Pro — Roadmap
 
-> **Version:** 3.0 · **Date:** 2026-06-05 · **Covers:** v6.1.0 → v7.x  
+> **Version:** 3.1 · **Date:** 2026-06-06 · **Covers:** v6.4.1 → v7.x
 > **Single source of truth** for all planned work.  
-> Supersedes prior `ROADMAP.md` (v2) and `RESEARCH_FEATURE_PLAN_2026-06-05.md`.
+> Supersedes prior `ROADMAP.md` (v2) and consolidates the dated research plan now archived under `docs/research/`.
 
 ---
 
@@ -10,7 +10,7 @@
 
 | Symbol | Meaning |
 |--------|---------|
-| ✅ | Done (shipped in v6.1.0 or earlier) |
+| ✅ | Done (shipped in v6.4.1 or earlier) |
 | 🔲 | Open — implementation not started |
 | 🚧 | In progress or partially shipped |
 | S/M/L/XL | Effort estimate (days: 0.5 / 1-2 / 3-5 / 1-2 weeks) |
@@ -21,9 +21,9 @@
 
 ---
 
-## State of the Project (v6.1.0)
+## State of the Project (v6.4.1)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.1.0 it ships:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.4.1 it ships:
 
 - **AI:** 5 providers (OpenAI, Anthropic, Gemini, Groq, Ollama), auto-categorization with 4,224 patterns, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean + semantic vector (LanceDB + FastEmbed) + hybrid RRF
@@ -42,6 +42,15 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 - Optional deps must degrade gracefully — core works with zero extras installed
 - Windows-primary, cross-platform (macOS, Linux)
 - User data sovereignty: AI assists, user decides; never auto-delete or auto-merge
+
+## Cycle Note — 2026-06-06
+
+This cycle validated the existing roadmap against current competitor and dependency signals rather than adding duplicate work:
+
+- Browser capture remains the highest platform gap: Linkwarden documents a browser extension and Karakeep highlights browser extensions/mobile apps, reinforcing R-01/R-03. [S-69][S-70]
+- `tksheet` remains a viable Tkinter virtualization path for R-16, with 7.6.0 listed as a current 2026 release. [S-71]
+- `sv-ttk` remains the lightweight ttk visual refresh candidate for R-18, with 2.6.1 still listed as the current package version. [S-72]
+- FastMCP continues to evolve around MCP app/tool surfaces, keeping R-15 streaming worth tracking after the existing typed-tool migration. [S-73]
 
 ---
 
@@ -206,6 +215,8 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 | BUG-10 | 4 tests added for two-pass priority behavior | P1 | S | ✅ |
 | BUG-11 | 8 tests added for PatternEngine with real DEFAULT_CATEGORIES | P1 | S | ✅ |
 | BUG-12 | Pre-existing test failure — already fixed in prior commit | P2 | S | ✅ |
+| BUG-13 | CLI `scan --hours N` ignored documented space-separated syntax and could run unrestricted scans | P1 | S | ✅ |
+| BUG-14 | `pyproject.toml` console script pointed at missing `bookmark_organizer_pro.cli:main` | P1 | S | ✅ |
 
 ---
 
@@ -283,7 +294,7 @@ These ideas surfaced in research but need more validation before committing:
 
 | ID | Source | URL / Reference |
 |----|--------|-----------------|
-| S-1 | BOP internal audit (8-agent pass, 2026-06-05) | `RESEARCH_FEATURE_PLAN_2026-06-05.md` (local) |
+| S-1 | BOP internal audit (multi-pass review, 2026-06-05) | `docs/research/research-feature-plan-2026-06-05.md` (local) |
 | S-2 | BOP v6.1.0 CHANGELOG | `CHANGELOG.md` (local) |
 | S-3 | Linkwarden — self-hosted bookmark manager | https://github.com/linkwarden/linkwarden |
 | S-4 | ArchiveBox — aggressive multi-format archiver | https://github.com/ArchiveBox/ArchiveBox |
@@ -351,6 +362,11 @@ These ideas surfaced in research but need more validation before committing:
 | S-66 | Chinmay Panda: 2026 bookmark manager comparison | https://chinmaypanda.com/linkwarden-vs-slash-vs-karakeep-vs-linkding-for-bookmark-managers-in-2026/ |
 | S-67 | MDN: MV3 native messaging | https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_messaging |
 | S-68 | Lokalise: Python i18n guide | https://lokalise.com/blog/beginners-guide-to-python-i18n/ |
+| S-69 | Linkwarden browser extension docs | https://docs.linkwarden.app/getting-started/browser-extension |
+| S-70 | Karakeep apps and extensions | https://karakeep.app/apps |
+| S-71 | tksheet PyPI release listing | https://pypi.org/project/tksheet/ |
+| S-72 | sv-ttk PyPI release listing | https://pypi.org/project/sv-ttk/ |
+| S-73 | FastMCP changelog | https://gofastmcp.com/changelog |
 
 ---
 
@@ -384,23 +400,23 @@ High-value features and architectural investments.
 
 - 🔲 **R-02** Web client (FastAPI + HTMX + PWA) [XL]
 - 🔲 **R-03** Mobile PWA share-intent [M]
-- 🔲 **R-07** Cross-encoder re-rank after RRF [M]
-- 🔲 **R-08** Chunk-level RAG provenance [M]
+- ✅ **R-07** Cross-encoder re-rank after RRF [M]
+- ✅ **R-08** Chunk-level RAG provenance [M]
 - ✅ **R-09** Time-weighted recall [S]
-- 🔲 **R-10** Collections as retrieval scopes [M]
-- 🔲 **R-12** YouTube transcript capture [M]
+- ✅ **R-10** Collections as retrieval scopes [M]
+- ✅ **R-12** YouTube transcript capture [M]
 - ✅ **R-13** Smart Collections [M]
 - 🔲 **R-17** Tree view alongside list [M]
 - 🔲 **R-18** sv-ttk theme integration [M]
-- 🔲 **R-24** Scheduled auto-snapshot [M]
+- ✅ **R-24** Scheduled auto-snapshot [M]
 - ✅ **R-25** EPUB export of collections [M]
-- 🔲 **R-27** Zotero RDF import/export [M]
+- ✅ **R-27** Zotero RDF import/export [M]
 - ✅ **R-30** Obsidian vault export [M]
 - 🔲 **R-31** SQLite migration (optional) [XL]
-- 🔲 **R-35** API key storage via keyring [M]
-- 🔲 **R-37** SSRF allow-list for snapshot/ingest [M]
+- ✅ **R-35** API key storage via keyring [M]
+- ✅ **R-37** SSRF allow-list for snapshot/ingest [M]
 - 🔲 **R-40** Nuitka compilation [L]
-- 🔲 **R-45** CLI smoke test suite [M]
+- ✅ **R-45** CLI smoke test suite [M]
 - 🔲 **R-48** Keyboard accessibility [L]
 - ✅ **R-49** High-contrast theme [S]
 
@@ -408,14 +424,14 @@ High-value features and architectural investments.
 
 Valuable but not urgent. Build when the foundation supports it.
 
-- 🔲 **R-11** Answer caching [S]
-- 🔲 **R-14** MCP per-tool scoped auth [M]
+- ✅ **R-11** Answer caching [S]
+- ✅ **R-14** MCP per-tool scoped auth [M]
 - 🔲 **R-15** MCP streaming for RAG chat [M]
 - 🔲 **R-21** Reader view with highlights [L]
 - 🔲 **R-22** Graph view [L]
 - 🔲 **R-26** OPDS catalog [M]
-- 🔲 **R-28** Matter export format [S]
-- 🔲 **R-29** ATOM/JSON Feed output [S]
-- 🔲 **R-38** Auto-rotate encrypted-DB passphrase [M]
+- ✅ **R-28** Matter export format [S]
+- ✅ **R-29** ATOM/JSON Feed output [S]
+- ✅ **R-38** Auto-rotate encrypted-DB passphrase [M]
 - 🔲 **R-41** tufup auto-update [M]
 - 🔲 **R-50** gettext i18n scaffolding [M]
