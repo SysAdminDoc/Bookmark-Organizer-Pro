@@ -3,6 +3,21 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.6 Nuitka Build Path
+
+- Advanced R-40: added `packaging/nuitka_build.py` to generate a reproducible
+  Nuitka build command for onefile or standalone output.
+- Included Tkinter plugin, package inclusion, assets, Windows icon/no-console
+  flags, version/product metadata, and compilation report output.
+- Added an optional `nuitka` package extra pinned to Nuitka 4.1+.
+- Added tests for command generation, dry-run behavior, and dependency
+  declaration.
+- Verification: Nuitka dry-run passed, compileall passed, targeted
+  packaging/release metadata tests passed with 8 tests, and the full suite
+  passed with 306 tests.
+- Remaining R-40 work: install/verify Nuitka and perform an actual compile
+  smoke on the local toolchain.
+
 ## 2026-06-06 — v6.6.5 SQLite Runtime Selection
 
 - Completed R-31: `BookmarkManager` now supports opt-in SQLite runtime storage

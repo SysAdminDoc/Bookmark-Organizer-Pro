@@ -1,0 +1,62 @@
+"""Packaging helper tests."""
+
+from __future__ import annotations
+
+import importlib.util
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _load_nuitka_build():
+    path = ROOT / "packaging" / "nuitka_build.py"
+    spec = importlib.util.spec_from_file_location("bop_nuitka_build", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+class TestNuitkaBuildHelper(unittest.TestCase):
+    def test_command_includes_tk_assets_and_version_metadata(self):
+        module = _load_nuitka_build()
+
+        command = module.build_command(
+            mode="onefile",
+            output_dir=Path("dist/nuitka"),
+            python_executable="python",
+            version="6.6.6",
+            root=ROOT,
+        )
+
+        self.assertEqual(command[:3], ["python", "-m", "nuitka"])
+        self.assertIn("--mode=onefile", command)
+        self.assertIn("--enable-plugin=tk-inter", command)
+        self.assertIn("--include-package=bookmark_organizer_pro", command)
+        self.assertIn("--file-version=6.6.6.0", command)
+        self.assertIn("--product-version=6.6.6.0", command)
+        self.assertTrue(any(arg.startswith("--include-data-files=") for arg in command))
+        self.assertEqual(command[-1], str(ROOT / "main.py"))
+
+    def test_dry_run_prints_command_without_subprocess(self):
+        module = _load_nuitka_build()
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(sys, "argv", ["nuitka_build.py"]):
+                with patch("subprocess.call") as call:
+                    result = module.main(["--dry-run", "--output-dir", tmp])
+
+        self.assertEqual(result, 0)
+        call.assert_not_called()
+
+    def test_nuitka_extra_is_declared(self):
+        pyproject_text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        self.assertIn('nuitka = ["Nuitka>=4.1,<5.0"]', pyproject_text)
+
+
+if __name__ == "__main__":
+    unittest.main()
