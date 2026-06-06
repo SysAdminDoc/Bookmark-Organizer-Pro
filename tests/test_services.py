@@ -127,7 +127,7 @@ class TestUpdateManager(_IsolatedTestBase):
 
     def test_check_for_updates_uses_client_without_downloading(self):
         updates = self._updates_module()
-        manager = updates.UpdateManager(current_version="6.6.17")
+        manager = updates.UpdateManager(current_version="6.6.18")
         manager.configure(
             enabled=True,
             metadata_url="https://updates.example.com/metadata",
@@ -165,9 +165,9 @@ class TestUpdateManager(_IsolatedTestBase):
     def test_version_comparison(self):
         updates = self._updates_module()
 
-        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.17"))
-        self.assertFalse(updates.is_newer_version("6.6.17", "6.6.17"))
-        self.assertFalse(updates.is_newer_version("6.6.16", "6.6.17"))
+        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.18"))
+        self.assertFalse(updates.is_newer_version("6.6.18", "6.6.18"))
+        self.assertFalse(updates.is_newer_version("6.6.17", "6.6.18"))
 
 
 # ── 1. EmbeddingService ──────────────────────────────────────────────

@@ -603,6 +603,7 @@ def get_theme_manager() -> ThemeManager:
     if not _theme_style_callback_registered:
         _theme_manager.add_theme_change_callback(_apply_theme_to_ttk)
         _theme_style_callback_registered = True
+        _apply_theme_to_ttk(_theme_manager.current_theme)
     return _theme_manager
 
 def get_theme() -> ThemeColors:
@@ -611,4 +612,3 @@ def get_theme() -> ThemeColors:
 
 
 set_widget_theme_provider(get_theme)
-

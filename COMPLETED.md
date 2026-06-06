@@ -3,6 +3,17 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.18 Sun Valley ttk Theme Integration
+
+- Completed R-18: optional `sv-ttk` support now applies a Sun Valley ttk base
+  theme when the package is installed.
+- Added dark/light mode selection from the active theme background before BOP's
+  existing ttk color overrides run.
+- Added the `sunvalley` optional dependency group while preserving the
+  `clam`/`default` fallback path for standard installs.
+- Verification: compileall passed, focused theme/release metadata tests passed
+  with 21 tests, and the full suite passed with 336 tests.
+
 ## 2026-06-06 — v6.6.17 Live MCP Progress Bridge
 
 - Advanced R-15: `CollectionChat.stream_answer()` now accepts chunk callbacks,
