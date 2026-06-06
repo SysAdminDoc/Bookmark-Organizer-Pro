@@ -2,6 +2,24 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.1] - 2026-06-06
+
+MCP dependency compatibility release.
+
+### Improved — MCP (R-59)
+
+- **FastMCP 3.4 floor** — optional MCP dependencies now require
+  `fastmcp>=3.4,<4` and `mcp>=1.24,<2`, aligning BOP with the current stable
+  FastMCP 3.x line.
+- **FastMCP packaging** — PyInstaller hidden imports include `fastmcp` alongside
+  the MCP SDK fallback.
+- **Runtime verification** — `_build_fastmcp_server()` was verified against
+  FastMCP 3.4.2 and MCP 1.27.2.
+
+### Tests
+
+- Added MCP dependency metadata and FastMCP builder compatibility checks.
+
 ## [v6.6.0] - 2026-06-06
 
 List performance and release metadata sync release.

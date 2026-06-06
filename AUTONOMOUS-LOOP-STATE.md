@@ -3,7 +3,7 @@
 Project: `C:\Users\--\repos\Bookmark-Organizer-Pro`
 Current pass: 2
 Last cycle completed: 2026-06-06
-Last result: v6.6.0 list virtualization via tksheet, release metadata sync, R-16 completed
-Verification: `py -3.12 -m compileall -q bookmark_organizer_pro tests` passed; tksheet widget smoke passed; targeted extension/CLI tests passed with 33 tests; targeted service regression tests passed with 8 tests; full `py -3.12 -m pytest -q` passed with 284 tests
+Last result: v6.6.1 FastMCP 3.4 dependency upgrade, MCP SDK floor sync, R-59 completed
+Verification: `py -3.12 -m compileall -q bookmark_organizer_pro tests`; `py -3.12 -m pytest -q tests/test_mcp_tools.py tests/test_browser_extension.py` (27 passed); `py -3.12 -m pytest -q` (286 passed)
 Next project: `C:\Users\--\repos\Bookmark-Organizer-Pro`
-Next cycle focus: Begin Next-tier MCP work, starting with R-58 MCP 2026-07-28 spec migration or R-59 FastMCP 3.x upgrade after re-checking current protocol/library state.
+Next cycle focus: Continue Next-tier work with R-58 MCP draft/stateless compatibility, then R-31 optional SQLite migration or R-40 Nuitka compilation after re-checking current library and toolchain state.

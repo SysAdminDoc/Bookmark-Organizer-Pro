@@ -21,9 +21,9 @@
 
 ---
 
-## State of the Project (v6.6.0)
+## State of the Project (v6.6.1)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.0:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.1:
 
 - **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
@@ -76,6 +76,14 @@ visible-row canvas rendering model. The cycle also fixed service regressions
 found during full-suite verification: NL query heuristic compatibility,
 dead-link result persistence compatibility, batch-save coalescing, and the
 snapshot archiver `archive()` alias. Details: `docs/audit/2026-06-06-v6.6.0-audit.md`.
+
+### Cycle Note — v6.6.1 (2026-06-06)
+
+R-59 shipped after live package research confirmed FastMCP 3.4.2 as the
+current stable PyPI release on 2026-06-06. BOP now declares FastMCP 3.4.x and
+MCP SDK 1.24+ for optional MCP installs, PyInstaller includes `fastmcp`, and
+the FastMCP server builder was verified against FastMCP 3.4.2/MCP 1.27.2.
+Details: `docs/audit/2026-06-06-v6.6.1-mcp-dependency-audit.md`.
 
 ### Hard Constraints
 
@@ -134,7 +142,7 @@ snapshot archiver `archive()` alias. Details: `docs/audit/2026-06-06-v6.6.0-audi
 |---|------|------|--------|--------|
 | ✅ R-57 | **MCP write tools** — 6 new tools: `delete_bookmark`, `update_bookmark`, `toggle_pin`, `mark_read_later`, `add_tags`, `remove_tags`. Total 26 tools. | Done | M | [S-1][S-78] |
 | 🔲 R-58 | **MCP 2026-07-28 spec migration** — adapt to stateless protocol (no Mcp-Session-Id), add Mcp-Method/Mcp-Name headers, implement ttlMs + cacheScope on list results. Required for SDK Tier 1 compliance. | Next | L | [S-79][S-80] |
-| 🔲 R-59 | **FastMCP 3.x upgrade** — bump from ≥2.0 to ≥3.4. Gains: OAuth auto-enable for HTTPS, OTEL spans on tool execution, fastmcp-remote for connecting stdio hosts to remote servers, meta-tools. | Next | M | [S-81] |
+| ✅ R-59 | **FastMCP 3.x upgrade** — optional MCP dependencies now require FastMCP 3.4.x and MCP SDK 1.24+, packaging includes `fastmcp`, and `_build_fastmcp_server()` is verified against FastMCP 3.4.2. | Done | M | [S-81] |
 | ✅ R-60 | **GUI chat panel** — ChatPanel widget in right sidebar with conversation bubbles, cited sources, bookmark links, threaded async ask, and clear button. Backend via CollectionChat.ask(). | Done | L | [S-1][S-65][S-82] |
 | ✅ R-61 | **Nomic Embed v2 support** — Added NOMIC_MODEL constant + RECOMMENDED_MODELS dict + CLI `--model=nomic` flag for embed command. | Done | S | [S-83] |
 | ✅ R-05 | FastMCP migration (2.x) | Done | M | [S-14][S-15] |
@@ -309,6 +317,7 @@ All items below shipped in v6.0.0 through v6.4.1. Full details in [CHANGELOG.md]
 | R-47 | Fix copy-pasted model docstrings | v6.2.0 |
 | R-49 | High-contrast WCAG AA theme | v6.2.0 |
 | R-16 | List virtualization via tksheet | v6.6.0 |
+| R-59 | FastMCP 3.x dependency upgrade | v6.6.1 |
 | BUG-01 through BUG-14 | All 14 known bugs fixed | v6.2.0-v6.4.1 |
 | + 30 v6.1.0 fixes | AI batch processor, chunk overlap, MCP schemas, CI flow, thread safety, etc. | v6.1.0 |
 
@@ -362,12 +371,11 @@ These ideas surfaced in research but need more validation before committing:
 
 All 13 Now-tier items have shipped through v6.6.0.
 
-### Next — v7.0 (4 remaining, R-60/R-67/R-48 shipped in v6.5.2)
+### Next — v7.0 (3 remaining, R-60/R-67/R-48 shipped in v6.5.2, R-59 shipped in v6.6.1)
 
 | # | Item | Effort | Category |
 |---|------|--------|----------|
 | R-58 | MCP 2026-07-28 spec migration | L | MCP |
-| R-59 | FastMCP 3.x upgrade | M | MCP |
 | R-31 | SQLite migration (optional) | XL | Architecture |
 | R-40 | Nuitka compilation | L | Distribution |
 

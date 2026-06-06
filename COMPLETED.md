@@ -3,6 +3,16 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.1 FastMCP 3.4 Compatibility
+
+- Completed R-59: bumped optional MCP dependency floors to `fastmcp>=3.4,<4`
+  and `mcp>=1.24,<2`.
+- Verified `_build_fastmcp_server()` against FastMCP 3.4.2 and MCP 1.27.2.
+- Added PyInstaller hidden import coverage for `fastmcp`.
+- Added MCP dependency metadata and FastMCP builder compatibility tests.
+- Verification: compileall passed, targeted MCP/browser-extension tests passed
+  with 27 tests, and the full suite passed with 286 tests.
+
 ## 2026-06-06 — v6.6.0 List Virtualization
 
 - Completed R-16: replaced the main bookmark list with a `tksheet`-backed
