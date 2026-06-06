@@ -1,8 +1,8 @@
-# Bookmark Organizer Pro v6.4.1
+# Bookmark Organizer Pro v6.4.2
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **single-file HTML snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
-![Version](https://img.shields.io/badge/version-6.4.1-blue.svg)
+![Version](https://img.shields.io/badge/version-6.4.2-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
@@ -103,6 +103,23 @@ python -m bookmark_organizer_pro.cli digest
 # Run the MCP server
 python -m bookmark_organizer_pro.cli mcp-server
 ```
+
+### Browser extension MVP
+
+The `browser-extension/` folder contains an unpacked Manifest V3 extension that
+saves the active HTTP/HTTPS tab through the local BOP API.
+
+```bash
+# Terminal 1: keep the local API available
+bop api-server --port 8765
+
+# Terminal 2: optional token lookup for extension Options
+Get-Content "$env:USERPROFILE\.bookmark_organizer\api_token.txt"
+```
+
+Load `browser-extension/` as an unpacked extension, open its Options page, enter
+the API token and port, then use the toolbar popup to save the current tab.
+Native messaging and offline category/tag suggestions remain on the roadmap.
 
 ## Features
 

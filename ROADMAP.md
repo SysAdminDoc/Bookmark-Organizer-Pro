@@ -1,6 +1,6 @@
 # Bookmark Organizer Pro — Roadmap
 
-> **Version:** 3.1 · **Date:** 2026-06-06 · **Covers:** v6.4.1 → v7.x
+> **Version:** 3.2 · **Date:** 2026-06-06 · **Covers:** v6.4.2 → v7.x
 > **Single source of truth** for all planned work.  
 > Supersedes prior `ROADMAP.md` (v2) and consolidates the dated research plan now archived under `docs/research/`.
 
@@ -10,7 +10,7 @@
 
 | Symbol | Meaning |
 |--------|---------|
-| ✅ | Done (shipped in v6.4.1 or earlier) |
+| ✅ | Done (shipped in v6.4.2 or earlier) |
 | 🔲 | Open — implementation not started |
 | 🚧 | In progress or partially shipped |
 | S/M/L/XL | Effort estimate (days: 0.5 / 1-2 / 3-5 / 1-2 weeks) |
@@ -21,9 +21,9 @@
 
 ---
 
-## State of the Project (v6.4.1)
+## State of the Project (v6.4.2)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.4.1 it ships:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.4.2 it ships:
 
 - **AI:** 5 providers (OpenAI, Anthropic, Gemini, Groq, Ollama), auto-categorization with 4,224 patterns, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean + semantic vector (LanceDB + FastEmbed) + hybrid RRF
@@ -32,6 +32,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 - **Security:** AES-256-GCM encrypted DB, SSRF guards, prompt sanitization, API auth tokens
 - **Import/Export:** 13 importers, 7 exporters (HTML/JSON/CSV/OPML/XBEL/Markdown/ZIP)
 - **UI:** 10+ themes, command palette, toast notifications, zoom, high-DPI
+- **Browser capture:** MV3 extension MVP plus bookmarklet, both backed by the local API token flow
 
 **What v6.1.0 fixed (35 items):** AI batch processor crashes, chunk overlap infinite-loop, untyped MCP schemas, PyInstaller missing hidden imports, CI release flow, thread-safety across 5 services, main-thread blocking, per-domain rate limiting, atomic writes, log rotation, defusedxml, API auth, prompt sanitization, and 13 quick wins. See [CHANGELOG.md](CHANGELOG.md).
 
@@ -52,6 +53,15 @@ This cycle validated the existing roadmap against current competitor and depende
 - `sv-ttk` remains the lightweight ttk visual refresh candidate for R-18, with 2.6.1 still listed as the current package version. [S-72]
 - FastMCP continues to evolve around MCP app/tool surfaces, keeping R-15 streaming worth tracking after the existing typed-tool migration. [S-73]
 
+## Cycle Note — 2026-06-06, Pass 2
+
+R-01 moved from not-started to partial: the repo now includes a Manifest V3
+extension scaffold with popup/options flows and an `api-server` CLI command for
+the existing localhost API. Current WebExtension guidance supports the chosen
+`activeTab`, `scripting`, `storage`, and `host_permissions` permission set.
+Native messaging and offline category/tag suggestions are still open under R-01.
+[S-74][S-75]
+
 ---
 
 ## Theme 1 — Platform Reach
@@ -60,7 +70,7 @@ This cycle validated the existing roadmap against current competitor and depende
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| 🔲 R-01 | **Browser extension (MV3)** — one-click save popup with offline category/tag suggestions from the 4,224-pattern engine, native messaging to localhost API. Chrome + Firefox. | Now | L | [S-1][S-3][S-5][S-7][S-10] |
+| 🚧 R-01 | **Browser extension (MV3)** — MVP popup/options scaffold ships in v6.4.2 with local API save. Remaining: offline category/tag suggestions from the 4,224-pattern engine, native messaging, packaged Chrome + Firefox validation. | Now | L | [S-1][S-3][S-5][S-7][S-10][S-74][S-75] |
 | 🔲 R-02 | **Web client (FastAPI + HTMX)** — read/search/add from any device. PWA manifest for mobile install. Read-only by default, auth-gated mutations. Shares JSON storage via WAL-mode SQLite migration (see R-30). | Next | XL | [S-3][S-5][S-6][S-8][S-12] |
 | 🔲 R-03 | **Mobile PWA share-intent** — Android "Share to BOP" target via the web client, auto-categorize on receipt. | Next | M | [S-8][S-12] |
 | ✅ R-04 | **Bookmarklet fallback** — `scripts/generate_bookmarklet.py` generates a JS bookmark with auth token. Sends URL+title+selection to localhost API with toast feedback. | Now | S | [S-6][S-10] |
@@ -367,6 +377,8 @@ These ideas surfaced in research but need more validation before committing:
 | S-71 | tksheet PyPI release listing | https://pypi.org/project/tksheet/ |
 | S-72 | sv-ttk PyPI release listing | https://pypi.org/project/sv-ttk/ |
 | S-73 | FastMCP changelog | https://gofastmcp.com/changelog |
+| S-74 | MDN WebExtensions permissions | https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/permissions |
+| S-75 | Chrome Extensions scripting API | https://developer.chrome.com/docs/extensions/reference/api/scripting |
 
 ---
 
@@ -374,7 +386,7 @@ These ideas surfaced in research but need more validation before committing:
 
 Immediate priority. Ship within the next development cycle.
 
-- 🔲 **R-01** Browser extension (MV3) [L]
+- 🚧 **R-01** Browser extension (MV3) [L]
 - ✅ **R-04** Bookmarklet fallback [S]
 - ✅ **R-05** FastMCP migration [M]
 - ✅ **R-06** MCP tools: create_flow, append_to_flow, export_zip, list_snapshots [M]

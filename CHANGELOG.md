@@ -2,6 +2,27 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.4.2] - 2026-06-06
+
+Browser capture foundation release.
+
+### Added
+
+- **Browser extension MVP** — `browser-extension/` now contains a Manifest V3
+  popup/options scaffold for saving the active tab to the local BOP API.
+- **Extension options page** — stores localhost API port, API token, and default
+  category in browser extension local storage.
+- **`api-server` CLI command** — runs the existing localhost HTTP API for
+  bookmarklet and extension workflows.
+
+### Improved
+
+- Added static extension validation tests for manifest permissions, popup API
+  posting, options persistence, and asset presence.
+- Added CLI coverage for `api-server` invalid-port handling and start/stop.
+- Hardened an async batch-processor regression test to wait for actual worker
+  completion instead of relying on a fixed short join timeout.
+
 ## [v6.4.1] - 2026-06-06
 
 CLI reliability release.

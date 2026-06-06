@@ -1700,7 +1700,9 @@ class TestMainAppManagers(unittest.TestCase):
 
         with patch("bookmark_organizer_pro.services.ai_tools.create_ai_client", return_value=FakeClient()):
             processor.start()
-            processor._thread.join(timeout=2)
+            deadline = time.time() + 5
+            while processor.is_running and time.time() < deadline:
+                processor._thread.join(timeout=0.1)
 
         self.assertFalse(processor.is_running)
         self.assertEqual(events, [(True, "Processed 1 bookmarks")])
