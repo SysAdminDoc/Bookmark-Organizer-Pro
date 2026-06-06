@@ -2,13 +2,44 @@
 
 from __future__ import annotations
 
+import importlib
 import tkinter as tk
 from tkinter import ttk
-from typing import Dict
+from types import ModuleType
+from typing import Any, Dict
 
 from bookmark_organizer_pro.logging_config import log
 
 from .foundation import FONTS, DesignTokens
+
+
+def _load_sv_ttk() -> ModuleType | None:
+    try:
+        return importlib.import_module("sv_ttk")
+    except ImportError:
+        return None
+    except Exception as exc:
+        log.warning(f"sv-ttk import failed: {exc}")
+        return None
+
+
+def _hex_luminance(value: str) -> float:
+    text = str(value or "").lstrip("#")
+    if len(text) == 3:
+        text = "".join(ch * 2 for ch in text)
+    if len(text) != 6:
+        return 0.0
+    try:
+        red = int(text[0:2], 16) / 255.0
+        green = int(text[2:4], 16) / 255.0
+        blue = int(text[4:6], 16) / 255.0
+    except ValueError:
+        return 0.0
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+
+
+def _sv_ttk_mode_for_colors(colors) -> str:
+    return "dark" if _hex_luminance(getattr(colors, "bg_primary", "#000000")) < 0.5 else "light"
 
 
 # =============================================================================
@@ -61,27 +92,74 @@ class StyleManager:
         self.root = root
         self.style = ttk.Style() if root else None
         self._current_theme_colors = None
+        self._sv_ttk = None
+        self._sv_ttk_enabled = False
+        self._base_theme_name = ""
+        self._base_theme_error = ""
     
     def initialize(self, root: tk.Tk):
         """Initialize with root window"""
         self.root = root
         self.style = ttk.Style(root)
-        
-        # Use clam theme as base for better customization
+        self._sv_ttk = _load_sv_ttk()
+        self._apply_fallback_base_theme()
+        if self._current_theme_colors is not None:
+            self.apply_theme(self._current_theme_colors)
+
+    def _apply_fallback_base_theme(self, clear_error: bool = True):
+        """Use the most customizable built-in ttk theme when sv-ttk is unavailable."""
+        if not self.style:
+            return
         try:
             self.style.theme_use('clam')
+            self._base_theme_name = "clam"
+            if clear_error:
+                self._base_theme_error = ""
         except tk.TclError:
             try:
                 self.style.theme_use('default')
+                self._base_theme_name = "default"
+                if clear_error:
+                    self._base_theme_error = ""
             except tk.TclError:
                 pass
+
+    def _apply_platform_base_theme(self, colors):
+        if not self.style:
+            return
+        if self._sv_ttk is None:
+            self._sv_ttk_enabled = False
+            self._apply_fallback_base_theme()
+            return
+        mode = _sv_ttk_mode_for_colors(colors)
+        try:
+            self._sv_ttk.set_theme(mode)
+            self._sv_ttk_enabled = True
+            self._base_theme_name = f"sv-ttk:{mode}"
+            self._base_theme_error = ""
+        except Exception as exc:
+            self._sv_ttk_enabled = False
+            self._base_theme_error = str(exc)[:200]
+            log.warning(f"sv-ttk theme application failed: {exc}")
+            self._apply_fallback_base_theme(clear_error=False)
+
+    @property
+    def native_theme_status(self) -> Dict[str, Any]:
+        """Return diagnostics for the optional native ttk base theme."""
+        return {
+            "sv_ttk_available": self._sv_ttk is not None,
+            "sv_ttk_enabled": self._sv_ttk_enabled,
+            "base_theme": self._base_theme_name,
+            "error": self._base_theme_error,
+        }
     
     def apply_theme(self, colors):
         """Apply theme colors to all ttk widgets"""
+        self._current_theme_colors = colors
         if not self.style:
             return
-        
-        self._current_theme_colors = colors
+
+        self._apply_platform_base_theme(colors)
         
         # ===== GENERAL WIDGET STYLING =====
         self.style.configure(".",
@@ -466,4 +544,3 @@ class StyleManager:
 
 # Global style manager instance
 style_manager = StyleManager()
-

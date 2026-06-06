@@ -21,9 +21,9 @@
 
 ---
 
-## State of the Project (v6.6.17)
+## State of the Project (v6.6.18)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.17:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.18:
 
 - **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
@@ -31,8 +31,8 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 - **Preservation:** Single-file HTML snapshots (4-backend chain: monolith → singlefile → playwright → python), dead-link scanner, Wayback Machine, auto-snapshot scheduler
 - **Security:** AES-256-GCM encrypted DB, SSRF guards, prompt sanitization, API auth tokens, keyring storage
 - **Import/Export:** 14 importers (incl. Pocket, Readwise, Pinboard, Instapaper, Reddit, Matter, Zotero), 12 export formats (HTML/JSON/CSV/OPML/XBEL/Markdown/ZIP/Obsidian/EPUB/Atom/JSON Feed/Zotero RDF)
-- **UI:** 11 themes (incl. WCAG AA high-contrast), command palette, toast notifications, zoom, high-DPI, dashboard analytics, tksheet-backed virtualized bookmark list
-- **CLI:** 37 subcommands, 333 tests in the current suite
+- **UI:** 11 themes (incl. WCAG AA high-contrast), optional sv-ttk Sun Valley base theme, command palette, toast notifications, zoom, high-DPI, dashboard analytics, tksheet-backed virtualized bookmark list
+- **CLI:** 37 subcommands, 336 tests in the current suite
 - **Desktop:** Python ≥3.10, Tkinter, PyInstaller binary, cross-platform (Windows primary, macOS/Linux)
 
 ### Competitive Position (June 2026)
@@ -225,6 +225,13 @@ handler calls and the final result payload. Broader transport/client matrix
 validation remains open. Details:
 `docs/audit/2026-06-06-v6.6.17-live-mcp-progress-audit.md`.
 
+### Cycle Note — v6.6.18 (2026-06-06)
+
+R-18 shipped. Optional `sv-ttk` integration now applies a Sun Valley ttk base
+theme when the package is installed, chooses light/dark mode from the active
+theme background, and keeps the existing `clam`/`default` fallback for standard
+installs. Details: `docs/audit/2026-06-06-v6.6.18-sv-ttk-audit.md`.
+
 ### Hard Constraints
 
 - MIT license
@@ -322,7 +329,7 @@ validation remains open. Details:
 | ✅ R-73 | **Batch save context manager** — `BookmarkManager.batch()` context manager suppresses per-mutation saves; single flush on exit. Nestable. | Done | M | [S-1] |
 | ✅ R-74 | **File-change watching for MCP+GUI co-existence** — `BookmarkManager.start_file_watcher()` polls mtime every 5s, reloads on external change, calls optional GUI refresh callback. | Done | M | [S-1] |
 | ✅ R-17 | **Tree view alongside list view** — categories with "/" separators now render with tree-like indentation, showing leaf names with depth-based padding. | Done | M | [S-3][S-5] |
-| 🔲 R-18 | **sv-ttk theme integration** — Windows 11 Sun Valley look. v2.6.1 actively maintained, Python 3.9-3.13. | Later | M | [S-24][S-72] |
+| ✅ R-18 | **sv-ttk theme integration** — optional `sunvalley` extra applies the Sun Valley ttk base theme when installed, with active-theme light/dark selection and built-in fallback when unavailable. | Done | M | [S-24][S-72] |
 | ✅ R-19 | Fix command palette FocusOut | Done | S | [S-1] |
 | ✅ R-20 | Fix GridView scroll stealing | Done | S | [S-1] |
 | 🔲 R-21 | **Reader view with highlight/annotation** — open extracted text in a reader pane. 4-color highlights, per-highlight notes. Export to Markdown. Linkwarden 2.14 ships this. | Later | L | [S-3][S-10][S-11][S-84] |
@@ -474,6 +481,7 @@ All items below shipped in v6.0.0 through v6.4.1. Full details in [CHANGELOG.md]
 | R-15B | Provider streaming adapters for RAG chat | v6.6.15 |
 | R-15C | FastMCP chat stream progress notifications | v6.6.16 |
 | R-15D | Live FastMCP chat progress bridge and client smoke | v6.6.17 |
+| R-18 | Optional sv-ttk Sun Valley base theme integration | v6.6.18 |
 | BUG-01 through BUG-14 | All 14 known bugs fixed | v6.2.0-v6.4.1 |
 | + 30 v6.1.0 fixes | AI batch processor, chunk overlap, MCP schemas, CI flow, thread safety, etc. | v6.1.0 |
 
@@ -515,7 +523,7 @@ These ideas surfaced in research but need more validation before committing:
 | **Embedding model tier selection in GUI** — Fast/Balanced/Best with download progress | [S-1][S-83] | Good UX but depends on model ecosystem stabilizing. |
 | **Search history persistence** — persist to settings.json, show dropdown on focus | [S-1] | Low effort, moderate value. Bundle with a UI polish release. |
 | **Deduplicate Settings gear / Tools menu** — 3 items appear in both | [S-1] | UX improvement but low severity. |
-| **Theme-aware title bar** — light title bar on light themes (Windows) | [S-1] | Nice polish. Bundle with sv-ttk integration. |
+| **Theme-aware title bar** — light title bar on light themes (Windows) | [S-1] | Nice polish. Follow up after sv-ttk integration. |
 | **GoSuki-style browser file monitoring** — watch browser bookmark files via OS events, no extension needed | [S-113] | Alternative to R-01. Lower UX but zero install friction. Evaluate if extension dev stalls. |
 | **Floccus/XBEL round-trip verification** — validate BOP's XBEL handler works with Floccus for free cross-browser sync | [S-103] | Unblocks sync without building sync infrastructure. Test-only, S effort. |
 
@@ -533,12 +541,11 @@ All Next-tier items have shipped through v6.6.8. Continue with Later-tier
 distribution and UI work, starting with R-41 unless a higher-priority audit
 finding appears.
 
-### Later — v7.x+ (7 active/open, R-15/R-41 in progress, R-17/R-26/R-50 shipped)
+### Later — v7.x+ (6 active/open, R-15/R-41 in progress, R-17/R-18/R-26/R-50 shipped)
 
 | # | Item | Effort | Category |
 |---|------|--------|----------|
 | R-15 | MCP streaming for RAG chat | M | MCP |
-| R-18 | sv-ttk Sun Valley theme integration | M | UI |
 | R-21 | Reader view with highlight/annotation | L | UI |
 | R-22 | Graph view (force-directed) | L | UI |
 | R-41 | tufup auto-update | M | Distribution |

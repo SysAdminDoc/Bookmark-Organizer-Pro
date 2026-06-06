@@ -1921,6 +1921,34 @@ class TestUITheme(unittest.TestCase):
         self.assertEqual(colors.bg_primary, "#010203")
         self.assertEqual(colors.text_primary, ThemeColors().text_primary)
 
+    def test_sv_ttk_mode_tracks_theme_background_luminance(self):
+        from bookmark_organizer_pro.ui.style_manager import _sv_ttk_mode_for_colors
+
+        self.assertEqual(_sv_ttk_mode_for_colors(ThemeColors(bg_primary="#ffffff")), "light")
+        self.assertEqual(_sv_ttk_mode_for_colors(ThemeColors(bg_primary="#0d1117")), "dark")
+        self.assertEqual(_sv_ttk_mode_for_colors(ThemeColors(bg_primary="#abc")), "light")
+
+    def test_style_manager_preserves_native_theme_error_after_fallback(self):
+        from bookmark_organizer_pro.ui.style_manager import StyleManager
+
+        class FakeStyle:
+            def theme_use(self, _name):
+                return None
+
+        manager = StyleManager()
+        original_style = manager.style
+        original_name = manager._base_theme_name
+        original_error = manager._base_theme_error
+        try:
+            manager.style = FakeStyle()
+            manager._base_theme_error = "sv-ttk failed"
+            manager._apply_fallback_base_theme(clear_error=False)
+            self.assertEqual(manager.native_theme_status["error"], "sv-ttk failed")
+        finally:
+            manager.style = original_style
+            manager._base_theme_name = original_name
+            manager._base_theme_error = original_error
+
     def test_theme_info_coerces_serialized_boolean(self):
         theme = ThemeInfo.from_dict({"name": "lightish", "display_name": "Lightish", "is_dark": "false"})
         self.assertFalse(theme.is_dark)

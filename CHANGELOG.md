@@ -2,6 +2,33 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.18] - 2026-06-06
+
+Sun Valley ttk theme release.
+
+### Added — UI (R-18)
+
+- **Optional Sun Valley base theme** — the desktop style manager now uses
+  `sv-ttk` when installed, selecting light or dark mode from the active theme
+  background before applying BOP's theme color overrides.
+- **Installer extra** — added the `sunvalley` optional dependency group for
+  users who want the Windows 11-style ttk base without making it a hard
+  dependency.
+- **Theme diagnostics** — the style manager now exposes the active native base
+  theme and fallback/error status for troubleshooting.
+
+### Compatibility
+
+- When `sv-ttk` is not installed or cannot apply, the app keeps the previous
+  `clam`/`default` fallback path.
+- Existing custom theme colors remain authoritative over widget foreground,
+  background, selection, and accent styling.
+
+### Tests
+
+- Added coverage for Sun Valley light/dark mode selection and optional
+  dependency metadata.
+
 ## [v6.6.17] - 2026-06-06
 
 Live MCP progress bridge release.
