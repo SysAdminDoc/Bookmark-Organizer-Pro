@@ -32,7 +32,7 @@ import importlib
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from bookmark_organizer_pro.ai import AIConfigManager
 from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION, DATA_DIR, SNAPSHOTS_DIR
@@ -453,7 +453,8 @@ def t_chat(question: str, restrict_ids: Optional[List[int]] = None,
 
 def t_chat_stream(question: str, restrict_ids: Optional[List[int]] = None,
                   restrict_tag: str = "", restrict_category: str = "",
-                  chunk_chars: int = 160) -> Dict:
+                  chunk_chars: int = 160,
+                  on_event: Optional[Callable[[Any], None]] = None) -> Dict:
     s = _services()
     ids = _resolve_chat_scope_ids(s, restrict_ids, restrict_tag, restrict_category)
     chunk_size = normalize_stream_chunk_chars(chunk_chars)
@@ -463,6 +464,7 @@ def t_chat_stream(question: str, restrict_ids: Optional[List[int]] = None,
             question,
             restrict_ids=ids,
             chunk_chars=chunk_size,
+            on_event=on_event,
         )
         if hasattr(stream_result, "turn"):
             turn = stream_result.turn
@@ -489,6 +491,60 @@ def t_chat_stream(question: str, restrict_ids: Optional[List[int]] = None,
         "chunk_provenance": turn.chunk_provenance,
         "events": event_dicts,
     }
+
+
+async def _call_chat_stream_with_progress(
+    ctx: Any,
+    question: str,
+    restrict_ids: Optional[List[int]] = None,
+    restrict_tag: str = "",
+    restrict_category: str = "",
+    chunk_chars: int = 160,
+) -> Dict:
+    if ctx is None or not hasattr(ctx, "report_progress"):
+        return t_chat_stream(question, restrict_ids, restrict_tag, restrict_category, chunk_chars)
+
+    import queue
+
+    events: queue.Queue[Any] = queue.Queue()
+    done = object()
+
+    def on_event(event: Any) -> None:
+        if hasattr(event, "to_dict"):
+            events.put(event.to_dict())
+        else:
+            events.put(event)
+
+    def run_tool() -> Dict:
+        try:
+            return t_chat_stream(
+                question,
+                restrict_ids,
+                restrict_tag,
+                restrict_category,
+                chunk_chars,
+                on_event=on_event,
+            )
+        finally:
+            events.put(done)
+
+    task = asyncio.create_task(asyncio.to_thread(run_tool))
+    progress_count = 0
+    while True:
+        event = await asyncio.to_thread(events.get)
+        if event is done:
+            break
+        if not isinstance(event, dict) or event.get("type") != "chunk":
+            continue
+        progress_count += 1
+        text = str(event.get("text", ""))
+        message = text if len(text) <= 200 else f"{text[:197]}..."
+        await ctx.report_progress(progress_count, None, message)
+
+    result = await task
+    total = result.get("chunk_count") or progress_count or 1
+    await ctx.report_progress(total, total, "complete")
+    return result
 
 
 async def _report_chat_stream_progress(ctx: Any, result: Dict) -> None:
@@ -1094,9 +1150,14 @@ def _build_fastmcp_server():
                                               restrict_category: str = "",
                                               chunk_chars: int = 160,
                                               ctx: _FastMCPContext = None) -> dict:
-            result = t_chat_stream(question, restrict_ids, restrict_tag, restrict_category, chunk_chars)
-            await _report_chat_stream_progress(ctx, result)
-            return result
+            return await _call_chat_stream_with_progress(
+                ctx,
+                question,
+                restrict_ids,
+                restrict_tag,
+                restrict_category,
+                chunk_chars,
+            )
     else:
         @tool("chat_with_collection_stream", "Conversational RAG response events over the bookmark library.")
         def chat_with_collection_stream(question: str, restrict_ids: list[int] | None = None,

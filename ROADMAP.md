@@ -21,9 +21,9 @@
 
 ---
 
-## State of the Project (v6.6.16)
+## State of the Project (v6.6.17)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.16:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.17:
 
 - **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
@@ -32,7 +32,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 - **Security:** AES-256-GCM encrypted DB, SSRF guards, prompt sanitization, API auth tokens, keyring storage
 - **Import/Export:** 14 importers (incl. Pocket, Readwise, Pinboard, Instapaper, Reddit, Matter, Zotero), 12 export formats (HTML/JSON/CSV/OPML/XBEL/Markdown/ZIP/Obsidian/EPUB/Atom/JSON Feed/Zotero RDF)
 - **UI:** 11 themes (incl. WCAG AA high-contrast), command palette, toast notifications, zoom, high-DPI, dashboard analytics, tksheet-backed virtualized bookmark list
-- **CLI:** 37 subcommands, 332 tests in the current suite
+- **CLI:** 37 subcommands, 333 tests in the current suite
 - **Desktop:** Python ≥3.10, Tkinter, PyInstaller binary, cross-platform (Windows primary, macOS/Linux)
 
 ### Competitive Position (June 2026)
@@ -216,6 +216,15 @@ remains unchanged for clients that do not consume progress. End-to-end MCP
 client notification smoke testing remains open. Details:
 `docs/audit/2026-06-06-v6.6.16-mcp-progress-audit.md`.
 
+### Cycle Note — v6.6.17 (2026-06-06)
+
+R-15 remains in progress. The FastMCP chat stream wrapper now runs the tool in
+a worker thread and forwards chunk callbacks to progress notifications while
+the tool is running. An in-process FastMCP client smoke verifies progress
+handler calls and the final result payload. Broader transport/client matrix
+validation remains open. Details:
+`docs/audit/2026-06-06-v6.6.17-live-mcp-progress-audit.md`.
+
 ### Hard Constraints
 
 - MIT license
@@ -286,7 +295,7 @@ client notification smoke testing remains open. Details:
 | ✅ R-12 | YouTube transcript capture | Done | M | [S-6][S-18] |
 | ✅ R-13 | Smart Collections | Done | M | [S-10][S-19] |
 | ✅ R-14 | MCP auth scopes | Done | M | [S-14] |
-| 🚧 R-15 | **MCP streaming** for `chat_with_collection` — stream RAG responses token-by-token. v6.6.14 added stream-shaped MCP response events; v6.6.15 added provider-native streaming adapters for OpenAI-compatible providers and Ollama; v6.6.16 added FastMCP progress notifications from stream events. End-to-end client notification smoke remains open. | Later | M | [S-14][S-79] |
+| 🚧 R-15 | **MCP streaming** for `chat_with_collection` — stream RAG responses token-by-token. v6.6.14 added stream-shaped MCP response events; v6.6.15 added provider-native streaming adapters for OpenAI-compatible providers and Ollama; v6.6.16 added FastMCP progress notifications; v6.6.17 added a live progress bridge and in-process client smoke. Broader transport/client validation remains open. | Later | M | [S-14][S-79] |
 
 **Justification:** MCP write tools are needed for AI agent curation workflows (Burn 451 already ships delete/update). The 2026-07-28 spec is the biggest MCP revision since launch — going stateless, adding caching, aligning with OAuth 2.0 [S-79]. FastMCP 3.4 brings OTEL observability and remote server support [S-81]. GUI chat panel is the #1 feature gap vs Raindrop Stella and Markwise.
 
@@ -464,6 +473,7 @@ All items below shipped in v6.0.0 through v6.4.1. Full details in [CHANGELOG.md]
 | R-15A | MCP chat response events | v6.6.14 |
 | R-15B | Provider streaming adapters for RAG chat | v6.6.15 |
 | R-15C | FastMCP chat stream progress notifications | v6.6.16 |
+| R-15D | Live FastMCP chat progress bridge and client smoke | v6.6.17 |
 | BUG-01 through BUG-14 | All 14 known bugs fixed | v6.2.0-v6.4.1 |
 | + 30 v6.1.0 fixes | AI batch processor, chunk overlap, MCP schemas, CI flow, thread safety, etc. | v6.1.0 |
 

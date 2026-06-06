@@ -2,6 +2,32 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.17] - 2026-06-06
+
+Live MCP progress bridge release.
+
+### Added — MCP (R-15 partial)
+
+- **Live progress bridge** — `CollectionChat.stream_answer()` now accepts a
+  chunk event callback, and the FastMCP tool wrapper bridges those callbacks to
+  progress notifications while `chat_with_collection_stream` is running.
+- **Threaded FastMCP runner** — chat stream tool execution can run in a worker
+  thread while the async FastMCP wrapper forwards chunk progress to the client.
+- **Client smoke** — added an in-process FastMCP client test that calls
+  `chat_with_collection_stream` with a progress handler and verifies progress
+  notifications plus the final result.
+
+### Notes
+
+- The raw MCP path still returns the event payload without FastMCP progress
+  notifications.
+- R-15 remains open for broader transport/client matrix validation and any
+  native streaming adapters beyond OpenAI-compatible providers and Ollama.
+
+### Tests
+
+- Added end-to-end FastMCP client progress coverage for chat stream calls.
+
 ## [v6.6.16] - 2026-06-06
 
 MCP progress notification release.

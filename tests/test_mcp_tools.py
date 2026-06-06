@@ -169,7 +169,8 @@ class TestChatStreaming(MCPToolTestBase):
             def __init__(self):
                 self.calls = []
 
-            def stream_answer(self, question, restrict_ids=None, chunk_chars=160, use_cache=True):
+            def stream_answer(self, question, restrict_ids=None, chunk_chars=160,
+                              use_cache=True, on_event=None):
                 self.calls.append({
                     "question": question,
                     "restrict_ids": restrict_ids,
@@ -185,9 +186,14 @@ class TestChatStreaming(MCPToolTestBase):
                     used_chunks=1,
                     chunk_provenance=[{"citation_id": "c0", "bookmark_id": 7}],
                 )
+                events = build_chat_stream_events(turn, chunk_chars)
+                if on_event is not None:
+                    for event in events:
+                        if event.type == "chunk":
+                            on_event(event)
                 return ChatStreamResult(
                     turn,
-                    build_chat_stream_events(turn, chunk_chars),
+                    events,
                     provider_streaming=provider_streaming,
                 )
 
@@ -381,6 +387,65 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
             {"progress": 2, "total": 2, "message": "beta"},
             {"progress": 2, "total": 2, "message": "complete"},
         ])
+
+    def test_fastmcp_client_receives_chat_stream_progress(self):
+        from types import SimpleNamespace
+        from fastmcp import Client
+        from bookmark_organizer_pro.services.rag_chat import (
+            ChatStreamResult,
+            ChatTurn,
+            build_chat_stream_events,
+        )
+
+        class FakeChat:
+            def stream_answer(self, question, restrict_ids=None, chunk_chars=160,
+                              use_cache=True, on_event=None):
+                turn = ChatTurn(
+                    answer=(
+                        "Alpha beta gamma delta epsilon zeta eta theta iota kappa "
+                        "lambda mu nu xi omicron."
+                    ),
+                    sources=[],
+                    used_chunks=0,
+                    chunk_provenance=[],
+                )
+                events = build_chat_stream_events(turn, chunk_chars)
+                if on_event is not None:
+                    for event in events:
+                        if event.type == "chunk":
+                            on_event(event)
+                return ChatStreamResult(turn, events, provider_streaming=True)
+
+        class FakeBookmarkManager:
+            def get_all_bookmarks(self):
+                return []
+
+        self.ms.SERVICES = SimpleNamespace(
+            chat=FakeChat(),
+            bookmark_manager=FakeBookmarkManager(),
+        )
+
+        async def _call():
+            progress = []
+
+            async def progress_handler(progress_value, total, message):
+                progress.append((progress_value, total, message))
+
+            app = self.ms._build_fastmcp_server()
+            async with Client(app) as client:
+                result = await client.call_tool(
+                    "chat_with_collection_stream",
+                    {"question": "What matters?", "chunk_chars": 40},
+                    progress_handler=progress_handler,
+                )
+            return progress, result.data
+
+        progress, data = asyncio.run(_call())
+
+        self.assertGreaterEqual(len(progress), 2)
+        self.assertEqual(progress[-1], (data["chunk_count"], data["chunk_count"], "complete"))
+        self.assertEqual(data["mode"], "provider_stream_events")
+        self.assertTrue(data["provider_streaming"])
 
     def test_serve_http_requires_fastmcp(self):
         with patch.object(self.ms, "_build_fastmcp_server", return_value=None):

@@ -1,14 +1,20 @@
-# Bookmark Organizer Pro v6.6.16
+# Bookmark Organizer Pro v6.6.17
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **single-file HTML snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
-![Version](https://img.shields.io/badge/version-6.6.16-blue.svg)
+![Version](https://img.shields.io/badge/version-6.6.17-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
 
 ![Bookmark Organizer Pro Screenshot](assets/screenshot.png)
+
+## What's new in v6.6.17
+
+- **Live MCP progress bridge** — FastMCP chat stream calls now bridge chunk
+  callbacks to progress notifications while the tool runs, with an in-process
+  FastMCP client smoke covering the notification path.
 
 ## What's new in v6.6.16
 
