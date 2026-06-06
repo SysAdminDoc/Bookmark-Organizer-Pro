@@ -46,6 +46,7 @@ from .quick_add import (
     pick_default_category,
     prepare_quick_add_payload,
 )
+from .reader_view import ReaderViewDialog, text_index_offset
 from .reports import ReportGenerator
 from .shell_widgets import (
     CommandPalette,
@@ -125,6 +126,8 @@ __all__ = [
     "QuickAddPayload",
     "pick_default_category",
     "prepare_quick_add_payload",
+    "ReaderViewDialog",
+    "text_index_offset",
     "ReportGenerator",
     "CommandPalette",
     "StatusBar",

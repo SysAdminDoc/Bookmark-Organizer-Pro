@@ -25,6 +25,7 @@ class CommandPaletteActionsMixin:
             ("Select All Bookmarks", "Ctrl+A", self._select_all_bookmarks),
             ("Edit Selected Bookmark", "Ctrl+E", self._edit_selected),
             ("Open Selected Bookmark", "Enter", self._open_selected),
+            ("Open Reader View", "", self._open_reader_view),
             ("Delete Selected Bookmarks", "Del", self._delete_selected),
             ("Copy URL of Selected", "", self._copy_url),
             ("Toggle Pin on Selected", "", self._toggle_pin),

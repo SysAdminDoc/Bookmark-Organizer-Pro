@@ -1949,6 +1949,12 @@ class TestUITheme(unittest.TestCase):
             manager._base_theme_name = original_name
             manager._base_theme_error = original_error
 
+    def test_reader_view_dialog_is_exported(self):
+        from bookmark_organizer_pro.ui import ReaderViewDialog, text_index_offset
+
+        self.assertTrue(callable(ReaderViewDialog))
+        self.assertTrue(callable(text_index_offset))
+
     def test_theme_info_coerces_serialized_boolean(self):
         theme = ThemeInfo.from_dict({"name": "lightish", "display_name": "Lightish", "is_dark": "false"})
         self.assertFalse(theme.is_dark)
