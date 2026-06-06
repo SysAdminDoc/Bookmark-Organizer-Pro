@@ -156,6 +156,80 @@ class TestDigest(MCPToolTestBase):
         self.assertIn("generated_at", result)
 
 
+class TestChatStreaming(MCPToolTestBase):
+    def _fake_services(self, bookmarks=None):
+        from types import SimpleNamespace
+        from bookmark_organizer_pro.services.rag_chat import ChatTurn, build_chat_stream_events
+
+        class FakeChat:
+            def __init__(self):
+                self.calls = []
+
+            def stream_answer(self, question, restrict_ids=None, chunk_chars=160, use_cache=True):
+                self.calls.append({
+                    "question": question,
+                    "restrict_ids": restrict_ids,
+                    "chunk_chars": chunk_chars,
+                    "use_cache": use_cache,
+                })
+                turn = ChatTurn(
+                    answer=(
+                        "Alpha beta gamma delta epsilon zeta eta theta iota kappa "
+                        "lambda mu nu xi omicron."
+                    ),
+                    sources=[{"bookmark_id": 7, "score": 0.9}],
+                    used_chunks=1,
+                    chunk_provenance=[{"citation_id": "c0", "bookmark_id": 7}],
+                )
+                return turn, build_chat_stream_events(turn, chunk_chars)
+
+        class FakeBookmarkManager:
+            def get_all_bookmarks(self):
+                return bookmarks or []
+
+        return SimpleNamespace(chat=FakeChat(), bookmark_manager=FakeBookmarkManager())
+
+    def test_chat_stream_returns_ordered_response_events(self):
+        services = self._fake_services()
+        self.ms.SERVICES = services
+
+        result = self.ms.t_chat_stream("What matters?", chunk_chars=10)
+
+        self.assertEqual(result["mode"], "chunked_response_events")
+        self.assertFalse(result["provider_streaming"])
+        self.assertTrue(result["done"])
+        self.assertEqual(result["chunk_chars"], 40)
+        chunks = [event for event in result["events"] if event["type"] == "chunk"]
+        self.assertGreater(len(chunks), 1)
+        self.assertEqual("".join(event["text"] for event in chunks), result["answer"])
+        self.assertEqual(result["events"][-1]["type"], "complete")
+        self.assertEqual(result["events"][-1]["sources"], result["sources"])
+        self.assertEqual(result["events"][-1]["chunk_provenance"], result["chunk_provenance"])
+        self.assertEqual(services.chat.calls[0]["restrict_ids"], None)
+
+    def test_chat_stream_uses_same_tag_category_scope_as_chat(self):
+        from types import SimpleNamespace
+
+        bookmarks = [
+            SimpleNamespace(id=1, tags=["Research"], category="Docs"),
+            SimpleNamespace(id=2, tags=["research"], category="Inbox"),
+            SimpleNamespace(id=3, tags=["Other"], category="Docs"),
+        ]
+        services = self._fake_services(bookmarks=bookmarks)
+        self.ms.SERVICES = services
+
+        result = self.ms.t_chat_stream(
+            "Scoped?",
+            restrict_ids=[1, 2, 3],
+            restrict_tag="research",
+            restrict_category="docs",
+            chunk_chars=120,
+        )
+
+        self.assertTrue(result["done"])
+        self.assertEqual(services.chat.calls[0]["restrict_ids"], [1])
+
+
 class TestDeadLinks(MCPToolTestBase):
     def test_list_dead_links(self):
         result = self.ms.t_dead_links()
@@ -217,6 +291,12 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
         self.assertTrue(tools["list_bookmarks"]["annotations"]["readOnlyHint"])
         self.assertFalse(tools["delete_bookmark"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["delete_bookmark"]["annotations"]["destructiveHint"])
+        self.assertTrue(tools["chat_with_collection_stream"]["annotations"]["readOnlyHint"])
+        self.assertTrue(tools["chat_with_collection_stream"]["annotations"]["openWorldHint"])
+        self.assertEqual(
+            tools["chat_with_collection_stream"]["_meta"]["io.modelcontextprotocol/name"],
+            "chat_with_collection_stream",
+        )
         self.assertTrue(tools["list_bookmarks"]["_meta"]["io.modelcontextprotocol/statelessReady"])
         self.assertEqual(tools["list_bookmarks"]["_meta"]["io.modelcontextprotocol/method"], "tools/call")
         self.assertEqual(tools["list_bookmarks"]["_meta"]["io.modelcontextprotocol/name"], "list_bookmarks")
@@ -238,6 +318,12 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
         self.assertTrue(tools["list_bookmarks"]["annotations"]["readOnlyHint"])
         self.assertFalse(tools["delete_bookmark"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["delete_bookmark"]["annotations"]["destructiveHint"])
+        self.assertTrue(tools["chat_with_collection_stream"]["annotations"]["readOnlyHint"])
+        self.assertTrue(tools["chat_with_collection_stream"]["annotations"]["openWorldHint"])
+        self.assertEqual(
+            tools["chat_with_collection_stream"]["_meta"]["io.modelcontextprotocol/name"],
+            "chat_with_collection_stream",
+        )
         self.assertTrue(tools["list_bookmarks"]["_meta"]["io.modelcontextprotocol/statelessReady"])
         self.assertEqual(tools["list_bookmarks"]["_meta"]["io.modelcontextprotocol/method"], "tools/call")
         self.assertEqual(tools["list_bookmarks"]["_meta"]["io.modelcontextprotocol/name"], "list_bookmarks")

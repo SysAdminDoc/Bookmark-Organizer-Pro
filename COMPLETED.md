@@ -3,6 +3,17 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.14 MCP Chat Response Events
+
+- Advanced R-15: added `chat_with_collection_stream` as a stream-shaped MCP
+  RAG tool returning ordered chunk events plus a complete metadata event.
+- Shared bookmark ID/tag/category scoping between `chat_with_collection` and
+  the new stream-shaped tool.
+- Added service helpers for bounded chunk sizing and answer event conversion.
+- Documented that provider-native token streaming remains open under R-15.
+- Verification: compileall passed, focused MCP/service/release metadata tests
+  passed with 27 tests, and the full suite passed with 326 tests.
+
 ## 2026-06-06 — v6.6.13 OPDS Loopback Serving
 
 - Completed R-26: local API now serves OPDS 1.2 acquisition feeds at `GET /opds`.

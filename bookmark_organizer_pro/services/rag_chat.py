@@ -40,6 +40,81 @@ class ChatTurn:
     chunk_provenance: List[dict] = field(default_factory=list)
 
 
+@dataclass
+class ChatStreamEvent:
+    type: str
+    index: int = 0
+    text: str = ""
+    sources: List[dict] = field(default_factory=list)
+    used_chunks: int = 0
+    chunk_provenance: List[dict] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, object]:
+        payload: Dict[str, object] = {
+            "type": self.type,
+            "index": self.index,
+        }
+        if self.text:
+            payload["text"] = self.text
+        if self.sources:
+            payload["sources"] = self.sources
+        if self.used_chunks:
+            payload["used_chunks"] = self.used_chunks
+        if self.chunk_provenance:
+            payload["chunk_provenance"] = self.chunk_provenance
+        return payload
+
+
+def normalize_stream_chunk_chars(chunk_chars: int = 160) -> int:
+    try:
+        value = int(chunk_chars)
+    except (TypeError, ValueError):
+        value = 160
+    return max(40, min(value, 1000))
+
+
+def split_answer_chunks(text: str, chunk_chars: int = 160) -> List[str]:
+    """Split a completed answer into stable client-consumable chunks."""
+    if not text:
+        return []
+    size = normalize_stream_chunk_chars(chunk_chars)
+    chunks: List[str] = []
+    cursor = 0
+    while cursor < len(text):
+        end = min(len(text), cursor + size)
+        if end < len(text):
+            boundary = max(
+                text.rfind(" ", cursor + 1, end),
+                text.rfind("\n", cursor + 1, end),
+            )
+            min_boundary = cursor + max(20, size // 3)
+            if boundary >= min_boundary:
+                end = boundary + 1
+        chunk = text[cursor:end]
+        if chunk:
+            chunks.append(chunk)
+        cursor = end
+    return chunks
+
+
+def build_chat_stream_events(turn: ChatTurn, chunk_chars: int = 160) -> List[ChatStreamEvent]:
+    chunks = split_answer_chunks(turn.answer, chunk_chars)
+    events = [
+        ChatStreamEvent(type="chunk", index=index, text=chunk)
+        for index, chunk in enumerate(chunks)
+    ]
+    events.append(
+        ChatStreamEvent(
+            type="complete",
+            index=len(chunks),
+            sources=turn.sources,
+            used_chunks=turn.used_chunks,
+            chunk_provenance=turn.chunk_provenance,
+        )
+    )
+    return events
+
+
 class CollectionChat:
     """Stateful chat over a subset of bookmarks with answer caching."""
 
@@ -155,3 +230,10 @@ class CollectionChat:
                 self._cache.popitem(last=False)
 
         return turn
+
+    def stream_answer(self, question: str,
+                      restrict_ids: Optional[Iterable[int]] = None,
+                      chunk_chars: int = 160,
+                      use_cache: bool = True) -> Tuple[ChatTurn, List[ChatStreamEvent]]:
+        turn = self.ask(question, restrict_ids=restrict_ids, use_cache=use_cache)
+        return turn, build_chat_stream_events(turn, chunk_chars)

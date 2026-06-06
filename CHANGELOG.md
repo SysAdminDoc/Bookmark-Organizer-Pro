@@ -2,6 +2,31 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.14] - 2026-06-06
+
+MCP chat response event release.
+
+### Added — MCP (R-15 partial)
+
+- **Stream-shaped chat tool** — added `chat_with_collection_stream` for RAG
+  answers returned as ordered `chunk` events followed by a `complete` metadata
+  event.
+- **Shared chat scoping** — streamed and non-streamed chat tools now share the
+  same bookmark ID, tag, and category scope resolution.
+- **Service event helpers** — RAG chat now exposes bounded chunk sizing and
+  answer-to-event conversion helpers for future transport-level streaming.
+
+### Notes
+
+- This release provides deterministic client response events from the current
+  completed-answer RAG path. Provider-native token streaming remains open under
+  R-15.
+
+### Tests
+
+- Added service and MCP tool coverage for chat event reconstruction, metadata,
+  scoping, and tool catalog annotations.
+
 ## [v6.6.13] - 2026-06-06
 
 OPDS serving release.
