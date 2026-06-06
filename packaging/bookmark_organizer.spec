@@ -23,7 +23,7 @@ import sys
 # =============================================================================
 
 APP_NAME = "Bookmark Organizer Pro"
-APP_VERSION = "6.4.2"
+APP_VERSION = "6.6.0"
 SCRIPT_NAME = "main.py"
 ICON_FILE = "bookmark_organizer.ico"
 PNG_ICON_FILE = "bookmark_organizer.png"
@@ -77,6 +77,7 @@ hidden_imports = [
     'bs4',
     'requests',
     'pystray',
+    'tksheet',
     # v6.0.0 — modular backend package
     'bookmark_organizer_pro',
     'bookmark_organizer_pro.services',

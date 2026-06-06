@@ -82,6 +82,14 @@ class NLQueryTranslator:
             return self._heuristic(nl)
         return self._parse(resp) or self._heuristic(nl)
 
+    def heuristic_parse(self, nl: str) -> dict:
+        """Compatibility wrapper returning the fallback parse as a dict."""
+        query = self._heuristic(str(nl or ""))
+        data = query.to_dict()
+        data["tags"] = list(dict.fromkeys(query.tags_any + query.tags_all))
+        data["keyword"] = query.semantic_seed or ""
+        return data
+
     # ------------------------------------------------------------------
     def _parse(self, raw: str) -> Optional[StructuredQuery]:
         if not raw:
@@ -156,6 +164,14 @@ class NLQueryTranslator:
     def _heuristic(self, nl: str) -> StructuredQuery:
         """Very small fallback when no AI is configured."""
         q = StructuredQuery()
+        for match in re.finditer(r"\btagged\s+#?([\w.-]+)", nl, re.IGNORECASE):
+            tag = match.group(1).strip(".,;:").lower()
+            if tag and tag not in q.tags_any:
+                q.tags_any.append(tag)
+        for match in re.finditer(r"\b([a-z0-9-]+(?:\.[a-z0-9-]+)+)\b", nl, re.IGNORECASE):
+            domain = match.group(1).strip(".,;:").lower()
+            if domain and domain not in q.domains:
+                q.domains.append(domain)
         m = re.search(r"last\s+(\d+)\s+days?", nl, re.IGNORECASE)
         if m:
             days = int(m.group(1))

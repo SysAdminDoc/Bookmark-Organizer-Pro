@@ -1,8 +1,11 @@
 """Static checks for the bundled browser extension scaffold."""
 
 import json
+import re
 import unittest
 from pathlib import Path
+
+from bookmark_organizer_pro.constants import APP_VERSION
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,7 +17,7 @@ class TestBrowserExtensionManifest(unittest.TestCase):
         manifest = json.loads((EXT_DIR / "manifest.json").read_text(encoding="utf-8"))
 
         self.assertEqual(manifest["manifest_version"], 3)
-        self.assertEqual(manifest["version"], "6.4.2")
+        self.assertEqual(manifest["version"], APP_VERSION)
         self.assertEqual(manifest["action"]["default_popup"], "popup.html")
         self.assertEqual(manifest["options_page"], "options.html")
         self.assertIn("activeTab", manifest["permissions"])
@@ -49,6 +52,23 @@ class TestBrowserExtensionManifest(unittest.TestCase):
             "options.js",
         ]:
             self.assertTrue((EXT_DIR / name).is_file(), name)
+
+    def test_release_metadata_versions_match_app_version(self):
+        pyproject_text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        manifest = json.loads((EXT_DIR / "manifest.json").read_text(encoding="utf-8"))
+        spec_text = (ROOT / "packaging" / "bookmark_organizer.spec").read_text(encoding="utf-8")
+        version_info = (ROOT / "packaging" / "version_info.txt").read_text(encoding="utf-8")
+
+        self.assertRegex(pyproject_text, re.compile(rf'^version = "{re.escape(APP_VERSION)}"$', re.MULTILINE))
+        self.assertEqual(manifest["version"], APP_VERSION)
+        self.assertIn(f'APP_VERSION = "{APP_VERSION}"', spec_text)
+
+        file_version = ".".join((*APP_VERSION.split("."), "0"))
+        tuple_version = ", ".join((*APP_VERSION.split("."), "0"))
+        self.assertIn(f"filevers=({tuple_version})", version_info)
+        self.assertIn(f"prodvers=({tuple_version})", version_info)
+        self.assertRegex(version_info, re.compile(rf"FileVersion'.*{re.escape(file_version)}"))
+        self.assertRegex(version_info, re.compile(rf"ProductVersion'.*{re.escape(file_version)}"))
 
 
 if __name__ == "__main__":

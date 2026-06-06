@@ -121,7 +121,7 @@ class BookmarkViewMixin:
         ToastNotification.show(self.root, message, style)
 
     def _populate_list_view(self, bookmarks: List[Bookmark]):
-        """Populate treeview with bookmarks"""
+        """Populate the virtualized bookmark table with bookmarks."""
         theme = get_theme()
         self.tree.tag_configure("oddrow", background=theme.bg_primary, foreground=theme.text_primary)
         self.tree.tag_configure("evenrow", background=theme.bg_secondary, foreground=theme.text_primary)
@@ -129,12 +129,11 @@ class BookmarkViewMixin:
         self.tree.tag_configure("archived", foreground=theme.text_muted)
         previous_selection = set(getattr(self, 'selected_bookmarks', []))
         restored_selection = []
-
-        for item in self.tree.get_children():
-            self.tree.delete(item)
         
         self._tree_items: Dict[int, str] = {}
         self._tree_domains: Dict[str, List[str]] = {}
+        row_specs = []
+        favicon_updates = []
         
         for index, bm in enumerate(bookmarks):
             # Build a calm, scannable row summary with important status first.
@@ -175,13 +174,13 @@ class BookmarkViewMixin:
             elif bm.is_archived:
                 row_tags.append("archived")
             
-            item_id = self.tree.insert(
-                "", "end",
-                iid=str(bm.id),
-                text="  ",  # Padding space
-                values=(title, url_display, category, tags_str),
-                tags=tuple(row_tags)
-            )
+            item_id = str(bm.id)
+            row_specs.append({
+                "iid": item_id,
+                "text": "  ",  # Padding space
+                "values": (title, url_display, category, tags_str),
+                "tags": tuple(row_tags),
+            })
             if bm.id in previous_selection:
                 restored_selection.append(item_id)
             
@@ -194,12 +193,33 @@ class BookmarkViewMixin:
             # Set favicon if cached
             favicon_path = self.favicon_manager.get_cached(bm.domain)
             if favicon_path:
-                self.tree.set_favicon(item_id, favicon_path)
+                favicon_updates.append((item_id, favicon_path))
+
+        if hasattr(self.tree, "set_bookmark_rows"):
+            self.tree.set_bookmark_rows(row_specs)
+        else:
+            for item in self.tree.get_children():
+                self.tree.delete(item)
+            for row in row_specs:
+                self.tree.insert(
+                    "", "end",
+                    iid=row["iid"],
+                    text=row["text"],
+                    values=row["values"],
+                    tags=row["tags"],
+                )
+        for item_id, favicon_path in favicon_updates:
+            self.tree.set_favicon(item_id, favicon_path)
 
         if restored_selection:
-            self.tree.selection_set(restored_selection)
+            try:
+                self.tree.selection_set(restored_selection, emit=False)
+            except TypeError:
+                self.tree.selection_set(restored_selection)
             self.selected_bookmarks = [int(item) for item in restored_selection]
         else:
+            if hasattr(self.tree, "selection_clear"):
+                self.tree.selection_clear()
             self.selected_bookmarks = []
         self._update_status_counts()
         self._update_selection_bar()
@@ -233,4 +253,3 @@ class BookmarkViewMixin:
         """View mode - now only list view is supported"""
         self.view_mode = ViewMode.LIST
         self._refresh_bookmark_list()
-

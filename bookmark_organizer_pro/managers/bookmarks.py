@@ -164,7 +164,14 @@ class BookmarkManager:
             return
         with self._lock:
             snapshot = list(self.bookmarks.values())
-            self.storage.save([bm.to_dict() for bm in snapshot])
+            self._save_snapshot(snapshot)
+
+    def _save_snapshot(self, snapshot: List[Bookmark]):
+        """Persist a snapshot unless the current batch should coalesce saves."""
+        if getattr(self, "_batch_depth", 0) > 0:
+            self._batch_dirty = True
+            return
+        self.storage.save([bm.to_dict() for bm in snapshot])
 
     @contextlib.contextmanager
     def batch(self):
@@ -196,7 +203,7 @@ class BookmarkManager:
             self.bookmarks[bookmark.id] = bookmark
             if save:
                 snapshot = list(self.bookmarks.values())
-                self.storage.save([bm.to_dict() for bm in snapshot])
+                self._save_snapshot(snapshot)
         return bookmark
     
     def update_bookmark(self, bookmark_or_id, **kwargs) -> Optional[Bookmark]:
@@ -210,7 +217,7 @@ class BookmarkManager:
                     bookmark.id = int.from_bytes(os.urandom(8), 'big')
                 self.bookmarks[bookmark.id] = bookmark
                 snapshot = list(self.bookmarks.values())
-                self.storage.save([bm.to_dict() for bm in snapshot])
+                self._save_snapshot(snapshot)
             return bookmark
 
         # Legacy: ID with kwargs
@@ -225,7 +232,7 @@ class BookmarkManager:
                         setattr(bm, key, value)
                 bm.modified_at = datetime.now().isoformat()
                 snapshot = list(self.bookmarks.values())
-                self.storage.save([bm.to_dict() for bm in snapshot])
+                self._save_snapshot(snapshot)
         return bm
     
     def delete_bookmark(self, bookmark_id: int) -> bool:
@@ -237,7 +244,7 @@ class BookmarkManager:
             if bookmark_id in self.bookmarks:
                 del self.bookmarks[bookmark_id]
                 snapshot = list(self.bookmarks.values())
-                self.storage.save([bm.to_dict() for bm in snapshot])
+                self._save_snapshot(snapshot)
                 return True
         return False
     
@@ -568,7 +575,7 @@ class BookmarkManager:
             bm.custom_data['_deleted_at'] = datetime.now().isoformat()
             bm.modified_at = datetime.now().isoformat()
             snapshot = list(self.bookmarks.values())
-            self.storage.save([bm.to_dict() for bm in snapshot])
+            self._save_snapshot(snapshot)
         return True
 
     def restore_from_trash(self, bookmark_id: int) -> bool:
@@ -581,7 +588,7 @@ class BookmarkManager:
             bm.custom_data.pop('_deleted_at', None)
             bm.modified_at = datetime.now().isoformat()
             snapshot = list(self.bookmarks.values())
-            self.storage.save([bm.to_dict() for bm in snapshot])
+            self._save_snapshot(snapshot)
         return True
 
     def get_trash(self) -> List[Bookmark]:
@@ -679,7 +686,7 @@ class BookmarkManager:
         if updated > 0:
             with self._lock:
                 snapshot = list(self.bookmarks.values())
-                self.storage.save([bm.to_dict() for bm in snapshot])
+                self._save_snapshot(snapshot)
         return updated
 
     # ── Auto-Clean URLs on Add (inspired by Shaarli) ────────────────────
@@ -763,7 +770,7 @@ class BookmarkManager:
                     cleaned += 1
             if cleaned > 0:
                 snapshot = list(self.bookmarks.values())
-                self.storage.save([bm.to_dict() for bm in snapshot])
+                self._save_snapshot(snapshot)
         return cleaned
     
     def merge_tags(self, source_tag: str, target_tag: str) -> int:
@@ -789,7 +796,7 @@ class BookmarkManager:
                     count += 1
             if count > 0:
                 snapshot = list(self.bookmarks.values())
-                self.storage.save([bm.to_dict() for bm in snapshot])
+                self._save_snapshot(snapshot)
         return count
     
     def export_html(self, filepath: str, category: str = None):

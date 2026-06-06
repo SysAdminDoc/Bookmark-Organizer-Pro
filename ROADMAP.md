@@ -10,7 +10,7 @@
 
 | Symbol | Meaning |
 |--------|---------|
-| ✅ | Done (shipped in v6.4.1 or earlier) |
+| ✅ | Done (shipped) |
 | 🔲 | Open — implementation not started |
 | 🚧 | In progress or partially shipped |
 | S/M/L/XL | Effort estimate (days: 0.5 / 1-2 / 3-5 / 1-2 weeks) |
@@ -21,9 +21,9 @@
 
 ---
 
-## State of the Project (v6.4.1)
+## State of the Project (v6.6.0)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.4.1:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.0:
 
 - **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
@@ -31,8 +31,8 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 - **Preservation:** Single-file HTML snapshots (4-backend chain: monolith → singlefile → playwright → python), dead-link scanner, Wayback Machine, auto-snapshot scheduler
 - **Security:** AES-256-GCM encrypted DB, SSRF guards, prompt sanitization, API auth tokens, keyring storage
 - **Import/Export:** 14 importers (incl. Pocket, Readwise, Pinboard, Instapaper, Reddit, Matter, Zotero), 12 export formats (HTML/JSON/CSV/OPML/XBEL/Markdown/ZIP/Obsidian/EPUB/Atom/JSON Feed/Zotero RDF)
-- **UI:** 11 themes (incl. WCAG AA high-contrast), command palette, toast notifications, zoom, high-DPI, dashboard analytics
-- **CLI:** 37 subcommands, 255 tests across 5 files
+- **UI:** 11 themes (incl. WCAG AA high-contrast), command palette, toast notifications, zoom, high-DPI, dashboard analytics, tksheet-backed virtualized bookmark list
+- **CLI:** 37 subcommands, 284 tests across 5 files
 - **Desktop:** Python ≥3.10, Tkinter, PyInstaller binary, cross-platform (Windows primary, macOS/Linux)
 
 ### Competitive Position (June 2026)
@@ -67,6 +67,15 @@ This roadmap revision is a ground-up rewrite informed by 120 cited sources acros
 - **New items:** 28 new roadmap items (R-51 through R-78). 40 completed items collapsed into summary.
 - **Web client dropped to Later:** XL effort + SQLite prerequisite chain makes it unrealistic before v7.x.
 - **Nuitka promoted:** 4.0/4.1 release (April 2026) with 1500% compile speedup and confirmed Tkinter support makes it production-ready. Promoted from Later to Next.
+
+### Cycle Note — v6.6.0 (2026-06-06)
+
+R-16 shipped with a `tksheet`-backed virtualized bookmark list after live
+research confirmed tksheet 7.6.0 as the current stable release and its
+visible-row canvas rendering model. The cycle also fixed service regressions
+found during full-suite verification: NL query heuristic compatibility,
+dead-link result persistence compatibility, batch-save coalescing, and the
+snapshot archiver `archive()` alias. Details: `docs/audit/2026-06-06-v6.6.0-audit.md`.
 
 ### Hard Constraints
 
@@ -155,7 +164,7 @@ This roadmap revision is a ground-up rewrite informed by 120 cited sources acros
 | ✅ R-64 | **Fix About dialog false feature claims** — System Tray, drag-and-drop removed from features list. Undo/Redo scope clarified. | Done | S | [S-1] |
 | ✅ R-65 | **Replace 35+ hardcoded Segoe UI fonts** — 24 hardcoded font tuples replaced across 9 UI files with FONTS.body/small/custom calls. | Done | M | [S-1] |
 | ✅ R-66 | **Remove 4 dead UI view classes** — secondary_views.py deleted (~670 lines). Imports removed from ui/__init__.py. | Done | S | [S-1] |
-| 🔲 R-16 | **List virtualization via tksheet** — replace Treeview with tksheet for virtual scrolling. Handles millions of rows. Pure Python. v7.6.0 is maintenance-only but stable. | Now | L | [S-22][S-23][S-71] |
+| ✅ R-16 | **List virtualization via tksheet** — main bookmark list now uses a tksheet-backed virtual table with Treeview-compatible app integration, preserved selection/context menus/sorting/zoom, and legacy Treeview fallback when tksheet is unavailable. | Done | L | [S-22][S-23][S-71] |
 | ✅ R-67 | **GUI surfaces for Read Later, Flows** — READ LATER and FLOWS sidebar sections with counts, item lists (up to 8), click-to-select, refresh on data change. Integrated into _refresh_all(). | Done | L | [S-1] |
 | ✅ R-68 | **GUI import/export parity** — 9 service importers (Pocket, Readwise, Pinboard, Instapaper, Reddit, Matter, Wallabag, Arc, Zotero) added to Import menu with file choosers. | Done | M | [S-1] |
 | ✅ R-69 | **Expand command palette to 35+ commands** — expanded from 19 to 35 commands: Toggle Pin, Copy URL, Delete, Zoom, Flatten, Clear Categories/Tags, AI Improve Titles, Organize, Help menus. | Done | M | [S-1] |
@@ -299,6 +308,7 @@ All items below shipped in v6.0.0 through v6.4.1. Full details in [CHANGELOG.md]
 | R-46 | Remove ~1,409 lines dead code | v6.2.0 |
 | R-47 | Fix copy-pasted model docstrings | v6.2.0 |
 | R-49 | High-contrast WCAG AA theme | v6.2.0 |
+| R-16 | List virtualization via tksheet | v6.6.0 |
 | BUG-01 through BUG-14 | All 14 known bugs fixed | v6.2.0-v6.4.1 |
 | + 30 v6.1.0 fixes | AI batch processor, chunk overlap, MCP schemas, CI flow, thread safety, etc. | v6.1.0 |
 
@@ -348,13 +358,9 @@ These ideas surfaced in research but need more validation before committing:
 
 ## Tier Summary
 
-### Now — Ship Before Next Release (1 remaining)
+### Now — Ship Before Next Release (0 remaining)
 
-All 12 of 13 Now-tier items shipped in v6.5.0. Remaining:
-
-| # | Item | Effort | Category |
-|---|------|--------|----------|
-| R-16 | List virtualization via tksheet | L | Performance |
+All 13 Now-tier items have shipped through v6.6.0.
 
 ### Next — v7.0 (4 remaining, R-60/R-67/R-48 shipped in v6.5.2)
 

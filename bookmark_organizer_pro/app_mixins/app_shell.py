@@ -11,7 +11,7 @@ from bookmark_organizer_pro.ui.feedback import EmptyState, FilteredEmptyState
 from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, readable_text_on
 from bookmark_organizer_pro.ui.shell_widgets import ViewMode
 from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable
-from bookmark_organizer_pro.ui.treeview import SortableTreeview
+from bookmark_organizer_pro.ui.treeview import BookmarkListWidget
 from bookmark_organizer_pro.ui.widget_chat_panel import ChatPanel
 from bookmark_organizer_pro.ui.widgets import ModernButton, Tooltip, get_theme
 
@@ -524,9 +524,9 @@ class AppShellMixin:
         # List view frame
         self.list_frame = tk.Frame(self.content_area, bg=theme.bg_primary)
         
-        # Create sortable treeview - REMOVED "Added" column, added more padding
+        # Create virtualized bookmark table - REMOVED "Added" column, added more padding
         columns = ("title", "url", "category", "tags")
-        self.tree = SortableTreeview(
+        self.tree = BookmarkListWidget(
             self.list_frame, columns=columns, show="tree headings",
             selectmode="extended"
         )
@@ -548,16 +548,20 @@ class AppShellMixin:
         self.tree.column("tags", width=170, minwidth=130)
         
         # Scrollbars
-        tree_scroll_y = ttk.Scrollbar(self.list_frame, orient="vertical", command=self.tree.yview)
-        tree_scroll_x = ttk.Scrollbar(self.list_frame, orient="horizontal", command=self.tree.xview)
-        self.tree.configure(yscrollcommand=tree_scroll_y.set, xscrollcommand=tree_scroll_x.set)
+        tree_scroll_y = None
+        tree_scroll_x = None
+        if not getattr(self.tree, "uses_internal_scrollbars", False):
+            tree_scroll_y = ttk.Scrollbar(self.list_frame, orient="vertical", command=self.tree.yview)
+            tree_scroll_x = ttk.Scrollbar(self.list_frame, orient="horizontal", command=self.tree.xview)
+            self.tree.configure(yscrollcommand=tree_scroll_y.set, xscrollcommand=tree_scroll_x.set)
         self.tree.tag_configure("oddrow", background=theme.bg_primary)
         self.tree.tag_configure("evenrow", background=theme.bg_secondary)
         self.tree.tag_configure("broken", foreground=theme.accent_error)
         self.tree.tag_configure("pinned", foreground=theme.text_primary)
         
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        tree_scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+        if tree_scroll_y is not None:
+            tree_scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
         
         # Tree bindings
         self.tree.bind("<Double-1>", self._on_item_double_click)
@@ -697,10 +701,8 @@ class AppShellMixin:
             row.pack(fill=tk.X, pady=1)
 
     def _select_bookmark_by_id(self, bookmark_id: int):
-        for item in self.tree.get_children():
-            values = self.tree.item(item, "values")
-            if values and str(values[0]) == str(bookmark_id):
-                self.tree.selection_set(item)
-                self.tree.see(item)
-                self.tree.focus(item)
-                return
+        item_id = str(bookmark_id)
+        if item_id in self.tree.get_children():
+            self.tree.selection_set(item_id)
+            self.tree.see(item_id)
+            self.tree.focus(item_id)

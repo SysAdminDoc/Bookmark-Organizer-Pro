@@ -57,7 +57,7 @@ from .shell_widgets import (
 from .style_manager import StyleManager, style_manager
 from .system_theme import SystemThemeDetector
 from .tk_interactions import make_keyboard_activatable
-from .treeview import SortableTreeview
+from .treeview import BookmarkListWidget, SortableTreeview, TKSHEET_AVAILABLE, VirtualBookmarkSheet
 from .view_models import (
     CollectionSummaryViewModel,
     FilterCountsViewModel,
@@ -135,7 +135,10 @@ __all__ = [
     "style_manager",
     "SystemThemeDetector",
     "make_keyboard_activatable",
+    "BookmarkListWidget",
     "SortableTreeview",
+    "TKSHEET_AVAILABLE",
+    "VirtualBookmarkSheet",
     "CollectionSummaryViewModel",
     "FilterCountsViewModel",
     "build_collection_summary",

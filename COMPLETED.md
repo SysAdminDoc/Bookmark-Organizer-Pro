@@ -3,6 +3,24 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.0 List Virtualization
+
+- Completed R-16: replaced the main bookmark list with a `tksheet`-backed
+  virtual table while preserving selection, context menus, sorting, zoom, row
+  styling, and the legacy Treeview fallback.
+- Fixed sidebar/chat bookmark deep links so they select rows by bookmark ID.
+- Fixed service regressions found during verification: NL query heuristic
+  compatibility, dead-link result persistence compatibility, batch-save
+  coalescing, and the snapshot archiver `archive()` alias.
+- Added release metadata sync coverage for pyproject, extension manifest,
+  PyInstaller spec, and Windows version metadata.
+- Synchronized public version metadata to v6.6.0 across runtime constants,
+  package metadata, README badge, extension manifest, PyInstaller spec, and
+  Windows version resources.
+- Verification: compileall passed, tksheet widget smoke passed, targeted
+  extension/CLI tests passed with 33 tests, targeted service regressions passed
+  with 8 tests, and the full suite passed with 284 tests.
+
 ## 2026-06-06 — v6.4.1 CLI Reliability and Planning Sync
 
 - Fixed BUG-13: `scan --hours N` now honors the documented space-separated

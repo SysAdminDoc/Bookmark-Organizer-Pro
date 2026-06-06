@@ -4,6 +4,7 @@ requests>=2.31
 Pillow>=12.2.0
 pystray>=0.19
 defusedxml>=0.7
+tksheet>=7.6,<8
 
 # v6.0.0 — recommended for the full feature set. Each package is optional;
 # missing packages degrade individual features gracefully without breaking
@@ -24,7 +25,7 @@ lancedb>=0.13; python_version >= "3.9"
 # Encrypted-DB toggle (AES-256-GCM via PBKDF2-HMAC-SHA256)
 cryptography>=46.0.7
 
-# MCP server (Claude Desktop / Claude Code / Cursor / Codex integration)
+# MCP server (MCP-compatible client integration)
 mcp>=1.0; python_version >= "3.10"
 
 # RSS feed ingestor uses only stdlib xml.etree.

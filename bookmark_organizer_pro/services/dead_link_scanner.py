@@ -59,6 +59,9 @@ class DeadLinkScanner:
         self._lock = threading.Lock()
         self._last_scan: Optional[datetime] = None
         self._progress = ScanProgress()
+        self._results: Dict[str, dict] = {
+            record.url: record.to_dict() for record in self._load_records()
+        }
 
     # ---- single scan -------------------------------------------------------
     def scan_now(self, progress_callback: Optional[Callable[[ScanProgress], None]] = None,
@@ -163,6 +166,7 @@ class DeadLinkScanner:
         merged = {r.bookmark_id: r for r in existing}
         for r in records:
             merged[r.bookmark_id] = r
+        merged_records = list(merged.values())
         import tempfile, os
         try:
             fd, tmp = tempfile.mkstemp(
@@ -170,14 +174,37 @@ class DeadLinkScanner:
             )
             try:
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    json.dump([r.to_dict() for r in merged.values()], f, indent=2)
+                    json.dump([r.to_dict() for r in merged_records], f, indent=2)
                 os.replace(tmp, self.results_file)
+                self._results = {r.url: r.to_dict() for r in merged_records}
             except Exception:
                 if os.path.exists(tmp):
                     os.remove(tmp)
                 raise
         except OSError as exc:
             log.warning(f"Could not persist dead-link records: {exc}")
+
+    def _save_results(self):
+        """Compatibility persistence for callers that still populate _results."""
+        records: List[DeadLinkRecord] = []
+        for value in self._results.values():
+            if isinstance(value, DeadLinkRecord):
+                records.append(value)
+                continue
+            if not isinstance(value, dict) or "bookmark_id" not in value:
+                continue
+            try:
+                records.append(DeadLinkRecord(
+                    bookmark_id=int(value.get("bookmark_id")),
+                    url=str(value.get("url", "")),
+                    status=int(value.get("status", 0) or 0),
+                    error=str(value.get("error", "")),
+                    redirect_to=str(value.get("redirect_to", "")),
+                    detected_at=str(value.get("detected_at") or value.get("checked_at") or ""),
+                ))
+            except (TypeError, ValueError):
+                continue
+        self._persist(records)
 
     def _load_records(self) -> List[DeadLinkRecord]:
         if not self.results_file.exists():
