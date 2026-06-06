@@ -127,7 +127,7 @@ class TestUpdateManager(_IsolatedTestBase):
 
     def test_check_for_updates_uses_client_without_downloading(self):
         updates = self._updates_module()
-        manager = updates.UpdateManager(current_version="6.6.23")
+        manager = updates.UpdateManager(current_version="6.6.24")
         manager.configure(
             enabled=True,
             metadata_url="https://updates.example.com/metadata",
@@ -164,7 +164,7 @@ class TestUpdateManager(_IsolatedTestBase):
 
     def test_download_update_stages_target_without_applying(self):
         updates = self._updates_module()
-        manager = updates.UpdateManager(current_version="6.6.23")
+        manager = updates.UpdateManager(current_version="6.6.24")
         manager.configure(
             enabled=True,
             metadata_url="https://updates.example.com/metadata",
@@ -216,9 +216,41 @@ class TestUpdateManager(_IsolatedTestBase):
         self.assertEqual(FakeClient.downloaded_with[2], "https://updates.example.com/targets")
         self.assertFalse(FakeClient.apply_called)
 
+        manifest = json.loads(manager.staged_manifest_path.read_text(encoding="utf-8"))
+        self.assertEqual(manifest["latest_version"], "6.7.0")
+        self.assertEqual(manifest["staged_paths"], list(result.staged_paths))
+
+        staged = manager.staged_update()
+        self.assertTrue(staged.available)
+        self.assertTrue(staged.complete)
+        self.assertEqual(staged.latest_version, "6.7.0")
+        self.assertEqual(staged.reason, "staged target files present")
+
+    def test_staged_update_status_reports_missing_targets(self):
+        updates = self._updates_module()
+        manager = updates.UpdateManager(current_version="6.6.24")
+        manager.target_dir.mkdir(parents=True, exist_ok=True)
+        missing = manager.target_dir / "BookmarkOrganizerPro-6.7.0.tar.gz"
+        manager.staged_manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        manager.staged_manifest_path.write_text(json.dumps({
+            "current_version": "6.6.24",
+            "latest_version": "6.7.0",
+            "target_name": "BookmarkOrganizerPro-6.7.0.tar.gz",
+            "target_path": "BookmarkOrganizerPro-6.7.0.tar.gz",
+            "staged_paths": [str(missing)],
+            "channel": "stable",
+            "staged_at": "2026-06-06T00:00:00+00:00",
+        }), encoding="utf-8")
+
+        staged = manager.staged_update()
+
+        self.assertTrue(staged.available)
+        self.assertFalse(staged.complete)
+        self.assertEqual(staged.reason, "staged target files missing")
+
     def test_download_update_rejects_target_paths_outside_cache(self):
         updates = self._updates_module()
-        manager = updates.UpdateManager(current_version="6.6.23")
+        manager = updates.UpdateManager(current_version="6.6.24")
         manager.configure(
             enabled=True,
             metadata_url="https://updates.example.com/metadata",
@@ -254,9 +286,9 @@ class TestUpdateManager(_IsolatedTestBase):
     def test_version_comparison(self):
         updates = self._updates_module()
 
-        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.23"))
-        self.assertFalse(updates.is_newer_version("6.6.23", "6.6.23"))
-        self.assertFalse(updates.is_newer_version("6.6.22", "6.6.23"))
+        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.24"))
+        self.assertFalse(updates.is_newer_version("6.6.24", "6.6.24"))
+        self.assertFalse(updates.is_newer_version("6.6.23", "6.6.24"))
 
 
 # ── 1. EmbeddingService ──────────────────────────────────────────────

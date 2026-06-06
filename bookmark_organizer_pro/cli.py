@@ -161,7 +161,7 @@ v6.0.0 commands:
                                 Run the MCP Streamable HTTP server on loopback.
   sqlite-migrate [--source JSON] [--dest DB]
                                 Copy JSON bookmarks into an opt-in SQLite DB.
-  updates [status|check|configure|download|apply]
+  updates [status|check|configure|download|staged|apply]
                                 Manage disabled-by-default update policy.
 
 Examples:
@@ -1049,10 +1049,13 @@ Top Domains:
         if sub == "download":
             self._print_update_download_result(manager.download_update())
             return
+        if sub == "staged":
+            self._print_staged_update(manager.staged_update())
+            return
         if sub == "apply":
             self._print_update_apply_gate(manager)
             return
-        print("Usage: updates [status|check|configure|download|apply]")
+        print("Usage: updates [status|check|configure|download|staged|apply]")
 
     def _print_update_status(self, status):
         policy = status.policy
@@ -1084,6 +1087,24 @@ Top Domains:
             print(f"No update available: {result.reason}")
             return
         print(f"Update download not ready: {result.reason}")
+
+    def _print_staged_update(self, status):
+        if not status.available:
+            print(f"Staged update: {status.reason}")
+            if status.error:
+                print(f"Error: {status.error}")
+            return
+        print(f"Staged update: {status.latest_version}")
+        print(f"Current version: {status.current_version}")
+        print(f"Channel: {status.channel}")
+        print(f"Manifest: {status.manifest_path}")
+        print(f"Status: {status.reason}")
+        if status.target_name:
+            print(f"Target: {status.target_name}")
+        for staged_path in status.staged_paths:
+            print(f"Staged: {staged_path}")
+        if status.error:
+            print(f"Error: {status.error}")
 
     def _print_update_apply_gate(self, manager):
         status = manager.status()

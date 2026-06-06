@@ -2,6 +2,30 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.24] - 2026-06-06
+
+Updater staging manifest release.
+
+### Added — Distribution (R-41 partial)
+
+- **Staged update manifest** — successful `download_update()` calls now write
+  `updates/staged_update.json` with current version, latest version, target
+  metadata, channel, staged paths, and timestamp.
+- **Readback status** — added `UpdateManager.staged_update()` to validate the
+  manifest and confirm staged target files still exist inside the update cache.
+- **CLI readback** — added `updates staged` to report no staged update,
+  incomplete staged files, or present staged targets without applying them.
+
+### Notes
+
+- Update application remains blocked; the manifest is an audit and preflight
+  layer for the future apply workflow.
+
+### Tests
+
+- Added updater service coverage for manifest creation and missing staged
+  target detection, plus CLI coverage for the default `updates staged` output.
+
 ## [v6.6.23] - 2026-06-06
 
 Updater download staging release.

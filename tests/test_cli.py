@@ -73,6 +73,24 @@ class TestCLIDispatch(CLITestBase):
         self.assertIn("Update download not ready", out)
         self.assertIn("disabled", out)
 
+    def test_updates_staged_reports_default_empty(self):
+        out = self._run(["updates", "staged"])
+        self.assertIn("Staged update:", out)
+        self.assertIn("no staged update", out)
+
+    def test_updates_staged_reports_manifest_errors(self):
+        from bookmark_organizer_pro.services.updates import UPDATE_CACHE_DIR
+
+        manifest = UPDATE_CACHE_DIR / "staged_update.json"
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        manifest.write_text("{not-json", encoding="utf-8")
+        try:
+            out = self._run(["updates", "staged"])
+        finally:
+            manifest.unlink(missing_ok=True)
+        self.assertIn("staged manifest unreadable", out)
+        self.assertIn("Error:", out)
+
     def test_updates_apply_command_is_gated(self):
         out = self._run(["updates", "apply"])
         self.assertIn("disabled in this release", out)

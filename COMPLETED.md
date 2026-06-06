@@ -3,6 +3,17 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.24 Updater Staging Manifest
+
+- Advanced R-41: successful updater target staging now writes a durable
+  `updates/staged_update.json` manifest.
+- Added `UpdateManager.staged_update()` and `updates staged` for readback of
+  staged target readiness without applying updates.
+- Added manifest validation for missing target files and cache-contained staged
+  paths.
+- Verification: compileall passed, focused updater/release metadata tests
+  passed with 28 tests, and the full suite passed with 350 tests.
+
 ## 2026-06-06 — v6.6.23 Updater Download Staging
 
 - Advanced R-41: added trusted tufup target staging through
