@@ -181,6 +181,20 @@ class UpdateCleanupResult:
     reason: str
 
 
+@dataclass(frozen=True)
+class UpdateApplyPlan:
+    ready: bool
+    current_version: str
+    latest_version: str
+    target_name: str
+    install_dir: str
+    rollback_dir: str
+    staged_paths: tuple[str, ...]
+    actions: tuple[str, ...]
+    blockers: tuple[str, ...]
+    reason: str
+
+
 class UpdateManager:
     """Manage local update policy without applying updates automatically."""
 
@@ -210,6 +224,10 @@ class UpdateManager:
     @property
     def staged_manifest_path(self) -> Path:
         return self.cache_dir / "staged_update.json"
+
+    @property
+    def rollback_dir(self) -> Path:
+        return self.cache_dir / "rollback"
 
     def _load_policy(self) -> UpdatePolicy:
         if not self.config_file.exists():
@@ -501,6 +519,34 @@ class UpdateManager:
             removed_targets=tuple(removed_targets),
             errors=tuple(errors),
             reason=reason,
+        )
+
+    def build_apply_plan(self, install_dir: str | Path | None = None) -> UpdateApplyPlan:
+        """Build a non-mutating apply and rollback plan for staged targets."""
+        preflight = self.apply_preflight()
+        install_path = Path(install_dir).expanduser() if install_dir else Path(sys.executable).resolve().parent
+        install_path = install_path.resolve()
+        latest = preflight.latest_version or "unknown"
+        rollback_path = (self.rollback_dir / f"{self.current_version}-to-{latest}").resolve()
+        actions = (
+            "verify staged target files",
+            f"create rollback snapshot under {rollback_path}",
+            f"extract staged update target into a temporary directory under {self.cache_dir.resolve()}",
+            f"replace files in {install_path}",
+            "verify application version after replacement",
+            "remove staged update artifacts after successful replacement",
+        )
+        return UpdateApplyPlan(
+            ready=False,
+            current_version=self.current_version,
+            latest_version=preflight.latest_version,
+            target_name=preflight.target_name,
+            install_dir=str(install_path),
+            rollback_dir=str(rollback_path),
+            staged_paths=preflight.staged_paths,
+            actions=actions,
+            blockers=preflight.blockers,
+            reason="apply plan only",
         )
 
     def check_for_updates(self, client_cls=None) -> UpdateCheckResult:

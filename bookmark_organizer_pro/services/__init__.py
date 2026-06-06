@@ -83,6 +83,7 @@ from .tag_linter import LintReport, TagLinter, TagSuggestion
 from .updates import (
     StagedUpdateStatus,
     UpdateApplyPreflightResult,
+    UpdateApplyPlan,
     UpdateCheckResult,
     UpdateCleanupResult,
     UpdateDownloadResult,
@@ -136,7 +137,7 @@ __all__ = [
     "FeedRegistry", "parse_feed",
     "SnapshotArchiver",
     "LintReport", "TagLinter", "TagSuggestion",
-    "StagedUpdateStatus", "UpdateApplyPreflightResult",
+    "StagedUpdateStatus", "UpdateApplyPreflightResult", "UpdateApplyPlan",
     "UpdateCheckResult", "UpdateCleanupResult", "UpdateDownloadResult",
     "UpdateManager", "UpdatePolicy", "UpdateStatus",
     "VectorStore", "reciprocal_rank_fusion",
