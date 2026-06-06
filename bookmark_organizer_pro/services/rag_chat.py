@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from bookmark_organizer_pro.ai import AIConfigManager, create_ai_client
 from bookmark_organizer_pro.logging_config import log
@@ -120,6 +120,15 @@ def build_chat_stream_events(turn: ChatTurn, chunk_chars: int = 160) -> List[Cha
         )
     )
     return events
+
+
+def emit_chunk_events(events: Sequence[ChatStreamEvent],
+                      on_event: Optional[Callable[[ChatStreamEvent], None]]) -> None:
+    if on_event is None:
+        return
+    for event in events:
+        if event.type == "chunk":
+            on_event(event)
 
 
 class CollectionChat:
@@ -276,20 +285,27 @@ class CollectionChat:
     def stream_answer(self, question: str,
                       restrict_ids: Optional[Iterable[int]] = None,
                       chunk_chars: int = 160,
-                      use_cache: bool = True) -> ChatStreamResult:
+                      use_cache: bool = True,
+                      on_event: Optional[Callable[[ChatStreamEvent], None]] = None) -> ChatStreamResult:
         if not question.strip():
             turn = ChatTurn(answer="")
-            return ChatStreamResult(turn, build_chat_stream_events(turn, chunk_chars))
+            events = build_chat_stream_events(turn, chunk_chars)
+            emit_chunk_events(events, on_event)
+            return ChatStreamResult(turn, events)
 
         is_first_turn, cached = self._cache_lookup(question, restrict_ids, use_cache)
         if cached is not None:
-            return ChatStreamResult(cached, build_chat_stream_events(cached, chunk_chars))
+            events = build_chat_stream_events(cached, chunk_chars)
+            emit_chunk_events(events, on_event)
+            return ChatStreamResult(cached, events)
 
         prepared, early_turn = self._prepare_prompt(question, restrict_ids)
         if early_turn is not None:
+            events = build_chat_stream_events(early_turn, chunk_chars)
+            emit_chunk_events(events, on_event)
             return ChatStreamResult(
                 early_turn,
-                build_chat_stream_events(early_turn, chunk_chars),
+                events,
             )
         assert prepared is not None
         retrieved, provenance, prompt = prepared
@@ -299,16 +315,26 @@ class CollectionChat:
             provider_streaming = bool(
                 getattr(client, "supports_native_streaming", False)
             )
-            raw_chunks = [
-                str(chunk)
-                for chunk in client.stream_complete(
-                    system=SYSTEM_PROMPT,
-                    prompt=prompt,
-                    max_tokens=500,
-                    temperature=0.2,
+            raw_chunks = []
+            provider_events = []
+            for chunk in client.stream_complete(
+                system=SYSTEM_PROMPT,
+                prompt=prompt,
+                max_tokens=500,
+                temperature=0.2,
+            ):
+                if not chunk:
+                    continue
+                text = str(chunk)
+                raw_chunks.append(text)
+                event = ChatStreamEvent(
+                    type="chunk",
+                    index=len(provider_events),
+                    text=text,
                 )
-                if chunk
-            ]
+                provider_events.append(event)
+                if provider_streaming and on_event is not None:
+                    on_event(event)
             raw_answer = "".join(raw_chunks)
             answer = self._sanitize_answer(raw_answer, retrieved)
         except Exception as exc:
@@ -322,10 +348,7 @@ class CollectionChat:
         )
         events_from_provider = provider_streaming and raw_chunks and answer == raw_answer
         if events_from_provider:
-            events = [
-                ChatStreamEvent(type="chunk", index=index, text=chunk)
-                for index, chunk in enumerate(raw_chunks)
-            ]
+            events = provider_events
             events.append(
                 ChatStreamEvent(
                     type="complete",
@@ -337,4 +360,6 @@ class CollectionChat:
             )
         else:
             events = build_chat_stream_events(turn, chunk_chars)
+            if not provider_streaming:
+                emit_chunk_events(events, on_event)
         return ChatStreamResult(turn, events, events_from_provider)

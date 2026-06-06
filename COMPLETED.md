@@ -3,6 +3,18 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.17 Live MCP Progress Bridge
+
+- Advanced R-15: `CollectionChat.stream_answer()` now accepts chunk callbacks,
+  allowing FastMCP progress to be emitted while the chat stream tool is
+  running.
+- Added a threaded FastMCP bridge that runs `chat_with_collection_stream` while
+  forwarding chunk events to `ctx.report_progress()`.
+- Added an in-process FastMCP client smoke that verifies progress handler calls
+  and the final provider-stream result.
+- Verification: compileall passed, focused MCP client/release metadata tests
+  passed with 26 tests, and the full suite passed with 333 tests.
+
 ## 2026-06-06 — v6.6.16 MCP Chat Progress Notifications
 
 - Advanced R-15: FastMCP `chat_with_collection_stream` now accepts an injected
