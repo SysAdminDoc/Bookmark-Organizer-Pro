@@ -3,6 +3,18 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.16 MCP Chat Progress Notifications
+
+- Advanced R-15: FastMCP `chat_with_collection_stream` now accepts an injected
+  context and reports progress for ordered chat stream chunks when clients
+  provide a progress token.
+- Added `_report_chat_stream_progress()` to map chunk events to progress
+  notifications plus a final complete notification.
+- Added FastMCP schema coverage to ensure the injected context is not exposed
+  as a user-provided tool argument.
+- Verification: compileall passed, focused MCP/progress/release metadata tests
+  passed with 25 tests, and the full suite passed with 332 tests.
+
 ## 2026-06-06 — v6.6.15 Provider Streaming Adapters
 
 - Advanced R-15: added `stream_complete()` to the provider client interface

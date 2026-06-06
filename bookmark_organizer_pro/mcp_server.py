@@ -491,6 +491,24 @@ def t_chat_stream(question: str, restrict_ids: Optional[List[int]] = None,
     }
 
 
+async def _report_chat_stream_progress(ctx: Any, result: Dict) -> None:
+    if ctx is None or not hasattr(ctx, "report_progress"):
+        return
+    chunks = [
+        event for event in result.get("events", [])
+        if event.get("type") == "chunk"
+    ]
+    if not chunks:
+        await ctx.report_progress(1, 1, "complete")
+        return
+    total = len(chunks)
+    for index, event in enumerate(chunks, start=1):
+        text = str(event.get("text", ""))
+        message = text if len(text) <= 200 else f"{text[:197]}..."
+        await ctx.report_progress(index, total, message)
+    await ctx.report_progress(total, total, "complete")
+
+
 def t_summarize(bookmark_id: int) -> Dict:
     s = _services()
     bm = s.bookmark_manager.get_bookmark(int(bookmark_id))
@@ -1014,6 +1032,9 @@ def _build_fastmcp_server():
         mcp_app = FastMCP("bookmark-organizer-pro")
     except Exception:
         return None
+    Context = getattr(fastmcp_mod, "Context", None)
+    if Context is not None:
+        globals()["_FastMCPContext"] = Context
 
     def tool(name: str, description: str):
         return mcp_app.tool(
@@ -1066,11 +1087,22 @@ def _build_fastmcp_server():
                              restrict_tag: str = "", restrict_category: str = "") -> dict:
         return t_chat(question, restrict_ids, restrict_tag, restrict_category)
 
-    @tool("chat_with_collection_stream", "Conversational RAG response events over the bookmark library.")
-    def chat_with_collection_stream(question: str, restrict_ids: list[int] | None = None,
-                                    restrict_tag: str = "", restrict_category: str = "",
-                                    chunk_chars: int = 160) -> dict:
-        return t_chat_stream(question, restrict_ids, restrict_tag, restrict_category, chunk_chars)
+    if Context is not None:
+        @tool("chat_with_collection_stream", "Conversational RAG response events over the bookmark library.")
+        async def chat_with_collection_stream(question: str, restrict_ids: list[int] | None = None,
+                                              restrict_tag: str = "",
+                                              restrict_category: str = "",
+                                              chunk_chars: int = 160,
+                                              ctx: _FastMCPContext = None) -> dict:
+            result = t_chat_stream(question, restrict_ids, restrict_tag, restrict_category, chunk_chars)
+            await _report_chat_stream_progress(ctx, result)
+            return result
+    else:
+        @tool("chat_with_collection_stream", "Conversational RAG response events over the bookmark library.")
+        def chat_with_collection_stream(question: str, restrict_ids: list[int] | None = None,
+                                        restrict_tag: str = "", restrict_category: str = "",
+                                        chunk_chars: int = 160) -> dict:
+            return t_chat_stream(question, restrict_ids, restrict_tag, restrict_category, chunk_chars)
 
     @tool("summarize_bookmark", "AI summary with inline citations back to source spans.")
     def summarize_bookmark(bookmark_id: int) -> dict:
