@@ -6,7 +6,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import importlib.util
 import json
+from pathlib import Path
 import re
+import sys
 from urllib.parse import urlparse
 
 from bookmark_organizer_pro.constants import APP_VERSION, DATA_DIR
@@ -16,6 +18,7 @@ from bookmark_organizer_pro.utils.runtime import atomic_json_write
 
 UPDATE_CONFIG_FILE = DATA_DIR / "update_config.json"
 UPDATE_CACHE_DIR = DATA_DIR / "updates"
+UPDATE_APP_NAME = "BookmarkOrganizerPro"
 DEFAULT_CHANNEL = "stable"
 _CHANNEL_RE = re.compile(r"^[A-Za-z0-9._-]{1,40}$")
 
@@ -107,10 +110,25 @@ class UpdateStatus:
     policy: UpdatePolicy
     current_version: str
     cache_dir: str
+    metadata_dir: str
+    target_dir: str
+    trusted_root_exists: bool
     tufup_installed: bool
     can_check: bool
     reason: str
     checked_at: str
+
+
+@dataclass(frozen=True)
+class UpdateCheckResult:
+    checked: bool
+    update_available: bool
+    current_version: str
+    latest_version: str
+    target_name: str
+    target_path: str
+    reason: str
+    error: str = ""
 
 
 class UpdateManager:
@@ -122,10 +140,22 @@ class UpdateManager:
         cache_dir=UPDATE_CACHE_DIR,
         current_version: str = APP_VERSION,
     ):
-        self.config_file = config_file
-        self.cache_dir = cache_dir
+        self.config_file = Path(config_file)
+        self.cache_dir = Path(cache_dir)
         self.current_version = current_version
         self.policy = self._load_policy()
+
+    @property
+    def metadata_dir(self) -> Path:
+        return self.cache_dir / "metadata"
+
+    @property
+    def target_dir(self) -> Path:
+        return self.cache_dir / "targets"
+
+    @property
+    def trusted_root_path(self) -> Path:
+        return self.metadata_dir / "root.json"
 
     def _load_policy(self) -> UpdatePolicy:
         if not self.config_file.exists():
@@ -165,6 +195,7 @@ class UpdateManager:
 
     def status(self) -> UpdateStatus:
         installed = tufup_available()
+        root_exists = self.trusted_root_path.exists()
         if not self.policy.enabled:
             can_check = False
             reason = "disabled"
@@ -174,6 +205,9 @@ class UpdateManager:
         elif not installed:
             can_check = False
             reason = "install bookmark-organizer-pro[updates]"
+        elif not root_exists:
+            can_check = False
+            reason = "trusted root metadata missing"
         else:
             can_check = True
             reason = "ready"
@@ -181,8 +215,71 @@ class UpdateManager:
             policy=self.policy,
             current_version=self.current_version,
             cache_dir=str(self.cache_dir),
+            metadata_dir=str(self.metadata_dir),
+            target_dir=str(self.target_dir),
+            trusted_root_exists=root_exists,
             tufup_installed=installed,
             can_check=can_check,
             reason=reason,
             checked_at=datetime.now(timezone.utc).isoformat(),
+        )
+
+    def check_for_updates(self, client_cls=None) -> UpdateCheckResult:
+        """Check trusted metadata for an available update without downloading."""
+        status = self.status()
+        if not status.can_check:
+            return UpdateCheckResult(
+                checked=False,
+                update_available=False,
+                current_version=self.current_version,
+                latest_version="",
+                target_name="",
+                target_path="",
+                reason=status.reason,
+            )
+        self.metadata_dir.mkdir(parents=True, exist_ok=True)
+        self.target_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            if client_cls is None:
+                from tufup.client import Client as client_cls
+            client = client_cls(
+                app_name=UPDATE_APP_NAME,
+                app_install_dir=Path(sys.executable).resolve().parent,
+                current_version=self.current_version,
+                metadata_dir=self.metadata_dir,
+                metadata_base_url=self.policy.metadata_url,
+                target_dir=self.target_dir,
+                target_base_url=self.policy.targets_url,
+            )
+            pre = "a" if self.policy.allow_prerelease else None
+            target_meta = client.check_for_updates(pre=pre, patch=True)
+        except Exception as exc:
+            return UpdateCheckResult(
+                checked=True,
+                update_available=False,
+                current_version=self.current_version,
+                latest_version="",
+                target_name="",
+                target_path="",
+                reason="check failed",
+                error=f"{type(exc).__name__}: {exc}",
+            )
+        if target_meta is None:
+            return UpdateCheckResult(
+                checked=True,
+                update_available=False,
+                current_version=self.current_version,
+                latest_version="",
+                target_name="",
+                target_path="",
+                reason="no update available",
+            )
+        return UpdateCheckResult(
+            checked=True,
+            update_available=True,
+            current_version=self.current_version,
+            latest_version=str(getattr(target_meta, "version", "")),
+            target_name=str(getattr(target_meta, "filename", "")),
+            target_path=str(getattr(target_meta, "target_path_str", "")),
+            reason="update available",
         )
