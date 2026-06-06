@@ -53,6 +53,15 @@ from .rag_chat import (
     split_answer_chunks,
 )
 from .read_later import ReadLaterQueue
+from .reader_annotations import (
+    HIGHLIGHT_COLORS,
+    ReaderAnnotationStore,
+    ReaderHighlight,
+    export_bookmark_highlights,
+    normalize_highlight_color,
+    read_extracted_text,
+    render_highlights_markdown,
+)
 from .rss_feeds import (
     AI_MODES as RSS_AI_MODES,
     FeedConfig,
@@ -101,6 +110,9 @@ __all__ = [
     "ChatMessage", "ChatStreamEvent", "ChatStreamResult", "ChatTurn", "CollectionChat",
     "build_chat_stream_events", "normalize_stream_chunk_chars", "split_answer_chunks",
     "ReadLaterQueue",
+    "HIGHLIGHT_COLORS", "ReaderAnnotationStore", "ReaderHighlight",
+    "export_bookmark_highlights", "normalize_highlight_color",
+    "read_extracted_text", "render_highlights_markdown",
     "RSS_AI_MODES", "FeedConfig", "FeedIngestor", "FeedItem",
     "FeedRegistry", "parse_feed",
     "SnapshotArchiver",

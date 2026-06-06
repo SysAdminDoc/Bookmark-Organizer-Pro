@@ -6,7 +6,7 @@ from pathlib import Path
 
 # Application metadata
 APP_NAME = "Bookmark Organizer Pro"
-APP_VERSION = "6.6.18"
+APP_VERSION = "6.6.19"
 APP_SUBTITLE = "Ultimate Bookmark Management"
 
 # Paths
@@ -42,6 +42,7 @@ EXPORTS_DIR = APP_DIR / "exports"
 FLOWS_FILE = DATA_DIR / "flows.json"
 FEEDS_FILE = DATA_DIR / "feeds.json"
 DEAD_LINKS_FILE = DATA_DIR / "dead_links.json"
+READER_ANNOTATIONS_FILE = DATA_DIR / "reader_annotations.json"
 
 _ALL_DIRS = [APP_DIR, FAVICON_DIR, CACHE_DIR, BACKUP_DIR, THEMES_DIR,
              SCREENSHOTS_DIR, LOGS_DIR, SNAPSHOTS_DIR, EXTRACTED_DIR,

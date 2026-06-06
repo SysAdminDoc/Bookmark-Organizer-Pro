@@ -76,6 +76,7 @@ class BookmarkCLI:
             "encrypt": self._cmd_encrypt,
             "decrypt": self._cmd_decrypt,
             "read-later": self._cmd_read_later,
+            "reader": self._cmd_reader,
             "api-server": self._cmd_api_server,
             "mcp-server": self._cmd_mcp_server,
             "mcp-http-server": self._cmd_mcp_http_server,
@@ -151,6 +152,7 @@ v6.0.0 commands:
   encrypt <pass> [src] [dst]    Encrypt a JSON file with AES-256-GCM
   decrypt <pass> <src> [dst]    Decrypt an encrypted JSON file
   read-later {{add|next|done|list}} <id>   Manage the read-later queue
+  reader {{list|add|note|delete|export}}   Manage reader highlights/notes
   api-server [--port N]          Run the local HTTP API for extensions/bookmarklet
   mcp-server                    Run the MCP server (stdio) for compatible clients.
   mcp-http-server [--host H] [--port N] [--path /mcp]
@@ -807,6 +809,118 @@ Top Domains:
                 ReadLaterQueue.complete(bm)
             self.bookmark_manager.save_bookmarks()
             print("ok")
+
+    def _cmd_reader(self, args):
+        from bookmark_organizer_pro.services.reader_annotations import (
+            HIGHLIGHT_COLORS,
+            ReaderAnnotationStore,
+            export_bookmark_highlights,
+        )
+        usage = (
+            "usage: reader {list <bookmark-id>|add <bookmark-id> <start> <end> "
+            "[--color yellow|green|blue|pink] [--note TEXT]|note <highlight-id> "
+            "<text>|delete <highlight-id>|export <bookmark-id> [--output DIR]}"
+        )
+        if not args:
+            print(usage)
+            return
+        store = ReaderAnnotationStore()
+        sub = args[0].lower()
+
+        if sub == "list" and len(args) >= 2:
+            try:
+                bid = int(args[1])
+            except ValueError:
+                print("error: bookmark ID must be an integer")
+                return
+            highlights = store.list_for_bookmark(bid)
+            if not highlights:
+                print("(no reader highlights)")
+                return
+            for item in highlights:
+                preview = " ".join(item.text.split())[:80]
+                note = f" note={item.note[:40]}" if item.note else ""
+                print(f"{item.id} {item.char_start}-{item.char_end} {item.color}: {preview}{note}")
+            return
+
+        if sub == "add" and len(args) >= 4:
+            try:
+                bid = int(args[1])
+                start = int(args[2])
+                end = int(args[3])
+            except ValueError:
+                print("error: bookmark ID and range must be integers")
+                return
+            color = "yellow"
+            note = ""
+            i = 4
+            while i < len(args):
+                if args[i] == "--color" and i + 1 < len(args):
+                    color = args[i + 1]
+                    i += 2
+                elif args[i].startswith("--color="):
+                    color = args[i].partition("=")[2]
+                    i += 1
+                elif args[i] == "--note" and i + 1 < len(args):
+                    note = args[i + 1]
+                    i += 2
+                elif args[i].startswith("--note="):
+                    note = args[i].partition("=")[2]
+                    i += 1
+                else:
+                    i += 1
+            if color.lower() not in HIGHLIGHT_COLORS:
+                print("error: color must be one of yellow, green, blue, pink")
+                return
+            bm = self.bookmark_manager.get_bookmark(bid)
+            if not bm:
+                print("not found")
+                return
+            try:
+                highlight = store.add_for_bookmark(bm, start, end, color=color, note=note)
+            except ValueError as exc:
+                print(f"error: {exc}")
+                return
+            print(f"highlight added: {highlight.id}")
+            return
+
+        if sub == "note" and len(args) >= 3:
+            if store.set_note(args[1], " ".join(args[2:])):
+                print("ok")
+            else:
+                print("not found")
+            return
+
+        if sub == "delete" and len(args) >= 2:
+            print("ok" if store.delete(args[1]) else "not found")
+            return
+
+        if sub == "export" and len(args) >= 2:
+            try:
+                bid = int(args[1])
+            except ValueError:
+                print("error: bookmark ID must be an integer")
+                return
+            output_dir = None
+            i = 2
+            while i < len(args):
+                if args[i] == "--output" and i + 1 < len(args):
+                    output_dir = Path(args[i + 1])
+                    i += 2
+                elif args[i].startswith("--output="):
+                    output_dir = Path(args[i].partition("=")[2])
+                    i += 1
+                else:
+                    i += 1
+            bm = self.bookmark_manager.get_bookmark(bid)
+            if not bm:
+                print("not found")
+                return
+            path = export_bookmark_highlights(bm, store.list_for_bookmark(bid), output_dir=output_dir)
+            print(f"reader highlights exported: {path}")
+            return
+
+        print(usage)
 
     def _cmd_mcp_server(self, args):
         from bookmark_organizer_pro.mcp_server import main as _mcp_main

@@ -3,6 +3,16 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.19 Reader Annotation Foundation
+
+- Advanced R-21: added durable reader highlight storage keyed by bookmark ID,
+  character range, selected text, color, note, and timestamps.
+- Added per-bookmark Markdown export for reader highlights and notes.
+- Added the `reader` CLI command group for add/list/note/delete/export against
+  existing extracted text.
+- Verification: compileall passed, focused reader/release metadata tests passed
+  with 18 tests, and the full suite passed with 340 tests.
+
 ## 2026-06-06 — v6.6.18 Sun Valley ttk Theme Integration
 
 - Completed R-18: optional `sv-ttk` support now applies a Sun Valley ttk base
