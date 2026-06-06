@@ -241,14 +241,23 @@ class AppShellMixin:
         # Separator
         tk.Frame(toolbar, bg=theme.border_muted, width=1, height=30).pack(side=tk.LEFT, padx=8)
         
+        # Settings gear
+        settings_btn = ModernButton(
+            toolbar, text="Settings", icon="⚙",
+            command=self._show_settings_menu,
+            tooltip="Settings: AI provider, themes, preferences"
+        )
+        settings_btn.pack(side=tk.LEFT, padx=3)
+        self.settings_btn = settings_btn
+
         # Theme dropdown
         self.theme_dropdown = ThemeDropdown(
             toolbar, self.theme_manager,
             on_change=lambda t: self._on_theme_change(t)
         )
         self.theme_dropdown.pack(side=tk.LEFT, padx=3)
-        Tooltip(self.theme_dropdown, "Change application theme/color scheme")
-        
+        Tooltip(self.theme_dropdown, "Choose a color theme")
+
         # Zoom controls
         tk.Frame(toolbar, bg=theme.border_muted, width=1, height=30).pack(side=tk.LEFT, padx=8)
         

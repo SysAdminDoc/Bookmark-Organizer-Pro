@@ -26,6 +26,24 @@ from bookmark_organizer_pro.url_utils import URLUtilities
 class ToolsActionsMixin:
     """Tools menu, maintenance, and utility actions used by the app coordinator."""
 
+    def _show_settings_menu(self):
+        """Show settings dropdown from the gear button."""
+        theme = get_theme()
+        menu = tk.Menu(self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
+                       font=FONTS.body(), activebackground=theme.bg_hover,
+                       activeforeground=theme.text_primary, bd=0)
+        menu.add_command(label="  AI Provider Settings", command=self._show_ai_settings)
+        menu.add_command(label="  Manage Categories", command=self._show_category_manager)
+        menu.add_separator()
+        menu.add_command(label="  Flatten All Folders", command=self._flatten_all_folders)
+        menu.add_command(label="  Clear All Tags", command=self._clear_all_tags)
+        menu.add_separator()
+        menu.add_command(label="  Backup Now", command=self._backup_now)
+
+        x = self.settings_btn.winfo_rootx()
+        y = self.settings_btn.winfo_rooty() + self.settings_btn.winfo_height()
+        menu.tk_popup(x, y)
+
     def _show_tools_menu(self):
         """Show tools menu"""
         theme = get_theme()
@@ -39,6 +57,13 @@ class ToolsActionsMixin:
         menu.add_command(label="  Import Categories File", command=self._import_categories_file)
         menu.add_command(label="  Set Custom Favicon", command=self._show_custom_favicon_dialog)
         menu.add_separator()
+
+        # Bulk cleanup operations
+        menu.add_command(label="  Flatten All Folders", command=self._flatten_all_folders)
+        menu.add_command(label="  Clear All Categories", command=self._clear_all_categories)
+        menu.add_command(label="  Clear All Tags", command=self._clear_all_tags)
+        menu.add_separator()
+
         menu.add_command(label="  Check All Links", command=self._check_all_links)
         menu.add_command(label="  Find Duplicates", command=self._find_duplicates)
         menu.add_command(label="  Clean Tracking Parameters", command=self._clean_urls)
@@ -54,6 +79,98 @@ class ToolsActionsMixin:
         x = self.tools_btn.winfo_rootx()
         y = self.tools_btn.winfo_rooty() + self.tools_btn.winfo_height()
         menu.tk_popup(x, y)
+
+    # ── Bulk cleanup ─────────────────────────────────────────────────
+
+    def _flatten_all_folders(self):
+        """Move every bookmark to a flat 'Uncategorized / Needs Review' category."""
+        bookmarks = self.bookmark_manager.get_all_bookmarks()
+        if not bookmarks:
+            self._show_toast("No bookmarks to flatten", "info")
+            return
+
+        categorized = [bm for bm in bookmarks if bm.category and bm.category != "Uncategorized / Needs Review"]
+        if not categorized:
+            self._show_toast("All bookmarks are already uncategorized", "info")
+            return
+
+        if not messagebox.askyesno(
+            "Flatten All Folders",
+            f"This will remove category assignments from {len(categorized)} bookmark(s) "
+            "and set them all to 'Uncategorized / Needs Review'.\n\n"
+            "You can re-categorize them afterwards with the pattern engine or AI.\n\n"
+            "Continue?",
+            parent=self.root,
+        ):
+            return
+
+        for bm in categorized:
+            bm.category = "Uncategorized / Needs Review"
+            bm.parent_category = ""
+        self.bookmark_manager.save_bookmarks()
+        self._refresh_all()
+        self._set_status(f"Flattened {len(categorized)} bookmarks out of folders")
+        self._show_toast(f"Moved {len(categorized)} bookmarks out of folders", "success")
+
+    def _clear_all_categories(self):
+        """Reset every bookmark's category to 'Uncategorized / Needs Review'."""
+        self._flatten_all_folders()
+
+    def _clear_all_tags(self):
+        """Strip tags from all bookmarks (or selected, if any are selected)."""
+        if self.selected_bookmarks:
+            targets = [self.bookmark_manager.get_bookmark(bid) for bid in self.selected_bookmarks]
+            targets = [bm for bm in targets if bm]
+            scope = f"{len(targets)} selected bookmark(s)"
+        else:
+            targets = self.bookmark_manager.get_all_bookmarks()
+            scope = f"all {len(targets)} bookmark(s)"
+
+        if not targets:
+            self._show_toast("No bookmarks to clear tags from", "info")
+            return
+
+        tagged = [bm for bm in targets if bm.tags or bm.ai_tags]
+        if not tagged:
+            self._show_toast("No tags to clear", "info")
+            return
+
+        if not messagebox.askyesno(
+            "Clear Tags",
+            f"Remove all tags from {scope}?\n\n"
+            f"{len(tagged)} bookmark(s) currently have tags.\n"
+            "This cannot be undone.",
+            parent=self.root,
+        ):
+            return
+
+        for bm in tagged:
+            bm.tags = []
+            bm.ai_tags = []
+        self.bookmark_manager.save_bookmarks()
+        self._refresh_all()
+        self._set_status(f"Cleared tags from {len(tagged)} bookmarks")
+        self._show_toast(f"Cleared tags from {len(tagged)} bookmarks", "success")
+
+    def _organize_selected(self):
+        """Auto-categorize + tag selected bookmarks using the pattern engine."""
+        if not self.selected_bookmarks:
+            self._show_toast("Select bookmarks first", "info")
+            return
+
+        changed = 0
+        for bm_id in self.selected_bookmarks:
+            bm = self.bookmark_manager.get_bookmark(bm_id)
+            if not bm:
+                continue
+            new_cat = self.category_manager.categorize_url(bm.url, bm.title)
+            if new_cat != bm.category:
+                bm.category = new_cat
+                changed += 1
+        self.bookmark_manager.save_bookmarks()
+        self._refresh_all()
+        self._set_status(f"Organized {len(self.selected_bookmarks)} bookmarks ({changed} re-categorized)")
+        self._show_toast(f"Re-categorized {changed} of {len(self.selected_bookmarks)} bookmarks", "success")
 
     def _categorize_all_bookmarks(self):
         """Reprocess all bookmarks and categorize them based on category patterns - non-blocking"""

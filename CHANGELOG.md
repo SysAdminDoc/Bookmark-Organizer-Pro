@@ -2,6 +2,32 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.4.0] - 2026-06-05
+
+Usability & bulk operations release.
+
+### Added
+
+- **Settings gear button** — toolbar button opens quick-access settings menu
+  (AI provider, categories, flatten, tags, backup)
+- **Bulk operations** — Flatten All Folders, Clear All Categories, Clear All Tags
+  available from Tools menu and Settings menu
+- **Selection bar "Organize" button** — one-click auto-categorize selected
+  bookmarks using the pattern engine
+- **Selection bar "Clear Tags" button** — strip tags from selected bookmarks
+- **Full GUI scaling** — zoom buttons (and Ctrl+Scroll) now scale fonts, button
+  padding, sidebar width, and all layout elements (not just text)
+- **Sidebar scroll fix** — mousewheel events propagate from all child widgets
+  so the left panel scrolls reliably everywhere
+
+### Changed
+
+- Theme dropdown button now reads "Themes" (was showing the active theme name,
+  which confused new users who didn't know what the button did)
+- Selection bar buttons now have tooltips explaining each action
+- All bulk cleanup operations work on selected bookmarks when a selection exists,
+  otherwise on the full library
+
 ## [v6.3.0] - 2026-06-05
 
 Feature release. 12 roadmap items shipped, 255 tests passing.

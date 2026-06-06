@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import ttk
 
@@ -16,39 +17,38 @@ class ZoomActionsMixin:
         if self.zoom_level < self.zoom_max:
             self.zoom_level = min(self.zoom_level + 15, self.zoom_max)
             self._apply_zoom()
-    
+
     def _zoom_out(self):
         """Decrease zoom level"""
         if self.zoom_level > self.zoom_min:
             self.zoom_level = max(self.zoom_level - 15, self.zoom_min)
             self._apply_zoom()
-    
+
     def _on_mousewheel_zoom(self, event):
         """Handle Ctrl+Scroll for zoom"""
-        # Check if Ctrl is pressed
-        if event.state & 0x4:  # Control key modifier
+        if event.state & 0x4:
             if event.delta > 0:
                 self._zoom_in()
             else:
                 self._zoom_out()
-            return "break"  # Prevent normal scrolling
-    
+            return "break"
+
     def _apply_zoom(self):
-        """Apply zoom to ALL UI text via the global FONTS system"""
-        # Update zoom label
+        """Apply zoom to ALL UI elements — fonts, spacing, widget sizes."""
         if self.zoom_label:
             self.zoom_label.configure(text=f"{self.zoom_level}%")
 
         scale = self.zoom_level / 100.0
 
         # Scale the global FONTS config (base sizes at 100%)
-        FONTS.size_title = max(12, int(16 * scale))
-        FONTS.size_header = max(10, int(12 * scale))
-        FONTS.size_body = max(8, int(10 * scale))
-        FONTS.size_small = max(7, int(9 * scale))
-        FONTS.size_tiny = max(7, int(8 * scale))
+        FONTS.size_title = max(12, int(18 * scale))
+        FONTS.size_subtitle = max(10, int(14 * scale))
+        FONTS.size_header = max(10, int(13 * scale))
+        FONTS.size_body = max(8, int(11 * scale))
+        FONTS.size_small = max(7, int(10 * scale))
+        FONTS.size_tiny = max(7, int(9 * scale))
 
-        # Update treeview (has its own style system)
+        # Scale treeview
         row_height = max(24, min(84, int(DesignTokens.TREEVIEW_ROW_HEIGHT * scale)))
         style = ttk.Style()
         style.configure("Treeview", rowheight=row_height, font=FONTS.body())
@@ -68,8 +68,51 @@ class ZoomActionsMixin:
         except Exception:
             pass
 
+        # Scale layout dimensions
+        self._rescale_layout(scale)
+
         # Force all widgets to redraw
         if self.root:
             self.root.update_idletasks()
 
         self._set_status(f"Zoom: {self.zoom_level}%")
+
+    def _rescale_layout(self, scale: float):
+        """Resize header, sidebar, status bar, and padding based on zoom scale."""
+        # Header height
+        header_h = max(60, int(76 * scale))
+        for child in self.main_container.winfo_children():
+            try:
+                if child.winfo_height() and child.cget("height"):
+                    pass
+            except Exception:
+                pass
+
+        # Sidebar width  (clamp 200–400)
+        sidebar_w = max(200, min(400, int(256 * scale)))
+        for child in self.main_container.winfo_children():
+            # content frame holds left/right sidebars
+            for sub in child.winfo_children():
+                try:
+                    if sub.cget("width") and int(sub.cget("width")) >= 200:
+                        current_w = int(sub.cget("width"))
+                        if 230 <= current_w <= 300:
+                            sub.configure(width=sidebar_w)
+                except (tk.TclError, ValueError):
+                    pass
+
+        # Scale button padding by updating all ModernButton instances recursively
+        self._rescale_buttons(self.root, scale)
+
+    def _rescale_buttons(self, widget, scale: float):
+        """Walk the widget tree and re-pad any ModernButton."""
+        from bookmark_organizer_pro.ui.widget_controls import ModernButton
+        try:
+            for child in widget.winfo_children():
+                if isinstance(child, ModernButton):
+                    pad_x = max(6, int(14 * scale))
+                    pad_y = max(4, int(7 * scale))
+                    child.label.configure(padx=pad_x, pady=pad_y)
+                self._rescale_buttons(child, scale)
+        except Exception:
+            pass

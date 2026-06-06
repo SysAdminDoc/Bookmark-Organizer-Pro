@@ -134,19 +134,33 @@ class DashboardActionsMixin:
 
         ModernButton(
             self.selection_bar, text="Open", icon="🔗",
-            command=self._open_selected, padx=12, pady=6
+            command=self._open_selected, padx=12, pady=6,
+            tooltip="Open selected bookmarks in browser"
         ).pack(side=tk.RIGHT, padx=(4, 10), pady=6)
         ModernButton(
             self.selection_bar, text="Edit", icon="✏️",
-            command=self._edit_selected, padx=12, pady=6
+            command=self._edit_selected, padx=12, pady=6,
+            tooltip="Edit the selected bookmark"
+        ).pack(side=tk.RIGHT, padx=4, pady=6)
+        ModernButton(
+            self.selection_bar, text="Organize",
+            command=self._organize_selected, padx=12, pady=6, style="primary",
+            tooltip="Auto-categorize and tag selected bookmarks with the pattern engine"
+        ).pack(side=tk.RIGHT, padx=4, pady=6)
+        ModernButton(
+            self.selection_bar, text="Clear Tags",
+            command=self._clear_all_tags, padx=12, pady=6,
+            tooltip="Remove all tags from selected bookmarks"
         ).pack(side=tk.RIGHT, padx=4, pady=6)
         ModernButton(
             self.selection_bar, text="Pin", icon="★",
-            command=self._toggle_pin, padx=12, pady=6
+            command=self._toggle_pin, padx=12, pady=6,
+            tooltip="Pin or unpin selected bookmarks"
         ).pack(side=tk.RIGHT, padx=4, pady=6)
         ModernButton(
             self.selection_bar, text="Delete", icon="🗑️",
-            command=self._delete_selected, style="danger", padx=12, pady=6
+            command=self._delete_selected, style="danger", padx=12, pady=6,
+            tooltip="Delete selected bookmarks"
         ).pack(side=tk.RIGHT, padx=4, pady=6)
 
     def _update_selection_bar(self):
