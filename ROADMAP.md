@@ -59,7 +59,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 
 ### Cycle Note — v4.0 (2026-06-05)
 
-This roadmap revision is a ground-up rewrite informed by 99 cited sources across OSS competitors, commercial services, dependency changelogs, CVE databases, MCP spec evolution, community forums, and review articles. Key changes from v3.x:
+This roadmap revision is a ground-up rewrite informed by 120 cited sources across OSS competitors (13+), commercial services (14), adjacent-domain projects (10), dependency changelogs (10), CVE databases (6 CVEs), MCP spec evolution, community forums (Reddit/HN/Lobsters/dev.to), awesome-lists, and review articles. Key changes from v3.x:
 
 - **Elevated security:** 2 new CVEs in `cryptography` (buffer overflow + cert bypass). MCP zero-auth and XXE vulnerabilities escalated to Now tier.
 - **MCP ecosystem shift:** MCP is no longer unique — Raindrop.io, Karakeep, Burn 451, and Bookmark Lens all ship MCP servers. BOP must add write tools and migrate to the 2026-07-28 stateless spec to stay competitive.
@@ -341,6 +341,8 @@ These ideas surfaced in research but need more validation before committing:
 | **Search history persistence** — persist to settings.json, show dropdown on focus | [S-1] | Low effort, moderate value. Bundle with a UI polish release. |
 | **Deduplicate Settings gear / Tools menu** — 3 items appear in both | [S-1] | UX improvement but low severity. |
 | **Theme-aware title bar** — light title bar on light themes (Windows) | [S-1] | Nice polish. Bundle with sv-ttk integration. |
+| **GoSuki-style browser file monitoring** — watch browser bookmark files via OS events, no extension needed | [S-113] | Alternative to R-01. Lower UX but zero install friction. Evaluate if extension dev stalls. |
+| **Floccus/XBEL round-trip verification** — validate BOP's XBEL handler works with Floccus for free cross-browser sync | [S-103] | Unblocks sync without building sync infrastructure. Test-only, S effort. |
 
 ---
 
@@ -520,3 +522,11 @@ These ideas surfaced in research but need more validation before committing:
 | S-110 | Zotero browser connector architecture (translator pattern) | https://github.com/zotero/zotero-connectors |
 | S-111 | Perplexica/Vane — citation architecture (inline [1][2] badges) | https://github.com/ItzCrazyKns/Perplexica |
 | S-112 | AnythingLLM — MCP host, workspaces as tools | https://github.com/Mintplex-Labs/anything-llm |
+| S-113 | GoSuki — extension-free cross-browser bookmark monitoring | https://github.com/blob42/gosuki |
+| S-114 | HN: "Tab Hoarding Journey to Sanity" — ADHD/visibility needs | https://hn.matthewblode.com/item/46529797 |
+| S-115 | kottke.org: bookmark manager recommendations (Oct 2025) | https://kottke.org/25/10/can-you-recommend-a-good-bookmark-manager |
+| S-116 | Mozilla Connect: AI tagging/categorizing request for Firefox | https://connect.mozilla.org/t5/ideas/automatic-tagging-categorizing-and-searching-of-bookmarks-using/idi-p/45605 |
+| S-117 | Bookmark manager software market ~$450M (2024), $1.2B by 2033 | https://www.cognitivemarketresearch.com/bookmark-manager-software-market-report |
+| S-118 | TabMark: AI saves 30-60 min/week on organization | https://tabmark.dev/blog/ai-bookmark-managers/ |
+| S-119 | shom.dev: Omnivore→Karakeep→Wallabag→Readeck migration | https://shom.dev/posts/20250629_bookmarking-i-mean-omnivoring-no-hoarding-no-bagging-dot-dot-dot-wait-decking/ |
+| S-120 | Betula — federated bookmark manager with ActivityPub | https://codeberg.org/bouncepaw/betula |
