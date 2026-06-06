@@ -3,6 +3,18 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.9 Updater Policy Foundation
+
+- Advanced R-41: added an optional `updates` dependency extra for tufup 0.10.x.
+- Added a disabled-by-default update policy service that persists HTTPS
+  metadata/target repository URLs, channel, prerelease preference, and readiness
+  status without downloading or applying binaries.
+- Added `updates status`, `updates check`, and `updates configure` CLI commands.
+- Verified live package availability: `tufup` latest is 0.10.0 and `tuf` latest
+  is 7.0.0.
+- Verification: compileall passed, focused updater/CLI/release metadata tests
+  passed with 17 tests, and the full suite passed with 315 tests.
+
 ## 2026-06-06 — v6.6.8 Nuitka Compile Smoke
 
 - Completed the local compile-smoke checkpoint for R-40.

@@ -48,6 +48,73 @@ class _IsolatedTestBase(unittest.TestCase):
         shutil.rmtree(cls._tmp, ignore_errors=True)
 
 
+# ── 0. Update policy ─────────────────────────────────────────────────
+
+class TestUpdateManager(_IsolatedTestBase):
+    """Tests for disabled-by-default update policy."""
+
+    def _updates_module(self):
+        import bookmark_organizer_pro.services.updates as updates
+        return importlib.reload(updates)
+
+    def setUp(self):
+        updates = self._updates_module()
+        if updates.UPDATE_CONFIG_FILE.exists():
+            updates.UPDATE_CONFIG_FILE.unlink()
+
+    def test_default_status_is_disabled(self):
+        updates = self._updates_module()
+        manager = updates.UpdateManager()
+
+        status = manager.status()
+
+        self.assertFalse(status.policy.enabled)
+        self.assertFalse(status.policy.configured)
+        self.assertFalse(status.can_check)
+        self.assertEqual(status.reason, "disabled")
+
+    def test_configure_requires_https_repository_urls(self):
+        updates = self._updates_module()
+        manager = updates.UpdateManager()
+
+        with self.assertRaises(ValueError):
+            manager.configure(metadata_url="http://updates.example.com/metadata")
+
+        policy = manager.configure(
+            enabled=True,
+            metadata_url="https://updates.example.com/metadata/",
+            targets_url="https://updates.example.com/targets/",
+            channel="stable",
+        )
+
+        self.assertTrue(policy.enabled)
+        self.assertEqual(policy.metadata_url, "https://updates.example.com/metadata")
+        self.assertEqual(policy.targets_url, "https://updates.example.com/targets")
+        self.assertTrue(policy.configured)
+
+    def test_status_ready_when_enabled_configured_and_tufup_available(self):
+        updates = self._updates_module()
+        manager = updates.UpdateManager()
+        manager.configure(
+            enabled=True,
+            metadata_url="https://updates.example.com/metadata",
+            targets_url="https://updates.example.com/targets",
+        )
+
+        with patch.object(updates, "tufup_available", return_value=True):
+            status = manager.status()
+
+        self.assertTrue(status.can_check)
+        self.assertEqual(status.reason, "ready")
+
+    def test_version_comparison(self):
+        updates = self._updates_module()
+
+        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.9"))
+        self.assertFalse(updates.is_newer_version("6.6.9", "6.6.9"))
+        self.assertFalse(updates.is_newer_version("6.6.8", "6.6.9"))
+
+
 # ── 1. EmbeddingService ──────────────────────────────────────────────
 
 class TestEmbeddingChunker(_IsolatedTestBase):
