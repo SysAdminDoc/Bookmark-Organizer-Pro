@@ -102,6 +102,11 @@ class TestCLIDispatch(CLITestBase):
         self.assertIn("Blocker: no staged update", out)
         self.assertIn("Blocker: update application is disabled in this release", out)
 
+    def test_updates_clean_staged_reports_default_empty(self):
+        out = self._run(["updates", "clean-staged"])
+        self.assertIn("Staged update cleanup:", out)
+        self.assertIn("no staged update", out)
+
     def test_main_entrypoint_accepts_argv(self):
         from bookmark_organizer_pro.cli import main
 

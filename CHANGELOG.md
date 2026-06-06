@@ -2,6 +2,24 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.26] - 2026-06-06
+
+Updater staged cleanup release.
+
+### Added — Distribution (R-41 partial)
+
+- **Staged cleanup** — added `UpdateManager.clear_staged_update()` to remove
+  the staged manifest and cached staged target files only.
+- **CLI cleanup** — added `updates clean-staged` for removing staged updater
+  artifacts without touching trusted metadata or app files.
+- **Cleanup reporting** — cleanup now reports whether the manifest was removed,
+  which staged targets were deleted, and any errors.
+
+### Tests
+
+- Added updater service coverage for cleanup success and empty cleanup state.
+- Added CLI coverage for the default `updates clean-staged` output.
+
 ## [v6.6.25] - 2026-06-06
 
 Updater apply preflight release.

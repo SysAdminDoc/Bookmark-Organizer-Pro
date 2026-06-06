@@ -161,7 +161,7 @@ v6.0.0 commands:
                                 Run the MCP Streamable HTTP server on loopback.
   sqlite-migrate [--source JSON] [--dest DB]
                                 Copy JSON bookmarks into an opt-in SQLite DB.
-  updates [status|check|configure|download|staged|apply [--dry-run]]
+  updates [status|check|configure|download|staged|clean-staged|apply [--dry-run]]
                                 Manage disabled-by-default update policy.
 
 Examples:
@@ -1052,13 +1052,16 @@ Top Domains:
         if sub == "staged":
             self._print_staged_update(manager.staged_update())
             return
+        if sub == "clean-staged":
+            self._print_update_cleanup(manager.clear_staged_update())
+            return
         if sub == "apply":
             if any(arg in ("--dry-run", "--preflight") for arg in args[1:]):
                 self._print_update_apply_preflight(manager.apply_preflight())
                 return
             self._print_update_apply_gate(manager)
             return
-        print("Usage: updates [status|check|configure|download|staged|apply [--dry-run]]")
+        print("Usage: updates [status|check|configure|download|staged|clean-staged|apply [--dry-run]]")
 
     def _print_update_status(self, status):
         policy = status.policy
@@ -1126,6 +1129,14 @@ Top Domains:
             print(f"Staged: {staged_path}")
         for blocker in result.blockers:
             print(f"Blocker: {blocker}")
+
+    def _print_update_cleanup(self, result):
+        print(f"Staged update cleanup: {result.reason}")
+        print(f"Removed manifest: {'yes' if result.removed_manifest else 'no'}")
+        for removed_target in result.removed_targets:
+            print(f"Removed target: {removed_target}")
+        for error in result.errors:
+            print(f"Error: {error}")
 
     def _configure_updates(self, manager, args):
         enabled = None

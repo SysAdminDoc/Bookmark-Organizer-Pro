@@ -3,6 +3,16 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.26 Updater Staged Cleanup
+
+- Advanced R-41: added staged-update cleanup for the manifest and cached staged
+  target files.
+- Added `UpdateManager.clear_staged_update()` and `updates clean-staged`.
+- Kept cleanup scoped to staged updater artifacts; trusted metadata and app
+  files are untouched.
+- Verification: compileall passed, focused updater/release metadata tests
+  passed with 34 tests, and the full suite passed with 356 tests.
+
 ## 2026-06-06 — v6.6.25 Updater Apply Preflight
 
 - Advanced R-41: added a dry-run update apply preflight that reports staged

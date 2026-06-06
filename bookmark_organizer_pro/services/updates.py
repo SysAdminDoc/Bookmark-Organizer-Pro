@@ -172,6 +172,15 @@ class UpdateApplyPreflightResult:
     reason: str
 
 
+@dataclass(frozen=True)
+class UpdateCleanupResult:
+    cleaned: bool
+    removed_manifest: bool
+    removed_targets: tuple[str, ...]
+    errors: tuple[str, ...]
+    reason: str
+
+
 class UpdateManager:
     """Manage local update policy without applying updates automatically."""
 
@@ -456,6 +465,42 @@ class UpdateManager:
             staged_paths=staged.staged_paths,
             blockers=tuple(blockers),
             reason="apply gated",
+        )
+
+    def clear_staged_update(self, *, remove_targets: bool = True) -> UpdateCleanupResult:
+        """Remove staged update manifest and cached staged targets only."""
+        staged = self.staged_update()
+        removed_targets = []
+        errors = []
+        if remove_targets:
+            for path_value in staged.staged_paths:
+                try:
+                    path = Path(self._ensure_staged_path(path_value))
+                    if path.exists():
+                        path.unlink()
+                        removed_targets.append(str(path))
+                except Exception as exc:
+                    errors.append(f"{type(exc).__name__}: {exc}")
+        removed_manifest = False
+        try:
+            if self.staged_manifest_path.exists():
+                self.staged_manifest_path.unlink()
+                removed_manifest = True
+        except Exception as exc:
+            errors.append(f"{type(exc).__name__}: {exc}")
+        cleaned = bool(removed_manifest or removed_targets)
+        if errors:
+            reason = "staged update cleanup incomplete"
+        elif cleaned:
+            reason = "staged update cleared"
+        else:
+            reason = "no staged update"
+        return UpdateCleanupResult(
+            cleaned=cleaned,
+            removed_manifest=removed_manifest,
+            removed_targets=tuple(removed_targets),
+            errors=tuple(errors),
+            reason=reason,
         )
 
     def check_for_updates(self, client_cls=None) -> UpdateCheckResult:
