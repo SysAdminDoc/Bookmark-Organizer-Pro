@@ -18,6 +18,7 @@ from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Category
 from bookmark_organizer_pro.ui.foundation import FONTS, pluralize
 from bookmark_organizer_pro.ui.management_dialogs import CategoryManagementDialog, CustomFaviconDialog
+from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog
 from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable
 from bookmark_organizer_pro.ui.widgets import AnalyticsDashboard, Tooltip, get_theme
 from bookmark_organizer_pro.url_utils import URLUtilities
@@ -68,6 +69,7 @@ class ToolsActionsMixin:
         menu.add_command(label="  Find Duplicates", command=self._find_duplicates)
         menu.add_command(label="  Clean Tracking Parameters", command=self._clean_urls)
         menu.add_separator()
+        menu.add_command(label="  Reader View", command=self._open_reader_view)
         menu.add_command(label="  Full Analytics", command=self._show_analytics)
         menu.add_command(label="  Backup Now", command=self._backup_now)
         menu.add_separator()
@@ -599,3 +601,20 @@ class ToolsActionsMixin:
                 on_update=self._refresh_all
             )
 
+    def _open_reader_view(self):
+        """Open the extracted-text reader for the first selected bookmark."""
+        if not self.selected_bookmarks:
+            messagebox.showinfo(
+                "Select a Bookmark",
+                "Select one bookmark before opening reader view.",
+                parent=self.root,
+            )
+            self._set_status("Select one bookmark to open reader view")
+            return
+        bm_id = list(self.selected_bookmarks)[0]
+        bookmark = self.bookmark_manager.get_bookmark(bm_id)
+        if not bookmark:
+            self._set_status("Selected bookmark was not found")
+            return
+        ReaderViewDialog(self.root, bookmark)
+        self._set_status(f"Reader opened for {bookmark.title[:60]}")

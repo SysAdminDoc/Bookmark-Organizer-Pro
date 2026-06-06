@@ -21,9 +21,9 @@
 
 ---
 
-## State of the Project (v6.6.19)
+## State of the Project (v6.6.20)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.19:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.20:
 
 - **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
@@ -31,8 +31,8 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 - **Preservation:** Single-file HTML snapshots (4-backend chain: monolith → singlefile → playwright → python), dead-link scanner, Wayback Machine, auto-snapshot scheduler
 - **Security:** AES-256-GCM encrypted DB, SSRF guards, prompt sanitization, API auth tokens, keyring storage
 - **Import/Export:** 14 importers (incl. Pocket, Readwise, Pinboard, Instapaper, Reddit, Matter, Zotero), 12 export formats (HTML/JSON/CSV/OPML/XBEL/Markdown/ZIP/Obsidian/EPUB/Atom/JSON Feed/Zotero RDF)
-- **UI:** 11 themes (incl. WCAG AA high-contrast), optional sv-ttk Sun Valley base theme, command palette, toast notifications, zoom, high-DPI, dashboard analytics, tksheet-backed virtualized bookmark list, reader highlight storage/export foundation
-- **CLI:** 38 subcommands, 340 tests in the current suite
+- **UI:** 11 themes (incl. WCAG AA high-contrast), optional sv-ttk Sun Valley base theme, command palette, toast notifications, zoom, high-DPI, dashboard analytics, tksheet-backed virtualized bookmark list, desktop reader pane with highlights/notes/export
+- **CLI:** 38 subcommands, 341 tests in the current suite
 - **Desktop:** Python ≥3.10, Tkinter, PyInstaller binary, cross-platform (Windows primary, macOS/Linux)
 
 ### Competitive Position (June 2026)
@@ -240,6 +240,13 @@ export, and a `reader` CLI command group. The desktop reader pane and
 interactive selection/editing UI remain open. Details:
 `docs/audit/2026-06-06-v6.6.19-reader-annotations-audit.md`.
 
+### Cycle Note — v6.6.20 (2026-06-06)
+
+R-21 shipped. The desktop app now opens a reader pane for selected bookmarks,
+renders saved highlights over extracted text, supports selection-based
+highlight creation, note editing, deletion, and Markdown export from the GUI.
+Details: `docs/audit/2026-06-06-v6.6.20-reader-pane-audit.md`.
+
 ### Hard Constraints
 
 - MIT license
@@ -340,7 +347,7 @@ interactive selection/editing UI remain open. Details:
 | ✅ R-18 | **sv-ttk theme integration** — optional `sunvalley` extra applies the Sun Valley ttk base theme when installed, with active-theme light/dark selection and built-in fallback when unavailable. | Done | M | [S-24][S-72] |
 | ✅ R-19 | Fix command palette FocusOut | Done | S | [S-1] |
 | ✅ R-20 | Fix GridView scroll stealing | Done | S | [S-1] |
-| 🚧 R-21 | **Reader view with highlight/annotation** — v6.6.19 added durable highlight/note storage, four-color labels, Markdown export, and `reader` CLI commands over extracted text. Desktop reader pane and interactive selection/editing remain open. | Later | L | [S-3][S-10][S-11][S-84] |
+| ✅ R-21 | **Reader view with highlight/annotation** — desktop reader pane opens extracted text, renders saved highlights, supports four-color selection highlights, per-highlight notes, deletion, and Markdown export. | Done | L | [S-3][S-10][S-11][S-84] |
 | 🔲 R-22 | **Graph view** — bookmarks as nodes, tags as edges, force-directed layout. | Later | L | [S-4] |
 
 ---
@@ -491,6 +498,7 @@ All items below shipped in v6.0.0 through v6.4.1. Full details in [CHANGELOG.md]
 | R-15D | Live FastMCP chat progress bridge and client smoke | v6.6.17 |
 | R-18 | Optional sv-ttk Sun Valley base theme integration | v6.6.18 |
 | R-21A | Reader highlight storage, notes, and Markdown export | v6.6.19 |
+| R-21 | Desktop reader pane with highlight/note editing | v6.6.20 |
 | BUG-01 through BUG-14 | All 14 known bugs fixed | v6.2.0-v6.4.1 |
 | + 30 v6.1.0 fixes | AI batch processor, chunk overlap, MCP schemas, CI flow, thread safety, etc. | v6.1.0 |
 
@@ -550,12 +558,11 @@ All Next-tier items have shipped through v6.6.8. Continue with Later-tier
 distribution and UI work, starting with R-41 unless a higher-priority audit
 finding appears.
 
-### Later — v7.x+ (6 active/open, R-15/R-21/R-41 in progress, R-17/R-18/R-26/R-50 shipped)
+### Later — v7.x+ (5 active/open, R-15/R-41 in progress, R-17/R-18/R-21/R-26/R-50 shipped)
 
 | # | Item | Effort | Category |
 |---|------|--------|----------|
 | R-15 | MCP streaming for RAG chat | M | MCP |
-| R-21 | Reader view with highlight/annotation | L | UI |
 | R-22 | Graph view (force-directed) | L | UI |
 | R-41 | tufup auto-update | M | Distribution |
 | R-02 | Web client (FastAPI + HTMX + PWA) | XL | Platform |

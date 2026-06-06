@@ -3,6 +3,16 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.20 Desktop Reader Pane
+
+- Completed R-21: added a Tk-native reader view for extracted text with saved
+  highlight rendering, selection-based highlight creation, notes, deletion, and
+  Markdown export.
+- Added reader entry points to the Tools menu, bookmark context menu, and
+  command palette.
+- Verification: compileall passed, focused reader/release metadata tests passed
+  with 26 tests, and the full suite passed with 341 tests.
+
 ## 2026-06-06 — v6.6.19 Reader Annotation Foundation
 
 - Advanced R-21: added durable reader highlight storage keyed by bookmark ID,

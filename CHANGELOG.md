@@ -2,6 +2,27 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.20] - 2026-06-06
+
+Desktop reader pane release.
+
+### Added — Reader (R-21)
+
+- **Reader dialog** — added a Tk-native reader view for selected bookmarks with
+  extracted text, saved highlight rendering, highlight list, and note editor.
+- **Selection highlights** — users can select text, choose one of four
+  highlight colors, and persist the highlight through the reader annotation
+  store.
+- **GUI export** — reader highlights can now be exported to Markdown from the
+  desktop dialog.
+- **App entry points** — added reader access through the Tools menu, bookmark
+  context menu, and command palette.
+
+### Tests
+
+- Added import coverage for the reader dialog UI surface alongside the reader
+  service and CLI tests from v6.6.19.
+
 ## [v6.6.19] - 2026-06-06
 
 Reader annotation foundation release.
