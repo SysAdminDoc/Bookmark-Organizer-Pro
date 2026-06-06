@@ -210,6 +210,8 @@ class TestChatStreaming(MCPToolTestBase):
         result = self.ms.t_chat_stream("What matters?", chunk_chars=10)
 
         self.assertEqual(result["mode"], "chunked_response_events")
+        self.assertEqual(result["stream_contract_version"], self.ms.CHAT_STREAM_CONTRACT_VERSION)
+        self.assertEqual(result["stream_event_types"], list(self.ms.CHAT_STREAM_EVENT_TYPES))
         self.assertFalse(result["provider_streaming"])
         self.assertTrue(result["done"])
         self.assertEqual(result["chunk_chars"], 40)
@@ -320,6 +322,14 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
             tools["chat_with_collection_stream"]["_meta"]["io.modelcontextprotocol/name"],
             "chat_with_collection_stream",
         )
+        self.assertEqual(
+            tools["chat_with_collection_stream"]["_meta"]["io.bookmarkorganizer/streamContractVersion"],
+            self.ms.CHAT_STREAM_CONTRACT_VERSION,
+        )
+        self.assertEqual(
+            tools["chat_with_collection_stream"]["_meta"]["io.bookmarkorganizer/streamEventTypes"],
+            list(self.ms.CHAT_STREAM_EVENT_TYPES),
+        )
         self.assertNotIn(
             "ctx",
             tools["chat_with_collection_stream"]["inputSchema"].get("properties", {}),
@@ -350,6 +360,14 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
         self.assertEqual(
             tools["chat_with_collection_stream"]["_meta"]["io.modelcontextprotocol/name"],
             "chat_with_collection_stream",
+        )
+        self.assertEqual(
+            tools["chat_with_collection_stream"]["_meta"]["io.bookmarkorganizer/streamContractVersion"],
+            self.ms.CHAT_STREAM_CONTRACT_VERSION,
+        )
+        self.assertEqual(
+            tools["chat_with_collection_stream"]["_meta"]["io.bookmarkorganizer/streamEventTypes"],
+            list(self.ms.CHAT_STREAM_EVENT_TYPES),
         )
         self.assertNotIn(
             "ctx",
@@ -445,6 +463,8 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
         self.assertGreaterEqual(len(progress), 2)
         self.assertEqual(progress[-1], (data["chunk_count"], data["chunk_count"], "complete"))
         self.assertEqual(data["mode"], "provider_stream_events")
+        self.assertEqual(data["stream_contract_version"], self.ms.CHAT_STREAM_CONTRACT_VERSION)
+        self.assertEqual(data["stream_event_types"], list(self.ms.CHAT_STREAM_EVENT_TYPES))
         self.assertTrue(data["provider_streaming"])
 
     def test_serve_http_requires_fastmcp(self):

@@ -3,6 +3,17 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.28 MCP Stream Contract Metadata
+
+- Advanced R-15: added a stable stream contract marker for
+  `chat_with_collection_stream`.
+- Exposed stream contract version and event types in tool metadata and final
+  stream payloads for raw and FastMCP paths.
+- Extended MCP streaming/runtime tests to verify the marker across payload and
+  client surfaces.
+- Verification: compileall passed, focused MCP/release metadata tests passed
+  with 27 tests, and the full suite passed with 359 tests.
+
 ## 2026-06-06 — v6.6.27 Updater Apply Plan
 
 - Advanced R-41: added a non-mutating apply plan with install path, rollback

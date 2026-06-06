@@ -1,14 +1,20 @@
-# Bookmark Organizer Pro v6.6.27
+# Bookmark Organizer Pro v6.6.28
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **single-file HTML snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
-![Version](https://img.shields.io/badge/version-6.6.27-blue.svg)
+![Version](https://img.shields.io/badge/version-6.6.28-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
 
 ![Bookmark Organizer Pro Screenshot](assets/screenshot.png)
+
+## What's new in v6.6.28
+
+- **MCP stream contract metadata** — `chat_with_collection_stream` now exposes
+  a stable stream contract version and event types in both tool metadata and
+  final payloads for raw and FastMCP clients.
 
 ## What's new in v6.6.27
 

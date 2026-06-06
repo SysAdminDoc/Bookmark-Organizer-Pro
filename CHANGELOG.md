@@ -2,6 +2,24 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.28] - 2026-06-06
+
+MCP stream contract release.
+
+### Added — MCP (R-15 partial)
+
+- **Stream contract marker** — added `CHAT_STREAM_CONTRACT_VERSION` and
+  `CHAT_STREAM_EVENT_TYPES` for the `chat_with_collection_stream` payload.
+- **Tool metadata** — raw MCP and FastMCP tool catalogs now expose the stream
+  contract version and event types under Bookmark Organizer metadata keys.
+- **Client validation** — FastMCP client smoke coverage now verifies the final
+  stream payload carries the same contract marker.
+
+### Tests
+
+- Extended MCP streaming/runtime tests for raw payloads, raw tool metadata,
+  FastMCP tool metadata, and FastMCP client responses.
+
 ## [v6.6.27] - 2026-06-06
 
 Updater apply plan release.
