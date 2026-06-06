@@ -11,6 +11,7 @@ import json
 import re
 import tempfile
 import shutil
+import sys
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -466,6 +467,41 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
         self.assertEqual(data["stream_contract_version"], self.ms.CHAT_STREAM_CONTRACT_VERSION)
         self.assertEqual(data["stream_event_types"], list(self.ms.CHAT_STREAM_EVENT_TYPES))
         self.assertTrue(data["provider_streaming"])
+
+    def test_stdio_client_lists_chat_stream_contract_metadata(self):
+        from mcp.client.session import ClientSession
+        from mcp.client.stdio import StdioServerParameters, stdio_client
+
+        async def _metadata():
+            with tempfile.TemporaryDirectory(prefix="bop_mcp_stdio_") as tmp:
+                env = os.environ.copy()
+                env["BOOKMARK_DATA_DIR"] = tmp
+                env["PYTHONPATH"] = str(ROOT)
+                params = StdioServerParameters(
+                    command=sys.executable,
+                    args=["-m", "bookmark_organizer_pro.mcp_server"],
+                    env=env,
+                )
+                async with stdio_client(params) as (read_stream, write_stream):
+                    async with ClientSession(read_stream, write_stream) as session:
+                        await session.initialize()
+                        result = await session.list_tools()
+                        tool = next(
+                            item for item in result.tools
+                            if item.name == "chat_with_collection_stream"
+                        )
+                        return tool.meta
+
+        meta = asyncio.run(_metadata())
+
+        self.assertEqual(
+            meta["io.bookmarkorganizer/streamContractVersion"],
+            self.ms.CHAT_STREAM_CONTRACT_VERSION,
+        )
+        self.assertEqual(
+            meta["io.bookmarkorganizer/streamEventTypes"],
+            list(self.ms.CHAT_STREAM_EVENT_TYPES),
+        )
 
     def test_serve_http_requires_fastmcp(self):
         with patch.object(self.ms, "_build_fastmcp_server", return_value=None):
