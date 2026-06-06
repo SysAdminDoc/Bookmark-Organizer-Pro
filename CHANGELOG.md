@@ -2,6 +2,22 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.29] - 2026-06-06
+
+MCP stdio contract smoke release.
+
+### Added — MCP (R-15 partial)
+
+- **Subprocess stdio smoke** — added a real MCP stdio client test that launches
+  the server with `python -m bookmark_organizer_pro.mcp_server`.
+- **Contract validation** — the stdio smoke initializes `ClientSession`, lists
+  tools, and verifies `chat_with_collection_stream` stream contract metadata.
+
+### Tests
+
+- Extended MCP runtime coverage from in-process FastMCP to subprocess stdio
+  metadata validation.
+
 ## [v6.6.28] - 2026-06-06
 
 MCP stream contract release.

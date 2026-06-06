@@ -21,9 +21,9 @@
 
 ---
 
-## State of the Project (v6.6.28)
+## State of the Project (v6.6.29)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.28:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.29:
 
 - **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
@@ -32,7 +32,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 - **Security:** AES-256-GCM encrypted DB, SSRF guards, prompt sanitization, API auth tokens, keyring storage
 - **Import/Export:** 14 importers (incl. Pocket, Readwise, Pinboard, Instapaper, Reddit, Matter, Zotero), 13 export formats (HTML/JSON/CSV/OPML/XBEL/Markdown/ZIP/Obsidian/EPUB/Atom/JSON Feed/Zotero RDF/Graph JSON)
 - **UI:** 11 themes (incl. WCAG AA high-contrast), optional sv-ttk Sun Valley base theme, command palette, toast notifications, zoom, high-DPI, dashboard analytics, tksheet-backed virtualized bookmark list, desktop reader pane with highlights/notes/export, desktop graph view
-- **CLI:** 39 subcommands, 359 tests in the current suite
+- **CLI:** 39 subcommands, 360 tests in the current suite
 - **Desktop:** Python ≥3.10, Tkinter, PyInstaller binary, cross-platform (Windows primary, macOS/Linux)
 
 ### Competitive Position (June 2026)
@@ -313,6 +313,14 @@ metadata. Raw and FastMCP catalog tests plus the FastMCP client smoke now verify
 the marker across client-visible surfaces. Details:
 `docs/audit/2026-06-06-v6.6.28-mcp-stream-contract-audit.md`.
 
+### Cycle Note — v6.6.29 (2026-06-06)
+
+R-15 remains in progress. The test suite now launches the MCP server as a
+subprocess over stdio, initializes an MCP `ClientSession`, lists tools, and
+verifies the `chat_with_collection_stream` stream contract metadata over the
+stdio transport. Details:
+`docs/audit/2026-06-06-v6.6.29-mcp-stdio-contract-audit.md`.
+
 ### Hard Constraints
 
 - MIT license
@@ -383,7 +391,7 @@ the marker across client-visible surfaces. Details:
 | ✅ R-12 | YouTube transcript capture | Done | M | [S-6][S-18] |
 | ✅ R-13 | Smart Collections | Done | M | [S-10][S-19] |
 | ✅ R-14 | MCP auth scopes | Done | M | [S-14] |
-| 🚧 R-15 | **MCP streaming** for `chat_with_collection` — stream RAG responses token-by-token. v6.6.14 added stream-shaped MCP response events; v6.6.15 added provider-native streaming adapters for OpenAI-compatible providers and Ollama; v6.6.16 added FastMCP progress notifications; v6.6.17 added a live progress bridge and in-process client smoke; v6.6.28 added stable stream contract metadata across payload and tool catalogs. Broader transport/client validation remains open. | Later | M | [S-14][S-79] |
+| 🚧 R-15 | **MCP streaming** for `chat_with_collection` — stream RAG responses token-by-token. v6.6.14 added stream-shaped MCP response events; v6.6.15 added provider-native streaming adapters for OpenAI-compatible providers and Ollama; v6.6.16 added FastMCP progress notifications; v6.6.17 added a live progress bridge and in-process client smoke; v6.6.28 added stable stream contract metadata across payload and tool catalogs; v6.6.29 added subprocess stdio contract validation. Streamable HTTP validation remains open. | Later | M | [S-14][S-79] |
 
 **Justification:** MCP write tools are needed for AI agent curation workflows (Burn 451 already ships delete/update). The 2026-07-28 spec is the biggest MCP revision since launch — going stateless, adding caching, aligning with OAuth 2.0 [S-79]. FastMCP 3.4 brings OTEL observability and remote server support [S-81]. GUI chat panel is the #1 feature gap vs Raindrop Stella and Markwise.
 
@@ -563,6 +571,7 @@ All items below shipped in v6.0.0 through v6.4.1. Full details in [CHANGELOG.md]
 | R-15C | FastMCP chat stream progress notifications | v6.6.16 |
 | R-15D | Live FastMCP chat progress bridge and client smoke | v6.6.17 |
 | R-15E | Chat stream contract metadata across payload and tool catalogs | v6.6.28 |
+| R-15F | Stdio client stream contract metadata smoke | v6.6.29 |
 | R-18 | Optional sv-ttk Sun Valley base theme integration | v6.6.18 |
 | R-21A | Reader highlight storage, notes, and Markdown export | v6.6.19 |
 | R-21 | Desktop reader pane with highlight/note editing | v6.6.20 |

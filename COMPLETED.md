@@ -3,6 +3,16 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.29 MCP Stdio Stream Contract Smoke
+
+- Advanced R-15: added subprocess stdio transport validation for
+  `chat_with_collection_stream` contract metadata.
+- The test launches the MCP server through `python -m
+  bookmark_organizer_pro.mcp_server`, initializes `ClientSession`, lists tools,
+  and verifies the stream contract marker.
+- Verification: compileall passed, focused MCP/release metadata tests passed
+  with 28 tests, and the full suite passed with 360 tests.
+
 ## 2026-06-06 — v6.6.28 MCP Stream Contract Metadata
 
 - Advanced R-15: added a stable stream contract marker for
