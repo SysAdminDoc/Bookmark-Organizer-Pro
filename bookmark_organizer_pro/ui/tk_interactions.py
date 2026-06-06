@@ -5,11 +5,19 @@ from __future__ import annotations
 from typing import Callable
 
 
+def _get_focus_color(fallback: str = "#5b8cff") -> str:
+    try:
+        from bookmark_organizer_pro.ui.widget_runtime import get_theme
+        return get_theme().accent_primary
+    except Exception:
+        return fallback
+
+
 def make_keyboard_activatable(
     widget,
     command: Callable[[], object],
     cursor: str = "hand2",
-    focus_color: str = "#5b8cff",
+    focus_color: str = "",
 ):
     """Make a Tk widget respond like a small button.
 
@@ -17,6 +25,8 @@ def make_keyboard_activatable(
     gives those widgets a focus target and keyboard activation while preserving
     the existing visual treatment.
     """
+    if not focus_color:
+        focus_color = _get_focus_color()
     if not callable(command):
         return widget
 

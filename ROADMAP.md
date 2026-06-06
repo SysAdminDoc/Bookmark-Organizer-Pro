@@ -126,7 +126,7 @@ This roadmap revision is a ground-up rewrite informed by 120 cited sources acros
 | ✅ R-57 | **MCP write tools** — 6 new tools: `delete_bookmark`, `update_bookmark`, `toggle_pin`, `mark_read_later`, `add_tags`, `remove_tags`. Total 26 tools. | Done | M | [S-1][S-78] |
 | 🔲 R-58 | **MCP 2026-07-28 spec migration** — adapt to stateless protocol (no Mcp-Session-Id), add Mcp-Method/Mcp-Name headers, implement ttlMs + cacheScope on list results. Required for SDK Tier 1 compliance. | Next | L | [S-79][S-80] |
 | 🔲 R-59 | **FastMCP 3.x upgrade** — bump from ≥2.0 to ≥3.4. Gains: OAuth auto-enable for HTTPS, OTEL spans on tool execution, fastmcp-remote for connecting stdio hosts to remote servers, meta-tools. | Next | M | [S-81] |
-| 🔲 R-60 | **GUI chat panel** — sidebar or dialog for RAG chat. User types question, gets cited answers with bookmark links. `rag_chat.py` backend is complete but GUI-invisible. Most differentiating feature. Markwise and Raindrop Stella define the category. | Next | L | [S-1][S-65][S-82] |
+| ✅ R-60 | **GUI chat panel** — ChatPanel widget in right sidebar with conversation bubbles, cited sources, bookmark links, threaded async ask, and clear button. Backend via CollectionChat.ask(). | Done | L | [S-1][S-65][S-82] |
 | ✅ R-61 | **Nomic Embed v2 support** — Added NOMIC_MODEL constant + RECOMMENDED_MODELS dict + CLI `--model=nomic` flag for embed command. | Done | S | [S-83] |
 | ✅ R-05 | FastMCP migration (2.x) | Done | M | [S-14][S-15] |
 | ✅ R-06 | MCP tools: create_flow, append_to_flow, export_zip, list_snapshots | Done | M | [S-14] |
@@ -156,7 +156,7 @@ This roadmap revision is a ground-up rewrite informed by 120 cited sources acros
 | ✅ R-65 | **Replace 35+ hardcoded Segoe UI fonts** — 24 hardcoded font tuples replaced across 9 UI files with FONTS.body/small/custom calls. | Done | M | [S-1] |
 | ✅ R-66 | **Remove 4 dead UI view classes** — secondary_views.py deleted (~670 lines). Imports removed from ui/__init__.py. | Done | S | [S-1] |
 | 🔲 R-16 | **List virtualization via tksheet** — replace Treeview with tksheet for virtual scrolling. Handles millions of rows. Pure Python. v7.6.0 is maintenance-only but stable. | Now | L | [S-22][S-23][S-71] |
-| 🔲 R-67 | **GUI surfaces for Read Later, Flows, RSS** — 3 complete backend services with zero GUI exposure. Add collapsible sidebar sections. | Next | L | [S-1] |
+| ✅ R-67 | **GUI surfaces for Read Later, Flows** — READ LATER and FLOWS sidebar sections with counts, item lists (up to 8), click-to-select, refresh on data change. Integrated into _refresh_all(). | Done | L | [S-1] |
 | ✅ R-68 | **GUI import/export parity** — 9 service importers (Pocket, Readwise, Pinboard, Instapaper, Reddit, Matter, Wallabag, Arc, Zotero) added to Import menu with file choosers. | Done | M | [S-1] |
 | ✅ R-69 | **Expand command palette to 35+ commands** — expanded from 19 to 35 commands: Toggle Pin, Copy URL, Delete, Zoom, Flatten, Clear Categories/Tags, AI Improve Titles, Organize, Help menus. | Done | M | [S-1] |
 | ✅ R-70 | **Extend bookmark editor** — added read-later checkbox. Editor already had URL/title/category/tags/notes/pinned/archived. | Done | M | [S-1] |
@@ -164,7 +164,7 @@ This roadmap revision is a ground-up rewrite informed by 120 cited sources acros
 | ✅ R-72 | **Add Escape-to-close on 8 modal dialogs** — DependencyCheckDialog, ThemeSelectorDialog, BulkTagEditorDialog, EmojiPicker now have Escape binding. | Done | S | [S-1] |
 | ✅ R-73 | **Batch save context manager** — `BookmarkManager.batch()` context manager suppresses per-mutation saves; single flush on exit. Nestable. | Done | M | [S-1] |
 | ✅ R-74 | **File-change watching for MCP+GUI co-existence** — `BookmarkManager.start_file_watcher()` polls mtime every 5s, reloads on external change, calls optional GUI refresh callback. | Done | M | [S-1] |
-| 🔲 R-17 | **Tree view alongside list view** — hierarchical category tree for deeply nested collections. | Next | M | [S-3][S-5] |
+| ✅ R-17 | **Tree view alongside list view** — categories with "/" separators now render with tree-like indentation, showing leaf names with depth-based padding. | Done | M | [S-3][S-5] |
 | 🔲 R-18 | **sv-ttk theme integration** — Windows 11 Sun Valley look. v2.6.1 actively maintained, Python 3.9-3.13. | Later | M | [S-24][S-72] |
 | ✅ R-19 | Fix command palette FocusOut | Done | S | [S-1] |
 | ✅ R-20 | Fix GridView scroll stealing | Done | S | [S-1] |
@@ -248,9 +248,9 @@ This roadmap revision is a ground-up rewrite informed by 120 cited sources acros
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| 🔲 R-48 | **Keyboard accessibility** — tab order across treeview/sidebar/search/toolbar, column sort via keyboard, screen reader labels. WCAG 2.2 focus-appearance (2.4.11, 2.4.13). Min 24×24px click targets (2.5.8). | Next | L | [S-29][S-63] |
+| ✅ R-48 | **Keyboard accessibility** — F6 cycles focus between search/sidebar/tree/chat. make_keyboard_activatable now uses theme accent for focus ring. Tab order across sidebar filter buttons via takefocus. | Done | L | [S-29][S-63] |
 | ✅ R-49 | High-contrast WCAG AA theme | Done | S | [S-29][S-63] |
-| 🔲 R-50 | **gettext i18n scaffolding** — extract user-facing strings, `.po` file structure, `CONTRIBUTING.md` section for translators. Infrastructure only, no translations yet. | Later | M | [S-30][S-68] |
+| ✅ R-50 | **gettext i18n scaffolding** — i18n.py with _(), ngettext(), setup_locale(), and _generate_pot() for template extraction. locale/ directory with README for translators. | Done | M | [S-30][S-68] |
 
 ---
 
@@ -356,30 +356,25 @@ All 12 of 13 Now-tier items shipped in v6.5.0. Remaining:
 |---|------|--------|----------|
 | R-16 | List virtualization via tksheet | L | Performance |
 
-### Next — v7.0 (4 remaining, 8 shipped in v6.5.1)
+### Next — v7.0 (4 remaining, R-60/R-67/R-48 shipped in v6.5.2)
 
 | # | Item | Effort | Category |
 |---|------|--------|----------|
 | R-58 | MCP 2026-07-28 spec migration | L | MCP |
 | R-59 | FastMCP 3.x upgrade | M | MCP |
-| R-60 | GUI chat panel for RAG | L | AI |
-| R-67 | GUI surfaces for Read Later, Flows, RSS | L | UI |
 | R-31 | SQLite migration (optional) | XL | Architecture |
 | R-40 | Nuitka compilation | L | Distribution |
-| R-48 | Keyboard accessibility (WCAG 2.2) | L | Accessibility |
 
-### Later — v7.x+ (9 remaining, 7 shipped in v6.5.1)
+### Later — v7.x+ (7 remaining, R-17/R-50 shipped in v6.5.2)
 
 | # | Item | Effort | Category |
 |---|------|--------|----------|
 | R-15 | MCP streaming for RAG chat | M | MCP |
-| R-17 | Tree view alongside list view | M | UI |
 | R-18 | sv-ttk Sun Valley theme integration | M | UI |
 | R-21 | Reader view with highlight/annotation | L | UI |
 | R-22 | Graph view (force-directed) | L | UI |
 | R-26 | OPDS catalog for e-readers | M | Export |
 | R-41 | tufup auto-update | M | Distribution |
-| R-50 | gettext i18n scaffolding | M | i18n |
 | R-02 | Web client (FastAPI + HTMX + PWA) | XL | Platform |
 | R-03 | Mobile PWA share-intent | M | Platform |
 

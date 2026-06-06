@@ -12,6 +12,7 @@ from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, readable_t
 from bookmark_organizer_pro.ui.shell_widgets import ViewMode
 from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable
 from bookmark_organizer_pro.ui.treeview import SortableTreeview
+from bookmark_organizer_pro.ui.widget_chat_panel import ChatPanel
 from bookmark_organizer_pro.ui.widgets import ModernButton, Tooltip, get_theme
 
 
@@ -452,8 +453,52 @@ class AppShellMixin:
         
         # Categories list
         self.categories_frame = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
-        self.categories_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(0, 20))
-        
+        self.categories_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(0, 12))
+
+        # --- Read Later section (R-67) ---
+        rl_header = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
+        rl_header.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(4, 7))
+        tk.Label(
+            rl_header, text="READ LATER", bg=theme.bg_dark,
+            fg=theme.text_muted, font=FONTS.tiny(bold=True),
+        ).pack(side=tk.LEFT)
+        self._rl_count_label = tk.Label(
+            rl_header, text="0", bg=theme.bg_dark,
+            fg=theme.text_muted, font=FONTS.tiny(),
+        )
+        self._rl_count_label.pack(side=tk.RIGHT)
+
+        self._rl_frame = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
+        self._rl_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(0, 12))
+        self._rl_empty = tk.Label(
+            self._rl_frame, text="No items queued",
+            bg=theme.bg_dark, fg=theme.text_muted, font=FONTS.small(),
+            anchor="w",
+        )
+        self._rl_empty.pack(fill=tk.X, pady=2)
+
+        # --- Flows section (R-67) ---
+        flows_header = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
+        flows_header.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(4, 7))
+        tk.Label(
+            flows_header, text="FLOWS", bg=theme.bg_dark,
+            fg=theme.text_muted, font=FONTS.tiny(bold=True),
+        ).pack(side=tk.LEFT)
+        self._flows_count_label = tk.Label(
+            flows_header, text="0", bg=theme.bg_dark,
+            fg=theme.text_muted, font=FONTS.tiny(),
+        )
+        self._flows_count_label.pack(side=tk.RIGHT)
+
+        self._flows_frame = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
+        self._flows_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(0, 20))
+        self._flows_empty = tk.Label(
+            self._flows_frame, text="No research flows",
+            bg=theme.bg_dark, fg=theme.text_muted, font=FONTS.small(),
+            anchor="w",
+        )
+        self._flows_empty.pack(fill=tk.X, pady=2)
+
         # ----- MAIN CONTENT -----
         self.content_area = tk.Frame(content, bg=theme.bg_primary)
         self.content_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -550,6 +595,112 @@ class AppShellMixin:
         self.right_scroll = ScrollableFrame(right_sidebar, bg=theme.bg_dark)
         self.right_scroll.pack(fill=tk.BOTH, expand=True)
         
+        # Chat Panel (R-60)
+        self.chat_panel = ChatPanel(
+            self.right_scroll.inner,
+            on_ask=self._on_chat_ask,
+            on_bookmark_click=self._on_chat_bookmark_click,
+        )
+        self.chat_panel.pack(fill=tk.X, pady=(0, DesignTokens.SPACE_SM))
+
         # Analytics Dashboard
         self._create_analytics_panel()
 
+    # --- Chat panel handlers (R-60) -----------------------------------------
+
+    def _on_chat_ask(self, question: str):
+        import threading
+        def _do_ask():
+            try:
+                from bookmark_organizer_pro.ai import AIConfigManager
+                from bookmark_organizer_pro.services.embeddings import EmbeddingService
+                from bookmark_organizer_pro.services.vector_store import VectorStore
+                from bookmark_organizer_pro.services.rag_chat import CollectionChat
+
+                if not hasattr(self, "_chat_service") or self._chat_service is None:
+                    emb = EmbeddingService()
+                    vs = VectorStore(emb)
+                    self._chat_service = CollectionChat(self.ai_config, vs)
+
+                turn = self._chat_service.ask(question)
+                self.root.after(0, lambda: self.chat_panel.show_answer(
+                    turn.answer, sources=turn.sources,
+                ))
+            except Exception as exc:
+                self.root.after(0, lambda: self.chat_panel.show_error(
+                    f"Error: {str(exc)[:100]}"
+                ))
+
+        threading.Thread(target=_do_ask, daemon=True).start()
+
+    def _on_chat_bookmark_click(self, bookmark_id: int):
+        bm = self.bookmark_manager.get_bookmark(bookmark_id)
+        if bm:
+            from bookmark_organizer_pro.ui.widget_runtime import _open_external_url
+            _open_external_url(bm.url)
+
+    # --- Sidebar refresh helpers (R-67) -------------------------------------
+
+    def _refresh_read_later_sidebar(self):
+        from bookmark_organizer_pro.services.read_later import ReadLaterQueue
+        theme = get_theme()
+        bms = self.bookmark_manager.get_all_bookmarks()
+        queue = ReadLaterQueue.list_queue(bms)
+
+        for w in self._rl_frame.winfo_children():
+            w.destroy()
+
+        self._rl_count_label.config(text=str(len(queue)))
+        if not queue:
+            tk.Label(
+                self._rl_frame, text="No items queued",
+                bg=theme.bg_dark, fg=theme.text_muted, font=FONTS.small(),
+                anchor="w",
+            ).pack(fill=tk.X, pady=2)
+            return
+
+        for bm in queue[:8]:
+            title = (bm.title or bm.url)[:40]
+            row = tk.Label(
+                self._rl_frame, text=f"  {title}",
+                bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small(),
+                cursor="hand2", anchor="w",
+            )
+            row.pack(fill=tk.X, pady=1)
+            row.bind("<Button-1>", lambda e, b=bm: self._select_bookmark_by_id(b.id))
+
+    def _refresh_flows_sidebar(self):
+        from bookmark_organizer_pro.services.flows import FlowManager
+        theme = get_theme()
+        fm = FlowManager()
+        flows = fm.list_flows()
+
+        for w in self._flows_frame.winfo_children():
+            w.destroy()
+
+        self._flows_count_label.config(text=str(len(flows)))
+        if not flows:
+            tk.Label(
+                self._flows_frame, text="No research flows",
+                bg=theme.bg_dark, fg=theme.text_muted, font=FONTS.small(),
+                anchor="w",
+            ).pack(fill=tk.X, pady=2)
+            return
+
+        for flow in flows[:8]:
+            label = f"  {flow.icon or '📋'} {flow.name}"[:40]
+            row = tk.Label(
+                self._flows_frame, text=label,
+                bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small(),
+                cursor="hand2", anchor="w",
+            )
+            row.pack(fill=tk.X, pady=1)
+
+    def _select_bookmark_by_id(self, bookmark_id: int):
+        for item in self.tree.get_children():
+            values = self.tree.item(item, "values")
+            if values and str(values[0]) == str(bookmark_id):
+                self.tree.selection_set(item)
+                self.tree.see(item)
+                self.tree.focus(item)
+                return

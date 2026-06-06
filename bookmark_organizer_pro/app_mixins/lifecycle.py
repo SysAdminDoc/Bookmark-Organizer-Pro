@@ -41,6 +41,16 @@ class LifecycleActionsMixin:
         self._refresh_category_list()
         self._refresh_bookmark_list()
         self._refresh_analytics()
+        if hasattr(self, "_refresh_read_later_sidebar"):
+            try:
+                self._refresh_read_later_sidebar()
+            except Exception:
+                pass
+        if hasattr(self, "_refresh_flows_sidebar"):
+            try:
+                self._refresh_flows_sidebar()
+            except Exception:
+                pass
     
     def _set_status(self, message: str):
         """Set status message and update counts"""
@@ -101,6 +111,35 @@ class LifecycleActionsMixin:
         
         # Schedule next poll (30 seconds)
         self._analytics_poll_id = self.root.after(30000, self._poll_analytics)
+
+    def _cycle_focus_section(self):
+        """Cycle keyboard focus between search, sidebar, and bookmark list (F6)."""
+        targets = []
+        if hasattr(self, "search_entry") and self.search_entry:
+            targets.append(self.search_entry)
+        if hasattr(self, "filter_buttons"):
+            first_filter = list(self.filter_buttons.values())
+            if first_filter:
+                targets.append(first_filter[0])
+        if hasattr(self, "tree") and self.tree:
+            targets.append(self.tree)
+        if hasattr(self, "chat_panel") and self.chat_panel:
+            targets.append(self.chat_panel._entry)
+        if not targets:
+            return "break"
+        try:
+            current = self.root.focus_get()
+            idx = -1
+            for i, t in enumerate(targets):
+                if current is t or (hasattr(current, "master") and current.master is t):
+                    idx = i
+                    break
+            next_idx = (idx + 1) % len(targets)
+            targets[next_idx].focus_set()
+        except Exception:
+            if targets:
+                targets[0].focus_set()
+        return "break"
 
     def _on_close(self):
         """Handle close"""

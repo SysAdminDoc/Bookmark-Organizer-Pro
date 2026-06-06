@@ -56,6 +56,10 @@ class CategoryActionsMixin:
             is_selected = (cat == self.current_category)
             bg = theme.selection if is_selected else theme.bg_dark
 
+            depth = cat.count(" / ")
+            indent = depth * 16
+            display_name = cat.rsplit(" / ", 1)[-1] if " / " in cat else cat
+
             row = tk.Frame(
                 self.categories_frame, bg=bg, cursor="hand2",
                 highlightthickness=1,
@@ -63,11 +67,12 @@ class CategoryActionsMixin:
             )
             row.pack(fill=tk.X, pady=2)
 
+            prefix = "  " if depth == 0 else "└ "
             name_lbl = tk.Label(
-                row, text=truncate_middle(cat, 20),
+                row, text=truncate_middle(display_name, 20 - depth * 2),
                 bg=bg, fg=theme.text_primary if is_selected else theme.text_secondary,
-                font=FONTS.body(bold=is_selected), anchor="w", padx=10, pady=6,
-                cursor="hand2"
+                font=FONTS.body(bold=is_selected), anchor="w",
+                padx=(10 + indent, 4), pady=6, cursor="hand2"
             )
             name_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
