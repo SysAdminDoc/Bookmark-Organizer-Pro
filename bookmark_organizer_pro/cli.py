@@ -1046,8 +1046,11 @@ Top Domains:
         if sub == "configure":
             self._configure_updates(manager, args[1:])
             return
-        if sub in ("download", "apply"):
-            self._print_update_mutation_gate(manager, sub)
+        if sub == "download":
+            self._print_update_download_result(manager.download_update())
+            return
+        if sub == "apply":
+            self._print_update_apply_gate(manager)
             return
         print("Usage: updates [status|check|configure|download|apply]")
 
@@ -1061,9 +1064,30 @@ Top Domains:
         print(f"Trusted root: {'present' if status.trusted_root_exists else 'missing'}")
         print(f"Status: {status.reason}")
 
-    def _print_update_mutation_gate(self, manager, action: str):
+    def _print_update_download_result(self, result):
+        if result.downloaded:
+            print(f"Update staged: {result.latest_version}")
+            if result.target_name:
+                print(f"Target: {result.target_name}")
+            for staged_path in result.staged_paths:
+                print(f"Staged: {staged_path}")
+            print("Run updates apply after install and rollback gates are available.")
+            return
+        if result.error:
+            print(f"Update download failed: {result.reason}")
+            print(f"Error: {result.error}")
+            return
+        if result.update_available:
+            print(f"Update available but not staged: {result.reason}")
+            return
+        if result.checked:
+            print(f"No update available: {result.reason}")
+            return
+        print(f"Update download not ready: {result.reason}")
+
+    def _print_update_apply_gate(self, manager):
         status = manager.status()
-        print(f"Update {action} is disabled in this release.")
+        print("Update apply is disabled in this release.")
         print("Run updates check to verify trusted metadata readiness first.")
         if not status.can_check:
             print(f"Readiness: {status.reason}")

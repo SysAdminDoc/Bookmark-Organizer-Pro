@@ -2,6 +2,31 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.23] - 2026-06-06
+
+Updater download staging release.
+
+### Added — Distribution (R-41 partial)
+
+- **Trusted target staging** — `UpdateManager.download_update()` now runs the
+  same tufup trusted metadata check as `updates check`, then stages the selected
+  target files in the update cache with `Client.download_target()`.
+- **CLI staging path** — `updates download` now reports staged target paths
+  when readiness gates pass, while preserving disabled/not-ready output for
+  default installs.
+- **Cache boundary guard** — staged target paths are validated to stay under
+  the update target cache before they are reported.
+
+### Notes
+
+- `updates apply` remains an explicit refusal gate until install directory
+  isolation, rollback, and user confirmation are implemented and tested.
+
+### Tests
+
+- Added updater service coverage for staged target downloads and cache-escape
+  rejection, plus CLI coverage for the new `updates download` default output.
+
 ## [v6.6.22] - 2026-06-06
 
 Desktop graph view release.

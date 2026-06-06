@@ -127,7 +127,7 @@ class TestUpdateManager(_IsolatedTestBase):
 
     def test_check_for_updates_uses_client_without_downloading(self):
         updates = self._updates_module()
-        manager = updates.UpdateManager(current_version="6.6.22")
+        manager = updates.UpdateManager(current_version="6.6.23")
         manager.configure(
             enabled=True,
             metadata_url="https://updates.example.com/metadata",
@@ -162,12 +162,101 @@ class TestUpdateManager(_IsolatedTestBase):
         self.assertEqual(FakeClient.created_with["target_dir"], manager.target_dir)
         self.assertEqual(FakeClient.checked_with, {"pre": None, "patch": True})
 
+    def test_download_update_stages_target_without_applying(self):
+        updates = self._updates_module()
+        manager = updates.UpdateManager(current_version="6.6.23")
+        manager.configure(
+            enabled=True,
+            metadata_url="https://updates.example.com/metadata",
+            targets_url="https://updates.example.com/targets",
+        )
+        manager.metadata_dir.mkdir(parents=True, exist_ok=True)
+        manager.trusted_root_path.write_text("{}", encoding="utf-8")
+
+        class FakeTarget:
+            version = "6.7.0"
+            filename = "BookmarkOrganizerPro-6.7.0.tar.gz"
+            target_path_str = "BookmarkOrganizerPro-6.7.0.tar.gz"
+
+        class FakeTargetInfo:
+            path = "BookmarkOrganizerPro-6.7.0.tar.gz"
+
+        class FakeClient:
+            downloaded_with = None
+            apply_called = False
+
+            def __init__(self, **kwargs):
+                self.new_targets = {}
+
+            def check_for_updates(self, **kwargs):
+                self.new_targets = {FakeTarget(): FakeTargetInfo()}
+                return FakeTarget()
+
+            def download_target(self, targetinfo, filepath=None, target_base_url=None):
+                FakeClient.downloaded_with = (targetinfo, filepath, target_base_url)
+                staged = manager.target_dir / targetinfo.path
+                staged.parent.mkdir(parents=True, exist_ok=True)
+                staged.write_bytes(b"archive")
+                return str(staged)
+
+            def download_and_apply_update(self, *args, **kwargs):
+                FakeClient.apply_called = True
+                raise AssertionError("apply should not be called")
+
+        with patch.object(updates, "tufup_available", return_value=True):
+            result = manager.download_update(client_cls=FakeClient)
+
+        self.assertTrue(result.checked)
+        self.assertTrue(result.update_available)
+        self.assertTrue(result.downloaded)
+        self.assertEqual(result.reason, "download staged")
+        self.assertEqual(result.latest_version, "6.7.0")
+        self.assertEqual(len(result.staged_paths), 1)
+        self.assertTrue(Path(result.staged_paths[0]).exists())
+        self.assertEqual(FakeClient.downloaded_with[2], "https://updates.example.com/targets")
+        self.assertFalse(FakeClient.apply_called)
+
+    def test_download_update_rejects_target_paths_outside_cache(self):
+        updates = self._updates_module()
+        manager = updates.UpdateManager(current_version="6.6.23")
+        manager.configure(
+            enabled=True,
+            metadata_url="https://updates.example.com/metadata",
+            targets_url="https://updates.example.com/targets",
+        )
+        manager.metadata_dir.mkdir(parents=True, exist_ok=True)
+        manager.trusted_root_path.write_text("{}", encoding="utf-8")
+
+        class FakeTarget:
+            version = "6.7.0"
+            filename = "BookmarkOrganizerPro-6.7.0.tar.gz"
+            target_path_str = "BookmarkOrganizerPro-6.7.0.tar.gz"
+
+        class FakeClient:
+            def __init__(self, **kwargs):
+                self.new_targets = {}
+
+            def check_for_updates(self, **kwargs):
+                self.new_targets = {FakeTarget(): object()}
+                return FakeTarget()
+
+            def download_target(self, targetinfo, filepath=None, target_base_url=None):
+                escaped = manager.cache_dir / ".." / "escaped.tar.gz"
+                return str(escaped)
+
+        with patch.object(updates, "tufup_available", return_value=True):
+            result = manager.download_update(client_cls=FakeClient)
+
+        self.assertFalse(result.downloaded)
+        self.assertEqual(result.reason, "download failed")
+        self.assertIn("escaped the update target cache", result.error)
+
     def test_version_comparison(self):
         updates = self._updates_module()
 
-        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.22"))
-        self.assertFalse(updates.is_newer_version("6.6.22", "6.6.22"))
-        self.assertFalse(updates.is_newer_version("6.6.21", "6.6.22"))
+        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.23"))
+        self.assertFalse(updates.is_newer_version("6.6.23", "6.6.23"))
+        self.assertFalse(updates.is_newer_version("6.6.22", "6.6.23"))
 
 
 # ── 1. EmbeddingService ──────────────────────────────────────────────
