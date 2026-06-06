@@ -81,6 +81,7 @@ from .rss_feeds import (
 from .snapshot import SnapshotArchiver
 from .tag_linter import LintReport, TagLinter, TagSuggestion
 from .updates import (
+    StagedUpdateStatus,
     UpdateCheckResult,
     UpdateDownloadResult,
     UpdateManager,
@@ -133,7 +134,7 @@ __all__ = [
     "FeedRegistry", "parse_feed",
     "SnapshotArchiver",
     "LintReport", "TagLinter", "TagSuggestion",
-    "UpdateCheckResult", "UpdateDownloadResult",
+    "StagedUpdateStatus", "UpdateCheckResult", "UpdateDownloadResult",
     "UpdateManager", "UpdatePolicy", "UpdateStatus",
     "VectorStore", "reciprocal_rank_fusion",
     "ZipExporter",

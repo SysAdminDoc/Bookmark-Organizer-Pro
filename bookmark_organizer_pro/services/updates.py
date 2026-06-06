@@ -145,6 +145,22 @@ class UpdateDownloadResult:
     error: str = ""
 
 
+@dataclass(frozen=True)
+class StagedUpdateStatus:
+    available: bool
+    complete: bool
+    current_version: str
+    latest_version: str
+    target_name: str
+    target_path: str
+    staged_paths: tuple[str, ...]
+    manifest_path: str
+    channel: str
+    staged_at: str
+    reason: str
+    error: str = ""
+
+
 class UpdateManager:
     """Manage local update policy without applying updates automatically."""
 
@@ -170,6 +186,10 @@ class UpdateManager:
     @property
     def trusted_root_path(self) -> Path:
         return self.metadata_dir / "root.json"
+
+    @property
+    def staged_manifest_path(self) -> Path:
+        return self.cache_dir / "staged_update.json"
 
     def _load_policy(self) -> UpdatePolicy:
         if not self.config_file.exists():
@@ -319,6 +339,95 @@ class UpdateManager:
             raise ValueError("downloaded target escaped the update target cache") from exc
         return str(resolved)
 
+    def _write_staged_manifest(
+        self,
+        check: UpdateCheckResult,
+        staged_paths: tuple[str, ...],
+    ) -> None:
+        atomic_json_write(
+            self.staged_manifest_path,
+            {
+                "current_version": check.current_version,
+                "latest_version": check.latest_version,
+                "target_name": check.target_name,
+                "target_path": check.target_path,
+                "staged_paths": list(staged_paths),
+                "channel": self.policy.channel,
+                "staged_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
+    def staged_update(self) -> StagedUpdateStatus:
+        """Return the locally staged update manifest and file readiness."""
+        manifest_path = self.staged_manifest_path
+        empty = StagedUpdateStatus(
+            available=False,
+            complete=False,
+            current_version=self.current_version,
+            latest_version="",
+            target_name="",
+            target_path="",
+            staged_paths=(),
+            manifest_path=str(manifest_path),
+            channel=self.policy.channel,
+            staged_at="",
+            reason="no staged update",
+        )
+        if not manifest_path.exists():
+            return empty
+        try:
+            raw = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            return StagedUpdateStatus(
+                **{**empty.__dict__, "reason": "staged manifest unreadable",
+                   "error": f"{type(exc).__name__}: {exc}"}
+            )
+        if not isinstance(raw, dict):
+            return StagedUpdateStatus(
+                **{**empty.__dict__, "reason": "staged manifest invalid"}
+            )
+        try:
+            staged_paths = tuple(
+                self._ensure_staged_path(path)
+                for path in raw.get("staged_paths", [])
+                if str(path or "").strip()
+            )
+        except Exception as exc:
+            return StagedUpdateStatus(
+                **{**empty.__dict__, "reason": "staged manifest invalid",
+                   "error": f"{type(exc).__name__}: {exc}"}
+            )
+        latest_version = str(raw.get("latest_version") or "")
+        manifest_current = str(raw.get("current_version") or "")
+        missing_paths = [path for path in staged_paths if not Path(path).exists()]
+        complete = bool(
+            latest_version
+            and staged_paths
+            and not missing_paths
+            and manifest_current == self.current_version
+        )
+        if manifest_current and manifest_current != self.current_version:
+            reason = "staged update targets a different current version"
+        elif missing_paths:
+            reason = "staged target files missing"
+        elif not latest_version or not staged_paths:
+            reason = "staged manifest incomplete"
+        else:
+            reason = "staged target files present"
+        return StagedUpdateStatus(
+            available=True,
+            complete=complete,
+            current_version=manifest_current,
+            latest_version=latest_version,
+            target_name=str(raw.get("target_name") or ""),
+            target_path=str(raw.get("target_path") or ""),
+            staged_paths=staged_paths,
+            manifest_path=str(manifest_path),
+            channel=str(raw.get("channel") or self.policy.channel),
+            staged_at=str(raw.get("staged_at") or ""),
+            reason=reason,
+        )
+
     def check_for_updates(self, client_cls=None) -> UpdateCheckResult:
         """Check trusted metadata for an available update without downloading."""
         status = self.status()
@@ -381,6 +490,8 @@ class UpdateManager:
                     target_base_url=self.policy.targets_url,
                 )
                 staged_paths.append(self._ensure_staged_path(staged_path))
+            staged_paths_tuple = tuple(staged_paths)
+            self._write_staged_manifest(check, staged_paths_tuple)
         except Exception as exc:
             fallback = locals().get(
                 "check",
@@ -403,6 +514,6 @@ class UpdateManager:
         return self._download_result_from_check(
             check,
             downloaded=True,
-            staged_paths=tuple(staged_paths),
+            staged_paths=staged_paths_tuple,
             reason="download staged",
         )

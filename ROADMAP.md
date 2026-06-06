@@ -21,9 +21,9 @@
 
 ---
 
-## State of the Project (v6.6.23)
+## State of the Project (v6.6.24)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.23:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.24:
 
 - **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
@@ -32,7 +32,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 - **Security:** AES-256-GCM encrypted DB, SSRF guards, prompt sanitization, API auth tokens, keyring storage
 - **Import/Export:** 14 importers (incl. Pocket, Readwise, Pinboard, Instapaper, Reddit, Matter, Zotero), 13 export formats (HTML/JSON/CSV/OPML/XBEL/Markdown/ZIP/Obsidian/EPUB/Atom/JSON Feed/Zotero RDF/Graph JSON)
 - **UI:** 11 themes (incl. WCAG AA high-contrast), optional sv-ttk Sun Valley base theme, command palette, toast notifications, zoom, high-DPI, dashboard analytics, tksheet-backed virtualized bookmark list, desktop reader pane with highlights/notes/export, desktop graph view
-- **CLI:** 39 subcommands, 347 tests in the current suite
+- **CLI:** 39 subcommands, 350 tests in the current suite
 - **Desktop:** Python ≥3.10, Tkinter, PyInstaller binary, cross-platform (Windows primary, macOS/Linux)
 
 ### Competitive Position (June 2026)
@@ -272,6 +272,15 @@ under `updates/targets/`; `updates apply` remains blocked until install
 isolation, rollback, and user confirmation are implemented. Details:
 `docs/audit/2026-06-06-v6.6.23-updater-download-audit.md`.
 
+### Cycle Note — v6.6.24 (2026-06-06)
+
+R-41 remains in progress. Successful updater target staging now writes
+`updates/staged_update.json` with target metadata, staged paths, channel, and
+timestamp. `UpdateManager.staged_update()` and `updates staged` validate the
+manifest and report whether target files are still present under
+`updates/targets/`. Application remains blocked. Details:
+`docs/audit/2026-06-06-v6.6.24-updater-staged-manifest-audit.md`.
+
 ### Hard Constraints
 
 - MIT license
@@ -426,7 +435,7 @@ isolation, rollback, and user confirmation are implemented. Details:
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
 | ✅ R-40 | **Nuitka compilation smoke** — build helper, optional Nuitka 4.1+ extra, Tkinter plugin app path, Windows metadata, bounded `--jobs`, smoke target, local standalone compile, report/assets, and artifact `--version` validation shipped in v6.6.6-v6.6.8. Full GUI bundle validation remains release hardening before any installer switch. | Done | L | [S-27][S-87] |
-| 🔄 R-41 | **tufup auto-update** — optional tufup 0.10.x extra, disabled-by-default update policy, HTTPS repository guard, trusted-root readiness, non-applying tufup checks, bootstrap docs, and trusted target download staging shipped in v6.6.9-v6.6.11 and v6.6.23. Applying downloaded updates remains gated. | In Progress | M | [S-28][S-88] |
+| 🔄 R-41 | **tufup auto-update** — optional tufup 0.10.x extra, disabled-by-default update policy, HTTPS repository guard, trusted-root readiness, non-applying tufup checks, bootstrap docs, trusted target download staging, and staged-update manifest readback shipped in v6.6.9-v6.6.11 and v6.6.23-v6.6.24. Applying downloaded updates remains gated. | In Progress | M | [S-28][S-88] |
 | ✅ R-42 | Python version matrix in CI (3.10-3.13) | Done | S | [S-1] |
 
 ---
@@ -527,6 +536,7 @@ All items below shipped in v6.0.0 through v6.4.1. Full details in [CHANGELOG.md]
 | R-22A | Bookmark graph model, force layout, and JSON export | v6.6.21 |
 | R-22 | Desktop graph canvas with pan/zoom and node selection | v6.6.22 |
 | R-41D | Trusted updater target download staging | v6.6.23 |
+| R-41E | Staged updater manifest and readback status | v6.6.24 |
 | BUG-01 through BUG-14 | All 14 known bugs fixed | v6.2.0-v6.4.1 |
 | + 30 v6.1.0 fixes | AI batch processor, chunk overlap, MCP schemas, CI flow, thread safety, etc. | v6.1.0 |
 

@@ -10,6 +10,7 @@ extract, install, or apply updates.
 - Policy: `update_config.json` under the app data directory.
 - Trusted root: `updates/metadata/root.json` under the app data directory.
 - Target cache: `updates/targets/` under the app data directory.
+- Staged manifest: `updates/staged_update.json` under the app data directory.
 
 The trusted root must be installed before `updates check` can construct the
 tufup client. Treat `root.json` as a trust anchor: ship it with a signed
@@ -33,6 +34,7 @@ python main.py updates configure --enable --metadata-url https://updates.example
 python main.py updates status
 python main.py updates check
 python main.py updates download
+python main.py updates staged
 ```
 
 Repository URLs must use HTTPS. Checks remain opt-in and disabled until
@@ -58,6 +60,7 @@ The client adapter uses `BookmarkOrganizerPro` as the tufup app name.
 6. Verify `updates status` reports `Trusted root: present`.
 7. Verify `updates check` reports either no update or a newer target.
 8. Verify `updates download` stages only files under `updates/targets/`.
+9. Verify `updates staged` reports the staged manifest and target file paths.
 
 ## Safety Gates
 
@@ -67,6 +70,8 @@ The client adapter uses `BookmarkOrganizerPro` as the tufup app name.
 - `updates check` does not download or apply target files.
 - `updates download` only stages trusted target files in `updates/targets/`.
   It does not extract, install, execute, or replace application files.
+- `updates staged` only reads the staged manifest and validates cached file
+  presence. It does not download, extract, install, execute, or replace files.
 - `updates apply` is an explicit refusal gate in this release. It must stay
   gated until extraction, install directory isolation, rollback, and user
   confirmation are covered by tests.
