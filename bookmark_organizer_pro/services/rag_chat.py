@@ -65,6 +65,13 @@ class ChatStreamEvent:
         return payload
 
 
+@dataclass
+class ChatStreamResult:
+    turn: ChatTurn
+    events: List[ChatStreamEvent]
+    provider_streaming: bool = False
+
+
 def normalize_stream_chunk_chars(chunk_chars: int = 160) -> int:
     try:
         value = int(chunk_chars)
@@ -144,25 +151,27 @@ class CollectionChat:
     def cache_stats(self) -> Dict[str, int]:
         return {"size": len(self._cache), "max": self._cache_size}
 
-    def ask(self, question: str,
-            restrict_ids: Optional[Iterable[int]] = None,
-            use_cache: bool = True) -> ChatTurn:
-        if not question.strip():
-            return ChatTurn(answer="")
-
-        # Cache hits are only valid for stateless (first-turn) queries
+    def _cache_lookup(self, question: str,
+                      restrict_ids: Optional[Iterable[int]],
+                      use_cache: bool) -> Tuple[bool, Optional[ChatTurn]]:
         is_first_turn = not self.history
         if use_cache and is_first_turn:
             key = self._cache_key(question, restrict_ids)
             if key in self._cache:
                 self._cache.move_to_end(key)
-                return self._cache[key]
+                return is_first_turn, self._cache[key]
+        return is_first_turn, None
 
+    def _prepare_prompt(self, question: str,
+                        restrict_ids: Optional[Iterable[int]]) -> Tuple[
+                            Optional[Tuple[List[dict], List[dict], str]],
+                            Optional[ChatTurn],
+                        ]:
         retrieved = self.vector_store.search(
             question, k=self.retrieval_k, restrict_ids=restrict_ids
         )
         if not retrieved and not self.vector_store.embedder.available:
-            return ChatTurn(
+            return None, ChatTurn(
                 answer="Semantic search is unavailable (install fastembed or model2vec).",
                 sources=[],
             )
@@ -196,32 +205,31 @@ class CollectionChat:
         prompt_parts.append(context)
         prompt_parts.append("")
         prompt_parts.append(f"USER QUESTION: {question}")
+        return (retrieved, provenance, "\n".join(prompt_parts)), None
 
-        try:
-            client = create_ai_client(self.ai_config)
-            answer = client.complete(
-                system=SYSTEM_PROMPT,
-                prompt="\n".join(prompt_parts),
-                max_tokens=500,
-                temperature=0.2,
-            )
-        except Exception as exc:
-            log.warning(f"RAG chat failed: {exc}")
-            return ChatTurn(answer=f"AI request failed: {exc}", sources=retrieved)
-
+    def _sanitize_answer(self, answer: str, retrieved: Sequence[dict]) -> str:
         import re as _re
         valid_ids = {f"c{i}" for i in range(len(retrieved))}
-        answer = _re.sub(
+        return _re.sub(
             r'\[#(c\d+)\]',
             lambda m: m.group(0) if m.group(1) in valid_ids else '',
             answer,
         )
 
+    def _finish_turn(self, question: str, answer: str,
+                     retrieved: List[dict], provenance: List[dict],
+                     is_first_turn: bool,
+                     restrict_ids: Optional[Iterable[int]],
+                     use_cache: bool) -> ChatTurn:
         self.history.append(ChatMessage(role="user", content=question))
         self.history.append(ChatMessage(role="assistant", content=answer))
 
-        turn = ChatTurn(answer=answer, sources=retrieved, used_chunks=len(retrieved),
-                        chunk_provenance=provenance)
+        turn = ChatTurn(
+            answer=answer,
+            sources=retrieved,
+            used_chunks=len(retrieved),
+            chunk_provenance=provenance,
+        )
 
         if use_cache and is_first_turn:
             key = self._cache_key(question, restrict_ids)
@@ -231,9 +239,102 @@ class CollectionChat:
 
         return turn
 
+    def ask(self, question: str,
+            restrict_ids: Optional[Iterable[int]] = None,
+            use_cache: bool = True) -> ChatTurn:
+        if not question.strip():
+            return ChatTurn(answer="")
+
+        is_first_turn, cached = self._cache_lookup(question, restrict_ids, use_cache)
+        if cached is not None:
+            return cached
+
+        prepared, early_turn = self._prepare_prompt(question, restrict_ids)
+        if early_turn is not None:
+            return early_turn
+        assert prepared is not None
+        retrieved, provenance, prompt = prepared
+
+        try:
+            client = create_ai_client(self.ai_config)
+            answer = client.complete(
+                system=SYSTEM_PROMPT,
+                prompt=prompt,
+                max_tokens=500,
+                temperature=0.2,
+            )
+        except Exception as exc:
+            log.warning(f"RAG chat failed: {exc}")
+            return ChatTurn(answer=f"AI request failed: {exc}", sources=retrieved)
+
+        answer = self._sanitize_answer(answer, retrieved)
+        return self._finish_turn(
+            question, answer, retrieved, provenance, is_first_turn,
+            restrict_ids, use_cache,
+        )
+
     def stream_answer(self, question: str,
                       restrict_ids: Optional[Iterable[int]] = None,
                       chunk_chars: int = 160,
-                      use_cache: bool = True) -> Tuple[ChatTurn, List[ChatStreamEvent]]:
-        turn = self.ask(question, restrict_ids=restrict_ids, use_cache=use_cache)
-        return turn, build_chat_stream_events(turn, chunk_chars)
+                      use_cache: bool = True) -> ChatStreamResult:
+        if not question.strip():
+            turn = ChatTurn(answer="")
+            return ChatStreamResult(turn, build_chat_stream_events(turn, chunk_chars))
+
+        is_first_turn, cached = self._cache_lookup(question, restrict_ids, use_cache)
+        if cached is not None:
+            return ChatStreamResult(cached, build_chat_stream_events(cached, chunk_chars))
+
+        prepared, early_turn = self._prepare_prompt(question, restrict_ids)
+        if early_turn is not None:
+            return ChatStreamResult(
+                early_turn,
+                build_chat_stream_events(early_turn, chunk_chars),
+            )
+        assert prepared is not None
+        retrieved, provenance, prompt = prepared
+
+        try:
+            client = create_ai_client(self.ai_config)
+            provider_streaming = bool(
+                getattr(client, "supports_native_streaming", False)
+            )
+            raw_chunks = [
+                str(chunk)
+                for chunk in client.stream_complete(
+                    system=SYSTEM_PROMPT,
+                    prompt=prompt,
+                    max_tokens=500,
+                    temperature=0.2,
+                )
+                if chunk
+            ]
+            raw_answer = "".join(raw_chunks)
+            answer = self._sanitize_answer(raw_answer, retrieved)
+        except Exception as exc:
+            log.warning(f"RAG chat streaming failed: {exc}")
+            turn = ChatTurn(answer=f"AI request failed: {exc}", sources=retrieved)
+            return ChatStreamResult(turn, build_chat_stream_events(turn, chunk_chars))
+
+        turn = self._finish_turn(
+            question, answer, retrieved, provenance, is_first_turn,
+            restrict_ids, use_cache,
+        )
+        events_from_provider = provider_streaming and raw_chunks and answer == raw_answer
+        if events_from_provider:
+            events = [
+                ChatStreamEvent(type="chunk", index=index, text=chunk)
+                for index, chunk in enumerate(raw_chunks)
+            ]
+            events.append(
+                ChatStreamEvent(
+                    type="complete",
+                    index=len(raw_chunks),
+                    sources=turn.sources,
+                    used_chunks=turn.used_chunks,
+                    chunk_provenance=turn.chunk_provenance,
+                )
+            )
+        else:
+            events = build_chat_stream_events(turn, chunk_chars)
+        return ChatStreamResult(turn, events, events_from_provider)

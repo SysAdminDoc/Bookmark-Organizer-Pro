@@ -157,9 +157,13 @@ class TestDigest(MCPToolTestBase):
 
 
 class TestChatStreaming(MCPToolTestBase):
-    def _fake_services(self, bookmarks=None):
+    def _fake_services(self, bookmarks=None, provider_streaming=False):
         from types import SimpleNamespace
-        from bookmark_organizer_pro.services.rag_chat import ChatTurn, build_chat_stream_events
+        from bookmark_organizer_pro.services.rag_chat import (
+            ChatStreamResult,
+            ChatTurn,
+            build_chat_stream_events,
+        )
 
         class FakeChat:
             def __init__(self):
@@ -181,7 +185,11 @@ class TestChatStreaming(MCPToolTestBase):
                     used_chunks=1,
                     chunk_provenance=[{"citation_id": "c0", "bookmark_id": 7}],
                 )
-                return turn, build_chat_stream_events(turn, chunk_chars)
+                return ChatStreamResult(
+                    turn,
+                    build_chat_stream_events(turn, chunk_chars),
+                    provider_streaming=provider_streaming,
+                )
 
         class FakeBookmarkManager:
             def get_all_bookmarks(self):
@@ -206,6 +214,15 @@ class TestChatStreaming(MCPToolTestBase):
         self.assertEqual(result["events"][-1]["sources"], result["sources"])
         self.assertEqual(result["events"][-1]["chunk_provenance"], result["chunk_provenance"])
         self.assertEqual(services.chat.calls[0]["restrict_ids"], None)
+
+    def test_chat_stream_surfaces_provider_streaming_mode(self):
+        services = self._fake_services(provider_streaming=True)
+        self.ms.SERVICES = services
+
+        result = self.ms.t_chat_stream("What matters?", chunk_chars=80)
+
+        self.assertEqual(result["mode"], "provider_stream_events")
+        self.assertTrue(result["provider_streaming"])
 
     def test_chat_stream_uses_same_tag_category_scope_as_chat(self):
         from types import SimpleNamespace

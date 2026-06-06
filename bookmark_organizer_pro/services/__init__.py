@@ -45,6 +45,7 @@ from .organization import (
 from .rag_chat import (
     ChatMessage,
     ChatStreamEvent,
+    ChatStreamResult,
     ChatTurn,
     CollectionChat,
     build_chat_stream_events,
@@ -97,7 +98,7 @@ __all__ = [
     "HybridResult", "HybridSearch",
     "ContentIngestor", "IngestResult",
     "NLQueryTranslator", "StructuredQuery", "execute_query",
-    "ChatMessage", "ChatStreamEvent", "ChatTurn", "CollectionChat",
+    "ChatMessage", "ChatStreamEvent", "ChatStreamResult", "ChatTurn", "CollectionChat",
     "build_chat_stream_events", "normalize_stream_chunk_chars", "split_answer_chunks",
     "ReadLaterQueue",
     "RSS_AI_MODES", "FeedConfig", "FeedIngestor", "FeedItem",

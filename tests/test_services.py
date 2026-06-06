@@ -127,7 +127,7 @@ class TestUpdateManager(_IsolatedTestBase):
 
     def test_check_for_updates_uses_client_without_downloading(self):
         updates = self._updates_module()
-        manager = updates.UpdateManager(current_version="6.6.14")
+        manager = updates.UpdateManager(current_version="6.6.15")
         manager.configure(
             enabled=True,
             metadata_url="https://updates.example.com/metadata",
@@ -165,9 +165,9 @@ class TestUpdateManager(_IsolatedTestBase):
     def test_version_comparison(self):
         updates = self._updates_module()
 
-        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.14"))
-        self.assertFalse(updates.is_newer_version("6.6.14", "6.6.14"))
-        self.assertFalse(updates.is_newer_version("6.6.13", "6.6.14"))
+        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.15"))
+        self.assertFalse(updates.is_newer_version("6.6.15", "6.6.15"))
+        self.assertFalse(updates.is_newer_version("6.6.14", "6.6.15"))
 
 
 # ── 1. EmbeddingService ──────────────────────────────────────────────
@@ -260,6 +260,43 @@ class TestChatStreamEvents(_IsolatedTestBase):
         self.assertEqual(normalize_stream_chunk_chars(5), 40)
         self.assertEqual(normalize_stream_chunk_chars(5000), 1000)
         self.assertEqual(normalize_stream_chunk_chars("bad"), 160)
+
+    def test_collection_chat_builds_events_from_provider_stream(self):
+        from types import SimpleNamespace
+        from bookmark_organizer_pro.services.rag_chat import CollectionChat
+
+        class FakeVectorStore:
+            embedder = SimpleNamespace(available=True)
+
+            def search(self, question, k=6, restrict_ids=None):
+                return [{
+                    "bookmark_id": 7,
+                    "text": "Source text",
+                    "char_start": 0,
+                    "char_end": 11,
+                }]
+
+        class FakeClient:
+            supports_native_streaming = True
+
+            def stream_complete(self, prompt, system="", max_tokens=800, temperature=0.2):
+                yield "Streamed "
+                yield "answer [#c0]."
+
+        chat = CollectionChat(object(), FakeVectorStore())
+
+        with patch(
+            "bookmark_organizer_pro.services.rag_chat.create_ai_client",
+            return_value=FakeClient(),
+        ):
+            result = chat.stream_answer("What is saved?", chunk_chars=80)
+
+        self.assertTrue(result.provider_streaming)
+        self.assertEqual(result.turn.answer, "Streamed answer [#c0].")
+        chunks = [event for event in result.events if event.type == "chunk"]
+        self.assertEqual([event.text for event in chunks], ["Streamed ", "answer [#c0]."])
+        self.assertEqual(result.events[-1].type, "complete")
+        self.assertEqual(result.events[-1].sources[0]["bookmark_id"], 7)
 
 
 # ── 2. EncryptedStore ─────────────────────────────────────────────────

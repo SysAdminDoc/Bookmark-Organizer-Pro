@@ -3,6 +3,19 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.15 Provider Streaming Adapters
+
+- Advanced R-15: added `stream_complete()` to the provider client interface
+  while preserving the existing synchronous `complete()` API.
+- Added native streaming adapters for OpenAI-compatible chat providers
+  (OpenAI, Groq, DeepSeek) and Ollama.
+- Updated `CollectionChat.stream_answer()` to build response events from
+  provider deltas when the selected provider supports native streaming.
+- Updated `chat_with_collection_stream` to report `provider_stream_events`
+  when native provider deltas were used.
+- Verification: compileall passed, focused provider/RAG/MCP/release metadata
+  tests passed with 32 tests, and the full suite passed with 331 tests.
+
 ## 2026-06-06 — v6.6.14 MCP Chat Response Events
 
 - Advanced R-15: added `chat_with_collection_stream` as a stream-shaped MCP
