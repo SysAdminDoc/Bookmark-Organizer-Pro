@@ -35,7 +35,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from bookmark_organizer_pro.ai import AIConfigManager
-from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION, SNAPSHOTS_DIR
+from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION, DATA_DIR, SNAPSHOTS_DIR
+from bookmark_organizer_pro.services.mcp_auth import MCPTokenManager
 from bookmark_organizer_pro.core import CategoryManager
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.managers import BookmarkManager, TagManager
@@ -103,6 +104,7 @@ class BookmarkServices:
 
 
 SERVICES: Optional[BookmarkServices] = None
+AUTH: Optional[MCPTokenManager] = None
 
 
 def _services() -> BookmarkServices:
@@ -110,6 +112,28 @@ def _services() -> BookmarkServices:
     if SERVICES is None:
         SERVICES = BookmarkServices()
     return SERVICES
+
+
+def _auth() -> MCPTokenManager:
+    global AUTH
+    if AUTH is None:
+        AUTH = MCPTokenManager()
+    return AUTH
+
+
+def _check_mcp_auth(token: Optional[str], tool_name: str) -> Optional[str]:
+    """Validate MCP auth token. Returns error message or None on success.
+
+    When no tokens are configured, all calls are allowed (open mode).
+    """
+    mgr = _auth()
+    if not mgr.list_tokens():
+        return None
+    if not token:
+        return "Authentication required. Create a token with MCPTokenManager."
+    if not mgr.validate(token, tool_name):
+        return "Invalid token or insufficient permissions for this tool."
+    return None
 
 
 # --- pure tool implementations ---------------------------------------------
@@ -358,6 +382,81 @@ def t_list_snapshots(limit: int = 50) -> List[Dict]:
     return out
 
 
+# --- Write tools (R-57) ----------------------------------------------------
+
+def t_delete_bookmark(bookmark_id: int) -> Dict:
+    s = _services()
+    bm = s.bookmark_manager.get_bookmark(int(bookmark_id))
+    if not bm:
+        return {"error": "Bookmark not found"}
+    s.bookmark_manager.delete_bookmark(int(bookmark_id))
+    return {"deleted": True, "bookmark_id": bookmark_id}
+
+
+def t_update_bookmark(bookmark_id: int, title: str = "", category: str = "",
+                      notes: str = "", description: str = "") -> Optional[Dict]:
+    s = _services()
+    bm = s.bookmark_manager.get_bookmark(int(bookmark_id))
+    if not bm:
+        return {"error": "Bookmark not found"}
+    if title:
+        bm.title = title.strip()[:500]
+    if category:
+        bm.category = category.strip()
+    if notes:
+        bm.notes = notes.strip()[:5000]
+    if description:
+        bm.description = description.strip()[:2000]
+    s.bookmark_manager.save_bookmarks()
+    return _bm_to_dict(bm)
+
+
+def t_toggle_pin(bookmark_id: int) -> Dict:
+    s = _services()
+    bm = s.bookmark_manager.get_bookmark(int(bookmark_id))
+    if not bm:
+        return {"error": "Bookmark not found"}
+    bm.is_pinned = not bm.is_pinned
+    s.bookmark_manager.save_bookmarks()
+    return {"bookmark_id": bookmark_id, "is_pinned": bm.is_pinned}
+
+
+def t_mark_read_later(bookmark_id: int, read_later: bool = True) -> Dict:
+    s = _services()
+    bm = s.bookmark_manager.get_bookmark(int(bookmark_id))
+    if not bm:
+        return {"error": "Bookmark not found"}
+    bm.read_later = read_later
+    s.bookmark_manager.save_bookmarks()
+    return {"bookmark_id": bookmark_id, "read_later": bm.read_later}
+
+
+def t_add_tags(bookmark_id: int, tags: List[str] = None) -> Dict:
+    s = _services()
+    bm = s.bookmark_manager.get_bookmark(int(bookmark_id))
+    if not bm:
+        return {"error": "Bookmark not found"}
+    for tag in (tags or []):
+        t = str(tag).strip()
+        if t:
+            bm.add_tag(t)
+    s.bookmark_manager.save_bookmarks()
+    return {"bookmark_id": bookmark_id, "tags": list(bm.tags)}
+
+
+def t_remove_tags(bookmark_id: int, tags: List[str] = None) -> Dict:
+    s = _services()
+    bm = s.bookmark_manager.get_bookmark(int(bookmark_id))
+    if not bm:
+        return {"error": "Bookmark not found"}
+    for tag in (tags or []):
+        t = str(tag).strip()
+        if t:
+            bm.remove_tag(t)
+    s.bookmark_manager.save_bookmarks()
+    return {"bookmark_id": bookmark_id, "tags": list(bm.tags)}
+
+
 # --- MCP integration --------------------------------------------------------
 
 TOOLS = [
@@ -533,6 +632,67 @@ TOOLS = [
              "limit": {"type": "integer", "description": "Max snapshots to return (default 50)", "default": 50},
          },
      }),
+    ("delete_bookmark", t_delete_bookmark,
+     "Permanently delete a bookmark by ID.",
+     {
+         "type": "object",
+         "properties": {
+             "bookmark_id": {"type": "integer", "description": "The bookmark ID to delete"},
+         },
+         "required": ["bookmark_id"],
+     }),
+    ("update_bookmark", t_update_bookmark,
+     "Update a bookmark's title, category, notes, or description. Only provided fields are changed.",
+     {
+         "type": "object",
+         "properties": {
+             "bookmark_id": {"type": "integer", "description": "The bookmark ID to update"},
+             "title": {"type": "string", "description": "New title (unchanged if empty)"},
+             "category": {"type": "string", "description": "New category (unchanged if empty)"},
+             "notes": {"type": "string", "description": "New notes (unchanged if empty)"},
+             "description": {"type": "string", "description": "New description (unchanged if empty)"},
+         },
+         "required": ["bookmark_id"],
+     }),
+    ("toggle_pin", t_toggle_pin,
+     "Toggle the pinned state of a bookmark.",
+     {
+         "type": "object",
+         "properties": {
+             "bookmark_id": {"type": "integer", "description": "The bookmark ID to pin/unpin"},
+         },
+         "required": ["bookmark_id"],
+     }),
+    ("mark_read_later", t_mark_read_later,
+     "Add or remove a bookmark from the read-later queue.",
+     {
+         "type": "object",
+         "properties": {
+             "bookmark_id": {"type": "integer", "description": "The bookmark ID"},
+             "read_later": {"type": "boolean", "description": "True to add to read-later, False to remove", "default": True},
+         },
+         "required": ["bookmark_id"],
+     }),
+    ("add_tags", t_add_tags,
+     "Add tags to a bookmark. Existing tags are preserved.",
+     {
+         "type": "object",
+         "properties": {
+             "bookmark_id": {"type": "integer", "description": "The bookmark ID"},
+             "tags": {"type": "array", "items": {"type": "string"}, "description": "Tags to add"},
+         },
+         "required": ["bookmark_id", "tags"],
+     }),
+    ("remove_tags", t_remove_tags,
+     "Remove specific tags from a bookmark.",
+     {
+         "type": "object",
+         "properties": {
+             "bookmark_id": {"type": "integer", "description": "The bookmark ID"},
+             "tags": {"type": "array", "items": {"type": "string"}, "description": "Tags to remove"},
+         },
+         "required": ["bookmark_id", "tags"],
+     }),
 ]
 
 
@@ -574,11 +734,16 @@ async def serve_stdio() -> int:
     @server.call_tool()
     async def _call_tool(name: str, arguments: Dict[str, Any]) -> List[Any]:
         from mcp.types import TextContent
+        args = dict(arguments or {})
+        token = args.pop("_auth_token", None)
+        auth_err = _check_mcp_auth(token, name)
+        if auth_err:
+            return [TextContent(type="text", text=json.dumps({"error": auth_err}))]
         impl = next((fn for tname, fn, _, _ in TOOLS if tname == name), None)
         if impl is None:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]
         try:
-            result = impl(**(arguments or {}))
+            result = impl(**args)
         except TypeError as exc:
             return [TextContent(type="text", text=f"Bad arguments: {exc}")]
         except Exception as exc:
@@ -699,6 +864,31 @@ def _build_fastmcp_server():
     @mcp_app.tool(description="List captured HTML snapshots.")
     def list_snapshots(limit: int = 50) -> list[dict]:
         return t_list_snapshots(limit)
+
+    @mcp_app.tool(description="Permanently delete a bookmark by ID.")
+    def delete_bookmark(bookmark_id: int) -> dict:
+        return t_delete_bookmark(bookmark_id)
+
+    @mcp_app.tool(description="Update a bookmark's title, category, notes, or description.")
+    def update_bookmark(bookmark_id: int, title: str = "", category: str = "",
+                        notes: str = "", description: str = "") -> dict:
+        return t_update_bookmark(bookmark_id, title, category, notes, description)
+
+    @mcp_app.tool(description="Toggle the pinned state of a bookmark.")
+    def toggle_pin(bookmark_id: int) -> dict:
+        return t_toggle_pin(bookmark_id)
+
+    @mcp_app.tool(description="Add or remove a bookmark from the read-later queue.")
+    def mark_read_later(bookmark_id: int, read_later: bool = True) -> dict:
+        return t_mark_read_later(bookmark_id, read_later)
+
+    @mcp_app.tool(description="Add tags to a bookmark.")
+    def add_tags(bookmark_id: int, tags: list[str] | None = None) -> dict:
+        return t_add_tags(bookmark_id, tags)
+
+    @mcp_app.tool(description="Remove specific tags from a bookmark.")
+    def remove_tags(bookmark_id: int, tags: list[str] | None = None) -> dict:
+        return t_remove_tags(bookmark_id, tags)
 
     return mcp_app
 

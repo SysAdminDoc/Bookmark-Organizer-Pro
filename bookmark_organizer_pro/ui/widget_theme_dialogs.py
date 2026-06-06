@@ -192,7 +192,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         
         frame = tk.LabelFrame(
             parent, text=title, bg=theme.bg_primary,
-            fg=theme.text_secondary, font=("Segoe UI", 10, "bold")
+            fg=theme.text_secondary, font=FONTS.small(bold=True)
         )
         frame.pack(fill=tk.X, padx=10, pady=5)
         
@@ -515,7 +515,7 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
                 info_frame, text=name_text,
                 bg=info_frame.cget('bg'),
                 fg=theme.text_primary if not is_selected else theme.accent_primary,
-                font=("Segoe UI", 10, "bold" if is_selected else "normal")
+                font=FONTS.small(bold=is_selected)
             ).pack(anchor="w")
             
             mode_text = "🌙 Dark" if theme_info.is_dark else "☀️ Light"

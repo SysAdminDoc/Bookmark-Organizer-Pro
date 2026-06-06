@@ -11,6 +11,10 @@ import os
 import re
 import shutil
 import tempfile
+try:
+    from defusedxml import ElementTree as _safe_ET
+except ImportError:
+    import xml.etree.ElementTree as _safe_ET
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -504,7 +508,7 @@ class OPMLImporter:
                     walk(child, current_category)
 
             try:
-                root = ET.parse(filepath).getroot()
+                root = _safe_ET.parse(filepath).getroot()
                 walk(root)
                 return bookmarks
             except ET.ParseError:

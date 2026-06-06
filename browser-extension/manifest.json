@@ -2,19 +2,43 @@
   "manifest_version": 3,
   "name": "Bookmark Organizer Pro",
   "description": "Save the active tab to Bookmark Organizer Pro through the local API.",
-  "version": "6.4.2",
+  "version": "6.5.0",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
   "action": {
     "default_title": "Save to Bookmark Organizer Pro",
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
   },
   "options_page": "options.html",
   "permissions": [
     "activeTab",
     "scripting",
-    "storage"
+    "storage",
+    "contextMenus"
   ],
   "host_permissions": [
     "http://127.0.0.1/*",
     "http://localhost/*"
-  ]
+  ],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+B",
+        "mac": "Command+Shift+B"
+      },
+      "description": "Save current tab to Bookmark Organizer Pro"
+    }
+  }
 }

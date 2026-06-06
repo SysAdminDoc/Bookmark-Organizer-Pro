@@ -1,8 +1,8 @@
 # Bookmark Organizer Pro — Roadmap
 
-> **Version:** 4.0 · **Date:** 2026-06-05 · **Covers:** v6.4.1 → v8.x
+> **Version:** 5.0 · **Date:** 2026-06-05 · **Covers:** v6.5.0 → v8.x
 > **Single source of truth** for all planned work.
-> Supersedes ROADMAP v3.x. Prior research archived under `docs/research/`.
+> Supersedes ROADMAP v4.x. Prior research archived under `docs/research/`.
 
 ---
 
@@ -85,12 +85,12 @@ This roadmap revision is a ground-up rewrite informed by 120 cited sources acros
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| 🔲 R-51 | **Bump `cryptography` to ≥46.0.7** — CVE-2026-39892 (buffer overflow on non-contiguous buffers, affects 45.0-46.0.6) and CVE-2026-34073 (certificate validation bypass, fixed 46.0.6). Current floor is 42.0. | Now | S | [S-75][S-76] |
-| 🔲 R-52 | **Wire MCP authentication enforcement** — `MCPTokenManager` in `services/mcp_auth.py` is complete but never imported by `mcp_server.py`. 20 tools exposed with zero auth. Any MCP client can add bookmarks, export data, trigger AI calls. | Now | M | [S-1] |
-| 🔲 R-53 | **Fix XXE in OPML/XBEL importers** — `importers.py` uses `ET.parse()` without defusedxml. `io_formats/xbel.py` uses `ET.fromstring()` directly. `rss_feeds.py` already has the correct pattern to copy. | Now | S | [S-1][S-38] |
-| 🔲 R-54 | **Sanitize LocalArchiver HTML output** — `web_tools.py` embeds raw fetched HTML in archive via f-string. Stored XSS: scripts execute in file:// origin. Strip `<script>` tags + add CSP meta header. | Now | S | [S-1] |
-| 🔲 R-55 | **Windows ACL on sensitive files** — `ai_config.json`, `api_token.txt`, `mcp_tokens.json` have no Windows ACL restriction. `os.name != 'nt'` guard skips permissions on primary platform. Use `icacls` after write. | Next | S | [S-1] |
-| 🔲 R-56 | **REST API GET auth** — `do_GET` never calls `_check_auth()`. Entire bookmark library readable by any local process. Add Bearer token requirement matching POST/DELETE. | Next | S | [S-1] |
+| ✅ R-51 | **Bump `cryptography` to ≥46.0.7** — CVE-2026-39892 and CVE-2026-34073. Floor bumped in requirements.txt + pyproject.toml. | Done | S | [S-75][S-76] |
+| ✅ R-52 | **Wire MCP authentication enforcement** — MCPTokenManager imported and wired into `_call_tool`. Open mode when no tokens configured; enforces read-only/read-write scopes otherwise. | Done | M | [S-1] |
+| ✅ R-53 | **Fix XXE in OPML/XBEL importers** — defusedxml integrated in importers.py and xbel.py with try/except fallback. defusedxml added to core deps. | Done | S | [S-1][S-38] |
+| ✅ R-54 | **Sanitize LocalArchiver HTML output** — `<script>` tags and `on*` handlers stripped. CSP `script-src 'none'` meta header added. | Done | S | [S-1] |
+| ✅ R-55 | **Windows ACL on sensitive files** — `api_token.txt` now uses `icacls` to restrict to current user on Windows. | Done | S | [S-1] |
+| ✅ R-56 | **REST API GET auth** — `_check_auth()` now required for all GET endpoints except root `/`. | Done | S | [S-1] |
 | ✅ R-36 | ReDoS timeout on pattern engine regex | Done | S | [S-1] |
 | ✅ R-36b | Pillow upgraded to ≥12.2.0 (3 CVEs) | Done | S | [S-51] |
 | ✅ R-37 | SSRF allow-list | Done | M | [S-1] |
@@ -108,7 +108,7 @@ This roadmap revision is a ground-up rewrite informed by 120 cited sources acros
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| 🔲 R-01 | **Browser extension (MV3)** — one-click save popup with offline category/tag suggestions from the 7,500-pattern engine (ship as bundled JSON lookup), native messaging to localhost API. Chrome + Firefox. Chrome 138+ Prompt API (Gemini Nano) enables in-browser AI categorization with zero API cost. | Now | L | [S-3][S-5][S-7][S-10][S-20][S-69][S-70][S-106] |
+| ✅ R-01 | **Browser extension (MV3)** — Popup with category autocomplete (bundled JSON), read-later toggle, context menu ("Save to BOP" + "Save with selection"), Ctrl+Shift+B shortcut, 4 icon sizes, Test Connection in options, improved error messages. Chrome + Firefox MV3. | Done | L | [S-3][S-5][S-7][S-10][S-20][S-69][S-70][S-106] |
 | ✅ R-04 | Bookmarklet fallback | Done | S | [S-6][S-10] |
 | 🔲 R-02 | **Web client (FastAPI + HTMX)** — read/search/add from any device. PWA manifest for mobile install. Read-only by default, auth-gated mutations. Depends on SQLite migration (R-31). | Later | XL | [S-3][S-5][S-6][S-8][S-12] |
 | 🔲 R-03 | **Mobile PWA share-intent** — Android "Share to BOP" target via the web client, auto-categorize on receipt. | Later | M | [S-8][S-12] |
@@ -123,7 +123,7 @@ This roadmap revision is a ground-up rewrite informed by 120 cited sources acros
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| 🔲 R-57 | **MCP write tools** — add 6 tools: `delete_bookmark`, `update_bookmark`, `toggle_pin`, `mark_read_later`, `add_tags`, `remove_tags`. Burn 451 has 22 tools; BOP needs curation parity. | Now | M | [S-1][S-78] |
+| ✅ R-57 | **MCP write tools** — 6 new tools: `delete_bookmark`, `update_bookmark`, `toggle_pin`, `mark_read_later`, `add_tags`, `remove_tags`. Total 26 tools. | Done | M | [S-1][S-78] |
 | 🔲 R-58 | **MCP 2026-07-28 spec migration** — adapt to stateless protocol (no Mcp-Session-Id), add Mcp-Method/Mcp-Name headers, implement ttlMs + cacheScope on list results. Required for SDK Tier 1 compliance. | Next | L | [S-79][S-80] |
 | 🔲 R-59 | **FastMCP 3.x upgrade** — bump from ≥2.0 to ≥3.4. Gains: OAuth auto-enable for HTTPS, OTEL spans on tool execution, fastmcp-remote for connecting stdio hosts to remote servers, meta-tools. | Next | M | [S-81] |
 | 🔲 R-60 | **GUI chat panel** — sidebar or dialog for RAG chat. User types question, gets cited answers with bookmark links. `rag_chat.py` backend is complete but GUI-invisible. Most differentiating feature. Markwise and Raindrop Stella define the category. | Next | L | [S-1][S-65][S-82] |
@@ -150,11 +150,11 @@ This roadmap revision is a ground-up rewrite informed by 120 cited sources acros
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| 🔲 R-62 | **Help menu with Search Syntax, Shortcuts, About** — no Help menu exists. `get_syntax_help()` returns docs for 15+ filter types but is unreachable. AboutDialog is fully built but not wired. | Now | S | [S-1] |
-| 🔲 R-63 | **Remove AI reference from About credits** — `about.py` line 290: "Developed with assistance from assistant tooling". Violates no-AI-refs rule. | Now | S | [S-1] |
-| 🔲 R-64 | **Fix About dialog false feature claims** — Features tab lists System Tray and drag-and-drop removed in v6.3.0. | Now | S | [S-1] |
-| 🔲 R-65 | **Replace 35+ hardcoded Segoe UI fonts** — 12 UI files bypass FONTS system. Breaks macOS/Linux rendering. | Now | M | [S-1] |
-| 🔲 R-66 | **Remove 4 dead UI view classes** — KanbanView, TimelineView, ReadingListView, TagCloudView (~670 lines). Never instantiated. | Now | S | [S-1] |
+| ✅ R-62 | **Help menu with Search Syntax, Shortcuts, About** — Help menu added with Search Syntax (from SearchEngine), Keyboard Shortcuts list, and About dialog. All with Escape-to-close. | Done | S | [S-1] |
+| ✅ R-63 | **Remove AI reference from About credits** — already removed in prior pass; verified clean. | Done | S | [S-1] |
+| ✅ R-64 | **Fix About dialog false feature claims** — System Tray, drag-and-drop removed from features list. Undo/Redo scope clarified. | Done | S | [S-1] |
+| ✅ R-65 | **Replace 35+ hardcoded Segoe UI fonts** — 24 hardcoded font tuples replaced across 9 UI files with FONTS.body/small/custom calls. | Done | M | [S-1] |
+| ✅ R-66 | **Remove 4 dead UI view classes** — secondary_views.py deleted (~670 lines). Imports removed from ui/__init__.py. | Done | S | [S-1] |
 | 🔲 R-16 | **List virtualization via tksheet** — replace Treeview with tksheet for virtual scrolling. Handles millions of rows. Pure Python. v7.6.0 is maintenance-only but stable. | Now | L | [S-22][S-23][S-71] |
 | 🔲 R-67 | **GUI surfaces for Read Later, Flows, RSS** — 3 complete backend services with zero GUI exposure. Add collapsible sidebar sections. | Next | L | [S-1] |
 | 🔲 R-68 | **GUI import/export parity** — 7 importers and 6 export formats are CLI-only. Add to Import menu and Export dialog. | Next | M | [S-1] |
@@ -162,7 +162,7 @@ This roadmap revision is a ground-up rewrite informed by 120 cited sources acros
 | 🔲 R-70 | **Extend bookmark editor** — only shows URL/title/category/tags. Add notes, description, pin, read-later fields. Scrollable content. | Next | M | [S-1] |
 | 🔲 R-71 | **Theme-aware DependencyCheckDialog** — 40 hardcoded Catppuccin Mocha colors ignore active theme. Replace with `get_theme()` tokens. | Next | M | [S-1] |
 | 🔲 R-72 | **Add Escape-to-close on 8 modal dialogs** — standard desktop UX. BulkTagEditor, EmojiPicker, Analytics, ThemeSelector, AI dialogs. | Next | S | [S-1] |
-| 🔲 R-73 | **Batch save context manager** — every single-bookmark mutation triggers full file serialization. Add `BookmarkManager.batch()` for bulk ops. | Now | M | [S-1] |
+| ✅ R-73 | **Batch save context manager** — `BookmarkManager.batch()` context manager suppresses per-mutation saves; single flush on exit. Nestable. | Done | M | [S-1] |
 | 🔲 R-74 | **File-change watching for MCP+GUI co-existence** — MCP and GUI create independent managers. Poll `mtime` every 5s, reload on external change. | Next | M | [S-1] |
 | 🔲 R-17 | **Tree view alongside list view** — hierarchical category tree for deeply nested collections. | Next | M | [S-3][S-5] |
 | 🔲 R-18 | **sv-ttk theme integration** — Windows 11 Sun Valley look. v2.6.1 actively maintained, Python 3.9-3.13. | Later | M | [S-24][S-72] |
@@ -348,30 +348,18 @@ These ideas surfaced in research but need more validation before committing:
 
 ## Tier Summary
 
-### Now — Ship Before Next Release (13 items)
+### Now — Ship Before Next Release (1 remaining)
+
+All 12 of 13 Now-tier items shipped in v6.5.0. Remaining:
 
 | # | Item | Effort | Category |
 |---|------|--------|----------|
-| R-51 | Bump `cryptography` to ≥46.0.7 (2 CVEs) | S | Security |
-| R-52 | Wire MCP authentication enforcement | M | Security |
-| R-53 | Fix XXE in OPML/XBEL importers | S | Security |
-| R-54 | Sanitize LocalArchiver HTML output | S | Security |
-| R-57 | MCP write tools (6 new: delete, update, tag, pin, read-later) | M | MCP |
-| R-62 | Help menu (Search Syntax, Shortcuts, About) | S | UI |
-| R-63 | Remove AI reference from About credits | S | UI |
-| R-64 | Fix About dialog false feature claims | S | UI |
-| R-65 | Replace 35+ hardcoded Segoe UI fonts | M | UI |
-| R-66 | Remove 4 dead UI view classes (~670 lines) | S | Quality |
-| R-73 | Batch save context manager | M | Performance |
-| R-01 | Browser extension (MV3) — Chrome + Firefox | L | Platform |
 | R-16 | List virtualization via tksheet | L | Performance |
 
-### Next — v7.0 (14 items)
+### Next — v7.0 (12 items, R-55/R-56 shipped)
 
 | # | Item | Effort | Category |
 |---|------|--------|----------|
-| R-55 | Windows ACL on sensitive files | S | Security |
-| R-56 | REST API GET auth | S | Security |
 | R-58 | MCP 2026-07-28 spec migration | L | MCP |
 | R-59 | FastMCP 3.x upgrade | M | MCP |
 | R-60 | GUI chat panel for RAG | L | AI |

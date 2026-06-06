@@ -19,6 +19,16 @@ from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.url_utils import URLUtilities
 from bookmark_organizer_pro.utils import sanitize_filename, truncate_string
 
+_SCRIPT_RE = re.compile(r"<script[\s>].*?</script\s*>", re.DOTALL | re.IGNORECASE)
+_EVENT_HANDLER_RE = re.compile(r"\s+on[a-z]+\s*=\s*[\"'][^\"']*[\"']", re.IGNORECASE)
+
+
+def _strip_dangerous_html(html_text: str) -> str:
+    """Remove <script> tags and inline event handlers from HTML."""
+    html_text = _SCRIPT_RE.sub("", html_text)
+    html_text = _EVENT_HANDLER_RE.sub("", html_text)
+    return html_text
+
 
 class WaybackMachine:
     """Integration with Internet Archive's Wayback Machine"""
@@ -215,13 +225,14 @@ class LocalArchiver:
             filepath = self.ARCHIVE_DIR / filename
             
             if format == "html":
-                # Save as HTML with embedded resources note
                 safe_url = html_module.escape(bookmark.url, quote=True)
                 safe_title_html = html_module.escape(bookmark.title, quote=True)
+                sanitized_body = _strip_dangerous_html(page_text)
                 html_content = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="script-src 'none'; object-src 'none';">
     <meta name="archived-from" content="{safe_url}">
     <meta name="archived-date" content="{datetime.now().isoformat()}">
     <meta name="original-title" content="{safe_title_html}">
@@ -248,7 +259,7 @@ class LocalArchiver:
         📦 Archived from <a href="{safe_url}">{safe_url}</a>
         on {datetime.now().strftime('%Y-%m-%d %H:%M')}
     </div>
-    {page_text}
+    {sanitized_body}
 </body>
 </html>"""
                 

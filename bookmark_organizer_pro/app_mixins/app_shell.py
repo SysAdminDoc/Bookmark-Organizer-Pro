@@ -94,9 +94,69 @@ class AppShellMixin:
         view_menu.add_separator()
         view_menu.add_command(label="Refresh", accelerator="F5", command=self._refresh_all)
         menubar.add_cascade(label="View", menu=view_menu)
-        
+
+        help_menu = tk.Menu(menubar, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary)
+        help_menu.add_command(label="Search Syntax", command=self._show_search_syntax_help)
+        help_menu.add_command(label="Keyboard Shortcuts", command=self._show_keyboard_shortcuts)
+        help_menu.add_separator()
+        help_menu.add_command(label="About", command=self._show_about_dialog)
+        menubar.add_cascade(label="Help", menu=help_menu)
+
         self.root.config(menu=menubar)
-    
+
+    def _show_search_syntax_help(self):
+        from bookmark_organizer_pro.search import SearchEngine
+        get_syntax_help = SearchEngine.get_syntax_help
+        win = tk.Toplevel(self.root)
+        win.title("Search Syntax")
+        win.geometry("520x480")
+        win.transient(self.root)
+        win.grab_set()
+        win.bind("<Escape>", lambda e: win.destroy())
+        theme = get_theme()
+        text = tk.Text(win, bg=theme.bg_primary, fg=theme.text_primary,
+                       font=FONTS.body(), wrap=tk.WORD, padx=12, pady=12,
+                       relief=tk.FLAT, highlightthickness=0)
+        text.insert(tk.END, get_syntax_help())
+        text.configure(state=tk.DISABLED)
+        text.pack(fill=tk.BOTH, expand=True)
+
+    def _show_keyboard_shortcuts(self):
+        shortcuts = [
+            ("Ctrl+N", "New bookmark"),
+            ("Ctrl+I", "Import bookmarks"),
+            ("Ctrl+S", "Export bookmarks"),
+            ("Ctrl+F", "Focus search bar"),
+            ("Ctrl+P", "Command palette"),
+            ("Ctrl+Z", "Undo"),
+            ("Ctrl+Y", "Redo"),
+            ("Ctrl+A", "Select all"),
+            ("Ctrl++", "Zoom in"),
+            ("Ctrl+-", "Zoom out"),
+            ("F5", "Refresh"),
+            ("Delete", "Delete selected"),
+            ("Escape", "Close dialog"),
+        ]
+        win = tk.Toplevel(self.root)
+        win.title("Keyboard Shortcuts")
+        win.geometry("400x400")
+        win.transient(self.root)
+        win.grab_set()
+        win.bind("<Escape>", lambda e: win.destroy())
+        theme = get_theme()
+        win.configure(bg=theme.bg_primary)
+        for key, desc in shortcuts:
+            row = tk.Frame(win, bg=theme.bg_primary)
+            row.pack(fill=tk.X, padx=16, pady=3)
+            tk.Label(row, text=key, font=FONTS.body(bold=True), width=12, anchor="w",
+                     bg=theme.bg_primary, fg=theme.accent_primary).pack(side=tk.LEFT)
+            tk.Label(row, text=desc, font=FONTS.body(), anchor="w",
+                     bg=theme.bg_primary, fg=theme.text_primary).pack(side=tk.LEFT)
+
+    def _show_about_dialog(self):
+        from bookmark_organizer_pro.ui.about import AboutDialog
+        AboutDialog(self.root)
+
     def _create_main_layout(self):
         """Create main application layout"""
         theme = get_theme()

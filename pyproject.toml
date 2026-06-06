@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bookmark-organizer-pro"
-version = "6.4.2"
+version = "6.5.0"
 description = "Professional bookmark manager with AI categorization, semantic search, MCP server, and HTML snapshots"
 readme = "README.md"
 license = {text = "MIT"}
@@ -13,6 +13,7 @@ dependencies = [
     "beautifulsoup4>=4.12",
     "requests>=2.31",
     "Pillow>=12.2.0",
+    "defusedxml>=0.7",
 ]
 
 [project.optional-dependencies]
@@ -23,7 +24,7 @@ ai = [
     "fastembed>=0.4,<1.0",
     "lancedb>=0.13,<1.0",
 ]
-encryption = ["cryptography>=42.0,<45.0"]
+encryption = ["cryptography>=46.0.7"]
 mcp = ["mcp>=1.0,<2.0", "fastmcp>=2.0"]
 all = [
     "bookmark-organizer-pro[tray,ai,encryption,mcp]",

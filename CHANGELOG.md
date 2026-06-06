@@ -2,6 +2,63 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.5.0] - 2026-06-05
+
+Security hardening, MCP expansion, browser extension production, and UI polish.
+
+### Security (R-51, R-52, R-53, R-54, R-55, R-56)
+
+- **Bump `cryptography` to ≥46.0.7** — fixes CVE-2026-39892 (buffer overflow)
+  and CVE-2026-34073 (certificate validation bypass).
+- **Wire MCP authentication** — MCPTokenManager now enforced in mcp_server.py.
+  Open mode when no tokens configured; read-only/read-write scopes otherwise.
+- **Fix XXE in OPML/XBEL importers** — defusedxml integrated in importers.py
+  and xbel.py. Added to core dependencies.
+- **Sanitize LocalArchiver HTML** — strip `<script>` tags and `on*` handlers.
+  CSP `script-src 'none'` meta header on all archives.
+- **Windows ACL on API token** — icacls restricts api_token.txt to current user
+  on Windows (was world-readable).
+- **REST API GET auth** — all GET endpoints except `/` now require Bearer token.
+
+### Added — MCP (R-57)
+
+- **6 new MCP write tools** (26 total): `delete_bookmark`, `update_bookmark`,
+  `toggle_pin`, `mark_read_later`, `add_tags`, `remove_tags`. Registered in
+  both raw MCP and FastMCP server builders.
+
+### Added — Browser Extension (R-01)
+
+- **Extension icons** — 16/32/48/128px PNGs generated from app icon.
+- **Context menu** — "Save to BOP" on pages/links, "Save with selection" on
+  selected text. Background service worker.
+- **Keyboard shortcut** — Ctrl+Shift+B (configurable) opens popup.
+- **Category autocomplete** — bundled categories.json (39 categories) populates
+  `<datalist>` in popup.
+- **Read-later toggle** — checkbox in popup; sends `read_later` in POST payload.
+- **Test Connection** — button in Options page validates port + token against
+  live API, shows version or specific error.
+- **Improved error messages** — popup now shows actionable guidance for 401
+  (invalid token), network errors (start API), etc.
+
+### Added — UI (R-62, R-72)
+
+- **Help menu** — Search Syntax (renders all 15+ filter docs), Keyboard
+  Shortcuts reference, and About dialog. All dialogs support Escape-to-close.
+
+### Fixed — UI (R-63, R-64, R-65, R-66)
+
+- **About dialog false claims** — removed System Tray and drag-and-drop from
+  features list. Clarified Undo/Redo scope.
+- **24 hardcoded Segoe UI fonts replaced** across 9 UI files with FONTS system
+  calls. macOS/Linux now render correctly.
+- **4 dead UI view classes removed** — secondary_views.py deleted (~670 lines):
+  KanbanView, TimelineView, ReadingListView, TagCloudView.
+
+### Improved — Performance (R-73)
+
+- **Batch save context manager** — `BookmarkManager.batch()` suppresses
+  per-mutation saves; single flush on exit. Nestable.
+
 ## [v6.4.2] - 2026-06-06
 
 Browser capture foundation release.

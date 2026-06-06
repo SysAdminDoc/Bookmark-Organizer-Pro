@@ -15,7 +15,8 @@
 
     <label>
       Category
-      <input id="category" type="text" autocomplete="off">
+      <input id="category" type="text" autocomplete="off" list="categoryList">
+      <datalist id="categoryList"></datalist>
     </label>
 
     <label>
@@ -26,6 +27,11 @@
     <label>
       Notes
       <textarea id="notes" maxlength="5000"></textarea>
+    </label>
+
+    <label class="checkbox-row">
+      <input id="readLater" type="checkbox">
+      <span>Read Later</span>
     </label>
 
     <div class="actions">

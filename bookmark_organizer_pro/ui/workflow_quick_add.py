@@ -95,7 +95,7 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         
         tk.Label(
             url_frame, text="🔗", bg=theme.bg_primary,
-            fg=theme.accent_primary, font=("Segoe UI", 14)
+            fg=theme.accent_primary, font=FONTS.custom(14)
         ).pack(side=tk.LEFT)
         
         self.url_var = tk.StringVar(value=initial_url)
@@ -114,7 +114,7 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         
         tk.Label(
             title_frame, text="📝", bg=theme.bg_primary,
-            fg=theme.text_muted, font=("Segoe UI", 14)
+            fg=theme.text_muted, font=FONTS.custom(14)
         ).pack(side=tk.LEFT)
         
         self.title_var = tk.StringVar()
@@ -136,7 +136,7 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         
         tk.Label(
             cat_frame, text="📂", bg=theme.bg_primary,
-            fg=theme.text_muted, font=("Segoe UI", 14)
+            fg=theme.text_muted, font=FONTS.custom(14)
         ).pack(side=tk.LEFT)
         
         default_category = pick_default_category(categories)
@@ -153,7 +153,7 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         
         tk.Label(
             favicon_frame, text="🖼️", bg=theme.bg_primary,
-            fg=theme.text_muted, font=("Segoe UI", 14)
+            fg=theme.text_muted, font=FONTS.custom(14)
         ).pack(side=tk.LEFT)
         
         tk.Label(

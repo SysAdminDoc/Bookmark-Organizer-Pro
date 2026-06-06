@@ -72,6 +72,19 @@ async function getSelection(tabId) {
   }
 }
 
+async function loadCategories() {
+  const datalist = document.getElementById("categoryList");
+  try {
+    const resp = await fetch(api.runtime.getURL("categories.json"));
+    const categories = await resp.json();
+    for (const cat of categories) {
+      const opt = document.createElement("option");
+      opt.value = cat;
+      datalist.appendChild(opt);
+    }
+  } catch { /* bundled file missing — autocomplete just won't populate */ }
+}
+
 async function loadPopup() {
   const [tab] = await queryTabs({ active: true, currentWindow: true });
   activeTab = tab || null;
@@ -96,6 +109,8 @@ async function loadPopup() {
   if (selection) {
     document.getElementById("notes").value = `Selected: ${selection}`;
   }
+
+  await loadCategories();
 }
 
 async function saveBookmark() {
@@ -118,7 +133,8 @@ async function saveBookmark() {
     title: activeTab.title || activeTab.url,
     category: document.getElementById("category").value.trim() || values.defaultCategory,
     tags: document.getElementById("tags").value,
-    notes: document.getElementById("notes").value
+    notes: document.getElementById("notes").value,
+    read_later: document.getElementById("readLater").checked
   };
 
   try {
@@ -135,11 +151,13 @@ async function saveBookmark() {
       setStatus("Saved.", "success");
     } else if (response.status === 409) {
       setStatus("Already saved.", "success");
+    } else if (response.status === 401) {
+      setStatus("Invalid API token. Check Options.", "error");
     } else {
       setStatus(body.error || `Save failed (${response.status}).`, "error");
     }
   } catch {
-    setStatus("Cannot reach the local API.", "error");
+    setStatus("API not reachable. Start BOP or run: bop api-server", "error");
   } finally {
     setBusy(false);
   }

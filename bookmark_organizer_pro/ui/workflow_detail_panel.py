@@ -41,7 +41,7 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
         
         tk.Label(
             self.header, text="Bookmark Details", bg=theme.bg_tertiary,
-            fg=theme.text_primary, font=("Segoe UI", 11, "bold"),
+            fg=theme.text_primary, font=FONTS.body(bold=True),
             padx=15, pady=12
         ).pack(side=tk.LEFT)
         
@@ -83,7 +83,7 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
         icon_label = tk.Label(
             icon_frame, text=bookmark.domain[0].upper(),
             bg=theme.accent_primary, fg="#ffffff",
-            font=("Segoe UI", 24, "bold"),
+            font=FONTS.custom(24, bold=True),
             width=3, height=1
         )
         icon_label.pack(side=tk.LEFT)

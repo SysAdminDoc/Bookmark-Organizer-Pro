@@ -10,6 +10,10 @@ Inspired by Buku's 7-format support.
 import html as html_module
 import os
 import tempfile
+try:
+    from defusedxml import ElementTree as _safe_ET
+except ImportError:
+    import xml.etree.ElementTree as _safe_ET
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
@@ -123,10 +127,7 @@ class XBELHandler:
                 return []
 
             xml_bytes = filepath.read_bytes()
-            if b"<!ENTITY" in xml_bytes.upper():
-                log.error(f"XBEL file contains XML entities and was rejected: {filepath}")
-                return []
-            root = ET.fromstring(xml_bytes)
+            root = _safe_ET.fromstring(xml_bytes)
 
             # Strip namespace if present
             ns = ''
