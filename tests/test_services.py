@@ -642,6 +642,52 @@ class TestBatchSave(_IsolatedTestBase):
         self.assertEqual(save_count[0], 1)
 
 
+class TestBookmarkManagerSQLiteStorage(_IsolatedTestBase):
+    """Tests for opt-in SQLite storage backend selection."""
+
+    def _manager(self, filepath, storage_backend=None):
+        from bookmark_organizer_pro.core import CategoryManager
+        from bookmark_organizer_pro.managers import BookmarkManager, TagManager
+        return BookmarkManager(
+            CategoryManager(),
+            TagManager(),
+            filepath=filepath,
+            storage_backend=storage_backend,
+        )
+
+    def test_explicit_sqlite_backend_persists_and_reloads(self):
+        from bookmark_organizer_pro.core import SQLiteStorageManager
+
+        fp = Path(self._tmp) / "library.json"
+        mgr = self._manager(fp, storage_backend="sqlite")
+
+        self.assertEqual(mgr.storage_backend, "sqlite")
+        self.assertEqual(mgr.filepath, fp.with_suffix(".sqlite"))
+        self.assertIsInstance(mgr.storage, SQLiteStorageManager)
+
+        mgr.add_bookmark(_make_bookmark(url="https://sqlite-manager.example", title="SQLite Manager"))
+        reloaded = self._manager(fp, storage_backend="sqlite")
+
+        self.assertEqual(len(reloaded.get_all_bookmarks()), 1)
+        self.assertEqual(reloaded.get_all_bookmarks()[0].url, "https://sqlite-manager.example")
+
+    def test_sqlite_suffix_selects_sqlite_backend(self):
+        from bookmark_organizer_pro.core import SQLiteStorageManager
+
+        mgr = self._manager(Path(self._tmp) / "library.sqlite")
+
+        self.assertEqual(mgr.storage_backend, "sqlite")
+        self.assertIsInstance(mgr.storage, SQLiteStorageManager)
+
+    def test_storage_backend_env_selects_sqlite(self):
+        fp = Path(self._tmp) / "env_library.json"
+        with patch.dict(os.environ, {"BOOKMARK_STORAGE_BACKEND": "sqlite"}):
+            mgr = self._manager(fp)
+
+        self.assertEqual(mgr.storage_backend, "sqlite")
+        self.assertEqual(mgr.filepath, fp.with_suffix(".sqlite"))
+
+
 # ── 15. SnapshotArchiver (chain preference) ─────────────────────────
 
 class TestSnapshotArchiver(_IsolatedTestBase):

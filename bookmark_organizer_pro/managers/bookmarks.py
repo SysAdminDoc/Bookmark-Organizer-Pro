@@ -21,7 +21,7 @@ except Exception:  # pragma: no cover - exercised when optional dependency is un
     BeautifulSoup = None
 
 from bookmark_organizer_pro.constants import APP_VERSION, MASTER_BOOKMARKS_FILE
-from bookmark_organizer_pro.core import CategoryManager, StorageManager
+from bookmark_organizer_pro.core import CategoryManager, SQLiteStorageManager, StorageManager
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.search import SearchEngine
@@ -75,17 +75,47 @@ class BookmarkManager:
             Emits callbacks on add, update, delete operations
         """
     
-    def __init__(self, category_manager: CategoryManager, 
+    SQLITE_SUFFIXES = {".sqlite", ".sqlite3", ".db"}
+
+    def __init__(self, category_manager: CategoryManager,
                  tag_manager: TagManager,
-                 filepath: Path = MASTER_BOOKMARKS_FILE):
+                 filepath: Path = MASTER_BOOKMARKS_FILE,
+                 storage_backend: Optional[str] = None):
         self.category_manager = category_manager
         self.tag_manager = tag_manager
-        self.filepath = filepath
-        self.storage = StorageManager(filepath)
+        self.storage_backend = self._resolve_storage_backend(filepath, storage_backend)
+        self.filepath = self._resolve_storage_path(filepath, self.storage_backend)
+        self.storage = self._create_storage(self.filepath, self.storage_backend)
         self.bookmarks: Dict[int, Bookmark] = OrderedDict()
         self._lock = threading.RLock()
         self.search_engine = SearchEngine()
         self._load_bookmarks()
+
+    @classmethod
+    def _resolve_storage_backend(cls, filepath: Path, requested: Optional[str] = None) -> str:
+        backend = (requested or os.getenv("BOOKMARK_STORAGE_BACKEND", "")).strip().lower()
+        if backend in {"sqlite", "sqlite3"}:
+            return "sqlite"
+        if backend == "json":
+            return "json"
+        if backend:
+            log.warning(f"Unknown bookmark storage backend {backend!r}; using JSON")
+            return "json"
+        suffix = Path(filepath).suffix.lower()
+        return "sqlite" if suffix in cls.SQLITE_SUFFIXES else "json"
+
+    @classmethod
+    def _resolve_storage_path(cls, filepath: Path, backend: str) -> Path:
+        path = Path(filepath)
+        if backend == "sqlite" and path.suffix.lower() not in cls.SQLITE_SUFFIXES:
+            return path.with_suffix(".sqlite")
+        return path
+
+    @staticmethod
+    def _create_storage(filepath: Path, backend: str):
+        if backend == "sqlite":
+            return SQLiteStorageManager(filepath)
+        return StorageManager(filepath)
 
     def _assign_unique_id(self, bookmark: Bookmark):
         """Ensure an incoming bookmark cannot overwrite an existing ID."""

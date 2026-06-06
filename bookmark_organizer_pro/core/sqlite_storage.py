@@ -18,6 +18,21 @@ class SQLiteStorageManager:
     """SQLite persistence backend matching StorageManager's load/save shape."""
 
     CURRENT_SCHEMA = 1
+    CREATE_BOOKMARKS_SQL = """
+        CREATE TABLE IF NOT EXISTS bookmarks (
+            id TEXT PRIMARY KEY,
+            position INTEGER NOT NULL,
+            url TEXT NOT NULL,
+            title TEXT NOT NULL,
+            category TEXT NOT NULL DEFAULT '',
+            parent_category TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT '',
+            modified_at TEXT NOT NULL DEFAULT '',
+            is_pinned INTEGER NOT NULL DEFAULT 0,
+            read_later INTEGER NOT NULL DEFAULT 0,
+            payload_json TEXT NOT NULL
+        );
+    """
 
     def __init__(self, filepath: Path):
         self.filepath = Path(filepath)
@@ -41,30 +56,51 @@ class SQLiteStorageManager:
                     key TEXT PRIMARY KEY,
                     value TEXT NOT NULL
                 );
-                CREATE TABLE IF NOT EXISTS bookmarks (
-                    id INTEGER PRIMARY KEY,
-                    position INTEGER NOT NULL,
-                    url TEXT NOT NULL,
-                    title TEXT NOT NULL,
-                    category TEXT NOT NULL DEFAULT '',
-                    parent_category TEXT NOT NULL DEFAULT '',
-                    created_at TEXT NOT NULL DEFAULT '',
-                    modified_at TEXT NOT NULL DEFAULT '',
-                    is_pinned INTEGER NOT NULL DEFAULT 0,
-                    read_later INTEGER NOT NULL DEFAULT 0,
-                    payload_json TEXT NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS idx_bookmarks_url ON bookmarks(url);
-                CREATE INDEX IF NOT EXISTS idx_bookmarks_category ON bookmarks(category);
-                CREATE INDEX IF NOT EXISTS idx_bookmarks_created_at ON bookmarks(created_at);
-                CREATE INDEX IF NOT EXISTS idx_bookmarks_modified_at ON bookmarks(modified_at);
                 """
             )
+            self._ensure_text_id_schema(conn)
             conn.execute(
                 "INSERT OR REPLACE INTO metadata(key, value) VALUES(?, ?)",
                 ("schema_version", str(self.CURRENT_SCHEMA)),
             )
             conn.commit()
+
+    def _ensure_text_id_schema(self, conn: sqlite3.Connection) -> None:
+        rows = conn.execute("PRAGMA table_info(bookmarks)").fetchall()
+        if not rows:
+            conn.executescript(self.CREATE_BOOKMARKS_SQL)
+            self._create_indexes(conn)
+            return
+        id_row = next((row for row in rows if row["name"] == "id"), None)
+        if id_row and str(id_row["type"]).upper() == "TEXT":
+            self._create_indexes(conn)
+            return
+        conn.execute("ALTER TABLE bookmarks RENAME TO bookmarks_old")
+        conn.executescript(self.CREATE_BOOKMARKS_SQL)
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO bookmarks(
+                id, position, url, title, category, parent_category,
+                created_at, modified_at, is_pinned, read_later, payload_json
+            )
+            SELECT
+                CAST(id AS TEXT), position, url, title, category, parent_category,
+                created_at, modified_at, is_pinned, read_later, payload_json
+            FROM bookmarks_old
+            """
+        )
+        conn.execute("DROP TABLE bookmarks_old")
+        self._create_indexes(conn)
+
+    def _create_indexes(self, conn: sqlite3.Connection) -> None:
+        conn.executescript(
+            """
+            CREATE INDEX IF NOT EXISTS idx_bookmarks_url ON bookmarks(url);
+            CREATE INDEX IF NOT EXISTS idx_bookmarks_category ON bookmarks(category);
+            CREATE INDEX IF NOT EXISTS idx_bookmarks_created_at ON bookmarks(created_at);
+            CREATE INDEX IF NOT EXISTS idx_bookmarks_modified_at ON bookmarks(modified_at);
+            """
+        )
 
     def save(self, data: List[Dict], metadata: Dict = None) -> None:
         """Replace bookmark rows in a single transaction."""
@@ -90,7 +126,7 @@ class SQLiteStorageManager:
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
-                            bookmark.id,
+                            str(bookmark.id),
                             position,
                             bookmark.url,
                             bookmark.title,

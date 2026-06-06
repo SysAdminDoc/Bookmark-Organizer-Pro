@@ -2,6 +2,25 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.5] - 2026-06-06
+
+SQLite runtime selection release.
+
+### Improved — Storage (R-31)
+
+- **Opt-in active backend** — `BookmarkManager` can now use SQLite through
+  `storage_backend="sqlite"`, `.sqlite`/`.db` file paths, or
+  `BOOKMARK_STORAGE_BACKEND=sqlite`.
+- **JSON remains default** — unknown backend names fall back to JSON and the
+  default app path still uses the existing JSON storage manager.
+- **Large ID compatibility** — SQLite stores bookmark IDs as text columns while
+  preserving integer IDs inside bookmark payloads.
+
+### Tests
+
+- Added manager-level backend selection coverage and unsigned bookmark ID
+  persistence coverage.
+
 ## [v6.6.4] - 2026-06-06
 
 SQLite migration foundation release.

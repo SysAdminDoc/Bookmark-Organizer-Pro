@@ -21,9 +21,9 @@
 
 ---
 
-## State of the Project (v6.6.4)
+## State of the Project (v6.6.5)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.4:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.5:
 
 - **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
@@ -108,6 +108,14 @@ R-31 is in progress. BOP now has an opt-in WAL-enabled SQLite storage manager
 and `sqlite-migrate` command that copies the JSON library into SQLite while
 leaving JSON as the default runtime backend. Details:
 `docs/audit/2026-06-06-v6.6.4-sqlite-foundation-audit.md`.
+
+### Cycle Note — v6.6.5 (2026-06-06)
+
+R-31 is complete. BOP can actively run `BookmarkManager` against SQLite through
+explicit constructor selection, `.sqlite`/`.db` paths, or the
+`BOOKMARK_STORAGE_BACKEND=sqlite` environment variable while preserving JSON as
+the default. Details:
+`docs/audit/2026-06-06-v6.6.5-sqlite-runtime-audit.md`.
 
 ### Hard Constraints
 
@@ -249,7 +257,7 @@ leaving JSON as the default runtime backend. Details:
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| 🔄 R-31 | **SQLite migration (optional)** — WAL-enabled storage manager and opt-in JSON-to-SQLite migration command shipped in v6.6.4. Runtime backend selection/config remains open; JSON remains default. | In Progress | XL | [S-7][S-9] |
+| ✅ R-31 | **SQLite migration (optional)** — WAL-enabled storage manager, opt-in JSON-to-SQLite migration command, and explicit SQLite runtime backend selection shipped in v6.6.4-v6.6.5. JSON remains default. | Done | XL | [S-7][S-9] |
 | ✅ R-32 | Per-backup integrity hash (SHA-256) | Done | S | [S-1] |
 | ✅ R-33 | Deduplicate cross-category patterns | Done | M | [S-1] |
 | ✅ R-34 | Fix overly broad plain patterns | Done | M | [S-1] |
@@ -345,6 +353,7 @@ All items below shipped in v6.0.0 through v6.4.1. Full details in [CHANGELOG.md]
 | R-58A | MCP stateless stdio and cacheable tool catalog slice | v6.6.2 |
 | R-58 | MCP Streamable HTTP and mirrored header validation | v6.6.3 |
 | R-31A | SQLite storage manager and JSON migration command | v6.6.4 |
+| R-31 | SQLite runtime backend selection | v6.6.5 |
 | BUG-01 through BUG-14 | All 14 known bugs fixed | v6.2.0-v6.4.1 |
 | + 30 v6.1.0 fixes | AI batch processor, chunk overlap, MCP schemas, CI flow, thread safety, etc. | v6.1.0 |
 
@@ -398,11 +407,10 @@ These ideas surfaced in research but need more validation before committing:
 
 All 13 Now-tier items have shipped through v6.6.0.
 
-### Next — v7.0 (2 remaining, R-31 in progress)
+### Next — v7.0 (1 remaining, R-31 shipped in v6.6.5)
 
 | # | Item | Effort | Category |
 |---|------|--------|----------|
-| R-31 | SQLite runtime backend selection/config | XL | Architecture |
 | R-40 | Nuitka compilation | L | Distribution |
 
 ### Later — v7.x+ (7 remaining, R-17/R-50 shipped in v6.5.2)
