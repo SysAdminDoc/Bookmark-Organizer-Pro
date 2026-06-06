@@ -2,6 +2,24 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.13] - 2026-06-06
+
+OPDS serving release.
+
+### Added — Export (R-26)
+
+- **Loopback OPDS route** — the local API now serves `GET /opds` as an OPDS
+  1.2 acquisition feed.
+- **Catalog filters** — `/opds` supports `tag`, `category`, `title`, and
+  bounded `limit` query parameters.
+- **Shared renderer** — OPDS file export and HTTP serving now use the same
+  `render_opds()` output path.
+
+### Tests
+
+- Added local API coverage for the OPDS route, content type, media type
+  inference, and open-access acquisition links.
+
 ## [v6.6.12] - 2026-06-06
 
 OPDS export foundation release.

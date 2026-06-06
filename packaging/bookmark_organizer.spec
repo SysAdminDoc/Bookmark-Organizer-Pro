@@ -23,7 +23,7 @@ import sys
 # =============================================================================
 
 APP_NAME = "Bookmark Organizer Pro"
-APP_VERSION = "6.6.12"
+APP_VERSION = "6.6.13"
 SCRIPT_NAME = "main.py"
 ICON_FILE = "bookmark_organizer.ico"
 PNG_ICON_FILE = "bookmark_organizer.png"

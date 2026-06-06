@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION, DATA_DIR
 from bookmark_organizer_pro.logging_config import log
+from bookmark_organizer_pro.services.feed_export import render_opds
 from bookmark_organizer_pro.utils import validate_url
 
 if TYPE_CHECKING:
@@ -78,6 +79,19 @@ class BookmarkAPI:
                 self.end_headers()
                 self.wfile.write(body)
 
+            def _send_xml(self, xml: str, status=200):
+                body = xml.encode("utf-8")
+                self.send_response(status)
+                self.send_header(
+                    'Content-Type',
+                    'application/atom+xml;profile=opds-catalog;kind=acquisition; charset=utf-8',
+                )
+                self.send_header('X-Content-Type-Options', 'nosniff')
+                self.send_header('Content-Length', str(len(body)))
+                self.send_header('Access-Control-Allow-Origin', 'null')
+                self.end_headers()
+                self.wfile.write(body)
+
             def _check_auth(self) -> bool:
                 auth = self.headers.get('Authorization', '')
                 if hmac.compare_digest(auth, f'Bearer {api_token}'):
@@ -107,9 +121,28 @@ class BookmarkAPI:
                             "GET /categories",
                             "GET /tags",
                             "GET /stats",
-                            "GET /search?q=query"
+                            "GET /search?q=query",
+                            "GET /opds"
                         ]
                     })
+                    return
+
+                if path_parts[0] == 'opds':
+                    bookmarks = bookmark_manager.get_all_bookmarks()
+                    category = params.get('category', [''])[0]
+                    tag = params.get('tag', [''])[0]
+                    title = params.get('title', ['Bookmarks'])[0] or "Bookmarks"
+                    try:
+                        limit = max(1, min(1000, int(params.get('limit', [200])[0])))
+                    except (TypeError, ValueError):
+                        limit = 200
+                    if category:
+                        bookmarks = [bm for bm in bookmarks if bm.category == category]
+                    if tag:
+                        tag_l = tag.lower()
+                        bookmarks = [bm for bm in bookmarks if any(t.lower() == tag_l for t in bm.tags)]
+                    catalog_url = f"http://127.0.0.1:{self.server.server_port}{self.path}"
+                    self._send_xml(render_opds(bookmarks[:limit], title=title, catalog_url=catalog_url))
                     return
 
                 if not self._check_auth():
