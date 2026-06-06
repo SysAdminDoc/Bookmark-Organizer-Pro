@@ -30,7 +30,7 @@ class TestNuitkaBuildHelper(unittest.TestCase):
             mode="onefile",
             output_dir=Path("dist/nuitka"),
             python_executable="python",
-            version="6.6.6",
+            version="6.6.7",
             root=ROOT,
         )
 
@@ -38,8 +38,9 @@ class TestNuitkaBuildHelper(unittest.TestCase):
         self.assertIn("--mode=onefile", command)
         self.assertIn("--enable-plugin=tk-inter", command)
         self.assertIn("--include-package=bookmark_organizer_pro", command)
-        self.assertIn("--file-version=6.6.6.0", command)
-        self.assertIn("--product-version=6.6.6.0", command)
+        self.assertIn("--jobs=4", command)
+        self.assertIn("--file-version=6.6.7.0", command)
+        self.assertIn("--product-version=6.6.7.0", command)
         self.assertTrue(any(arg.startswith("--include-data-files=") for arg in command))
         self.assertEqual(command[-1], str(ROOT / "main.py"))
 
@@ -48,10 +49,17 @@ class TestNuitkaBuildHelper(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with patch.object(sys, "argv", ["nuitka_build.py"]):
                 with patch("subprocess.call") as call:
-                    result = module.main(["--dry-run", "--output-dir", tmp])
+                    result = module.main(["--dry-run", "--output-dir", tmp, "--jobs", "2"])
 
         self.assertEqual(result, 0)
         call.assert_not_called()
+
+    def test_command_accepts_custom_jobs(self):
+        module = _load_nuitka_build()
+
+        command = module.build_command(jobs=2, version="6.6.7", root=ROOT)
+
+        self.assertIn("--jobs=2", command)
 
     def test_nuitka_extra_is_declared(self):
         pyproject_text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")

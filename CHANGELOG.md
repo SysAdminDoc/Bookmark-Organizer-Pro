@@ -2,6 +2,25 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.7] - 2026-06-06
+
+Nuitka build-control release.
+
+### Improved — Distribution (R-40 partial)
+
+- **Compiler job control** — `packaging/nuitka_build.py` now emits
+  `--jobs=4` by default and accepts `--jobs N` for bounded local compile
+  attempts.
+- **Toolchain verification** — active environment verification confirmed
+  Nuitka 4.1.2 and MSVC `cl 14.3` availability.
+- **Compile-smoke evidence** — an unthrottled full-app standalone compile
+  attempt ran past 15 minutes, so the next R-40 pass should use the bounded
+  jobs path.
+
+### Tests
+
+- Added packaging-helper coverage for custom `--jobs` values.
+
 ## [v6.6.6] - 2026-06-06
 
 Nuitka build-path release.

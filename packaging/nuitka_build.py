@@ -14,6 +14,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 ASSETS_DIR = ROOT_DIR / "assets"
 MAIN_SCRIPT = ROOT_DIR / "main.py"
 DEFAULT_OUTPUT_DIR = ROOT_DIR / "dist" / "nuitka"
+DEFAULT_JOBS = 4
 APP_NAME = "Bookmark Organizer Pro"
 EXE_NAME = "BookmarkOrganizerPro"
 COMPANY_NAME = "Bookmark Organizer Team"
@@ -48,6 +49,7 @@ def build_command(
     python_executable: str = sys.executable,
     version: str | None = None,
     root: Path = ROOT_DIR,
+    jobs: int = DEFAULT_JOBS,
 ) -> List[str]:
     version = version or _app_version()
     output_dir = Path(output_dir)
@@ -64,6 +66,7 @@ def build_command(
         f"--output-dir={output_dir}",
         f"--output-filename={EXE_NAME}",
         f"--report={report_path}",
+        f"--jobs={jobs}",
         f"--product-name={APP_NAME}",
         f"--file-description={FILE_DESCRIPTION}",
         f"--file-version={_file_version(version)}",
@@ -87,10 +90,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build Bookmark Organizer Pro with Nuitka")
     parser.add_argument("--mode", choices=("onefile", "standalone"), default="onefile")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument("--jobs", type=int, default=DEFAULT_JOBS, help="Parallel compiler jobs")
     parser.add_argument("--dry-run", action="store_true", help="Print the Nuitka command without running it")
     args = parser.parse_args(argv)
 
-    command = build_command(mode=args.mode, output_dir=args.output_dir)
+    command = build_command(mode=args.mode, output_dir=args.output_dir, jobs=max(1, args.jobs))
     if args.dry_run:
         print(quote_command(command))
         return 0
