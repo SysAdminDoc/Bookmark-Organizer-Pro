@@ -315,7 +315,21 @@ class ImportExportMixin:
         else:
             menu.add_command(label="  No browsers detected", state="disabled")
 
-        # Position below the import button area
+        menu.add_separator()
+        service_importers = [
+            ("Pocket (HTML/JSON)", "*.html *.json", self._import_service_pocket),
+            ("Readwise Reader (CSV)", "*.csv", self._import_service_readwise),
+            ("Pinboard (JSON)", "*.json", self._import_service_pinboard),
+            ("Instapaper (CSV)", "*.csv", self._import_service_instapaper),
+            ("Reddit Saved (JSON)", "*.json", self._import_service_reddit),
+            ("Matter (CSV)", "*.csv", self._import_service_matter),
+            ("Wallabag (JSON)", "*.json", self._import_service_wallabag),
+            ("Arc Browser (JSON)", "*.json", self._import_service_arc),
+            ("Zotero (RDF)", "*.rdf", self._import_service_zotero),
+        ]
+        for label, _, callback in service_importers:
+            menu.add_command(label=f"  Import from {label}", command=callback)
+
         menu.tk_popup(self.root.winfo_pointerx(), self.root.winfo_pointery())
 
     def _import_from_browser(self, browser: str):
@@ -372,6 +386,81 @@ class ImportExportMixin:
 
         threading.Thread(target=do_import, daemon=True).start()
     
+    def _import_service_file(self, importer_cls, label, filetypes):
+        from tkinter import filedialog
+        from bookmark_organizer_pro.importers_extra import import_into
+        path = filedialog.askopenfilename(
+            title=f"Import from {label}",
+            filetypes=filetypes,
+            parent=self.root,
+        )
+        if not path:
+            return
+        added, dupes = import_into(self.bookmark_manager, importer_cls(), path)
+        self._on_import_done(added, dupes)
+
+    def _import_service_pocket(self):
+        from bookmark_organizer_pro.importers_extra import PocketExportImporter
+        self._import_service_file(PocketExportImporter, "Pocket",
+                                  [("Pocket Export", "*.html *.json"), ("All", "*.*")])
+
+    def _import_service_readwise(self):
+        from bookmark_organizer_pro.importers_extra import ReadwiseReaderCSVImporter
+        self._import_service_file(ReadwiseReaderCSVImporter, "Readwise",
+                                  [("CSV", "*.csv"), ("All", "*.*")])
+
+    def _import_service_pinboard(self):
+        from bookmark_organizer_pro.importers_extra import PinboardJSONImporter
+        self._import_service_file(PinboardJSONImporter, "Pinboard",
+                                  [("JSON", "*.json"), ("All", "*.*")])
+
+    def _import_service_instapaper(self):
+        from bookmark_organizer_pro.importers_extra import InstapaperImporter
+        self._import_service_file(InstapaperImporter, "Instapaper",
+                                  [("CSV", "*.csv"), ("All", "*.*")])
+
+    def _import_service_reddit(self):
+        from bookmark_organizer_pro.importers_extra import RedditSavedImporter
+        self._import_service_file(RedditSavedImporter, "Reddit",
+                                  [("JSON", "*.json"), ("All", "*.*")])
+
+    def _import_service_matter(self):
+        from bookmark_organizer_pro.importers_extra import MatterImporter
+        self._import_service_file(MatterImporter, "Matter",
+                                  [("CSV", "*.csv"), ("All", "*.*")])
+
+    def _import_service_wallabag(self):
+        from bookmark_organizer_pro.importers_extra import WallabagJSONImporter
+        self._import_service_file(WallabagJSONImporter, "Wallabag",
+                                  [("JSON", "*.json"), ("All", "*.*")])
+
+    def _import_service_arc(self):
+        from bookmark_organizer_pro.importers_extra import ArcBrowserImporter
+        self._import_service_file(ArcBrowserImporter, "Arc Browser",
+                                  [("JSON", "*.json"), ("All", "*.*")])
+
+    def _import_service_zotero(self):
+        from tkinter import filedialog
+        from bookmark_organizer_pro.services.zotero_interop import import_zotero_rdf
+        path = filedialog.askopenfilename(
+            title="Import from Zotero",
+            filetypes=[("RDF", "*.rdf"), ("All", "*.*")],
+            parent=self.root,
+        )
+        if not path:
+            return
+        bookmarks = import_zotero_rdf(path)
+        added = dupes = 0
+        for bm in bookmarks:
+            if self.bookmark_manager.url_exists(bm.url):
+                dupes += 1
+            else:
+                self.bookmark_manager.add_bookmark(bm, save=False)
+                added += 1
+        if added:
+            self.bookmark_manager.save_bookmarks()
+        self._on_import_done(added, dupes)
+
     def _show_export_dialog(self):
         """Show export dialog"""
         dialog = SelectiveExportDialog(self.root, self.bookmark_manager)

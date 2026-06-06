@@ -114,6 +114,49 @@ class BookmarkManager:
         """Reload bookmarks from disk"""
         self._load_bookmarks()
 
+    # --- File-change watching (R-74) ----------------------------------------
+
+    def start_file_watcher(self, interval: float = 5.0,
+                           on_reload: callable = None):
+        """Poll the bookmark file's mtime and reload on external changes.
+
+        ``on_reload`` is called (no args) after a successful reload so the
+        GUI can refresh its views.
+        """
+        self._watch_mtime = self._get_mtime()
+        self._watch_callback = on_reload
+        self._watch_interval = interval
+        self._watch_stop = threading.Event()
+        self._watch_thread = threading.Thread(
+            target=self._file_watch_loop, daemon=True
+        )
+        self._watch_thread.start()
+
+    def stop_file_watcher(self):
+        stop = getattr(self, "_watch_stop", None)
+        if stop:
+            stop.set()
+
+    def _get_mtime(self) -> float:
+        try:
+            return self.filepath.stat().st_mtime
+        except OSError:
+            return 0.0
+
+    def _file_watch_loop(self):
+        while not self._watch_stop.wait(self._watch_interval):
+            current = self._get_mtime()
+            if current != self._watch_mtime and current > 0:
+                self._watch_mtime = current
+                log.info("Bookmark file changed externally — reloading")
+                self._load_bookmarks()
+                cb = self._watch_callback
+                if cb:
+                    try:
+                        cb()
+                    except Exception:
+                        pass
+
     def save_bookmarks(self):
         """Save all bookmarks to storage (thread-safe — holds lock through write)."""
         if getattr(self, "_batch_depth", 0) > 0:

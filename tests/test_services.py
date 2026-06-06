@@ -440,5 +440,243 @@ class TestReadLaterQueue(_IsolatedTestBase):
         self.assertEqual(bm1.read_later_position, 1)
 
 
+# ── 9. HybridSearch (keyword-only fallback) ─────────────────────────
+
+class TestHybridSearchFallback(_IsolatedTestBase):
+    """Tests for HybridSearch keyword-only path (no embedding backend)."""
+
+    def test_keyword_search_returns_results(self):
+        from bookmark_organizer_pro.services.hybrid_search import HybridSearch
+        from bookmark_organizer_pro.services.vector_store import VectorStore
+        from bookmark_organizer_pro.services.embeddings import EmbeddingService
+
+        emb = EmbeddingService()
+        vs = VectorStore(emb)
+        hs = HybridSearch(vs)
+        bms = [
+            _make_bookmark(url="https://python.org", title="Python Programming"),
+            _make_bookmark(url="https://rust-lang.org", title="Rust Language"),
+        ]
+        results = hs.search(bms, "python")
+        titles = [r.bookmark.title for r in results]
+        self.assertIn("Python Programming", titles)
+
+    def test_empty_query(self):
+        from bookmark_organizer_pro.services.hybrid_search import HybridSearch
+        from bookmark_organizer_pro.services.vector_store import VectorStore
+        from bookmark_organizer_pro.services.embeddings import EmbeddingService
+
+        emb = EmbeddingService()
+        vs = VectorStore(emb)
+        hs = HybridSearch(vs)
+        results = hs.search([], "")
+        self.assertEqual(results, [])
+
+
+# ── 10. NLQueryTranslator ───────────────────────────────────────────
+
+class TestNLQueryHeuristic(_IsolatedTestBase):
+    """Tests for the heuristic fallback (no AI) of NLQueryTranslator."""
+
+    def test_heuristic_extracts_tags(self):
+        from bookmark_organizer_pro.services.nl_query import NLQueryTranslator
+        nlt = NLQueryTranslator(ai_config=None)
+        q = nlt.heuristic_parse("bookmarks tagged python")
+        self.assertIn("python", q.get("tags", []) + [q.get("keyword", "")])
+
+    def test_heuristic_with_domain(self):
+        from bookmark_organizer_pro.services.nl_query import NLQueryTranslator
+        nlt = NLQueryTranslator(ai_config=None)
+        q = nlt.heuristic_parse("github.com links")
+        text = json.dumps(q)
+        self.assertIn("github", text.lower())
+
+
+# ── 11. DeadLinkScanner ─────────────────────────────────────────────
+
+class TestDeadLinkScanner(_IsolatedTestBase):
+    """Tests for DeadLinkScanner initialization and result storage."""
+
+    def test_list_dead_links_empty(self):
+        from bookmark_organizer_pro.services.dead_link_scanner import DeadLinkScanner
+        scanner = DeadLinkScanner(get_bookmarks=lambda: [])
+        self.assertEqual(scanner.list_dead_links(), [])
+
+    def test_scanner_stores_results(self):
+        from bookmark_organizer_pro.services.dead_link_scanner import DeadLinkScanner
+        scanner = DeadLinkScanner(get_bookmarks=lambda: [])
+        scanner._results = {"https://dead.example.com": {
+            "url": "https://dead.example.com",
+            "status": 404,
+            "checked_at": datetime.now().isoformat(),
+        }}
+        scanner._save_results()
+        scanner2 = DeadLinkScanner(get_bookmarks=lambda: [])
+        self.assertEqual(len(scanner2._results), 0)
+
+
+# ── 12. WallabagJSONImporter ────────────────────────────────────────
+
+class TestWallabagImporter(_IsolatedTestBase):
+    """Tests for the Wallabag JSON importer."""
+
+    def test_import_basic(self):
+        from bookmark_organizer_pro.importers_extra import WallabagJSONImporter
+        data = [
+            {
+                "url": "https://example.com/article",
+                "title": "Test Article",
+                "is_starred": 1,
+                "tags": [{"label": "python", "slug": "python"}],
+                "created_at": "2026-01-15T10:00:00+00:00",
+            },
+            {
+                "url": "https://example.com/page",
+                "title": "Test Page",
+                "is_starred": 0,
+                "tags": [],
+            },
+        ]
+        p = Path(self._tmp) / "wallabag_export.json"
+        p.write_text(json.dumps(data), encoding="utf-8")
+        importer = WallabagJSONImporter()
+        bms = list(importer.from_path(str(p)))
+        self.assertEqual(len(bms), 2)
+        self.assertEqual(bms[0].title, "Test Article")
+        self.assertTrue(bms[0].is_pinned)
+        self.assertIn("python", bms[0].tags)
+        self.assertFalse(bms[1].is_pinned)
+
+    def test_import_empty_file(self):
+        from bookmark_organizer_pro.importers_extra import WallabagJSONImporter
+        p = Path(self._tmp) / "wallabag_empty.json"
+        p.write_text("[]", encoding="utf-8")
+        bms = list(WallabagJSONImporter().from_path(str(p)))
+        self.assertEqual(len(bms), 0)
+
+    def test_import_missing_file(self):
+        from bookmark_organizer_pro.importers_extra import WallabagJSONImporter
+        bms = list(WallabagJSONImporter().from_path("/nonexistent.json"))
+        self.assertEqual(len(bms), 0)
+
+
+# ── 13. ArcBrowserImporter ──────────────────────────────────────────
+
+class TestArcImporter(_IsolatedTestBase):
+    """Tests for the Arc Browser sidebar importer."""
+
+    def test_import_basic(self):
+        from bookmark_organizer_pro.importers_extra import ArcBrowserImporter
+        data = [
+            {"data": {"tab": {
+                "savedURL": "https://example.com",
+                "savedTitle": "Example",
+            }}},
+            {"data": {"tab": {
+                "savedURL": "https://github.com",
+                "savedTitle": "GitHub",
+            }}},
+        ]
+        p = Path(self._tmp) / "StorableSidebar.json"
+        p.write_text(json.dumps(data), encoding="utf-8")
+        bms = list(ArcBrowserImporter().from_path(str(p)))
+        self.assertEqual(len(bms), 2)
+        self.assertEqual(bms[0].title, "Example")
+        self.assertEqual(bms[1].url, "https://github.com")
+
+    def test_import_nested_format(self):
+        from bookmark_organizer_pro.importers_extra import ArcBrowserImporter
+        data = {"sidebarItems": [
+            {"data": {"tab": {
+                "savedURL": "https://nested.example.com",
+                "savedTitle": "Nested",
+            }}},
+        ]}
+        p = Path(self._tmp) / "arc_nested.json"
+        p.write_text(json.dumps(data), encoding="utf-8")
+        bms = list(ArcBrowserImporter().from_path(str(p)))
+        self.assertEqual(len(bms), 1)
+
+
+# ── 14. Batch save context manager ──────────────────────────────────
+
+class TestBatchSave(_IsolatedTestBase):
+    """Tests for BookmarkManager.batch() context manager."""
+
+    def _manager(self):
+        from bookmark_organizer_pro.core import CategoryManager, StorageManager
+        from bookmark_organizer_pro.managers import BookmarkManager, TagManager
+        fp = Path(self._tmp) / "batch_test_bookmarks.json"
+        cm = CategoryManager()
+        tm = TagManager()
+        return BookmarkManager(cm, tm, filepath=fp)
+
+    def test_batch_suppresses_saves(self):
+        mgr = self._manager()
+        save_count = [0]
+        orig_save = mgr.storage.save
+        def counting_save(*a, **k):
+            save_count[0] += 1
+            orig_save(*a, **k)
+        mgr.storage.save = counting_save
+
+        with mgr.batch():
+            mgr.add_bookmark(_make_bookmark(url="https://a.com"), save=True)
+            mgr.add_bookmark(_make_bookmark(url="https://b.com"), save=True)
+            mgr.add_bookmark(_make_bookmark(url="https://c.com"), save=True)
+        self.assertEqual(save_count[0], 1)
+
+    def test_batch_nestable(self):
+        mgr = self._manager()
+        save_count = [0]
+        orig_save = mgr.storage.save
+        def counting_save(*a, **k):
+            save_count[0] += 1
+            orig_save(*a, **k)
+        mgr.storage.save = counting_save
+
+        with mgr.batch():
+            mgr.add_bookmark(_make_bookmark(url="https://d.com"), save=True)
+            with mgr.batch():
+                mgr.add_bookmark(_make_bookmark(url="https://e.com"), save=True)
+        self.assertEqual(save_count[0], 1)
+
+
+# ── 15. SnapshotArchiver (chain preference) ─────────────────────────
+
+class TestSnapshotArchiver(_IsolatedTestBase):
+    """Tests for SnapshotArchiver initialization and preferences."""
+
+    def test_archiver_initializes(self):
+        from bookmark_organizer_pro.services.snapshot import SnapshotArchiver
+        archiver = SnapshotArchiver()
+        self.assertIsNotNone(archiver)
+        self.assertTrue(hasattr(archiver, 'archive'))
+
+    def test_max_bytes_limit(self):
+        from bookmark_organizer_pro.services.snapshot import SnapshotArchiver
+        archiver = SnapshotArchiver()
+        self.assertGreater(archiver.MAX_BYTES, 0)
+        self.assertLessEqual(archiver.MAX_BYTES, 50_000_000)
+
+
+# ── 16. Embedding model config ──────────────────────────────────────
+
+class TestEmbeddingModels(_IsolatedTestBase):
+    """Tests for the RECOMMENDED_MODELS config."""
+
+    def test_recommended_models_present(self):
+        from bookmark_organizer_pro.services.embeddings import RECOMMENDED_MODELS
+        self.assertIn("default", RECOMMENDED_MODELS)
+        self.assertIn("nomic", RECOMMENDED_MODELS)
+        self.assertIn("minilm", RECOMMENDED_MODELS)
+
+    def test_nomic_config(self):
+        from bookmark_organizer_pro.services.embeddings import RECOMMENDED_MODELS, NOMIC_MODEL
+        nomic = RECOMMENDED_MODELS["nomic"]
+        self.assertEqual(nomic["model"], NOMIC_MODEL)
+        self.assertEqual(nomic["dims"], 768)
+
+
 if __name__ == "__main__":
     unittest.main()

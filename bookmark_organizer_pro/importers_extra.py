@@ -302,6 +302,103 @@ class MatterImporter:
         return bookmarks
 
 
+# ---------------------------------------------------------------------------
+class WallabagJSONImporter:
+    """Wallabag JSON export.
+
+    Wallabag exports entries as a JSON array. Each entry has: title, url,
+    content, is_archived, is_starred, tags (list of {label, slug}),
+    created_at, updated_at, reading_time, domain_name, etc.
+    Maps is_starred to pinned.
+    """
+
+    def from_path(self, path: str) -> Iterator[Bookmark]:
+        p = Path(path)
+        if not p.exists():
+            return iter(())
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return iter(())
+        if not isinstance(data, list):
+            return iter(())
+        out: List[Bookmark] = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            url = (item.get("url") or "").strip()
+            if not url or not url.startswith(("http://", "https://")):
+                continue
+            tags = []
+            for tag_obj in (item.get("tags") or []):
+                label = ""
+                if isinstance(tag_obj, dict):
+                    label = (tag_obj.get("label") or tag_obj.get("slug") or "").strip()
+                elif isinstance(tag_obj, str):
+                    label = tag_obj.strip()
+                if label:
+                    tags.append(label)
+            bm = Bookmark(
+                id=None,
+                url=url,
+                title=html_module.unescape(item.get("title") or url),
+                description=item.get("preview_picture") or "",
+                tags=tags,
+                created_at=item.get("created_at") or "",
+                source_file="wallabag-json",
+            )
+            if item.get("is_starred"):
+                bm.is_pinned = True
+            out.append(bm)
+        return iter(out)
+
+
+# ---------------------------------------------------------------------------
+class ArcBrowserImporter:
+    """Arc Browser sidebar export (StorableSidebar.json).
+
+    Arc stores its sidebar state in StorableSidebar.json. Each item has
+    a ``data`` dict with ``tab`` containing ``savedURL`` and ``savedTitle``.
+    """
+
+    def from_path(self, path: str) -> Iterator[Bookmark]:
+        p = Path(path)
+        if not p.exists():
+            return iter(())
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return iter(())
+        out: List[Bookmark] = []
+        items = data if isinstance(data, list) else data.get("sidebarItems", data.get("items", []))
+        self._walk(items, out, "Imported from Arc")
+        return iter(out)
+
+    def _walk(self, items, out: list, category: str):
+        if not isinstance(items, list):
+            return
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            item_data = item.get("data", item)
+            tab = item_data.get("tab", {})
+            url = (tab.get("savedURL") or tab.get("url") or "").strip()
+            title = (tab.get("savedTitle") or tab.get("title") or "").strip()
+            if url and url.startswith(("http://", "https://")):
+                out.append(Bookmark(
+                    id=None, url=url,
+                    title=html_module.unescape(title or url),
+                    category=category,
+                    source_file="arc-browser",
+                ))
+            children = item.get("childrenIds") or item.get("children", [])
+            if isinstance(children, list) and children:
+                child_title = title or category
+                for child in children:
+                    if isinstance(child, dict):
+                        self._walk([child], out, child_title)
+
+
 def import_into(manager, importer, path: str) -> Tuple[int, int]:
     """Helper: run any importer above through a BookmarkManager.
 

@@ -89,6 +89,9 @@ class BookmarkCLI:
             "import-matter": self._cmd_import_matter,
             "import-zotero": self._cmd_import_zotero,
             "zotero-export": self._cmd_zotero_export,
+            # v6.5.1
+            "import-wallabag": self._cmd_import_wallabag,
+            "import-arc": self._cmd_import_arc,
         }
         
         if command in commands:
@@ -137,6 +140,8 @@ v6.0.0 commands:
   import-pinboard <json>        Import Pinboard JSON export
   import-instapaper <csv>       Import Instapaper CSV export
   import-reddit <json>          Import Reddit saved.json
+  import-wallabag <json>        Import Wallabag JSON export
+  import-arc <json>             Import Arc Browser StorableSidebar.json
   zip-export [id|all] [path]    Per-bookmark or whole-collection ZIP export
   encrypt <pass> [src] [dst]    Encrypt a JSON file with AES-256-GCM
   decrypt <pass> <src> [dst]    Decrypt an encrypted JSON file
@@ -434,7 +439,16 @@ Top Domains:
             print(f"failed: {msg}")
 
     def _cmd_embed(self, args):
-        from bookmark_organizer_pro.services.embeddings import EmbeddingService
+        from bookmark_organizer_pro.services.embeddings import EmbeddingService, RECOMMENDED_MODELS
+        model_name = None
+        if args and args[0].startswith("--model="):
+            key = args.pop(0).split("=", 1)[1]
+            if key in RECOMMENDED_MODELS:
+                model_name = RECOMMENDED_MODELS[key]["model"]
+            else:
+                model_name = key
+        if model_name:
+            self._emb = EmbeddingService(model_name=model_name)
         emb = self._embedder()
         if not emb.available:
             print("No embedding backend available. Install fastembed or model2vec.")
@@ -995,6 +1009,23 @@ Top Domains:
         bms = self.bookmark_manager.get_all_bookmarks()
         path = export_zotero_rdf(bms, output_path=output)
         print(f"Zotero RDF export: {path} ({len(bms)} items)")
+
+
+    def _cmd_import_wallabag(self, args):
+        from bookmark_organizer_pro.importers_extra import WallabagJSONImporter, import_into
+        if not args:
+            print("Usage: import-wallabag <path_to_wallabag_export.json>")
+            return
+        added, dupes = import_into(self.bookmark_manager, WallabagJSONImporter(), args[0])
+        print(f"Wallabag import: {added} added, {dupes} duplicates skipped")
+
+    def _cmd_import_arc(self, args):
+        from bookmark_organizer_pro.importers_extra import ArcBrowserImporter, import_into
+        if not args:
+            print("Usage: import-arc <path_to_StorableSidebar.json>")
+            return
+        added, dupes = import_into(self.bookmark_manager, ArcBrowserImporter(), args[0])
+        print(f"Arc Browser import: {added} added, {dupes} duplicates skipped")
 
 
 def main(argv=None):

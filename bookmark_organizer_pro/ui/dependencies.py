@@ -11,6 +11,7 @@ from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.utils.dependencies import DependencyManager
 
 from .foundation import FONTS
+from .widgets import get_theme
 
 
 class DependencyCheckDialog(tk.Toplevel):
@@ -22,126 +23,131 @@ class DependencyCheckDialog(tk.Toplevel):
         self.dep_manager = dep_manager
         self.result = False
 
+        theme = get_theme()
+
         self.title(f"{APP_NAME} - Dependency Check")
         self.geometry("500x400")
         self.resizable(False, False)
-        self.configure(bg="#1e1e2e")
+        self.configure(bg=theme.bg_primary)
 
         self.transient(parent)
         self.grab_set()
+        self.bind("<Escape>", lambda e: self.destroy())
 
         self.update_idletasks()
         x = (self.winfo_screenwidth() - 500) // 2
         y = (self.winfo_screenheight() - 400) // 2
         self.geometry(f"+{x}+{y}")
 
-        self._create_ui()
+        self._create_ui(theme)
         self.protocol("WM_DELETE_WINDOW", self._on_cancel)
 
-    def _create_ui(self) -> None:
-        header = tk.Frame(self, bg="#313244", padx=20, pady=15)
+    def _create_ui(self, theme) -> None:
+        header = tk.Frame(self, bg=theme.bg_secondary, padx=20, pady=15)
         header.pack(fill=tk.X)
 
         tk.Label(
             header,
             text="Dependency Check",
-            font=(FONTS.family, 14, "bold"),
-            bg="#313244",
-            fg="#cdd6f4",
+            font=FONTS.custom(14, bold=True),
+            bg=theme.bg_secondary,
+            fg=theme.text_primary,
         ).pack(anchor="w")
 
         tk.Label(
             header,
             text="Some packages need to be installed for full functionality.",
-            font=(FONTS.family, 10),
-            bg="#313244",
-            fg="#a6adc8",
+            font=FONTS.small(),
+            bg=theme.bg_secondary,
+            fg=theme.text_secondary,
         ).pack(anchor="w", pady=(5, 0))
 
-        content = tk.Frame(self, bg="#1e1e2e", padx=20, pady=15)
+        content = tk.Frame(self, bg=theme.bg_primary, padx=20, pady=15)
         content.pack(fill=tk.BOTH, expand=True)
 
         if self.dep_manager.missing_required:
             tk.Label(
                 content,
                 text="Required Packages",
-                font=(FONTS.family, 10, "bold"),
-                bg="#1e1e2e",
-                fg="#f38ba8",
+                font=FONTS.small(bold=True),
+                bg=theme.bg_primary,
+                fg=theme.accent_error,
             ).pack(anchor="w", pady=(0, 5))
 
             for package in self.dep_manager.missing_required:
                 info = self.dep_manager.REQUIRED_PACKAGES[package]
-                frame = tk.Frame(content, bg="#1e1e2e")
+                frame = tk.Frame(content, bg=theme.bg_primary)
                 frame.pack(fill=tk.X, pady=2)
                 tk.Label(
                     frame,
                     text=f"Required: {package}",
-                    font=(FONTS.family, 10),
-                    bg="#1e1e2e",
-                    fg="#cdd6f4",
+                    font=FONTS.small(),
+                    bg=theme.bg_primary,
+                    fg=theme.text_primary,
                 ).pack(side=tk.LEFT)
                 tk.Label(
                     frame,
                     text=f"- {info['description']}",
-                    font=(FONTS.family, 9),
-                    bg="#1e1e2e",
-                    fg="#6c7086",
+                    font=FONTS.tiny(),
+                    bg=theme.bg_primary,
+                    fg=theme.text_muted,
                 ).pack(side=tk.LEFT, padx=(10, 0))
 
         if self.dep_manager.missing_optional:
             tk.Label(
                 content,
                 text="Optional Packages",
-                font=(FONTS.family, 10, "bold"),
-                bg="#1e1e2e",
-                fg="#f9e2af",
+                font=FONTS.small(bold=True),
+                bg=theme.bg_primary,
+                fg=theme.accent_warning,
             ).pack(anchor="w", pady=(15, 5))
 
             for package in self.dep_manager.missing_optional:
                 info = self.dep_manager.OPTIONAL_PACKAGES[package]
-                frame = tk.Frame(content, bg="#1e1e2e")
+                frame = tk.Frame(content, bg=theme.bg_primary)
                 frame.pack(fill=tk.X, pady=2)
                 tk.Label(
                     frame,
                     text=f"Optional: {package}",
-                    font=(FONTS.family, 10),
-                    bg="#1e1e2e",
-                    fg="#cdd6f4",
+                    font=FONTS.small(),
+                    bg=theme.bg_primary,
+                    fg=theme.text_primary,
                 ).pack(side=tk.LEFT)
                 tk.Label(
                     frame,
                     text=f"- {info['description']}",
-                    font=(FONTS.family, 9),
-                    bg="#1e1e2e",
-                    fg="#6c7086",
+                    font=FONTS.tiny(),
+                    bg=theme.bg_primary,
+                    fg=theme.text_muted,
                 ).pack(side=tk.LEFT, padx=(10, 0))
 
-        self.progress_frame = tk.Frame(content, bg="#1e1e2e")
+        self.progress_frame = tk.Frame(content, bg=theme.bg_primary)
         self.progress_frame.pack(fill=tk.X, pady=(20, 0))
 
         self.progress_label = tk.Label(
             self.progress_frame,
             text="",
-            font=(FONTS.family, 9),
-            bg="#1e1e2e",
-            fg="#a6adc8",
+            font=FONTS.tiny(),
+            bg=theme.bg_primary,
+            fg=theme.text_secondary,
         )
         self.progress_label.pack(anchor="w")
 
         self.progress_bar = ttk.Progressbar(self.progress_frame, mode="indeterminate", length=300)
 
-        btn_frame = tk.Frame(self, bg="#313244", padx=20, pady=15)
+        btn_frame = tk.Frame(self, bg=theme.bg_secondary, padx=20, pady=15)
         btn_frame.pack(fill=tk.X, side=tk.BOTTOM)
+
+        self._theme = theme
 
         self.install_btn = tk.Button(
             btn_frame,
             text="Install All",
-            font=(FONTS.family, 10),
-            bg="#89b4fa",
-            fg="#1e1e2e",
-            activebackground="#b4befe",
-            activeforeground="#1e1e2e",
+            font=FONTS.small(),
+            bg=theme.accent_primary,
+            fg=theme.bg_primary,
+            activebackground=theme.accent_secondary,
+            activeforeground=theme.bg_primary,
             relief=tk.FLAT,
             padx=20,
             pady=8,
@@ -154,11 +160,11 @@ class DependencyCheckDialog(tk.Toplevel):
             self.skip_btn = tk.Button(
                 btn_frame,
                 text="Continue Without Optional",
-                font=(FONTS.family, 10),
-                bg="#45475a",
-                fg="#cdd6f4",
-                activebackground="#585b70",
-                activeforeground="#cdd6f4",
+                font=FONTS.small(),
+                bg=theme.bg_tertiary,
+                fg=theme.text_primary,
+                activebackground=theme.border,
+                activeforeground=theme.text_primary,
                 relief=tk.FLAT,
                 padx=15,
                 pady=8,
@@ -170,11 +176,11 @@ class DependencyCheckDialog(tk.Toplevel):
         tk.Button(
             btn_frame,
             text="Cancel",
-            font=(FONTS.family, 10),
-            bg="#45475a",
-            fg="#cdd6f4",
-            activebackground="#585b70",
-            activeforeground="#cdd6f4",
+            font=FONTS.small(),
+            bg=theme.bg_tertiary,
+            fg=theme.text_primary,
+            activebackground=theme.border,
+            activeforeground=theme.text_primary,
             relief=tk.FLAT,
             padx=15,
             pady=8,
@@ -201,16 +207,17 @@ class DependencyCheckDialog(tk.Toplevel):
     def _installation_complete(self, success: bool) -> None:
         self.progress_bar.stop()
         self.progress_bar.pack_forget()
+        theme = self._theme
 
         if success or not self.dep_manager.missing_required:
-            self.progress_label.configure(text="Installation complete.", fg="#a6e3a1")
+            self.progress_label.configure(text="Installation complete.", fg=theme.accent_success)
             self.result = True
             self.after(1000, self.destroy)
             return
 
         self.progress_label.configure(
             text="Some installations failed. Check your internet connection.",
-            fg="#f38ba8",
+            fg=theme.accent_error,
         )
         self.install_btn.configure(state=tk.NORMAL, text="Retry")
 

@@ -47,9 +47,10 @@ class EmojiPicker(tk.Toplevel, ThemedWidget):
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
         self.grab_set()
-        
+        self.bind("<Escape>", lambda e: self.destroy())
+
         apply_window_chrome(self)
-        
+
         # Search
         search_frame = tk.Frame(self, bg=theme.bg_primary)
         search_frame.pack(fill=tk.X, padx=15, pady=15)
