@@ -1,9 +1,9 @@
-# Bookmark Organizer Pro v6.4.0
+# Bookmark Organizer Pro v6.4.1
 
-A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server for Claude / Cursor / Codex integration**, **single-file HTML snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
+A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **single-file HTML snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
-![Version](https://img.shields.io/badge/version-6.4.0-blue.svg)
-![Python](https://img.shields.io/badge/Python-3.8+-3776AB.svg?logo=python&logoColor=white)
+![Version](https://img.shields.io/badge/version-6.4.1-blue.svg)
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
@@ -20,9 +20,9 @@ extra installs. See [CHANGELOG.md](CHANGELOG.md) and [docs/COMPETITIVE_RESEARCH.
 ### v6 highlights
 
 - **MCP server** — expose your bookmark library as a Model Context
-  Protocol server. Claude Desktop, Claude Code, Cursor, and Codex can
-  now `search_bookmarks`, `semantic_search`, `chat_with_collection`,
-  `summarize_bookmark`, and 11 other tools directly. **No other OSS
+  Protocol server. MCP-compatible clients can now `search_bookmarks`,
+  `semantic_search`, `chat_with_collection`, `summarize_bookmark`, and
+  11 other tools directly. **No other OSS
   bookmark manager ships this.** Run with
   `python -m bookmark_organizer_pro.mcp_server`.
 - **Local semantic search + hybrid RRF** — `lancedb` vector store
@@ -62,7 +62,7 @@ extra installs. See [CHANGELOG.md](CHANGELOG.md) and [docs/COMPETITIVE_RESEARCH.
 - **5 new importers** — Pocket export, Readwise Reader CSV, Pinboard
   JSON, Instapaper CSV, Reddit Saved JSON.
 
-### MCP setup (Claude Desktop / Claude Code / Cursor)
+### MCP setup
 
 Add to your MCP config:
 
@@ -77,7 +77,7 @@ Add to your MCP config:
 }
 ```
 
-After restart, the agent can query your bookmark library directly.
+After restart, the MCP-compatible client can query your bookmark library directly.
 
 ### v6 CLI quickstart
 
@@ -119,7 +119,7 @@ python -m bookmark_organizer_pro.cli mcp-server
 - **Tag Generation**: Automatic tag suggestions using AI
 - **Title Improvement**: Clean up and improve bookmark titles
 - **Content Summarization**: Generate summaries for bookmarks
-- **Multiple Providers**: OpenAI, Anthropic Claude, Google Gemini, Groq, Ollama (local)
+- **Multiple Providers**: OpenAI, Anthropic, Google Gemini, Groq, Ollama (local)
 
 ### UI/UX
 - **10+ Built-in Themes**: GitHub Dark/Light, Dracula, Nord, Monokai, Tokyo Night, and more
@@ -152,7 +152,7 @@ python -m bookmark_organizer_pro.cli mcp-server
 ## Installation
 
 ### Requirements
-- Python 3.8 or higher
+- Python 3.10 or higher
 - Tkinter (usually included with Python)
 
 ### Quick Start
@@ -532,7 +532,7 @@ Major release — see the **What's new in v6.0.0** section above and
 
 ### v5.0.0 (April 2026)
 - 4,224 categorization patterns (3,405 domains + 768 keywords) — up from 1,963 (+115%)
-- Researched top 3,000 websites via Cloudflare Radar, Similarweb, Tranco, and 11 parallel research agents
+- Researched top 3,000 websites via Cloudflare Radar, Similarweb, Tranco, and a parallel research pass
 - All 32 categories at 23+ patterns, average 132 per category
 - Security hardening: SSRF protection, path traversal guards, open redirect blocking, thread-safe BookmarkManager
 - Premium UX: empty state, toast notifications, search placeholder, theme display names, drag-drop collapse

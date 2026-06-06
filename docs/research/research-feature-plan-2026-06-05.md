@@ -17,9 +17,9 @@ However, beneath the feature breadth lie structural issues that will compound: a
 1. **Wire MCP authentication** -- 20 tools exposed with zero auth enforcement (critical security gap)
 2. **Fix OPML/XBEL XXE vulnerability** -- unsafe XML parsing on user-supplied import files
 3. **Sanitize LocalArchiver HTML output** -- stored XSS via unsanitized fetched content
-4. **Sync version strings** -- PyInstaller spec at 6.2.1, CLAUDE.md at 6.1.0, app at 6.4.0
+4. **Sync version strings** -- PyInstaller spec at 6.2.1, local working notes at 6.1.0, app at 6.4.0
 5. **Surface CLI-only features in GUI** -- 15+ features (importers, exports, search modes, chat) are GUI-invisible
-6. **Add MCP write tools** -- delete, update, tag mutation needed for agent-driven curation
+6. **Add MCP write tools** -- delete, update, tag mutation needed for client-driven curation
 7. **Fix hardcoded Segoe UI fonts** -- 35+ references break macOS/Linux rendering
 8. **Theme-aware DependencyCheckDialog** -- 40 hardcoded Catppuccin Mocha colors ignore active theme
 9. **Add Help menu + About dialog wiring** -- AboutDialog is fully built but unreachable
@@ -56,7 +56,7 @@ However, beneath the feature breadth lie structural issues that will compound: a
 - `ROADMAP.md` v3.0 -- 50 items, many completed
 - `CHANGELOG.md` -- current through v6.4.0
 - `README.md` -- comprehensive, Python version mismatch (says 3.8+)
-- `CLAUDE.md` -- stale at v6.1.0
+- `local working notes` -- stale at v6.1.0
 - `.github/workflows/build.yml` -- CI/CD pipeline
 
 ### Git History Range
@@ -94,7 +94,7 @@ Last 20 commits on main branch (v6.1.0 through v6.4.0, June 2026).
 2. **AI Enrichment** -- 6 AI providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek) for categorization, tag suggestion, title improvement, summarization
 3. **Content Preservation** -- Snapshot chain (monolith -> singlefile -> playwright -> python), extracted text, Wayback Machine integration
 4. **Research Flows** -- Create research trails linking related bookmarks with annotations (CLI/MCP only)
-5. **MCP Integration** -- 20 stdio tools for Claude Desktop/Cursor/Codex to query and add bookmarks
+5. **MCP Integration** -- 20 stdio tools for MCP-compatible clients to query and add bookmarks
 6. **CLI Power User** -- 37 subcommands for import, export, search, AI operations, encryption
 
 ### Existing Features (by surface)
@@ -161,7 +161,7 @@ Last 20 commits on main branch (v6.1.0 through v6.4.0, June 2026).
 
 ### 3. MCP Server
 
-- **User Value:** 20 stdio tools for AI agents to query, search, add bookmarks, create flows, export data
+- **User Value:** 20 stdio tools for MCP clients to query, search, add bookmarks, create flows, export data
 - **Entry Points:** `python -m bookmark_organizer_pro.mcp_server`, `bop-mcp` console script
 - **Code Locations:** `mcp_server.py` (728 lines), `services/mcp_auth.py` (token management -- dead code)
 - **Maturity:** Medium -- tools work, but auth is unwired, no delete/update tools, no streaming
@@ -223,7 +223,7 @@ Last 20 commits on main branch (v6.1.0 through v6.4.0, June 2026).
 - **Tests:** None
 - **Improvement Opportunities:**
   - No menu item or button links to it (finding #21)
-  - Credits tab references "Claude (Anthropic)" violating no-AI-refs rule (finding #32)
+  - Credits tab references "assistant tooling" violating no-AI-refs rule (finding #32)
   - Features tab lists system tray and drag-and-drop that no longer exist (finding #26)
   - Credits tab claims Python 3.8+ but pyproject.toml requires 3.10+ (finding #65)
 
@@ -381,13 +381,13 @@ Last 20 commits on main branch (v6.1.0 through v6.4.0, June 2026).
 
 ### NF-02: MCP Write Tools (Delete, Update, Tag Mutation)
 
-- **User Problem:** AI agents can add bookmarks and create flows via MCP but cannot delete, update, re-categorize, tag, pin, or archive existing bookmarks. This makes MCP useless for curation workflows.
+- **User Problem:** MCP clients can add bookmarks and create flows via MCP but cannot delete, update, re-categorize, tag, pin, or archive existing bookmarks. This makes MCP useless for curation workflows.
 - **Evidence:** Finding #20. `mcp_server.py` TOOLS list (lines 363-536) has 20 tools but only `add_bookmark`, `create_flow`, and `append_to_flow` are write operations.
 - **Proposed Behavior:** Add 6 new tools: `delete_bookmark(bookmark_id)`, `update_bookmark(bookmark_id, title?, category?, tags?, notes?)`, `toggle_pin(bookmark_id)`, `mark_read_later(bookmark_id)`, `add_tags(bookmark_id, tags)`, `remove_tags(bookmark_id, tags)`. All wrap existing BookmarkManager methods.
 - **Implementation Areas:** `mcp_server.py` -- add 6 tool registrations with Pydantic-like schemas
 - **Data/API/UI Implications:** All methods already exist on BookmarkManager. MCP auth (if wired) should gate these as read-write scope.
-- **Risks:** Data loss if agent deletes wrong bookmarks. Mitigate: add confirmation parameter or soft-delete default.
-- **Verification:** Use Claude Desktop to ask "delete bookmark X" and verify it is removed from the library
+- **Risks:** Data loss if client deletes wrong bookmarks. Mitigate: add confirmation parameter or soft-delete default.
+- **Verification:** Use MCP-compatible client to ask "delete bookmark X" and verify it is removed from the library
 - **Complexity:** M
 - **Priority:** P1
 
@@ -550,9 +550,9 @@ Last 20 commits on main branch (v6.1.0 through v6.4.0, June 2026).
 
 ### EI-04: Sync Version Strings (Finding #14)
 
-- **Current Behavior:** `constants.py` and `pyproject.toml` say 6.4.0. PyInstaller spec says 6.2.1. CLAUDE.md says v6.1.0 throughout. `export_html` says "v4". `about.py` says Python 3.8+. README says Python 3.8+.
+- **Current Behavior:** `constants.py` and `pyproject.toml` say 6.4.0. PyInstaller spec says 6.2.1. local working notes says v6.1.0 throughout. `export_html` says "v4". `about.py` says Python 3.8+. README says Python 3.8+.
 - **Problem:** Built binaries report wrong version. Documentation is stale and misleading.
-- **Change:** Update all 6 locations to 6.4.0 and Python 3.10+: `packaging/bookmark_organizer.spec`, `packaging/version_info.txt`, `CLAUDE.md`, `managers/bookmarks.py` export_html comment, `ui/about.py` credits tab, `README.md` requirements section.
+- **Change:** Update all 6 locations to 6.4.0 and Python 3.10+: `packaging/bookmark_organizer.spec`, `packaging/version_info.txt`, `local working notes`, `managers/bookmarks.py` export_html comment, `ui/about.py` credits tab, `README.md` requirements section.
 - **Code Locations:** See above
 - **Backward Compat:** No functional change
 - **Verification:** `grep -r "6.2.1\|v6.1\|3\.8" --include="*.py" --include="*.md" --include="*.spec"` returns zero matches
@@ -583,9 +583,9 @@ Last 20 commits on main branch (v6.1.0 through v6.4.0, June 2026).
 
 ### EI-07: Remove AI Reference from About Dialog Credits (Finding #32)
 
-- **Current Behavior:** `about.py` line 290 contains "Developed with assistance from Claude (Anthropic)".
-- **Problem:** Violates the repo's no-AI-references rule in CLAUDE.md.
-- **Change:** Remove the Claude/Anthropic line from the credits tab.
+- **Current Behavior:** `about.py` line 290 contains "Developed with assistance from assistant tooling".
+- **Problem:** Violates the repo's no-AI-references rule in local working notes.
+- **Change:** Remove the assistant-tooling line from the credits tab.
 - **Code Locations:** `ui/about.py` line 290
 - **Backward Compat:** No functional change
 - **Verification:** `grep -i "claude\|anthropic" bookmark_organizer_pro/ui/about.py` returns zero matches
@@ -826,7 +826,7 @@ Last 20 commits on main branch (v6.1.0 through v6.4.0, June 2026).
 
 ### Doc Gaps
 
-11. **CLAUDE.md stale at v6.1.0:** Says 37 tests (actual: 255), 15 MCP tools (actual: 20), missing services added since v6.1.
+11. **local working notes stale at v6.1.0:** Says 37 tests (actual: 255), 15 MCP tools (actual: 20), missing services added since v6.1.
 
 12. **ROADMAP.md inconsistency:** Body checkmarks contradict bottom-tier open-square markers for 30+ items. Bottom tier lists show R-07, R-08, R-09, R-10, R-12, R-13, R-24, R-25, R-27, R-30, R-35, R-37, R-45, R-49 as open but they are marked ✅ in the body tables.
 
@@ -860,15 +860,15 @@ Last 20 commits on main branch (v6.1.0 through v6.4.0, June 2026).
 - [ ] P0 - Sync all version strings to 6.4.0
   - Why: PyInstaller spec at 6.2.1 means built binaries report wrong version
   - Evidence: Finding #14. `packaging/bookmark_organizer.spec` hardcodes 6.2.1
-  - Touches: `packaging/bookmark_organizer.spec`, `packaging/version_info.txt`, `CLAUDE.md`, `managers/bookmarks.py` (export_html v4 comment), `ui/about.py`, `README.md`, `utils/runtime.py`
+  - Touches: `packaging/bookmark_organizer.spec`, `packaging/version_info.txt`, `local working notes`, `managers/bookmarks.py` (export_html v4 comment), `ui/about.py`, `README.md`, `utils/runtime.py`
   - Acceptance: All version strings say 6.4.0; all Python version claims say 3.10+
   - Verify: `grep -rn "6\.2\.1\|v6\.1\|3\.8" --include="*.py" --include="*.md" --include="*.spec"` returns zero
 
 - [ ] P0 - Remove AI reference from About dialog credits
   - Why: Violates repo's no-AI-references rule
-  - Evidence: Finding #32. `about.py` line 290: "Developed with assistance from Claude (Anthropic)"
+  - Evidence: Finding #32. `about.py` line 290: "Developed with assistance from assistant tooling"
   - Touches: `ui/about.py`
-  - Acceptance: No mention of Claude, Anthropic, or any AI tool in committed source
+  - Acceptance: No assistant-tooling credit line in committed source
   - Verify: `grep -ri "claude\|anthropic" bookmark_organizer_pro/ui/about.py` returns zero
 
 - [ ] P0 - Add Help menu with Search Syntax, Shortcuts, About
@@ -909,7 +909,7 @@ Last 20 commits on main branch (v6.1.0 through v6.4.0, June 2026).
   - Verify: Time bulk categorize before/after; verify single file write via log
 
 - [ ] P1 - Add MCP write tools (delete, update, tag mutation)
-  - Why: MCP server is read-heavy; agents cannot curate collections
+  - Why: MCP server is read-heavy; MCP clients cannot curate collections
   - Evidence: Finding #20. Only `add_bookmark`, `create_flow`, `append_to_flow` are write operations
   - Touches: `mcp_server.py`
   - Acceptance: 6 new tools: delete_bookmark, update_bookmark, toggle_pin, mark_read_later, add_tags, remove_tags

@@ -49,7 +49,6 @@ from .commands import (
     AddBookmarksCommand, BulkCategorizeCommand, Command, CommandStack,
     DeleteBookmarksCommand, MoveBookmarksCommand, TagBookmarksCommand,
 )
-from .cli import BookmarkCLI
 from .managers import BookmarkManager, TagManager
 from .services import (
     AIBatchProcessor, AICostTracker, AIIconSuggester, AISummarizer, AITagSuggester,
@@ -102,6 +101,13 @@ from .link_checker import LinkChecker
 from .url_utils import URLUtilities
 
 __version__ = APP_VERSION
+
+
+def __getattr__(name):
+    if name == "BookmarkCLI":
+        from .cli import BookmarkCLI
+        return BookmarkCLI
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
     # Version / constants

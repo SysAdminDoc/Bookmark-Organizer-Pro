@@ -127,7 +127,7 @@ def validate_environment():
     warnings = []
 
     if sys.version_info < (3, 8):
-        warnings.append(f"Python 3.8+ recommended (running {sys.version})")
+        warnings.append(f"Python 3.10+ recommended (running {sys.version})")
 
     if not APP_DIR.exists():
         try:
