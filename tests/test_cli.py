@@ -6,6 +6,7 @@ import tempfile
 import shutil
 import unittest
 from io import StringIO
+from pathlib import Path
 from unittest.mock import patch
 
 
@@ -187,6 +188,27 @@ class TestCLISearchAndCheck(CLITestBase):
 
         serve_http.assert_called_once_with(host="127.0.0.1", port=9011, path="/mcp")
         self.assertIsInstance(out, str)
+
+    @patch("bookmark_organizer_pro.core.migrate_json_to_sqlite", return_value=3)
+    def test_sqlite_migrate_passes_paths(self, migrate):
+        out = self._run([
+            "sqlite-migrate",
+            "--source",
+            "source.json",
+            "--dest=bookmarks.sqlite",
+        ])
+
+        migrate.assert_called_once()
+        self.assertEqual(migrate.call_args.args[0], Path("source.json"))
+        self.assertEqual(migrate.call_args.args[1], Path("bookmarks.sqlite"))
+        self.assertIn("Migrated 3 bookmarks", out)
+
+    @patch("bookmark_organizer_pro.core.migrate_json_to_sqlite")
+    def test_sqlite_migrate_rejects_missing_value(self, migrate):
+        out = self._run(["sqlite-migrate", "--source"])
+
+        self.assertIn("usage: sqlite-migrate", out)
+        migrate.assert_not_called()
 
     def test_digest(self):
         out = self._run(["digest"])

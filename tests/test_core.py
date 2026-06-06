@@ -19,6 +19,7 @@ from bookmark_organizer_pro.models.category import Category
 from bookmark_organizer_pro.ai import AIClient, AIConfigManager
 from bookmark_organizer_pro.constants import IS_WINDOWS
 from bookmark_organizer_pro.core.category_manager import CategoryManager
+from bookmark_organizer_pro.core.sqlite_storage import SQLiteStorageManager, migrate_json_to_sqlite
 from bookmark_organizer_pro.core.storage_manager import StorageManager
 from bookmark_organizer_pro.core.pattern_engine import PatternEngine
 from bookmark_organizer_pro.importers import OPMLExporter, OPMLImporter, RaindropImporter, TextURLImporter
@@ -501,6 +502,74 @@ class TestStorageAndExportSafety(unittest.TestCase):
             target = Path(tmp) / "bookmarks.json"
             target.write_text('{"data": {"url": "https://example.com"}}', encoding="utf-8")
             self.assertEqual(StorageManager(target).load(), [])
+
+    def test_sqlite_storage_round_trips_bookmarks_with_wal(self):
+        import sqlite3
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "bookmarks.sqlite"
+            manager = SQLiteStorageManager(target)
+            bookmark = Bookmark(
+                id=42,
+                url="https://sqlite.example",
+                title="SQLite",
+                category="Research",
+                tags=["db", "wal"],
+                is_pinned=True,
+                read_later=True,
+            )
+
+            manager.save([bookmark.to_dict()])
+            loaded = manager.load()
+
+            self.assertEqual(len(loaded), 1)
+            self.assertEqual(loaded[0].id, 42)
+            self.assertEqual(loaded[0].tags, ["db", "wal"])
+            self.assertTrue(loaded[0].is_pinned)
+            self.assertTrue(loaded[0].read_later)
+            self.assertEqual(manager.get_metadata()["count"], "1")
+            conn = sqlite3.connect(target)
+            try:
+                self.assertEqual(conn.execute("PRAGMA journal_mode").fetchone()[0].lower(), "wal")
+            finally:
+                conn.close()
+
+    def test_sqlite_storage_skips_corrupt_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "bookmarks.sqlite"
+            manager = SQLiteStorageManager(target)
+            manager.save([Bookmark(id=1, url="https://ok.example", title="OK").to_dict()])
+            conn = manager._connect()
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO bookmarks(
+                        id, position, url, title, payload_json
+                    ) VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (2, 2, "https://bad.example", "Bad", "{not json"),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            loaded = manager.load()
+
+            self.assertEqual([bm.id for bm in loaded], [1])
+
+    def test_migrate_json_to_sqlite_copies_existing_storage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "bookmarks.json"
+            target = Path(tmp) / "bookmarks.sqlite"
+            bookmark = Bookmark(id=7, url="https://migrate.example", title="Migrate")
+            StorageManager(source).save([bookmark.to_dict()])
+
+            count = migrate_json_to_sqlite(source, target)
+
+            self.assertEqual(count, 1)
+            loaded = SQLiteStorageManager(target).load()
+            self.assertEqual(len(loaded), 1)
+            self.assertEqual(loaded[0].url, "https://migrate.example")
 
     def test_xbel_export_creates_parent_dirs_and_imports_own_doctype(self):
         with tempfile.TemporaryDirectory() as tmp:

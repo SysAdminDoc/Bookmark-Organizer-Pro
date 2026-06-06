@@ -21,9 +21,9 @@
 
 ---
 
-## State of the Project (v6.6.3)
+## State of the Project (v6.6.4)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.3:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.4:
 
 - **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
@@ -101,6 +101,13 @@ Streamable HTTP on loopback, stateless HTTP is enabled for that transport, and
 POST requests validate mirrored `Mcp-Method`/`Mcp-Name` headers before reaching
 the JSON-RPC body handler. Details:
 `docs/audit/2026-06-06-v6.6.3-mcp-http-audit.md`.
+
+### Cycle Note — v6.6.4 (2026-06-06)
+
+R-31 is in progress. BOP now has an opt-in WAL-enabled SQLite storage manager
+and `sqlite-migrate` command that copies the JSON library into SQLite while
+leaving JSON as the default runtime backend. Details:
+`docs/audit/2026-06-06-v6.6.4-sqlite-foundation-audit.md`.
 
 ### Hard Constraints
 
@@ -242,7 +249,7 @@ the JSON-RPC body handler. Details:
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| 🔲 R-31 | **SQLite migration (optional)** — WAL mode unlocks concurrent access for web client. JSON remains default. Migration tool on opt-in. | Next | XL | [S-7][S-9] |
+| 🔄 R-31 | **SQLite migration (optional)** — WAL-enabled storage manager and opt-in JSON-to-SQLite migration command shipped in v6.6.4. Runtime backend selection/config remains open; JSON remains default. | In Progress | XL | [S-7][S-9] |
 | ✅ R-32 | Per-backup integrity hash (SHA-256) | Done | S | [S-1] |
 | ✅ R-33 | Deduplicate cross-category patterns | Done | M | [S-1] |
 | ✅ R-34 | Fix overly broad plain patterns | Done | M | [S-1] |
@@ -337,6 +344,7 @@ All items below shipped in v6.0.0 through v6.4.1. Full details in [CHANGELOG.md]
 | R-59 | FastMCP 3.x dependency upgrade | v6.6.1 |
 | R-58A | MCP stateless stdio and cacheable tool catalog slice | v6.6.2 |
 | R-58 | MCP Streamable HTTP and mirrored header validation | v6.6.3 |
+| R-31A | SQLite storage manager and JSON migration command | v6.6.4 |
 | BUG-01 through BUG-14 | All 14 known bugs fixed | v6.2.0-v6.4.1 |
 | + 30 v6.1.0 fixes | AI batch processor, chunk overlap, MCP schemas, CI flow, thread safety, etc. | v6.1.0 |
 
@@ -390,11 +398,11 @@ These ideas surfaced in research but need more validation before committing:
 
 All 13 Now-tier items have shipped through v6.6.0.
 
-### Next — v7.0 (2 remaining, R-58/R-59 shipped in v6.6.x)
+### Next — v7.0 (2 remaining, R-31 in progress)
 
 | # | Item | Effort | Category |
 |---|------|--------|----------|
-| R-31 | SQLite migration (optional) | XL | Architecture |
+| R-31 | SQLite runtime backend selection/config | XL | Architecture |
 | R-40 | Nuitka compilation | L | Distribution |
 
 ### Later — v7.x+ (7 remaining, R-17/R-50 shipped in v6.5.2)
