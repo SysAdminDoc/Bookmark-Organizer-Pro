@@ -1,0 +1,275 @@
+"""Desktop bookmark graph canvas."""
+
+from __future__ import annotations
+
+import tkinter as tk
+from tkinter import filedialog
+from typing import Callable, Dict, Iterable, Optional
+
+from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.bookmark_graph import (
+    BookmarkGraph,
+    GraphNode,
+    apply_force_layout,
+    build_bookmark_graph,
+    export_bookmark_graph_json,
+)
+
+from .foundation import FONTS, readable_text_on
+from .widgets import get_theme
+
+
+NODE_COLORS = {
+    "bookmark": "#58a6ff",
+    "tag": "#3fb950",
+    "category": "#d29922",
+    "domain": "#a371f7",
+}
+
+
+class GraphViewDialog(tk.Toplevel):
+    """Render bookmark relationships on a Tk canvas."""
+
+    def __init__(
+        self,
+        parent,
+        bookmarks: Iterable[Bookmark],
+        on_open_bookmark: Optional[Callable[[Bookmark], None]] = None,
+        max_bookmarks: int = 200,
+    ):
+        theme = get_theme()
+        super().__init__(parent)
+        self.bookmarks = list(bookmarks)
+        self.bookmarks_by_node = {f"bookmark:{bm.id}": bm for bm in self.bookmarks}
+        self.on_open_bookmark = on_open_bookmark
+        self.max_bookmarks = max_bookmarks
+        self.graph: BookmarkGraph = apply_force_layout(
+            build_bookmark_graph(self.bookmarks, max_bookmarks=max_bookmarks),
+            width=980,
+            height=640,
+            iterations=60,
+        )
+        self.node_lookup: Dict[str, GraphNode] = {node.id: node for node in self.graph.nodes}
+        self.selected_node_id: str | None = None
+
+        self.title("Bookmark Graph")
+        self.geometry("1120x760")
+        self.minsize(820, 560)
+        self.configure(bg=theme.bg_primary)
+        self.transient(parent)
+
+        self._build()
+        self._draw_graph()
+        self.bind("<Escape>", lambda _event: self.destroy())
+
+    def _build(self) -> None:
+        theme = get_theme()
+        header = tk.Frame(self, bg=theme.bg_secondary)
+        header.pack(fill=tk.X)
+        tk.Label(
+            header,
+            text="Bookmark Graph",
+            bg=theme.bg_secondary,
+            fg=theme.text_primary,
+            font=FONTS.header(bold=True),
+            padx=16,
+            pady=12,
+        ).pack(side=tk.LEFT)
+        tk.Button(
+            header,
+            text="Export",
+            command=self._export_graph,
+            bg=theme.accent_primary,
+            fg=readable_text_on(theme.accent_primary),
+            relief=tk.FLAT,
+            padx=12,
+            pady=6,
+            cursor="hand2",
+        ).pack(side=tk.RIGHT, padx=(0, 12), pady=8)
+
+        body = tk.PanedWindow(self, orient=tk.HORIZONTAL, bg=theme.bg_primary, sashwidth=4)
+        body.pack(fill=tk.BOTH, expand=True, padx=12, pady=12)
+
+        canvas_frame = tk.Frame(body, bg=theme.bg_primary)
+        self.canvas = tk.Canvas(
+            canvas_frame,
+            bg=theme.bg_primary,
+            highlightthickness=1,
+            highlightbackground=theme.border_muted,
+            scrollregion=(0, 0, 1040, 700),
+        )
+        xbar = tk.Scrollbar(canvas_frame, orient=tk.HORIZONTAL, command=self.canvas.xview)
+        ybar = tk.Scrollbar(canvas_frame, orient=tk.VERTICAL, command=self.canvas.yview)
+        self.canvas.configure(xscrollcommand=xbar.set, yscrollcommand=ybar.set)
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+        ybar.grid(row=0, column=1, sticky="ns")
+        xbar.grid(row=1, column=0, sticky="ew")
+        canvas_frame.rowconfigure(0, weight=1)
+        canvas_frame.columnconfigure(0, weight=1)
+        body.add(canvas_frame, minsize=560)
+
+        side = tk.Frame(body, bg=theme.bg_secondary, padx=12, pady=12)
+        body.add(side, minsize=260)
+        self.stats_label = tk.Label(
+            side,
+            text=f"{len(self.graph.nodes)} nodes / {len(self.graph.edges)} edges",
+            bg=theme.bg_secondary,
+            fg=theme.text_secondary,
+            font=FONTS.body(),
+            anchor="w",
+        )
+        self.stats_label.pack(fill=tk.X)
+        self.detail_title = tk.Label(
+            side,
+            text="Selected",
+            bg=theme.bg_secondary,
+            fg=theme.text_primary,
+            font=FONTS.body(bold=True),
+            anchor="w",
+        )
+        self.detail_title.pack(fill=tk.X, pady=(16, 6))
+        self.detail_text = tk.Text(
+            side,
+            height=12,
+            wrap=tk.WORD,
+            bg=theme.bg_primary,
+            fg=theme.text_primary,
+            relief=tk.FLAT,
+            padx=8,
+            pady=8,
+            font=FONTS.small(),
+        )
+        self.detail_text.pack(fill=tk.BOTH, expand=True)
+        self.detail_text.insert("1.0", "None")
+        self.detail_text.configure(state=tk.DISABLED)
+        self.status = tk.Label(
+            side,
+            text="",
+            bg=theme.bg_secondary,
+            fg=theme.text_muted,
+            font=FONTS.small(),
+            anchor="w",
+        )
+        self.status.pack(fill=tk.X, pady=(10, 0))
+
+        self.canvas.bind("<ButtonPress-1>", self._on_canvas_press)
+        self.canvas.bind("<B1-Motion>", self._on_canvas_drag)
+        self.canvas.bind("<Double-Button-1>", self._on_canvas_double_click)
+        self.canvas.bind("<MouseWheel>", self._on_mousewheel)
+
+    def _draw_graph(self) -> None:
+        theme = get_theme()
+        self.canvas.delete("all")
+        for edge in self.graph.edges:
+            source = self.node_lookup.get(edge.source)
+            target = self.node_lookup.get(edge.target)
+            if source is None or target is None:
+                continue
+            self.canvas.create_line(
+                source.x,
+                source.y,
+                target.x,
+                target.y,
+                fill=theme.border_muted,
+                width=max(1, min(4, edge.weight)),
+                tags=("graph", "edge"),
+            )
+        for node in self.graph.nodes:
+            self._draw_node(node)
+
+    def _draw_node(self, node: GraphNode) -> None:
+        theme = get_theme()
+        color = NODE_COLORS.get(node.type, theme.accent_primary)
+        size = 8 + min(10, node.weight)
+        tag = f"node:{node.id}"
+        self.canvas.create_rectangle(
+            node.x - size,
+            node.y - size,
+            node.x + size,
+            node.y + size,
+            fill=color,
+            outline=theme.bg_primary,
+            width=2,
+            tags=("graph", "node", tag),
+        )
+        self.canvas.create_text(
+            node.x + size + 5,
+            node.y,
+            text=node.label[:36],
+            anchor="w",
+            fill=theme.text_primary,
+            font=FONTS.small(),
+            tags=("graph", "node-label", tag),
+        )
+
+    def _node_id_from_event(self, event) -> str | None:
+        current = self.canvas.find_withtag("current")
+        if not current:
+            return None
+        for tag in self.canvas.gettags(current[0]):
+            if tag.startswith("node:"):
+                return tag.removeprefix("node:")
+        return None
+
+    def _on_canvas_press(self, event) -> None:
+        node_id = self._node_id_from_event(event)
+        if node_id:
+            self._select_node(node_id)
+            return
+        self.canvas.scan_mark(event.x, event.y)
+
+    def _on_canvas_drag(self, event) -> None:
+        if self._node_id_from_event(event):
+            return
+        self.canvas.scan_dragto(event.x, event.y, gain=1)
+
+    def _on_canvas_double_click(self, event) -> None:
+        node_id = self._node_id_from_event(event)
+        if not node_id or not node_id.startswith("bookmark:"):
+            return
+        bookmark = self.bookmarks_by_node.get(node_id)
+        if bookmark is not None and self.on_open_bookmark:
+            self.on_open_bookmark(bookmark)
+
+    def _on_mousewheel(self, event) -> None:
+        factor = 1.1 if event.delta > 0 else 0.9
+        self.canvas.scale("graph", self.canvas.canvasx(event.x), self.canvas.canvasy(event.y), factor, factor)
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+    def _select_node(self, node_id: str) -> None:
+        self.selected_node_id = node_id
+        node = self.node_lookup.get(node_id)
+        if node is None:
+            return
+        connected = [
+            edge for edge in self.graph.edges
+            if edge.source == node_id or edge.target == node_id
+        ]
+        lines = [
+            node.label,
+            "",
+            f"Type: {node.type}",
+            f"Weight: {node.weight}",
+            f"Connections: {len(connected)}",
+        ]
+        if node_id.startswith("bookmark:"):
+            bookmark = self.bookmarks_by_node.get(node_id)
+            if bookmark:
+                lines.extend(["", bookmark.url, bookmark.full_category_path])
+        self.detail_text.configure(state=tk.NORMAL)
+        self.detail_text.delete("1.0", tk.END)
+        self.detail_text.insert("1.0", "\n".join(lines))
+        self.detail_text.configure(state=tk.DISABLED)
+        self.status.configure(text=node.id)
+
+    def _export_graph(self) -> None:
+        output_path = filedialog.asksaveasfilename(
+            parent=self,
+            title="Export Graph JSON",
+            defaultextension=".json",
+            filetypes=[("JSON", "*.json"), ("All files", "*.*")],
+        )
+        if not output_path:
+            return
+        path = export_bookmark_graph_json(self.bookmarks, output_path=output_path, max_bookmarks=self.max_bookmarks)
+        self.status.configure(text=f"Exported {path.name}")

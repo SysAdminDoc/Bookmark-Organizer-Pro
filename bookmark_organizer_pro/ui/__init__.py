@@ -46,6 +46,7 @@ from .quick_add import (
     pick_default_category,
     prepare_quick_add_payload,
 )
+from .graph_view import GraphViewDialog
 from .reader_view import ReaderViewDialog, text_index_offset
 from .reports import ReportGenerator
 from .shell_widgets import (
@@ -126,6 +127,7 @@ __all__ = [
     "QuickAddPayload",
     "pick_default_category",
     "prepare_quick_add_payload",
+    "GraphViewDialog",
     "ReaderViewDialog",
     "text_index_offset",
     "ReportGenerator",

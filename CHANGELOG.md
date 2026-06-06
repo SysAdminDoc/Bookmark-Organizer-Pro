@@ -2,6 +2,26 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.22] - 2026-06-06
+
+Desktop graph view release.
+
+### Added — Graph (R-22)
+
+- **Graph canvas** — added a Tk-native graph dialog that renders bookmarks,
+  tags, categories, and domains from the graph service.
+- **Navigation** — added canvas pan/zoom, node selection details, and
+  double-click opening for bookmark nodes.
+- **App entry points** — added Graph View to the Tools menu and command
+  palette.
+- **GUI export** — graph JSON export is available from the desktop graph
+  dialog.
+
+### Tests
+
+- Extended UI import coverage for the graph dialog alongside existing graph
+  service and CLI export tests.
+
 ## [v6.6.21] - 2026-06-06
 
 Graph foundation release.

@@ -1950,8 +1950,9 @@ class TestUITheme(unittest.TestCase):
             manager._base_theme_error = original_error
 
     def test_reader_view_dialog_is_exported(self):
-        from bookmark_organizer_pro.ui import ReaderViewDialog, text_index_offset
+        from bookmark_organizer_pro.ui import GraphViewDialog, ReaderViewDialog, text_index_offset
 
+        self.assertTrue(callable(GraphViewDialog))
         self.assertTrue(callable(ReaderViewDialog))
         self.assertTrue(callable(text_index_offset))
 
