@@ -2,6 +2,28 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.21] - 2026-06-06
+
+Graph foundation release.
+
+### Added — Graph (R-22 partial)
+
+- **Graph model** — added bookmark graph nodes and edges linking bookmarks to
+  tags, categories, and domains.
+- **Force layout** — added deterministic force-directed layout coordinates for
+  graph exports.
+- **Graph export** — added `graph-export` CLI command for JSON graph export
+  with output path and bookmark limit controls.
+
+### Notes
+
+- R-22 remains open for the desktop canvas graph view and interactive graph
+  navigation.
+
+### Tests
+
+- Added graph construction, force layout, JSON export, and CLI export coverage.
+
 ## [v6.6.20] - 2026-06-06
 
 Desktop reader pane release.

@@ -3,6 +3,16 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.21 Graph Export Foundation
+
+- Advanced R-22: added bookmark graph nodes/edges for bookmark-to-tag,
+  bookmark-to-category, and bookmark-to-domain relationships.
+- Added deterministic force-directed layout coordinates and JSON export.
+- Added the `graph-export` CLI command with output path and bookmark limit
+  controls.
+- Verification: compileall passed, focused graph/release metadata tests passed
+  with 17 tests, and the full suite passed with 344 tests.
+
 ## 2026-06-06 — v6.6.20 Desktop Reader Pane
 
 - Completed R-21: added a Tk-native reader view for extracted text with saved
