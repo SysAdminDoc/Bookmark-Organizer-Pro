@@ -42,7 +42,15 @@ from .organization import (
     SmartTagManager,
     SmartTagRule,
 )
-from .rag_chat import ChatMessage, ChatTurn, CollectionChat
+from .rag_chat import (
+    ChatMessage,
+    ChatStreamEvent,
+    ChatTurn,
+    CollectionChat,
+    build_chat_stream_events,
+    normalize_stream_chunk_chars,
+    split_answer_chunks,
+)
 from .read_later import ReadLaterQueue
 from .rss_feeds import (
     AI_MODES as RSS_AI_MODES,
@@ -89,7 +97,8 @@ __all__ = [
     "HybridResult", "HybridSearch",
     "ContentIngestor", "IngestResult",
     "NLQueryTranslator", "StructuredQuery", "execute_query",
-    "ChatMessage", "ChatTurn", "CollectionChat",
+    "ChatMessage", "ChatStreamEvent", "ChatTurn", "CollectionChat",
+    "build_chat_stream_events", "normalize_stream_chunk_chars", "split_answer_chunks",
     "ReadLaterQueue",
     "RSS_AI_MODES", "FeedConfig", "FeedIngestor", "FeedItem",
     "FeedRegistry", "parse_feed",

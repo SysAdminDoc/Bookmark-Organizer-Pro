@@ -1,14 +1,20 @@
-# Bookmark Organizer Pro v6.6.13
+# Bookmark Organizer Pro v6.6.14
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **single-file HTML snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
-![Version](https://img.shields.io/badge/version-6.6.13-blue.svg)
+![Version](https://img.shields.io/badge/version-6.6.14-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
 
 ![Bookmark Organizer Pro Screenshot](assets/screenshot.png)
+
+## What's new in v6.6.14
+
+- **MCP chat response events** — added `chat_with_collection_stream`, which
+  returns ordered chunk/complete events for clients that want progressive RAG
+  answer rendering while preserving the current final-answer path.
 
 ## What's new in v6.6.13
 
@@ -92,8 +98,7 @@ extra installs. See [CHANGELOG.md](CHANGELOG.md) and [docs/COMPETITIVE_RESEARCH.
 - **MCP server** — expose your bookmark library as a Model Context
   Protocol server. MCP-compatible clients can now `search_bookmarks`,
   `semantic_search`, `chat_with_collection`, `summarize_bookmark`, and
-  11 other tools directly. **No other OSS
-  bookmark manager ships this.** Run with
+  23 other tools directly. Run with
   `python -m bookmark_organizer_pro.mcp_server`.
 - **Local semantic search + hybrid RRF** — `lancedb` vector store
   fronted by an embedder chain (`fastembed` → `model2vec` →

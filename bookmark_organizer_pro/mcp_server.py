@@ -17,6 +17,7 @@ Tools exposed:
     list_categories() -> list
     get_extracted_text(bookmark_id) -> str
     chat_with_collection(question, restrict_ids) -> dict
+    chat_with_collection_stream(question, restrict_ids, chunk_chars) -> dict
     summarize_bookmark(bookmark_id) -> dict                 (cited)
     daily_digest() -> list
     list_dead_links() -> list
@@ -47,7 +48,7 @@ from bookmark_organizer_pro.services.embeddings import EmbeddingService
 from bookmark_organizer_pro.services.flows import FlowManager
 from bookmark_organizer_pro.services.hybrid_search import HybridSearch
 from bookmark_organizer_pro.services.zip_export import ZipExporter
-from bookmark_organizer_pro.services.rag_chat import CollectionChat
+from bookmark_organizer_pro.services.rag_chat import CollectionChat, normalize_stream_chunk_chars
 from bookmark_organizer_pro.services.vector_store import VectorStore
 
 
@@ -143,7 +144,7 @@ MCP_READ_ONLY_TOOLS = {
     "semantic_search", "hybrid_search", "list_tags", "list_categories",
     "get_extracted_text", "daily_digest", "list_dead_links",
     "list_flows", "get_flow", "list_snapshots",
-    "chat_with_collection", "summarize_bookmark",
+    "chat_with_collection", "chat_with_collection_stream", "summarize_bookmark",
 }
 
 MCP_DESTRUCTIVE_TOOLS = {
@@ -152,7 +153,7 @@ MCP_DESTRUCTIVE_TOOLS = {
 }
 
 MCP_OPEN_WORLD_TOOLS = {
-    "add_bookmark", "chat_with_collection", "summarize_bookmark",
+    "add_bookmark", "chat_with_collection", "chat_with_collection_stream", "summarize_bookmark",
 }
 
 
@@ -420,9 +421,9 @@ def t_get_extracted_text(bookmark_id: int) -> str:
         return ""
 
 
-def t_chat(question: str, restrict_ids: Optional[List[int]] = None,
-           restrict_tag: str = "", restrict_category: str = "") -> Dict:
-    s = _services()
+def _resolve_chat_scope_ids(s: BookmarkServices, restrict_ids: Optional[List[int]] = None,
+                            restrict_tag: str = "",
+                            restrict_category: str = "") -> Optional[List[int]]:
     ids = list(restrict_ids) if restrict_ids else None
     if restrict_tag or restrict_category:
         bms = s.bookmark_manager.get_all_bookmarks()
@@ -433,12 +434,53 @@ def t_chat(question: str, restrict_ids: Optional[List[int]] = None,
             cat_l = restrict_category.lower()
             bms = [b for b in bms if b.category.lower() == cat_l]
         scope_ids = [b.id for b in bms]
-        ids = scope_ids if ids is None else [i for i in ids if i in set(scope_ids)]
+        scope_set = set(scope_ids)
+        ids = scope_ids if ids is None else [i for i in ids if i in scope_set]
+    return ids
+
+
+def t_chat(question: str, restrict_ids: Optional[List[int]] = None,
+           restrict_tag: str = "", restrict_category: str = "") -> Dict:
+    s = _services()
+    ids = _resolve_chat_scope_ids(s, restrict_ids, restrict_tag, restrict_category)
     turn = s.chat.ask(question, restrict_ids=ids)
     return {
         "answer": turn.answer,
         "used_chunks": turn.used_chunks,
         "sources": turn.sources,
+    }
+
+
+def t_chat_stream(question: str, restrict_ids: Optional[List[int]] = None,
+                  restrict_tag: str = "", restrict_category: str = "",
+                  chunk_chars: int = 160) -> Dict:
+    s = _services()
+    ids = _resolve_chat_scope_ids(s, restrict_ids, restrict_tag, restrict_category)
+    chunk_size = normalize_stream_chunk_chars(chunk_chars)
+    if hasattr(s.chat, "stream_answer"):
+        turn, events = s.chat.stream_answer(
+            question,
+            restrict_ids=ids,
+            chunk_chars=chunk_size,
+        )
+    else:
+        turn = s.chat.ask(question, restrict_ids=ids)
+        from bookmark_organizer_pro.services.rag_chat import build_chat_stream_events
+        events = build_chat_stream_events(turn, chunk_size)
+    event_dicts = [event.to_dict() for event in events]
+    chunk_count = sum(1 for event in event_dicts if event.get("type") == "chunk")
+    return {
+        "answer": turn.answer,
+        "mode": "chunked_response_events",
+        "provider_streaming": False,
+        "chunk_chars": chunk_size,
+        "chunk_count": chunk_count,
+        "event_count": len(event_dicts),
+        "done": True,
+        "used_chunks": turn.used_chunks,
+        "sources": turn.sources,
+        "chunk_provenance": turn.chunk_provenance,
+        "events": event_dicts,
     }
 
 
@@ -735,6 +777,19 @@ TOOLS = [
          },
          "required": ["question"],
      }),
+    ("chat_with_collection_stream", t_chat_stream,
+     "Ask about your bookmark collection and return deterministic response events for streaming clients.",
+     {
+         "type": "object",
+         "properties": {
+             "question": {"type": "string", "description": "Your question about saved bookmarks"},
+             "restrict_ids": {"type": "array", "items": {"type": "integer"}, "description": "Optional: limit retrieval to these bookmark IDs"},
+             "restrict_tag": {"type": "string", "description": "Optional: scope retrieval to bookmarks with this tag"},
+             "restrict_category": {"type": "string", "description": "Optional: scope retrieval to bookmarks in this category"},
+             "chunk_chars": {"type": "integer", "description": "Target characters per response chunk (40-1000)", "default": 160},
+         },
+         "required": ["question"],
+     }),
     ("summarize_bookmark", t_summarize,
      "Generate an AI summary of a bookmark with inline [#cN] citations that link back to specific text spans in the source.",
      {
@@ -1003,6 +1058,12 @@ def _build_fastmcp_server():
     def chat_with_collection(question: str, restrict_ids: list[int] | None = None,
                              restrict_tag: str = "", restrict_category: str = "") -> dict:
         return t_chat(question, restrict_ids, restrict_tag, restrict_category)
+
+    @tool("chat_with_collection_stream", "Conversational RAG response events over the bookmark library.")
+    def chat_with_collection_stream(question: str, restrict_ids: list[int] | None = None,
+                                    restrict_tag: str = "", restrict_category: str = "",
+                                    chunk_chars: int = 160) -> dict:
+        return t_chat_stream(question, restrict_ids, restrict_tag, restrict_category, chunk_chars)
 
     @tool("summarize_bookmark", "AI summary with inline citations back to source spans.")
     def summarize_bookmark(bookmark_id: int) -> dict:

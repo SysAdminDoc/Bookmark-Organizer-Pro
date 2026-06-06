@@ -127,7 +127,7 @@ class TestUpdateManager(_IsolatedTestBase):
 
     def test_check_for_updates_uses_client_without_downloading(self):
         updates = self._updates_module()
-        manager = updates.UpdateManager(current_version="6.6.13")
+        manager = updates.UpdateManager(current_version="6.6.14")
         manager.configure(
             enabled=True,
             metadata_url="https://updates.example.com/metadata",
@@ -165,9 +165,9 @@ class TestUpdateManager(_IsolatedTestBase):
     def test_version_comparison(self):
         updates = self._updates_module()
 
-        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.13"))
-        self.assertFalse(updates.is_newer_version("6.6.13", "6.6.13"))
-        self.assertFalse(updates.is_newer_version("6.6.12", "6.6.13"))
+        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.14"))
+        self.assertFalse(updates.is_newer_version("6.6.14", "6.6.14"))
+        self.assertFalse(updates.is_newer_version("6.6.13", "6.6.14"))
 
 
 # ── 1. EmbeddingService ──────────────────────────────────────────────
@@ -224,6 +224,42 @@ class TestEmbeddingChunker(_IsolatedTestBase):
         self.assertEqual(h1, h2, "Same input must produce same hash")
         self.assertNotEqual(h1, h3, "Different input must produce different hash")
         self.assertEqual(len(h1), 64, "SHA-256 hex digest is 64 chars")
+
+
+class TestChatStreamEvents(_IsolatedTestBase):
+    """Tests for RAG chat response event chunking."""
+
+    def test_stream_events_preserve_answer_and_finish_with_metadata(self):
+        from bookmark_organizer_pro.services.rag_chat import (
+            ChatTurn,
+            build_chat_stream_events,
+        )
+
+        turn = ChatTurn(
+            answer=(
+                "One long sentence about bookmarks that should be split into "
+                "multiple client-facing chunks without losing any text."
+            ),
+            sources=[{"bookmark_id": 3}],
+            used_chunks=1,
+            chunk_provenance=[{"citation_id": "c0", "bookmark_id": 3}],
+        )
+
+        events = build_chat_stream_events(turn, chunk_chars=40)
+        chunks = [event for event in events if event.type == "chunk"]
+
+        self.assertGreater(len(chunks), 1)
+        self.assertEqual("".join(event.text for event in chunks), turn.answer)
+        self.assertEqual(events[-1].type, "complete")
+        self.assertEqual(events[-1].sources, turn.sources)
+        self.assertEqual(events[-1].chunk_provenance, turn.chunk_provenance)
+
+    def test_chunk_size_is_bounded(self):
+        from bookmark_organizer_pro.services.rag_chat import normalize_stream_chunk_chars
+
+        self.assertEqual(normalize_stream_chunk_chars(5), 40)
+        self.assertEqual(normalize_stream_chunk_chars(5000), 1000)
+        self.assertEqual(normalize_stream_chunk_chars("bad"), 160)
 
 
 # ── 2. EncryptedStore ─────────────────────────────────────────────────

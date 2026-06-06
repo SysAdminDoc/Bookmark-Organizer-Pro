@@ -21,18 +21,18 @@
 
 ---
 
-## State of the Project (v6.6.13)
+## State of the Project (v6.6.14)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.13:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.14:
 
 - **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
-- **MCP server:** 20 typed tools — one of ~4 bookmark managers with MCP (alongside Raindrop.io, Karakeep, Burn 451) [S-60][S-74][S-78]
+- **MCP server:** 27 typed tools — one of ~4 bookmark managers with MCP (alongside Raindrop.io, Karakeep, Burn 451) [S-60][S-74][S-78]
 - **Preservation:** Single-file HTML snapshots (4-backend chain: monolith → singlefile → playwright → python), dead-link scanner, Wayback Machine, auto-snapshot scheduler
 - **Security:** AES-256-GCM encrypted DB, SSRF guards, prompt sanitization, API auth tokens, keyring storage
 - **Import/Export:** 14 importers (incl. Pocket, Readwise, Pinboard, Instapaper, Reddit, Matter, Zotero), 12 export formats (HTML/JSON/CSV/OPML/XBEL/Markdown/ZIP/Obsidian/EPUB/Atom/JSON Feed/Zotero RDF)
 - **UI:** 11 themes (incl. WCAG AA high-contrast), command palette, toast notifications, zoom, high-DPI, dashboard analytics, tksheet-backed virtualized bookmark list
-- **CLI:** 37 subcommands, 284 tests across 5 files
+- **CLI:** 37 subcommands, 326 tests in the current suite
 - **Desktop:** Python ≥3.10, Tkinter, PyInstaller binary, cross-platform (Windows primary, macOS/Linux)
 
 ### Competitive Position (June 2026)
@@ -49,7 +49,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 | Raindrop.io | N/A | ✅ | ✅ All | ✅ (Pro) | ✅ Stella | ❌ Cloud | ❌ Web |
 | Burn 451 | N/A | ✅ 22 tools | ✅ Chrome | ✅ | ✅ | ❌ Cloud | ❌ Web |
 | Bookmark Lens | small | ✅ | ❌ | ✅ LanceDB | ✅ | ✅ | ❌ MCP-only |
-| **BOP** | public | ✅ 20 tools | ❌ | ✅ LanceDB | ✅ 6 providers | ✅ | ✅ Tkinter |
+| **BOP** | public | ✅ 27 tools | ❌ | ✅ LanceDB | ✅ 6 providers | ✅ | ✅ Tkinter |
 
 **BOP's uncontested niche:** Desktop-native + local-first + MCP + semantic search + AI. No competitor occupies this exact intersection. **BOP is the only OSS bookmark manager with semantic/vector search** — zero competitors ship embeddings or vector similarity. The threat is not direct competition — it's Karakeep/Linkwarden web UIs accessed via local Docker, and Burn 451/Raindrop.io MCP servers that integrate better with AI workflows.
 
@@ -188,6 +188,15 @@ local API at `GET /opds`, with tag/category/title/limit filters and shared XML
 rendering between CLI export and HTTP serving. Details:
 `docs/audit/2026-06-06-v6.6.13-opds-serving-audit.md`.
 
+### Cycle Note — v6.6.14 (2026-06-06)
+
+R-15 is in progress. BOP now exposes `chat_with_collection_stream`, a
+stream-shaped MCP RAG tool that returns ordered response chunks plus a final
+metadata event while sharing the same bookmark ID/tag/category scoping as
+`chat_with_collection`. Provider-native token streaming remains open because
+the current provider client path still returns completed answers. Details:
+`docs/audit/2026-06-06-v6.6.14-mcp-chat-stream-audit.md`.
+
 ### Hard Constraints
 
 - MIT license
@@ -243,7 +252,7 @@ rendering between CLI export and HTTP serving. Details:
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| ✅ R-57 | **MCP write tools** — 6 new tools: `delete_bookmark`, `update_bookmark`, `toggle_pin`, `mark_read_later`, `add_tags`, `remove_tags`. Total 26 tools. | Done | M | [S-1][S-78] |
+| ✅ R-57 | **MCP write tools** — 6 new tools: `delete_bookmark`, `update_bookmark`, `toggle_pin`, `mark_read_later`, `add_tags`, `remove_tags`; shipped with a 26-tool catalog. | Done | M | [S-1][S-78] |
 | ✅ R-58 | **MCP 2026-07-28 spec migration** — stdio and Streamable HTTP transports run stateless, `tools/list` exposes cache hints, tool catalogs publish annotations/stateless metadata, and HTTP validates `Mcp-Method`/`Mcp-Name` headers. | Done | L | [S-79][S-80] |
 | ✅ R-59 | **FastMCP 3.x upgrade** — optional MCP dependencies now require FastMCP 3.4.x and MCP SDK 1.24+, packaging includes `fastmcp`, and `_build_fastmcp_server()` is verified against FastMCP 3.4.2. | Done | M | [S-81] |
 | ✅ R-60 | **GUI chat panel** — ChatPanel widget in right sidebar with conversation bubbles, cited sources, bookmark links, threaded async ask, and clear button. Backend via CollectionChat.ask(). | Done | L | [S-1][S-65][S-82] |
@@ -258,7 +267,7 @@ rendering between CLI export and HTTP serving. Details:
 | ✅ R-12 | YouTube transcript capture | Done | M | [S-6][S-18] |
 | ✅ R-13 | Smart Collections | Done | M | [S-10][S-19] |
 | ✅ R-14 | MCP auth scopes | Done | M | [S-14] |
-| 🔲 R-15 | **MCP streaming** for `chat_with_collection` — stream RAG responses token-by-token. Depends on FastMCP 3.x streaming support. | Later | M | [S-14][S-79] |
+| 🚧 R-15 | **MCP streaming** for `chat_with_collection` — stream RAG responses token-by-token. v6.6.14 added stream-shaped MCP response events; provider-native token streaming remains open. Depends on FastMCP 3.x streaming support. | Later | M | [S-14][S-79] |
 
 **Justification:** MCP write tools are needed for AI agent curation workflows (Burn 451 already ships delete/update). The 2026-07-28 spec is the biggest MCP revision since launch — going stateless, adding caching, aligning with OAuth 2.0 [S-79]. FastMCP 3.4 brings OTEL observability and remote server support [S-81]. GUI chat panel is the #1 feature gap vs Raindrop Stella and Markwise.
 
@@ -433,6 +442,7 @@ All items below shipped in v6.0.0 through v6.4.1. Full details in [CHANGELOG.md]
 | R-41C | Updater bootstrap docs and download/apply gates | v6.6.11 |
 | R-26A | OPDS 1.2 acquisition feed export | v6.6.12 |
 | R-26 | OPDS loopback serving | v6.6.13 |
+| R-15A | MCP chat response events | v6.6.14 |
 | BUG-01 through BUG-14 | All 14 known bugs fixed | v6.2.0-v6.4.1 |
 | + 30 v6.1.0 fixes | AI batch processor, chunk overlap, MCP schemas, CI flow, thread safety, etc. | v6.1.0 |
 
@@ -492,7 +502,7 @@ All Next-tier items have shipped through v6.6.8. Continue with Later-tier
 distribution and UI work, starting with R-41 unless a higher-priority audit
 finding appears.
 
-### Later — v7.x+ (6 remaining, R-41 in progress, R-17/R-26/R-50 shipped)
+### Later — v7.x+ (7 active/open, R-15/R-41 in progress, R-17/R-26/R-50 shipped)
 
 | # | Item | Effort | Category |
 |---|------|--------|----------|
