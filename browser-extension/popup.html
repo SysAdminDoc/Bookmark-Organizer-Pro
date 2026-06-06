@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Save to Bookmark Organizer Pro</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="panel">
+    <header>
+      <h1>Save Bookmark</h1>
+      <p id="pageTitle">Loading active tab...</p>
+    </header>
+
+    <label>
+      Category
+      <input id="category" type="text" autocomplete="off">
+    </label>
+
+    <label>
+      Tags
+      <input id="tags" type="text" placeholder="comma-separated" autocomplete="off">
+    </label>
+
+    <label>
+      Notes
+      <textarea id="notes" maxlength="5000"></textarea>
+    </label>
+
+    <div class="actions">
+      <button id="saveBookmark" type="button">Save</button>
+      <button id="openOptions" class="secondary" type="button">Options</button>
+    </div>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

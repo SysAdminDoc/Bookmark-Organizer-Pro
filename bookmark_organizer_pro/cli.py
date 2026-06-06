@@ -76,6 +76,7 @@ class BookmarkCLI:
             "encrypt": self._cmd_encrypt,
             "decrypt": self._cmd_decrypt,
             "read-later": self._cmd_read_later,
+            "api-server": self._cmd_api_server,
             "mcp-server": self._cmd_mcp_server,
             # v6.2.1
             "smart-collections": self._cmd_smart_collections,
@@ -140,6 +141,7 @@ v6.0.0 commands:
   encrypt <pass> [src] [dst]    Encrypt a JSON file with AES-256-GCM
   decrypt <pass> <src> [dst]    Decrypt an encrypted JSON file
   read-later {{add|next|done|list}} <id>   Manage the read-later queue
+  api-server [--port N]          Run the local HTTP API for extensions/bookmarklet
   mcp-server                    Run the MCP server (stdio) for compatible clients.
 
 Examples:
@@ -781,6 +783,47 @@ Top Domains:
     def _cmd_mcp_server(self, args):
         from bookmark_organizer_pro.mcp_server import main as _mcp_main
         _mcp_main()
+
+    def _cmd_api_server(self, args):
+        from bookmark_organizer_pro.services.api import BookmarkAPI
+        port = 8765
+        i = 0
+        while i < len(args):
+            arg = args[i]
+            if arg == "--port":
+                if i + 1 >= len(args):
+                    print("usage: api-server [--port N]")
+                    return
+                try:
+                    port = int(args[i + 1])
+                except ValueError:
+                    print("usage: api-server [--port N]")
+                    return
+                i += 2
+                continue
+            if arg.startswith("--port="):
+                try:
+                    port = int(arg.partition("=")[2])
+                except ValueError:
+                    print("usage: api-server [--port N]")
+                    return
+            i += 1
+        if port < 1 or port > 65535:
+            print("usage: api-server [--port N]")
+            return
+
+        api = BookmarkAPI(self.bookmark_manager, port=port)
+        try:
+            api.start()
+            print(f"Local API running at http://127.0.0.1:{api.port}")
+            print("Press Ctrl+C to stop.")
+            while True:
+                import time
+                time.sleep(3600)
+        except KeyboardInterrupt:
+            print("\nStopping local API.")
+        finally:
+            api.stop()
 
     def _cmd_smart_collections(self, args):
         from bookmark_organizer_pro.services.smart_collections import SmartCollectionManager

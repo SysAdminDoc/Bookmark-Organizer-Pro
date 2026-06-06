@@ -17,3 +17,14 @@ this file tracks autonomous project-loop completions and roadmap closures.
   About dialog Python-version text.
 - Consolidated the root research feature plan into `docs/research/` and
   reconciled roadmap status markers for already-shipped v6.3 work.
+
+## 2026-06-06 — v6.4.2 Browser Extension MVP
+
+- Added the first R-01 browser-extension slice under `browser-extension/`:
+  Manifest V3 manifest, popup, options page, shared dark styling, and local API
+  save flow for the active HTTP/HTTPS tab.
+- Added `api-server [--port N]` to keep the existing local HTTP API available
+  for extension and bookmarklet workflows.
+- Added static extension tests and API-server CLI tests.
+- Left R-01 marked in progress because native messaging, packaged browser
+  validation, and offline category/tag suggestions remain open.

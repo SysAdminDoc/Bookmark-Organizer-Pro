@@ -146,6 +146,27 @@ class TestCLISearchAndCheck(CLITestBase):
         self.assertIn("usage: scan", out)
         scanner_cls.assert_not_called()
 
+    @patch("bookmark_organizer_pro.services.api.BookmarkAPI")
+    def test_api_server_rejects_invalid_port(self, api_cls):
+        out = self._run(["api-server", "--port", "bad"])
+
+        self.assertIn("usage: api-server", out)
+        api_cls.assert_not_called()
+
+    @patch("time.sleep", side_effect=KeyboardInterrupt)
+    @patch("bookmark_organizer_pro.services.api.BookmarkAPI")
+    def test_api_server_starts_and_stops(self, api_cls, _sleep):
+        api = api_cls.return_value
+        api.port = 9010
+
+        out = self._run(["api-server", "--port=9010"])
+
+        api_cls.assert_called_once()
+        self.assertEqual(api_cls.call_args.kwargs["port"], 9010)
+        api.start.assert_called_once()
+        api.stop.assert_called_once()
+        self.assertIn("Local API running", out)
+
     def test_digest(self):
         out = self._run(["digest"])
         self.assertIsInstance(out, str)

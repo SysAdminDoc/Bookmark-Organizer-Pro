@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bookmark Organizer Pro Options</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body class="options-body">
+  <main class="panel">
+    <header>
+      <h1>Local API</h1>
+      <p>Configure the localhost API used by the extension popup.</p>
+    </header>
+
+    <label>
+      API port
+      <input id="apiPort" type="number" min="1" max="65535" value="8765">
+    </label>
+
+    <label>
+      API token
+      <input id="apiToken" type="password" autocomplete="off" spellcheck="false">
+    </label>
+
+    <label>
+      Default category
+      <input id="defaultCategory" type="text" value="Uncategorized / Needs Review">
+    </label>
+
+    <div class="actions">
+      <button id="saveOptions" type="button">Save</button>
+    </div>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>
