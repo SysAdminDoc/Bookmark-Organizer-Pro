@@ -23,8 +23,27 @@ from bookmark_organizer_pro.logging_config import log
 
 
 DEFAULT_MODEL = "BAAI/bge-small-en-v1.5"   # 384 dims, fastembed default
+NOMIC_MODEL = "nomic-ai/nomic-embed-text-v1.5"  # 768 dims, CPU-first, 8192 context
 MODEL2VEC_DEFAULT = "minishlab/potion-base-8M"
 ST_DEFAULT = "sentence-transformers/all-MiniLM-L6-v2"
+
+RECOMMENDED_MODELS = {
+    "default": {
+        "model": DEFAULT_MODEL,
+        "dims": 384,
+        "description": "Fast, small footprint (33MB). Good quality for most use cases.",
+    },
+    "nomic": {
+        "model": NOMIC_MODEL,
+        "dims": 768,
+        "description": "Best quality-to-size ratio. 137M params, CPU-first, 8192-token context, Matryoshka dims.",
+    },
+    "minilm": {
+        "model": ST_DEFAULT,
+        "dims": 384,
+        "description": "PyTorch-based. Requires sentence-transformers. Widely used baseline.",
+    },
+}
 
 
 def _try_import(name: str):

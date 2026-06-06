@@ -65,9 +65,10 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
         self.grab_set()
-        
+        self.bind("<Escape>", lambda e: self.destroy())
+
         apply_window_chrome(self)
-        
+
         # Header
         header = tk.Frame(self, bg=theme.bg_dark, height=60)
         header.pack(fill=tk.X)

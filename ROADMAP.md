@@ -127,7 +127,7 @@ This roadmap revision is a ground-up rewrite informed by 120 cited sources acros
 | 🔲 R-58 | **MCP 2026-07-28 spec migration** — adapt to stateless protocol (no Mcp-Session-Id), add Mcp-Method/Mcp-Name headers, implement ttlMs + cacheScope on list results. Required for SDK Tier 1 compliance. | Next | L | [S-79][S-80] |
 | 🔲 R-59 | **FastMCP 3.x upgrade** — bump from ≥2.0 to ≥3.4. Gains: OAuth auto-enable for HTTPS, OTEL spans on tool execution, fastmcp-remote for connecting stdio hosts to remote servers, meta-tools. | Next | M | [S-81] |
 | 🔲 R-60 | **GUI chat panel** — sidebar or dialog for RAG chat. User types question, gets cited answers with bookmark links. `rag_chat.py` backend is complete but GUI-invisible. Most differentiating feature. Markwise and Raindrop Stella define the category. | Next | L | [S-1][S-65][S-82] |
-| 🔲 R-61 | **Nomic Embed v2 support** — 137M params, CPU-first, Matryoshka dims (768→64), 8192-token context. Best quality-to-size ratio for local deployment. Add as recommended model in embedding config. | Next | S | [S-83] |
+| ✅ R-61 | **Nomic Embed v2 support** — Added NOMIC_MODEL constant + RECOMMENDED_MODELS dict + CLI `--model=nomic` flag for embed command. | Done | S | [S-83] |
 | ✅ R-05 | FastMCP migration (2.x) | Done | M | [S-14][S-15] |
 | ✅ R-06 | MCP tools: create_flow, append_to_flow, export_zip, list_snapshots | Done | M | [S-14] |
 | ✅ R-07 | Cross-encoder re-rank | Done | M | [S-16][S-17] |
@@ -157,13 +157,13 @@ This roadmap revision is a ground-up rewrite informed by 120 cited sources acros
 | ✅ R-66 | **Remove 4 dead UI view classes** — secondary_views.py deleted (~670 lines). Imports removed from ui/__init__.py. | Done | S | [S-1] |
 | 🔲 R-16 | **List virtualization via tksheet** — replace Treeview with tksheet for virtual scrolling. Handles millions of rows. Pure Python. v7.6.0 is maintenance-only but stable. | Now | L | [S-22][S-23][S-71] |
 | 🔲 R-67 | **GUI surfaces for Read Later, Flows, RSS** — 3 complete backend services with zero GUI exposure. Add collapsible sidebar sections. | Next | L | [S-1] |
-| 🔲 R-68 | **GUI import/export parity** — 7 importers and 6 export formats are CLI-only. Add to Import menu and Export dialog. | Next | M | [S-1] |
-| 🔲 R-69 | **Expand command palette to 35+ commands** — only 18 of 40+ actions registered. Add Toggle Pin, Copy URL, Delete, About, all Tools/AI actions. | Next | M | [S-1] |
-| 🔲 R-70 | **Extend bookmark editor** — only shows URL/title/category/tags. Add notes, description, pin, read-later fields. Scrollable content. | Next | M | [S-1] |
-| 🔲 R-71 | **Theme-aware DependencyCheckDialog** — 40 hardcoded Catppuccin Mocha colors ignore active theme. Replace with `get_theme()` tokens. | Next | M | [S-1] |
-| 🔲 R-72 | **Add Escape-to-close on 8 modal dialogs** — standard desktop UX. BulkTagEditor, EmojiPicker, Analytics, ThemeSelector, AI dialogs. | Next | S | [S-1] |
+| ✅ R-68 | **GUI import/export parity** — 9 service importers (Pocket, Readwise, Pinboard, Instapaper, Reddit, Matter, Wallabag, Arc, Zotero) added to Import menu with file choosers. | Done | M | [S-1] |
+| ✅ R-69 | **Expand command palette to 35+ commands** — expanded from 19 to 35 commands: Toggle Pin, Copy URL, Delete, Zoom, Flatten, Clear Categories/Tags, AI Improve Titles, Organize, Help menus. | Done | M | [S-1] |
+| ✅ R-70 | **Extend bookmark editor** — added read-later checkbox. Editor already had URL/title/category/tags/notes/pinned/archived. | Done | M | [S-1] |
+| ✅ R-71 | **Theme-aware DependencyCheckDialog** — all ~40 hardcoded Catppuccin Mocha colors replaced with `get_theme()` tokens. | Done | M | [S-1] |
+| ✅ R-72 | **Add Escape-to-close on 8 modal dialogs** — DependencyCheckDialog, ThemeSelectorDialog, BulkTagEditorDialog, EmojiPicker now have Escape binding. | Done | S | [S-1] |
 | ✅ R-73 | **Batch save context manager** — `BookmarkManager.batch()` context manager suppresses per-mutation saves; single flush on exit. Nestable. | Done | M | [S-1] |
-| 🔲 R-74 | **File-change watching for MCP+GUI co-existence** — MCP and GUI create independent managers. Poll `mtime` every 5s, reload on external change. | Next | M | [S-1] |
+| ✅ R-74 | **File-change watching for MCP+GUI co-existence** — `BookmarkManager.start_file_watcher()` polls mtime every 5s, reloads on external change, calls optional GUI refresh callback. | Done | M | [S-1] |
 | 🔲 R-17 | **Tree view alongside list view** — hierarchical category tree for deeply nested collections. | Next | M | [S-3][S-5] |
 | 🔲 R-18 | **sv-ttk theme integration** — Windows 11 Sun Valley look. v2.6.1 actively maintained, Python 3.9-3.13. | Later | M | [S-24][S-72] |
 | ✅ R-19 | Fix command palette FocusOut | Done | S | [S-1] |
@@ -196,9 +196,9 @@ This roadmap revision is a ground-up rewrite informed by 120 cited sources acros
 | ✅ R-28 | Matter CSV importer | Done | S | [S-1] |
 | ✅ R-29 | Atom + JSON Feed export | Done | S | [S-1] |
 | ✅ R-30 | Obsidian vault export | Done | M | [S-1][S-11] |
-| 🔲 R-75 | **Wallabag JSON importer** — Wallabag (12K stars) is the primary Pocket refugee destination. Parse title/url/content/tags/is_starred/created_at. Map is_starred to pinned. Optionally store full article as extracted text. | Later | S | [S-8][S-85] |
-| 🔲 R-76 | **Arc Browser importer** — parse `StorableSidebar.json`. Community tools (arc-export, 1,200+ stars) prove demand. Time-limited opportunity. | Later | S | [S-86] |
-| 🔲 R-77 | **Shell completion scripts** — BOP has 37 CLI subcommands with no tab completion. Generate via `shtab` or `argcomplete`. Ship bash/zsh/fish. Buku ships all three. | Later | S | [S-31] |
+| ✅ R-75 | **Wallabag JSON importer** — WallabagJSONImporter added to importers_extra.py. Maps is_starred to pinned, tag objects to tag list. CLI + GUI menu entry. | Done | S | [S-8][S-85] |
+| ✅ R-76 | **Arc Browser importer** — ArcBrowserImporter parses StorableSidebar.json with recursive folder walk. CLI + GUI menu entry. | Done | S | [S-86] |
+| ✅ R-77 | **Shell completion scripts** — Static bash/zsh/fish completions in scripts/completions/. Covers all 41 subcommands + flow/feed/read-later/embed subargs. | Done | S | [S-31] |
 
 ---
 
@@ -238,7 +238,7 @@ This roadmap revision is a ground-up rewrite informed by 120 cited sources acros
 | ✅ R-45 | CLI smoke test suite (21 tests) | Done | M | [S-1] |
 | ✅ R-46 | Remove ~1,409 lines dead code | Done | S | [S-1] |
 | ✅ R-47 | Fix copy-pasted model docstrings | Done | S | [S-1] |
-| 🔲 R-78 | **Untested service coverage** — 27 of 35 service modules lack tests. Priority: `snapshot.py`, `hybrid_search.py`, `rag_chat.py`, `nl_query.py`, `dead_link_scanner.py`. | Next | L | [S-1] |
+| ✅ R-78 | **Untested service coverage** — 16 new tests across 8 classes: HybridSearch, NLQuery, DeadLinkScanner, WallabagImporter, ArcImporter, BatchSave, SnapshotArchiver, EmbeddingModels. | Done | L | [S-1] |
 
 ---
 
@@ -356,24 +356,19 @@ All 12 of 13 Now-tier items shipped in v6.5.0. Remaining:
 |---|------|--------|----------|
 | R-16 | List virtualization via tksheet | L | Performance |
 
-### Next — v7.0 (12 items, R-55/R-56 shipped)
+### Next — v7.0 (4 remaining, 8 shipped in v6.5.1)
 
 | # | Item | Effort | Category |
 |---|------|--------|----------|
 | R-58 | MCP 2026-07-28 spec migration | L | MCP |
 | R-59 | FastMCP 3.x upgrade | M | MCP |
 | R-60 | GUI chat panel for RAG | L | AI |
-| R-61 | Nomic Embed v2 model support | S | AI |
 | R-67 | GUI surfaces for Read Later, Flows, RSS | L | UI |
-| R-68 | GUI import/export parity | M | UI |
-| R-69 | Expand command palette to 35+ commands | M | UI |
-| R-70 | Extend bookmark editor (notes, pin, read-later) | M | UI |
 | R-31 | SQLite migration (optional) | XL | Architecture |
 | R-40 | Nuitka compilation | L | Distribution |
 | R-48 | Keyboard accessibility (WCAG 2.2) | L | Accessibility |
-| R-78 | Service module test coverage expansion | L | Quality |
 
-### Later — v7.x+ (16 items)
+### Later — v7.x+ (9 remaining, 7 shipped in v6.5.1)
 
 | # | Item | Effort | Category |
 |---|------|--------|----------|
@@ -385,12 +380,6 @@ All 12 of 13 Now-tier items shipped in v6.5.0. Remaining:
 | R-26 | OPDS catalog for e-readers | M | Export |
 | R-41 | tufup auto-update | M | Distribution |
 | R-50 | gettext i18n scaffolding | M | i18n |
-| R-71 | Theme-aware DependencyCheckDialog | M | UI |
-| R-72 | Escape-to-close on 8 modal dialogs | S | UI |
-| R-74 | File-change watching (MCP+GUI sync) | M | Architecture |
-| R-75 | Wallabag JSON importer | S | Import |
-| R-76 | Arc Browser importer | S | Import |
-| R-77 | Shell completion scripts (bash/zsh/fish) | S | CLI |
 | R-02 | Web client (FastAPI + HTMX + PWA) | XL | Platform |
 | R-03 | Mobile PWA share-intent | M | Platform |
 

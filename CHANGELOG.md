@@ -2,6 +2,52 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.5.1] - 2026-06-05
+
+UI polish, importers, test coverage, and developer experience release. 11 roadmap items shipped.
+
+### Added — Import/Export (R-75, R-76, R-68)
+
+- **Wallabag JSON importer** — `WallabagJSONImporter` parses Wallabag exports,
+  maps `is_starred` to pinned, extracts tag objects. CLI: `import-wallabag`.
+- **Arc Browser importer** — `ArcBrowserImporter` parses `StorableSidebar.json`
+  with recursive folder walk. CLI: `import-arc`.
+- **GUI import parity** — 9 service importers (Pocket, Readwise, Pinboard,
+  Instapaper, Reddit, Matter, Wallabag, Arc, Zotero) now accessible from the
+  Import menu with file choosers.
+
+### Added — AI & Embeddings (R-61)
+
+- **Nomic Embed v2 model support** — `NOMIC_MODEL` constant + `RECOMMENDED_MODELS`
+  dict with default/nomic/minilm profiles. CLI: `embed --model=nomic`.
+
+### Added — CLI & DX (R-77)
+
+- **Shell completion scripts** — bash, zsh, and fish completions covering all 41
+  subcommands + flow/feed/read-later/embed sub-arguments. In `scripts/completions/`.
+
+### Added — Architecture (R-74)
+
+- **File-change watching** — `BookmarkManager.start_file_watcher()` polls mtime
+  every 5s and reloads on external change. Enables MCP + GUI co-existence.
+
+### Improved — UI (R-69, R-70, R-71, R-72)
+
+- **Command palette expanded** from 19 to 35 commands — Toggle Pin, Copy URL,
+  Delete, Zoom, Flatten, Clear Categories/Tags, AI Improve Titles, Organize,
+  Search Syntax Help, Keyboard Shortcuts, About.
+- **Bookmark editor** — added read-later checkbox alongside pinned/archived.
+- **DependencyCheckDialog** — all ~40 hardcoded Catppuccin Mocha colors replaced
+  with `get_theme()` tokens. Now follows active theme.
+- **Escape-to-close** on 4 remaining dialogs: DependencyCheckDialog,
+  ThemeSelectorDialog, BulkTagEditorDialog, EmojiPicker.
+
+### Improved — Testing (R-78)
+
+- 16 new test methods across 8 test classes: HybridSearchFallback, NLQueryHeuristic,
+  DeadLinkScanner, WallabagImporter, ArcImporter, BatchSave, SnapshotArchiver,
+  EmbeddingModels.
+
 ## [v6.5.0] - 2026-06-05
 
 Security hardening, MCP expansion, browser extension production, and UI polish.

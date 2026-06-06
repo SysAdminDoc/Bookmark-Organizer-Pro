@@ -190,7 +190,13 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
         self.archived_check = ttk.Checkbutton(
             checks_frame, text="📦 Archived", variable=self.archived_var
         )
-        self.archived_check.pack(side=tk.LEFT)
+        self.archived_check.pack(side=tk.LEFT, padx=(0, 20))
+
+        self.read_later_var = tk.BooleanVar(value=bookmark.read_later if bookmark else False)
+        self.read_later_check = ttk.Checkbutton(
+            checks_frame, text="📖 Read Later", variable=self.read_later_var
+        )
+        self.read_later_check.pack(side=tk.LEFT)
         
         content.columnconfigure(0, weight=1)
         content.columnconfigure(1, weight=1)
@@ -253,6 +259,7 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
             self.bookmark.notes = self.notes_text.get("1.0", tk.END).strip()
             self.bookmark.is_pinned = self.pinned_var.get()
             self.bookmark.is_archived = self.archived_var.get()
+            self.bookmark.read_later = self.read_later_var.get()
             self.bookmark.modified_at = datetime.now().isoformat()
             
             # Call on_save callback if provided
@@ -266,7 +273,8 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
             "tags": self.tag_editor.get_tags(),
             "notes": self.notes_text.get("1.0", tk.END).strip(),
             "is_pinned": self.pinned_var.get(),
-            "is_archived": self.archived_var.get()
+            "is_archived": self.archived_var.get(),
+            "read_later": self.read_later_var.get(),
         }
         self.destroy()
     
