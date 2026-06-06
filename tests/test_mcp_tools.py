@@ -7,11 +7,15 @@ real managers and services.
 
 import os
 import json
+import re
 import tempfile
 import shutil
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class MCPToolTestBase(unittest.TestCase):
@@ -183,6 +187,22 @@ class TestToolsSchema(MCPToolTestBase):
     def test_no_duplicate_tool_names(self):
         names = [t[0] for t in self.ms.TOOLS]
         self.assertEqual(len(names), len(set(names)), f"Duplicate tool names: {names}")
+
+
+class TestMCPRuntimeCompatibility(MCPToolTestBase):
+    def test_fastmcp_builder_available_with_declared_dependency(self):
+        app = self.ms._build_fastmcp_server()
+        self.assertIsNotNone(app)
+        self.assertEqual(type(app).__name__, "FastMCP")
+
+    def test_mcp_dependency_floors_are_declared(self):
+        pyproject_text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        requirements_text = (ROOT / "requirements.txt").read_text(encoding="utf-8")
+
+        self.assertRegex(pyproject_text, re.compile(r'"mcp>=1\.24,<2\.0"'))
+        self.assertRegex(pyproject_text, re.compile(r'"fastmcp>=3\.4,<4\.0"'))
+        self.assertIn("mcp>=1.24,<2", requirements_text)
+        self.assertIn("fastmcp>=3.4,<4", requirements_text)
 
 
 if __name__ == "__main__":
