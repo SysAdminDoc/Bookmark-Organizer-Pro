@@ -3,6 +3,19 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.7 Nuitka Build Controls
+
+- Advanced R-40: installed and verified Nuitka 4.1.2 in the active Python 3.12
+  environment.
+- Verified Nuitka sees MSVC `cl 14.3`.
+- Attempted a full-app standalone compile; it exceeded a 15-minute smoke
+  timeout and the leftover compiler process tree was stopped.
+- Added `--jobs` support to `packaging/nuitka_build.py`, defaulting to a
+  conservative `--jobs=4` with CLI override.
+- Verification: Nuitka version check passed, throttled dry-run passed,
+  compileall passed, targeted packaging/release metadata tests passed with
+  9 tests, and the full suite passed with 307 tests.
+
 ## 2026-06-06 — v6.6.6 Nuitka Build Path
 
 - Advanced R-40: added `packaging/nuitka_build.py` to generate a reproducible

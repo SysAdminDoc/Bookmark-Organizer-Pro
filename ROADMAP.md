@@ -21,9 +21,9 @@
 
 ---
 
-## State of the Project (v6.6.6)
+## State of the Project (v6.6.7)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.6:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.7:
 
 - **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
@@ -123,6 +123,13 @@ R-40 is in progress. BOP now has a reproducible Nuitka build helper with
 onefile/standalone modes, Tkinter plugin, asset inclusion, Windows metadata, a
 dry-run mode, and an optional `nuitka` packaging extra. Details:
 `docs/audit/2026-06-06-v6.6.6-nuitka-build-audit.md`.
+
+### Cycle Note — v6.6.7 (2026-06-06)
+
+R-40 remains in progress. Nuitka 4.1.2 is installed and detects MSVC `cl 14.3`;
+the first full-app standalone compile exceeded a 15-minute smoke timeout, so the
+build helper now emits bounded `--jobs` controls for the next compile pass.
+Details: `docs/audit/2026-06-06-v6.6.7-nuitka-toolchain-audit.md`.
 
 ### Hard Constraints
 
@@ -277,7 +284,7 @@ dry-run mode, and an optional `nuitka` packaging extra. Details:
 
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
-| 🔄 R-40 | **Nuitka compilation** — build helper, optional Nuitka 4.1+ extra, Tkinter plugin, assets, and Windows metadata shipped in v6.6.6. Actual local compile smoke remains. | In Progress | L | [S-27][S-87] |
+| 🔄 R-40 | **Nuitka compilation** — build helper, optional Nuitka 4.1+ extra, Tkinter plugin, assets, Windows metadata, and bounded `--jobs` controls shipped in v6.6.6-v6.6.7. Actual local compile smoke remains. | In Progress | L | [S-27][S-87] |
 | 🔲 R-41 | **tufup auto-update** — TUF-based binary diff patches. Works with PyInstaller or Nuitka. v0.10.0 on PyPI, actively maintained. | Later | M | [S-28][S-88] |
 | ✅ R-42 | Python version matrix in CI (3.10-3.13) | Done | S | [S-1] |
 
@@ -362,6 +369,7 @@ All items below shipped in v6.0.0 through v6.4.1. Full details in [CHANGELOG.md]
 | R-31A | SQLite storage manager and JSON migration command | v6.6.4 |
 | R-31 | SQLite runtime backend selection | v6.6.5 |
 | R-40A | Nuitka build helper and dependency extra | v6.6.6 |
+| R-40B | Nuitka toolchain verification and build job controls | v6.6.7 |
 | BUG-01 through BUG-14 | All 14 known bugs fixed | v6.2.0-v6.4.1 |
 | + 30 v6.1.0 fixes | AI batch processor, chunk overlap, MCP schemas, CI flow, thread safety, etc. | v6.1.0 |
 
