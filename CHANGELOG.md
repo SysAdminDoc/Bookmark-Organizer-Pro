@@ -2,6 +2,24 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.27] - 2026-06-06
+
+Updater apply plan release.
+
+### Added — Distribution (R-41 partial)
+
+- **Apply plan model** — added `UpdateManager.build_apply_plan()` and
+  `UpdateApplyPlan` for non-mutating install/rollback planning.
+- **CLI plan output** — added `updates plan` to print install directory,
+  rollback directory, staged paths, planned actions, and blockers.
+- **Rollback design surface** — the plan records a deterministic rollback
+  directory without creating, extracting, or replacing files.
+
+### Tests
+
+- Added updater service coverage for unstaged and staged apply plans.
+- Added CLI coverage for the default `updates plan` blocker output.
+
 ## [v6.6.26] - 2026-06-06
 
 Updater staged cleanup release.

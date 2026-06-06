@@ -161,7 +161,7 @@ v6.0.0 commands:
                                 Run the MCP Streamable HTTP server on loopback.
   sqlite-migrate [--source JSON] [--dest DB]
                                 Copy JSON bookmarks into an opt-in SQLite DB.
-  updates [status|check|configure|download|staged|clean-staged|apply [--dry-run]]
+  updates [status|check|configure|download|staged|clean-staged|plan|apply [--dry-run]]
                                 Manage disabled-by-default update policy.
 
 Examples:
@@ -1055,13 +1055,16 @@ Top Domains:
         if sub == "clean-staged":
             self._print_update_cleanup(manager.clear_staged_update())
             return
+        if sub == "plan":
+            self._print_update_apply_plan(manager.build_apply_plan())
+            return
         if sub == "apply":
             if any(arg in ("--dry-run", "--preflight") for arg in args[1:]):
                 self._print_update_apply_preflight(manager.apply_preflight())
                 return
             self._print_update_apply_gate(manager)
             return
-        print("Usage: updates [status|check|configure|download|staged|clean-staged|apply [--dry-run]]")
+        print("Usage: updates [status|check|configure|download|staged|clean-staged|plan|apply [--dry-run]]")
 
     def _print_update_status(self, status):
         policy = status.policy
@@ -1137,6 +1140,21 @@ Top Domains:
             print(f"Removed target: {removed_target}")
         for error in result.errors:
             print(f"Error: {error}")
+
+    def _print_update_apply_plan(self, result):
+        print(f"Update apply plan: {result.reason}")
+        print(f"Install dir: {result.install_dir}")
+        print(f"Rollback dir: {result.rollback_dir}")
+        if result.latest_version:
+            print(f"Target version: {result.latest_version}")
+        if result.target_name:
+            print(f"Target: {result.target_name}")
+        for staged_path in result.staged_paths:
+            print(f"Staged: {staged_path}")
+        for action in result.actions:
+            print(f"Plan: {action}")
+        for blocker in result.blockers:
+            print(f"Blocker: {blocker}")
 
     def _configure_updates(self, manager, args):
         enabled = None

@@ -3,6 +3,16 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.27 Updater Apply Plan
+
+- Advanced R-41: added a non-mutating apply plan with install path, rollback
+  path, staged target paths, planned actions, and blockers.
+- Added `UpdateManager.build_apply_plan()` and `updates plan`.
+- Kept real update application blocked while documenting rollback and
+  replacement steps in code-visible output.
+- Verification: compileall passed, focused updater/release metadata tests
+  passed with 37 tests, and the full suite passed with 359 tests.
+
 ## 2026-06-06 — v6.6.26 Updater Staged Cleanup
 
 - Advanced R-41: added staged-update cleanup for the manifest and cached staged
