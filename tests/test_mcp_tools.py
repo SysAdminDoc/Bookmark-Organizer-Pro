@@ -242,6 +242,100 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
         self.assertEqual(tools["list_bookmarks"]["_meta"]["io.modelcontextprotocol/method"], "tools/call")
         self.assertEqual(tools["list_bookmarks"]["_meta"]["io.modelcontextprotocol/name"], "list_bookmarks")
 
+    def test_serve_http_requires_fastmcp(self):
+        with patch.object(self.ms, "_build_fastmcp_server", return_value=None):
+            self.assertEqual(self.ms.serve_http(), 1)
+
+    def test_serve_http_uses_streamable_http_stateless_options(self):
+        class FakeApp:
+            def __init__(self):
+                self.calls = []
+
+            def run(self, **kwargs):
+                self.calls.append(kwargs)
+
+        app = FakeApp()
+        with patch.object(self.ms, "_build_fastmcp_server", return_value=app):
+            self.assertEqual(self.ms.serve_http(host="127.0.0.1", port=9011, path="mcp"), 0)
+
+        self.assertEqual(len(app.calls), 1)
+        call = app.calls[0]
+        self.assertEqual({
+            key: call[key]
+            for key in ("transport", "host", "port", "path", "stateless_http")
+        }, {
+            "transport": "http",
+            "host": "127.0.0.1",
+            "port": 9011,
+            "path": "/mcp",
+            "stateless_http": True,
+        })
+        self.assertEqual(len(call["middleware"]), 1)
+
+    def test_http_header_validation_rejects_mismatched_name(self):
+        sent = []
+
+        async def app(scope, receive, send):
+            sent.append({"type": "downstream"})
+
+        middleware = self.ms.MCPHTTPHeaderValidationMiddleware(app)
+        body = json.dumps({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "list_bookmarks", "arguments": {}},
+        }).encode("utf-8")
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "headers": [(b"mcp-method", b"tools/call"), (b"mcp-name", b"wrong")],
+        }
+
+        async def receive():
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        async def send(message):
+            sent.append(message)
+
+        asyncio.run(middleware(scope, receive, send))
+
+        self.assertEqual(sent[0]["status"], 400)
+        self.assertNotIn({"type": "downstream"}, sent)
+
+    def test_http_header_validation_replays_valid_body(self):
+        seen = {}
+
+        async def app(scope, receive, send):
+            message = await receive()
+            seen["body"] = message["body"]
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+            await send({"type": "http.response.body", "body": b"", "more_body": False})
+
+        middleware = self.ms.MCPHTTPHeaderValidationMiddleware(app)
+        body = json.dumps({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "list_bookmarks", "arguments": {}},
+        }).encode("utf-8")
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "headers": [(b"mcp-method", b"tools/call"), (b"mcp-name", b"list_bookmarks")],
+        }
+        sent = []
+
+        async def receive():
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        async def send(message):
+            sent.append(message)
+
+        asyncio.run(middleware(scope, receive, send))
+
+        self.assertEqual(seen["body"], body)
+        self.assertEqual(sent[0]["status"], 200)
+
 
 if __name__ == "__main__":
     unittest.main()

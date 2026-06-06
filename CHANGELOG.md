@@ -2,6 +2,24 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.3] - 2026-06-06
+
+MCP Streamable HTTP release.
+
+### Added — MCP (R-58)
+
+- **Streamable HTTP server** — added `mcp-http-server` with `--host`,
+  `--port`, and `--path` options. It binds to loopback by default.
+- **Stateless HTTP** — the FastMCP HTTP runner starts with stateless HTTP
+  enabled.
+- **Mirrored header validation** — POST requests are rejected when
+  `Mcp-Method` or `Mcp-Name` headers do not match the JSON-RPC body.
+
+### Tests
+
+- Added CLI coverage for the HTTP server command and unit coverage for
+  header mismatch rejection/body replay.
+
 ## [v6.6.2] - 2026-06-06
 
 MCP stateless-readiness release.

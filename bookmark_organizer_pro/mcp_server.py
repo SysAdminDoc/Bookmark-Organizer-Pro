@@ -230,6 +230,92 @@ def _patch_fastmcp_list_tools_cache(mcp_app: Any) -> None:
         return _with_list_result_cache(await list_tools_mcp(request))
 
 
+class MCPHTTPHeaderValidationMiddleware:
+    """Validate Streamable HTTP mirrored headers before MCP body handling."""
+
+    NAMED_METHODS = {"tools/call", "resources/read", "prompts/get"}
+
+    def __init__(self, app: Any):
+        self.app = app
+
+    async def __call__(self, scope: Dict[str, Any], receive: Any, send: Any) -> None:
+        if scope.get("type") != "http" or scope.get("method") != "POST":
+            await self.app(scope, receive, send)
+            return
+
+        body = b""
+        more_body = True
+        while more_body:
+            message = await receive()
+            body += message.get("body", b"")
+            more_body = bool(message.get("more_body", False))
+
+        error = self._validate(scope, body)
+        if error:
+            await self._send_error(send, error)
+            return
+
+        sent = False
+
+        async def replay_receive() -> Dict[str, Any]:
+            nonlocal sent
+            if sent:
+                return {"type": "http.request", "body": b"", "more_body": False}
+            sent = True
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        await self.app(scope, replay_receive, send)
+
+    def _validate(self, scope: Dict[str, Any], body: bytes) -> Optional[str]:
+        try:
+            payload = json.loads(body.decode("utf-8") if body else "{}")
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return None
+        if not isinstance(payload, dict):
+            return None
+
+        method = payload.get("method")
+        if not isinstance(method, str) or not method:
+            return None
+
+        headers = {
+            key.decode("latin-1").lower(): value.decode("latin-1")
+            for key, value in scope.get("headers", [])
+        }
+        header_method = headers.get("mcp-method")
+        if header_method != method:
+            return "Mcp-Method header must match JSON-RPC method"
+
+        expected_name = None
+        params = payload.get("params")
+        if method in self.NAMED_METHODS and isinstance(params, dict):
+            for field in ("name", "uri"):
+                value = params.get(field)
+                if isinstance(value, str) and value:
+                    expected_name = value
+                    break
+        if expected_name and headers.get("mcp-name") != expected_name:
+            return "Mcp-Name header must match JSON-RPC params.name or params.uri"
+        return None
+
+    async def _send_error(self, send: Any, message: str) -> None:
+        body = message.encode("utf-8")
+        await send({
+            "type": "http.response.start",
+            "status": 400,
+            "headers": [
+                (b"content-type", b"text/plain; charset=utf-8"),
+                (b"content-length", str(len(body)).encode("ascii")),
+            ],
+        })
+        await send({"type": "http.response.body", "body": body, "more_body": False})
+
+
+def _mcp_http_middleware() -> List[Any]:
+    from starlette.middleware import Middleware
+    return [Middleware(MCPHTTPHeaderValidationMiddleware)]
+
+
 # --- pure tool implementations ---------------------------------------------
 
 def t_list_bookmarks(limit: int = 50, offset: int = 0,
@@ -986,6 +1072,28 @@ def _build_fastmcp_server():
 
     _patch_fastmcp_list_tools_cache(mcp_app)
     return mcp_app
+
+
+def serve_http(host: str = "127.0.0.1", port: int = 8766, path: str = "/mcp") -> int:
+    """Run the FastMCP Streamable HTTP server on an explicit local endpoint."""
+    fastmcp_app = _build_fastmcp_server()
+    if fastmcp_app is None:
+        print("error: install `fastmcp` to run the MCP HTTP server", file=sys.stderr)
+        return 1
+    endpoint = path if path.startswith("/") else f"/{path}"
+    log.info(f"{APP_NAME} MCP HTTP server v{APP_VERSION} starting at http://{host}:{port}{endpoint}")
+    try:
+        fastmcp_app.run(
+            transport="http",
+            host=host,
+            port=port,
+            path=endpoint,
+            stateless_http=True,
+            middleware=_mcp_http_middleware(),
+        )
+    except KeyboardInterrupt:
+        pass
+    return 0
 
 
 def main():

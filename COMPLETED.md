@@ -3,6 +3,18 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.3 MCP Streamable HTTP
+
+- Completed R-58: added an opt-in `mcp-http-server` command for FastMCP
+  Streamable HTTP with stateless HTTP enabled.
+- Added `--host`, `--port`, and `--path` CLI options with loopback defaults.
+- Added `Mcp-Method` and `Mcp-Name` validation middleware that rejects header
+  mismatches before the JSON-RPC body reaches FastMCP.
+- Added tests for command parsing, HTTP runner options, header mismatch
+  rejection, and body replay.
+- Verification: compileall passed, targeted MCP/CLI/browser-extension tests
+  passed with 63 tests, and the full suite passed with 294 tests.
+
 ## 2026-06-06 — v6.6.2 MCP Stateless Readiness
 
 - Advanced R-58: enabled MCP SDK stateless mode for raw SDK and FastMCP stdio
