@@ -290,7 +290,7 @@ class MCPHTTPHeaderValidationMiddleware:
             for key, value in scope.get("headers", [])
         }
         header_method = headers.get("mcp-method")
-        if header_method != method:
+        if header_method is not None and header_method != method:
             return "Mcp-Method header must match JSON-RPC method"
 
         expected_name = None
@@ -301,7 +301,8 @@ class MCPHTTPHeaderValidationMiddleware:
                 if isinstance(value, str) and value:
                     expected_name = value
                     break
-        if expected_name and headers.get("mcp-name") != expected_name:
+        header_name = headers.get("mcp-name")
+        if expected_name and header_name is not None and header_name != expected_name:
             return "Mcp-Name header must match JSON-RPC params.name or params.uri"
         return None
 
