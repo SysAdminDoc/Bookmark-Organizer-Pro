@@ -138,6 +138,8 @@ def _check_mcp_auth(token: Optional[str], tool_name: str) -> Optional[str]:
 
 MCP_TOOL_LIST_TTL_MS = 300_000
 MCP_TOOL_LIST_CACHE_SCOPE = "public"
+CHAT_STREAM_CONTRACT_VERSION = "bop.chat_stream.v1"
+CHAT_STREAM_EVENT_TYPES = ("chunk", "complete")
 
 MCP_READ_ONLY_TOOLS = {
     "list_bookmarks", "get_bookmark", "search_bookmarks",
@@ -177,12 +179,16 @@ def _tool_annotations(name: str) -> Dict[str, Any]:
 
 
 def _tool_meta(name: str) -> Dict[str, Any]:
-    return {
+    meta = {
         "io.modelcontextprotocol/protocolVersion": _mcp_protocol_version(),
         "io.modelcontextprotocol/statelessReady": True,
         "io.modelcontextprotocol/method": "tools/call",
         "io.modelcontextprotocol/name": name,
     }
+    if name == "chat_with_collection_stream":
+        meta["io.bookmarkorganizer/streamContractVersion"] = CHAT_STREAM_CONTRACT_VERSION
+        meta["io.bookmarkorganizer/streamEventTypes"] = list(CHAT_STREAM_EVENT_TYPES)
+    return meta
 
 
 def _list_result_cache_kwargs() -> Dict[str, Any]:
@@ -481,6 +487,8 @@ def t_chat_stream(question: str, restrict_ids: Optional[List[int]] = None,
     return {
         "answer": turn.answer,
         "mode": "provider_stream_events" if provider_streaming else "chunked_response_events",
+        "stream_contract_version": CHAT_STREAM_CONTRACT_VERSION,
+        "stream_event_types": list(CHAT_STREAM_EVENT_TYPES),
         "provider_streaming": provider_streaming,
         "chunk_chars": chunk_size,
         "chunk_count": chunk_count,
