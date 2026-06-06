@@ -2,6 +2,27 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.6] - 2026-06-06
+
+Nuitka build-path release.
+
+### Added — Distribution (R-40 partial)
+
+- **Nuitka build helper** — added `packaging/nuitka_build.py` with onefile and
+  standalone modes plus dry-run command generation.
+- **Tkinter and asset flags** — the generated command enables the Tkinter
+  plugin, includes package imports, includes app icons, and writes a
+  compilation report.
+- **Windows metadata** — the command emits icon, no-console, version,
+  product, company, and file-description flags on Windows.
+- **Optional packaging extra** — added `bookmark-organizer-pro[nuitka]` for
+  installing Nuitka 4.1+ build tooling.
+
+### Tests
+
+- Added packaging-helper tests for command flags, dry-run behavior, and the
+  optional dependency declaration.
+
 ## [v6.6.5] - 2026-06-06
 
 SQLite runtime selection release.
