@@ -127,7 +127,7 @@ class TestUpdateManager(_IsolatedTestBase):
 
     def test_check_for_updates_uses_client_without_downloading(self):
         updates = self._updates_module()
-        manager = updates.UpdateManager(current_version="6.6.11")
+        manager = updates.UpdateManager(current_version="6.6.12")
         manager.configure(
             enabled=True,
             metadata_url="https://updates.example.com/metadata",
@@ -165,9 +165,9 @@ class TestUpdateManager(_IsolatedTestBase):
     def test_version_comparison(self):
         updates = self._updates_module()
 
-        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.11"))
-        self.assertFalse(updates.is_newer_version("6.6.11", "6.6.11"))
-        self.assertFalse(updates.is_newer_version("6.6.10", "6.6.11"))
+        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.12"))
+        self.assertFalse(updates.is_newer_version("6.6.12", "6.6.12"))
+        self.assertFalse(updates.is_newer_version("6.6.11", "6.6.12"))
 
 
 # ── 1. EmbeddingService ──────────────────────────────────────────────
@@ -444,6 +444,36 @@ class TestParseFeed(_IsolatedTestBase):
         self.assertEqual(items[0].title, "Atom Entry")
         self.assertEqual(items[0].link, "https://atom.example.com/entry-1")
         self.assertEqual(items[0].guid, "urn:uuid:atom-001")
+
+
+class TestOPDSExport(_IsolatedTestBase):
+    def test_export_opds_acquisition_feed(self):
+        from bookmark_organizer_pro.services.feed_export import export_opds
+
+        bm = _make_bookmark(
+            id=123,
+            url="https://example.com/book.epub",
+            title="Example Book",
+            description="Readable export",
+            category="Books",
+            tags=["Fiction"],
+            language="en",
+        )
+        output = Path(self._tmp) / "catalog.opds.xml"
+
+        path = export_opds(
+            [bm],
+            title="Read Later",
+            output_path=output,
+            catalog_url="https://localhost/opds.xml",
+        )
+        xml = path.read_text(encoding="utf-8")
+
+        self.assertIn('profile=opds-catalog;kind=acquisition', xml)
+        self.assertIn('http://opds-spec.org/acquisition/open-access', xml)
+        self.assertIn('application/epub+zip', xml)
+        self.assertIn('<dc:language>en</dc:language>', xml)
+        self.assertIn('Example Book', xml)
 
 
 class TestFeedRegistry(_IsolatedTestBase):
