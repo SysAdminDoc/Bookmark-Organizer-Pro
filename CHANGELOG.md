@@ -2,6 +2,45 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.5.2] - 2026-06-05
+
+GUI chat, sidebar surfaces, tree view, keyboard accessibility, and i18n scaffolding. 5 roadmap items shipped.
+
+### Added — AI / RAG (R-60)
+
+- **GUI chat panel** — `widget_chat_panel.ChatPanel` in right sidebar. Conversation
+  bubbles (user/assistant), cited source links to bookmarks, threaded async ask
+  via `CollectionChat.ask()`, clear conversation, placeholder text, auto-scroll.
+
+### Added — GUI Surfaces (R-67)
+
+- **Read Later sidebar section** — shows READ LATER header with count badge and
+  up to 8 queued items. Click to select bookmark in tree. Refreshes with all data.
+- **Flows sidebar section** — shows FLOWS header with count badge and up to 8
+  research flows with icons. Refreshes with all data.
+
+### Added — UI (R-17)
+
+- **Category tree indentation** — categories with "/" separators now render with
+  tree-like indentation. Leaf names shown with depth-based padding for visual
+  hierarchy. No collapse/expand yet — flat indented list.
+
+### Added — Accessibility (R-48)
+
+- **F6 section cycling** — cycles keyboard focus between search, sidebar filters,
+  bookmark tree, and chat panel. Standard Windows convention.
+- **Theme-aware focus rings** — `make_keyboard_activatable` now uses
+  `get_theme().accent_primary` for focus indicator instead of hardcoded blue.
+- **Tab order** — sidebar filter buttons have `takefocus=1` via
+  `make_keyboard_activatable`.
+
+### Added — i18n (R-50)
+
+- **gettext scaffolding** — `bookmark_organizer_pro/i18n.py` with `_()`,
+  `ngettext()`, `setup_locale()`, and `_generate_pot()` for template extraction.
+  `locale/` directory with translator README. No translations yet — infrastructure
+  only.
+
 ## [v6.5.1] - 2026-06-05
 
 UI polish, importers, test coverage, and developer experience release. 11 roadmap items shipped.

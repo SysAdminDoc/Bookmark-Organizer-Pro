@@ -183,6 +183,7 @@ class FinalBookmarkOrganizerApp(
         self.root.bind("<Escape>", lambda e: self._clear_search())
         self.root.bind("<F5>", lambda e: self._refresh_all())
         self.root.bind("<Delete>", lambda e: self._delete_selected())
+        self.root.bind("<F6>", lambda e: self._cycle_focus_section())
     
         # Window events
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
