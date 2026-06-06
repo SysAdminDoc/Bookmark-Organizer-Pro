@@ -69,6 +69,10 @@ class SnapshotArchiver:
                 return True, str(out_path)
         return False, "All snapshot backends failed"
 
+    def archive(self, bookmark: Bookmark) -> Tuple[bool, str]:
+        """Compatibility alias for snapshot()."""
+        return self.snapshot(bookmark)
+
     def delete_snapshot(self, bookmark: Bookmark) -> bool:
         path = self.snapshots_dir / f"{bookmark.id}.html"
         try:

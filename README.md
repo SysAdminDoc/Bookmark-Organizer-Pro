@@ -1,14 +1,19 @@
-# Bookmark Organizer Pro v6.4.2
+# Bookmark Organizer Pro v6.6.0
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **single-file HTML snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
-![Version](https://img.shields.io/badge/version-6.4.2-blue.svg)
+![Version](https://img.shields.io/badge/version-6.6.0-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
 
 ![Bookmark Organizer Pro Screenshot](assets/screenshot.png)
+
+## What's new in v6.6.0
+
+- **Virtualized bookmark list** — the main list now uses `tksheet` for canvas-backed visible-row rendering, preserving selection, context menus, sorting, and zoom while avoiding full `ttk.Treeview` row churn on large libraries.
+- **Release metadata sync guard** — package, extension, PyInstaller, and Windows version metadata are checked together so future releases do not drift.
 
 ## What's new in v6.0.0
 
@@ -193,6 +198,7 @@ On first run, the application will:
 **Required** (auto-installed):
 - `beautifulsoup4` - HTML parsing for bookmark import
 - `requests` - HTTP requests for favicon downloads
+- `tksheet` - virtualized Tk table for large bookmark lists
 
 **Optional** (recommended):
 - `Pillow` - Image processing for favicons and screenshots
@@ -201,7 +207,7 @@ On first run, the application will:
 ### Manual Installation
 
 ```bash
-pip install beautifulsoup4 requests Pillow pystray
+pip install beautifulsoup4 requests tksheet Pillow pystray
 ```
 
 ## Usage
@@ -632,7 +638,7 @@ Major release — see the **What's new in v6.0.0** section above and
 pip install pyinstaller
 
 # Install dependencies
-pip install beautifulsoup4 requests Pillow pystray
+pip install beautifulsoup4 requests tksheet Pillow pystray
 ```
 
 ### Build Commands

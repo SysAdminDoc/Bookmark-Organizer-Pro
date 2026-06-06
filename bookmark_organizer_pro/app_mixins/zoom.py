@@ -53,6 +53,8 @@ class ZoomActionsMixin:
         style = ttk.Style()
         style.configure("Treeview", rowheight=row_height, font=FONTS.body())
         style.configure("Treeview.Heading", font=FONTS.small(bold=True))
+        if hasattr(getattr(self, "tree", None), "apply_zoom"):
+            self.tree.apply_zoom(row_height)
 
         # Update ALL tk default fonts so every widget picks up the change
         for font_name in ("TkDefaultFont", "TkTextFont", "TkMenuFont"):

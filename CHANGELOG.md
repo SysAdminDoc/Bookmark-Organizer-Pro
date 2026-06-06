@@ -2,6 +2,34 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.0] - 2026-06-06
+
+List performance and release metadata sync release.
+
+### Added — Performance (R-16)
+
+- **Virtualized bookmark list** — the main desktop list now uses a
+  `tksheet`-backed table for visible-row rendering instead of fully rebuilding
+  a `ttk.Treeview` widget for every refresh.
+- **Treeview-compatible adapter** — selection, context menus, sorting,
+  sidebar/chat bookmark selection, zoom, and row styling continue to use the
+  existing app integration surface.
+- **Fallback renderer** — the legacy sortable `ttk.Treeview` remains available
+  if `tksheet` cannot be imported.
+
+### Fixed
+
+- Sidebar bookmark deep links now select rows by bookmark ID instead of
+  comparing the title column to the bookmark ID.
+- Release metadata is synchronized across package metadata, extension manifest,
+  PyInstaller spec, Windows version resource, README badge, and runtime
+  `APP_VERSION`.
+
+### Tests
+
+- Added a release metadata sync check covering pyproject, extension manifest,
+  PyInstaller spec, and Windows version resource.
+
 ## [v6.5.2] - 2026-06-05
 
 GUI chat, sidebar surfaces, tree view, keyboard accessibility, and i18n scaffolding. 5 roadmap items shipped.
