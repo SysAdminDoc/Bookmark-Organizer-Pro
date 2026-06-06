@@ -127,14 +127,9 @@ def export_json_feed(bookmarks: List[Bookmark], title: str = "Bookmarks",
     return output_path
 
 
-def export_opds(bookmarks: List[Bookmark], title: str = "Bookmarks",
-                output_path: Optional[Path] = None,
-                catalog_url: str = "") -> Path:
-    """Export bookmarks as an OPDS 1.2 acquisition feed."""
-    if output_path is None:
-        EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
-        output_path = EXPORTS_DIR / _safe_feed_filename(title, ".opds.xml")
-
+def render_opds(bookmarks: List[Bookmark], title: str = "Bookmarks",
+                catalog_url: str = "") -> str:
+    """Render bookmarks as an OPDS 1.2 acquisition feed XML string."""
     updated = _iso(bookmarks[0].modified_at if bookmarks else "")
     self_link = ""
     if catalog_url:
@@ -166,7 +161,7 @@ def export_opds(bookmarks: List[Bookmark], title: str = "Bookmarks",
         entry += "\n  </entry>"
         entries.append(entry)
 
-    feed_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom"
       xmlns:dc="http://purl.org/dc/terms/"
       xmlns:opds="http://opds-spec.org/2010/catalog">
@@ -179,6 +174,16 @@ def export_opds(bookmarks: List[Bookmark], title: str = "Bookmarks",
 </feed>
 """
 
+
+def export_opds(bookmarks: List[Bookmark], title: str = "Bookmarks",
+                output_path: Optional[Path] = None,
+                catalog_url: str = "") -> Path:
+    """Export bookmarks as an OPDS 1.2 acquisition feed."""
+    if output_path is None:
+        EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+        output_path = EXPORTS_DIR / _safe_feed_filename(title, ".opds.xml")
+
+    feed_xml = render_opds(bookmarks, title=title, catalog_url=catalog_url)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(feed_xml, encoding="utf-8")
     log.info(f"OPDS feed exported: {output_path} ({len(bookmarks)} entries)")

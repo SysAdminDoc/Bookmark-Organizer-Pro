@@ -1569,6 +1569,34 @@ class TestMainAppManagers(unittest.TestCase):
             finally:
                 api.stop()
 
+    def test_bookmark_api_serves_opds_catalog(self):
+        import urllib.request
+        import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            manager.add_bookmark(Bookmark(
+                id=1,
+                url="https://example.com/book.pdf",
+                title="API Book",
+                category="Books",
+                tags=["OPDS"],
+            ), save=False)
+            api = main.BookmarkAPI(manager, port=0)
+            try:
+                api.start()
+                url = f"http://127.0.0.1:{api.port}/opds?tag=OPDS&title=Catalog"
+                with urllib.request.urlopen(url, timeout=3) as response:
+                    body = response.read().decode("utf-8")
+                    content_type = response.headers.get("Content-Type", "")
+
+                self.assertIn("opds-catalog", content_type)
+                self.assertIn("API Book", body)
+                self.assertIn("application/pdf", body)
+                self.assertIn("http://opds-spec.org/acquisition/open-access", body)
+            finally:
+                api.stop()
+
     def test_batch_refresh_and_tag_merge_are_defensive(self):
         import main
 

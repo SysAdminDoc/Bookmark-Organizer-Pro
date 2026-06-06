@@ -21,9 +21,9 @@
 
 ---
 
-## State of the Project (v6.6.12)
+## State of the Project (v6.6.13)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.12:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.13:
 
 - **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
@@ -181,6 +181,13 @@ open-access links to bookmark URLs, EPUB/PDF/HTML media type inference, and an
 next R-26 slice. Details:
 `docs/audit/2026-06-06-v6.6.12-opds-export-audit.md`.
 
+### Cycle Note — v6.6.13 (2026-06-06)
+
+R-26 is complete. BOP now serves OPDS 1.2 acquisition feeds over the loopback
+local API at `GET /opds`, with tag/category/title/limit filters and shared XML
+rendering between CLI export and HTTP serving. Details:
+`docs/audit/2026-06-06-v6.6.13-opds-serving-audit.md`.
+
 ### Hard Constraints
 
 - MIT license
@@ -295,7 +302,7 @@ next R-26 slice. Details:
 | ✅ R-23 | Headless Chromium snapshot fallback (playwright) | Done | M | [S-1][S-3] |
 | ✅ R-24 | Scheduled auto-snapshot | Done | M | [S-1] |
 | ✅ R-25 | EPUB export of collections | Done | M | [S-6][S-18] |
-| 🔄 R-26 | **OPDS catalog** — OPDS 1.2 acquisition feed export and `opds-export` CLI shipped in v6.6.12. Loopback serving for e-reader apps remains. | In Progress | M | [S-6][S-89][S-90] |
+| ✅ R-26 | **OPDS catalog** — OPDS 1.2 acquisition feed export, `opds-export` CLI, and loopback `GET /opds` serving shipped in v6.6.12-v6.6.13. | Done | M | [S-6][S-89][S-90] |
 
 ---
 
@@ -425,6 +432,7 @@ All items below shipped in v6.0.0 through v6.4.1. Full details in [CHANGELOG.md]
 | R-41B | Non-applying tufup availability check adapter | v6.6.10 |
 | R-41C | Updater bootstrap docs and download/apply gates | v6.6.11 |
 | R-26A | OPDS 1.2 acquisition feed export | v6.6.12 |
+| R-26 | OPDS loopback serving | v6.6.13 |
 | BUG-01 through BUG-14 | All 14 known bugs fixed | v6.2.0-v6.4.1 |
 | + 30 v6.1.0 fixes | AI batch processor, chunk overlap, MCP schemas, CI flow, thread safety, etc. | v6.1.0 |
 
@@ -484,7 +492,7 @@ All Next-tier items have shipped through v6.6.8. Continue with Later-tier
 distribution and UI work, starting with R-41 unless a higher-priority audit
 finding appears.
 
-### Later — v7.x+ (7 remaining, R-26/R-41 in progress, R-17/R-50 shipped in v6.5.2)
+### Later — v7.x+ (6 remaining, R-41 in progress, R-17/R-26/R-50 shipped)
 
 | # | Item | Effort | Category |
 |---|------|--------|----------|
@@ -492,7 +500,6 @@ finding appears.
 | R-18 | sv-ttk Sun Valley theme integration | M | UI |
 | R-21 | Reader view with highlight/annotation | L | UI |
 | R-22 | Graph view (force-directed) | L | UI |
-| R-26 | OPDS catalog for e-readers | M | Export |
 | R-41 | tufup auto-update | M | Distribution |
 | R-02 | Web client (FastAPI + HTMX + PWA) | XL | Platform |
 | R-03 | Mobile PWA share-intent | M | Platform |

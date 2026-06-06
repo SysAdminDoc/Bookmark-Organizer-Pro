@@ -3,6 +3,17 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.13 OPDS Loopback Serving
+
+- Completed R-26: local API now serves OPDS 1.2 acquisition feeds at `GET /opds`.
+- Added tag/category/title/limit query filters for catalog clients.
+- Split OPDS rendering from file export so CLI export and HTTP serving share one
+  XML generation path.
+- Added API route coverage for OPDS content type, PDF media inference, and
+  open-access acquisition links.
+- Verification: compileall passed, focused OPDS/API/release metadata tests
+  passed with 16 tests, and the full suite passed with 322 tests.
+
 ## 2026-06-06 — v6.6.12 OPDS Export Foundation
 
 - Advanced R-26: added OPDS 1.2 acquisition feed export for bookmark
