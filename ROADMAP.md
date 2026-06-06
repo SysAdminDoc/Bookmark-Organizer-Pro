@@ -21,9 +21,9 @@
 
 ---
 
-## State of the Project (v6.6.1)
+## State of the Project (v6.6.2)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.1:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.2:
 
 - **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
@@ -85,6 +85,15 @@ MCP SDK 1.24+ for optional MCP installs, PyInstaller includes `fastmcp`, and
 the FastMCP server builder was verified against FastMCP 3.4.2/MCP 1.27.2.
 Details: `docs/audit/2026-06-06-v6.6.1-mcp-dependency-audit.md`.
 
+### Cycle Note — v6.6.2 (2026-06-06)
+
+R-58 is in progress. The stdio server now runs the raw SDK and FastMCP paths in
+stateless mode, `tools/list` exposes `ttlMs`/`cacheScope` cache hints, and both
+tool catalogs publish behavior annotations plus stateless metadata. HTTP
+Streamable transport header validation remains open because BOP currently
+exposes MCP through stdio. Details:
+`docs/audit/2026-06-06-v6.6.2-mcp-stateless-audit.md`.
+
 ### Hard Constraints
 
 - MIT license
@@ -141,7 +150,7 @@ Details: `docs/audit/2026-06-06-v6.6.1-mcp-dependency-audit.md`.
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
 | ✅ R-57 | **MCP write tools** — 6 new tools: `delete_bookmark`, `update_bookmark`, `toggle_pin`, `mark_read_later`, `add_tags`, `remove_tags`. Total 26 tools. | Done | M | [S-1][S-78] |
-| 🔲 R-58 | **MCP 2026-07-28 spec migration** — adapt to stateless protocol (no Mcp-Session-Id), add Mcp-Method/Mcp-Name headers, implement ttlMs + cacheScope on list results. Required for SDK Tier 1 compliance. | Next | L | [S-79][S-80] |
+| 🔄 R-58 | **MCP 2026-07-28 spec migration** — stdio stateless mode, `tools/list` cache hints, and tool annotations shipped in v6.6.2. HTTP Streamable `Mcp-Method`/`Mcp-Name` header validation remains open. | In Progress | L | [S-79][S-80] |
 | ✅ R-59 | **FastMCP 3.x upgrade** — optional MCP dependencies now require FastMCP 3.4.x and MCP SDK 1.24+, packaging includes `fastmcp`, and `_build_fastmcp_server()` is verified against FastMCP 3.4.2. | Done | M | [S-81] |
 | ✅ R-60 | **GUI chat panel** — ChatPanel widget in right sidebar with conversation bubbles, cited sources, bookmark links, threaded async ask, and clear button. Backend via CollectionChat.ask(). | Done | L | [S-1][S-65][S-82] |
 | ✅ R-61 | **Nomic Embed v2 support** — Added NOMIC_MODEL constant + RECOMMENDED_MODELS dict + CLI `--model=nomic` flag for embed command. | Done | S | [S-83] |
@@ -318,6 +327,7 @@ All items below shipped in v6.0.0 through v6.4.1. Full details in [CHANGELOG.md]
 | R-49 | High-contrast WCAG AA theme | v6.2.0 |
 | R-16 | List virtualization via tksheet | v6.6.0 |
 | R-59 | FastMCP 3.x dependency upgrade | v6.6.1 |
+| R-58A | MCP stateless stdio and cacheable tool catalog slice | v6.6.2 |
 | BUG-01 through BUG-14 | All 14 known bugs fixed | v6.2.0-v6.4.1 |
 | + 30 v6.1.0 fixes | AI batch processor, chunk overlap, MCP schemas, CI flow, thread safety, etc. | v6.1.0 |
 
@@ -371,11 +381,11 @@ These ideas surfaced in research but need more validation before committing:
 
 All 13 Now-tier items have shipped through v6.6.0.
 
-### Next — v7.0 (3 remaining, R-60/R-67/R-48 shipped in v6.5.2, R-59 shipped in v6.6.1)
+### Next — v7.0 (3 remaining, R-58 in progress, R-59 shipped in v6.6.1)
 
 | # | Item | Effort | Category |
 |---|------|--------|----------|
-| R-58 | MCP 2026-07-28 spec migration | L | MCP |
+| R-58 | MCP HTTP Streamable header validation and remaining spec migration work | L | MCP |
 | R-31 | SQLite migration (optional) | XL | Architecture |
 | R-40 | Nuitka compilation | L | Distribution |
 

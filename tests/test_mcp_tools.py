@@ -6,6 +6,7 @@ real managers and services.
 """
 
 import os
+import asyncio
 import json
 import re
 import tempfile
@@ -203,6 +204,43 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
         self.assertRegex(pyproject_text, re.compile(r'"fastmcp>=3\.4,<4\.0"'))
         self.assertIn("mcp>=1.24,<2", requirements_text)
         self.assertIn("fastmcp>=3.4,<4", requirements_text)
+
+    def test_raw_mcp_tools_result_has_cache_hints_and_annotations(self):
+        import mcp.types as types
+
+        result = self.ms._build_mcp_tools_result(types)
+        payload = result.model_dump(by_alias=True, exclude_none=True)
+        tools = {tool["name"]: tool for tool in payload["tools"]}
+
+        self.assertEqual(payload["ttlMs"], self.ms.MCP_TOOL_LIST_TTL_MS)
+        self.assertEqual(payload["cacheScope"], self.ms.MCP_TOOL_LIST_CACHE_SCOPE)
+        self.assertTrue(tools["list_bookmarks"]["annotations"]["readOnlyHint"])
+        self.assertFalse(tools["delete_bookmark"]["annotations"]["readOnlyHint"])
+        self.assertTrue(tools["delete_bookmark"]["annotations"]["destructiveHint"])
+        self.assertTrue(tools["list_bookmarks"]["_meta"]["io.modelcontextprotocol/statelessReady"])
+        self.assertEqual(tools["list_bookmarks"]["_meta"]["io.modelcontextprotocol/method"], "tools/call")
+        self.assertEqual(tools["list_bookmarks"]["_meta"]["io.modelcontextprotocol/name"], "list_bookmarks")
+
+    def test_fastmcp_tools_result_has_cache_hints_and_annotations(self):
+        from mcp.types import ListToolsRequest
+
+        async def _payload():
+            app = self.ms._build_fastmcp_server()
+            handler = app._mcp_server.request_handlers[ListToolsRequest]
+            result = await handler(ListToolsRequest(method="tools/list"))
+            return result.root.model_dump(by_alias=True, exclude_none=True)
+
+        payload = asyncio.run(_payload())
+        tools = {tool["name"]: tool for tool in payload["tools"]}
+
+        self.assertEqual(payload["ttlMs"], self.ms.MCP_TOOL_LIST_TTL_MS)
+        self.assertEqual(payload["cacheScope"], self.ms.MCP_TOOL_LIST_CACHE_SCOPE)
+        self.assertTrue(tools["list_bookmarks"]["annotations"]["readOnlyHint"])
+        self.assertFalse(tools["delete_bookmark"]["annotations"]["readOnlyHint"])
+        self.assertTrue(tools["delete_bookmark"]["annotations"]["destructiveHint"])
+        self.assertTrue(tools["list_bookmarks"]["_meta"]["io.modelcontextprotocol/statelessReady"])
+        self.assertEqual(tools["list_bookmarks"]["_meta"]["io.modelcontextprotocol/method"], "tools/call")
+        self.assertEqual(tools["list_bookmarks"]["_meta"]["io.modelcontextprotocol/name"], "list_bookmarks")
 
 
 if __name__ == "__main__":
