@@ -271,6 +271,20 @@ class TestCLIExportSubcommands(CLITestBase):
         finally:
             os.unlink(tmp) if os.path.exists(tmp) else None
 
+    def test_graph_export(self):
+        import json
+        import tempfile, os
+        fd, tmp = tempfile.mkstemp(suffix=".graph.json")
+        os.close(fd)
+        try:
+            out = self._run(["graph-export", "--output", tmp, "--limit", "25"])
+            self.assertIn("graph exported", out.lower())
+            payload = json.loads(Path(tmp).read_text(encoding="utf-8"))
+            self.assertIn("nodes", payload)
+            self.assertIn("edges", payload)
+        finally:
+            os.unlink(tmp) if os.path.exists(tmp) else None
+
 
 class TestCLIReader(CLITestBase):
     def test_reader_add_list_and_export(self):

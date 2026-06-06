@@ -91,6 +91,7 @@ class BookmarkCLI:
             "atom-export": self._cmd_atom_export,
             "json-feed": self._cmd_json_feed,
             "opds-export": self._cmd_opds_export,
+            "graph-export": self._cmd_graph_export,
             "import-matter": self._cmd_import_matter,
             "import-zotero": self._cmd_import_zotero,
             "zotero-export": self._cmd_zotero_export,
@@ -148,6 +149,7 @@ v6.0.0 commands:
   import-wallabag <json>        Import Wallabag JSON export
   import-arc <json>             Import Arc Browser StorableSidebar.json
   opds-export [--output PATH]   Export an OPDS 1.2 acquisition feed
+  graph-export [--output PATH]  Export bookmark relationship graph JSON
   zip-export [id|all] [path]    Per-bookmark or whole-collection ZIP export
   encrypt <pass> [src] [dst]    Encrypt a JSON file with AES-256-GCM
   decrypt <pass> <src> [dst]    Decrypt an encrypted JSON file
@@ -1326,6 +1328,36 @@ Top Domains:
             bms = [b for b in bms if any(t.lower() == tag_l for t in b.tags)]
         path = export_opds(bms, title=title, output_path=output, catalog_url=catalog_url)
         print(f"OPDS feed exported: {path} ({len(bms)} entries)")
+
+    def _cmd_graph_export(self, args):
+        from bookmark_organizer_pro.services.bookmark_graph import export_bookmark_graph_json
+        from pathlib import Path
+        output = None
+        limit = 300
+        i = 0
+        usage = "Usage: graph-export [--output PATH] [--limit N]"
+        while i < len(args):
+            if args[i] == "--output" and i + 1 < len(args):
+                output = Path(args[i + 1]); i += 2
+            elif args[i].startswith("--output="):
+                output = Path(args[i].partition("=")[2]); i += 1
+            elif args[i] == "--limit" and i + 1 < len(args):
+                try:
+                    limit = int(args[i + 1])
+                except ValueError:
+                    print(usage); return
+                i += 2
+            elif args[i].startswith("--limit="):
+                try:
+                    limit = int(args[i].partition("=")[2])
+                except ValueError:
+                    print(usage); return
+                i += 1
+            else:
+                print(usage); return
+        bookmarks = self.bookmark_manager.get_all_bookmarks()
+        path = export_bookmark_graph_json(bookmarks, output_path=output, max_bookmarks=limit)
+        print(f"Graph exported: {path} ({min(len(bookmarks), max(0, limit))} bookmarks)")
 
     def _cmd_import_matter(self, args):
         from bookmark_organizer_pro.importers_extra import MatterImporter, import_into

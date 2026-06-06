@@ -28,6 +28,14 @@ from .encryption import CryptoUnavailable, EncryptedStore
 from .favicons import FaviconWrapperGenerator, HighSpeedFaviconManager
 from .feed_export import export_opds, render_opds
 from .flows import Flow, FlowManager, FlowStep
+from .bookmark_graph import (
+    BookmarkGraph,
+    GraphEdge,
+    GraphNode,
+    apply_force_layout,
+    build_bookmark_graph,
+    export_bookmark_graph_json,
+)
 from .hybrid_search import HybridResult, HybridSearch
 from .icons import AIIconSuggester, IconLibrary
 from .ingest import ContentIngestor, IngestResult
@@ -104,6 +112,8 @@ __all__ = [
     "EmbeddingService",
     "CryptoUnavailable", "EncryptedStore",
     "Flow", "FlowManager", "FlowStep",
+    "BookmarkGraph", "GraphEdge", "GraphNode",
+    "apply_force_layout", "build_bookmark_graph", "export_bookmark_graph_json",
     "HybridResult", "HybridSearch",
     "ContentIngestor", "IngestResult",
     "NLQueryTranslator", "StructuredQuery", "execute_query",

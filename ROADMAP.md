@@ -21,18 +21,18 @@
 
 ---
 
-## State of the Project (v6.6.20)
+## State of the Project (v6.6.21)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.20:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.21:
 
 - **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
 - **MCP server:** 27 typed tools — one of ~4 bookmark managers with MCP (alongside Raindrop.io, Karakeep, Burn 451) [S-60][S-74][S-78]
 - **Preservation:** Single-file HTML snapshots (4-backend chain: monolith → singlefile → playwright → python), dead-link scanner, Wayback Machine, auto-snapshot scheduler
 - **Security:** AES-256-GCM encrypted DB, SSRF guards, prompt sanitization, API auth tokens, keyring storage
-- **Import/Export:** 14 importers (incl. Pocket, Readwise, Pinboard, Instapaper, Reddit, Matter, Zotero), 12 export formats (HTML/JSON/CSV/OPML/XBEL/Markdown/ZIP/Obsidian/EPUB/Atom/JSON Feed/Zotero RDF)
+- **Import/Export:** 14 importers (incl. Pocket, Readwise, Pinboard, Instapaper, Reddit, Matter, Zotero), 13 export formats (HTML/JSON/CSV/OPML/XBEL/Markdown/ZIP/Obsidian/EPUB/Atom/JSON Feed/Zotero RDF/Graph JSON)
 - **UI:** 11 themes (incl. WCAG AA high-contrast), optional sv-ttk Sun Valley base theme, command palette, toast notifications, zoom, high-DPI, dashboard analytics, tksheet-backed virtualized bookmark list, desktop reader pane with highlights/notes/export
-- **CLI:** 38 subcommands, 341 tests in the current suite
+- **CLI:** 39 subcommands, 344 tests in the current suite
 - **Desktop:** Python ≥3.10, Tkinter, PyInstaller binary, cross-platform (Windows primary, macOS/Linux)
 
 ### Competitive Position (June 2026)
@@ -247,6 +247,14 @@ renders saved highlights over extracted text, supports selection-based
 highlight creation, note editing, deletion, and Markdown export from the GUI.
 Details: `docs/audit/2026-06-06-v6.6.20-reader-pane-audit.md`.
 
+### Cycle Note — v6.6.21 (2026-06-06)
+
+R-22 is in progress. BOP now builds bookmark relationship graphs that connect
+bookmarks to tags, categories, and domains, applies deterministic force-layout
+coordinates, and exports the graph as JSON through the `graph-export` CLI
+command. Desktop canvas visualization remains open. Details:
+`docs/audit/2026-06-06-v6.6.21-graph-foundation-audit.md`.
+
 ### Hard Constraints
 
 - MIT license
@@ -348,7 +356,7 @@ Details: `docs/audit/2026-06-06-v6.6.20-reader-pane-audit.md`.
 | ✅ R-19 | Fix command palette FocusOut | Done | S | [S-1] |
 | ✅ R-20 | Fix GridView scroll stealing | Done | S | [S-1] |
 | ✅ R-21 | **Reader view with highlight/annotation** — desktop reader pane opens extracted text, renders saved highlights, supports four-color selection highlights, per-highlight notes, deletion, and Markdown export. | Done | L | [S-3][S-10][S-11][S-84] |
-| 🔲 R-22 | **Graph view** — bookmarks as nodes, tags as edges, force-directed layout. | Later | L | [S-4] |
+| 🚧 R-22 | **Graph view** — v6.6.21 added bookmark/tag/category/domain graph construction, deterministic force-layout coordinates, Graph JSON export, and `graph-export` CLI. Desktop canvas visualization remains open. | Later | L | [S-4] |
 
 ---
 
@@ -499,6 +507,7 @@ All items below shipped in v6.0.0 through v6.4.1. Full details in [CHANGELOG.md]
 | R-18 | Optional sv-ttk Sun Valley base theme integration | v6.6.18 |
 | R-21A | Reader highlight storage, notes, and Markdown export | v6.6.19 |
 | R-21 | Desktop reader pane with highlight/note editing | v6.6.20 |
+| R-22A | Bookmark graph model, force layout, and JSON export | v6.6.21 |
 | BUG-01 through BUG-14 | All 14 known bugs fixed | v6.2.0-v6.4.1 |
 | + 30 v6.1.0 fixes | AI batch processor, chunk overlap, MCP schemas, CI flow, thread safety, etc. | v6.1.0 |
 
@@ -558,7 +567,7 @@ All Next-tier items have shipped through v6.6.8. Continue with Later-tier
 distribution and UI work, starting with R-41 unless a higher-priority audit
 finding appears.
 
-### Later — v7.x+ (5 active/open, R-15/R-41 in progress, R-17/R-18/R-21/R-26/R-50 shipped)
+### Later — v7.x+ (5 active/open, R-15/R-22/R-41 in progress, R-17/R-18/R-21/R-26/R-50 shipped)
 
 | # | Item | Effort | Category |
 |---|------|--------|----------|

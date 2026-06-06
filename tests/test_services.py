@@ -127,7 +127,7 @@ class TestUpdateManager(_IsolatedTestBase):
 
     def test_check_for_updates_uses_client_without_downloading(self):
         updates = self._updates_module()
-        manager = updates.UpdateManager(current_version="6.6.20")
+        manager = updates.UpdateManager(current_version="6.6.21")
         manager.configure(
             enabled=True,
             metadata_url="https://updates.example.com/metadata",
@@ -165,9 +165,9 @@ class TestUpdateManager(_IsolatedTestBase):
     def test_version_comparison(self):
         updates = self._updates_module()
 
-        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.20"))
-        self.assertFalse(updates.is_newer_version("6.6.20", "6.6.20"))
-        self.assertFalse(updates.is_newer_version("6.6.19", "6.6.20"))
+        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.21"))
+        self.assertFalse(updates.is_newer_version("6.6.21", "6.6.21"))
+        self.assertFalse(updates.is_newer_version("6.6.20", "6.6.21"))
 
 
 # ── 1. EmbeddingService ──────────────────────────────────────────────
@@ -913,7 +913,54 @@ class TestBookmarkManagerSQLiteStorage(_IsolatedTestBase):
         self.assertEqual(mgr.filepath, fp.with_suffix(".sqlite"))
 
 
-# ── 15. Reader annotations ──────────────────────────────────────────
+# ── 15. Bookmark graph ──────────────────────────────────────────────
+
+class TestBookmarkGraph(_IsolatedTestBase):
+    """Tests for bookmark relationship graph construction and export."""
+
+    def test_graph_builds_bookmark_tag_category_domain_edges(self):
+        from bookmark_organizer_pro.services.bookmark_graph import build_bookmark_graph
+
+        bookmarks = [
+            _make_bookmark(id=1, url="https://docs.python.org", title="Python Docs",
+                           category="Development / Python", tags=["python", "docs"]),
+            _make_bookmark(id=2, url="https://realpython.com", title="Real Python",
+                           category="Development / Python", tags=["python"]),
+        ]
+
+        graph = build_bookmark_graph(bookmarks)
+        node_ids = {node.id for node in graph.nodes}
+        edge_kinds = {edge.kind for edge in graph.edges}
+
+        self.assertIn("bookmark:1", node_ids)
+        self.assertIn("tag:python", node_ids)
+        self.assertIn("category:development-python", node_ids)
+        self.assertIn("domain:docs.python.org", node_ids)
+        self.assertTrue({"tag", "category", "domain"}.issubset(edge_kinds))
+
+    def test_force_layout_and_export_json(self):
+        from bookmark_organizer_pro.services.bookmark_graph import (
+            apply_force_layout,
+            build_bookmark_graph,
+            export_bookmark_graph_json,
+        )
+
+        bookmarks = [
+            _make_bookmark(id=3, url="https://example.com/a", title="A", tags=["alpha"]),
+            _make_bookmark(id=4, url="https://example.com/b", title="B", tags=["beta"]),
+        ]
+        graph = apply_force_layout(build_bookmark_graph(bookmarks), width=400, height=300, iterations=10)
+
+        self.assertTrue(all(36 <= node.x <= 364 for node in graph.nodes))
+        self.assertTrue(all(36 <= node.y <= 264 for node in graph.nodes))
+
+        out = export_bookmark_graph_json(bookmarks, Path(self._tmp) / "bookmark-graph.json")
+        payload = json.loads(out.read_text(encoding="utf-8"))
+        self.assertIn("nodes", payload)
+        self.assertIn("edges", payload)
+
+
+# ── 16. Reader annotations ──────────────────────────────────────────
 
 class TestReaderAnnotations(_IsolatedTestBase):
     """Tests for reader highlight storage and Markdown export."""
@@ -978,7 +1025,7 @@ class TestReaderAnnotations(_IsolatedTestBase):
         self.assertIn("Important", text)
 
 
-# ── 16. SnapshotArchiver (chain preference) ─────────────────────────
+# ── 17. SnapshotArchiver (chain preference) ─────────────────────────
 
 class TestSnapshotArchiver(_IsolatedTestBase):
     """Tests for SnapshotArchiver initialization and preferences."""
@@ -996,7 +1043,7 @@ class TestSnapshotArchiver(_IsolatedTestBase):
         self.assertLessEqual(archiver.MAX_BYTES, 50_000_000)
 
 
-# ── 17. Embedding model config ──────────────────────────────────────
+# ── 18. Embedding model config ──────────────────────────────────────
 
 class TestEmbeddingModels(_IsolatedTestBase):
     """Tests for the RECOMMENDED_MODELS config."""
