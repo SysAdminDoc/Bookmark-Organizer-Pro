@@ -468,27 +468,41 @@ class ScrollableFrame(tk.Frame):
         # Bind events
         self.inner.bind("<Configure>", self._on_frame_configure)
         self.canvas.bind("<Configure>", self._on_canvas_configure)
-        
-        # Mouse wheel scrolling
+
+        # Mouse wheel scrolling — bind on canvas AND propagate from all children
         self.canvas.bind("<MouseWheel>", self._on_mousewheel)
         self.inner.bind("<MouseWheel>", self._on_mousewheel)
+
+        # Re-bind mousewheel on every child added so the entire sidebar scrolls
+        self.inner.bind("<Map>", lambda e: self._bind_mousewheel_recursive(self.inner))
 
         # Keyboard scrolling
         self.canvas.configure(takefocus=1)
         for key in ("<Prior>", "<Next>", "<Home>", "<End>"):
             self.canvas.bind(key, self._on_key_scroll)
-    
+
+    def _bind_mousewheel_recursive(self, widget):
+        """Walk all descendants and bind mousewheel so scrolling works anywhere."""
+        try:
+            widget.bind("<MouseWheel>", self._on_mousewheel, add="+")
+            for child in widget.winfo_children():
+                self._bind_mousewheel_recursive(child)
+        except Exception:
+            pass
+
     def _on_frame_configure(self, event):
         """Update scroll region when inner frame changes"""
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-    
+        self._bind_mousewheel_recursive(self.inner)
+
     def _on_canvas_configure(self, event):
         """Update inner frame width when canvas resizes"""
         self.canvas.itemconfig(self.canvas_window, width=event.width)
-    
+
     def _on_mousewheel(self, event):
         """Handle mouse wheel scrolling"""
         self.canvas.yview_scroll(-1 * (event.delta // 120), "units")
+        return "break"
 
     def _on_key_scroll(self, event):
         """Handle keyboard scrolling (Page Up/Down, Home, End)."""
@@ -525,11 +539,10 @@ class ThemeDropdown(tk.Frame):
         
         # Current theme display
         self.current_var = tk.StringVar(value=theme_manager.current_theme.name)
-        
-        # Create dropdown button
-        display = theme_manager.current_theme.display_name or theme_manager.current_theme.name
+
+        # Create dropdown button — always reads "Themes" so new users know what it does
         self.btn = tk.Label(
-            self, text=display[:18],
+            self, text="Themes",
             bg=theme.bg_secondary, fg=theme.text_primary,
             font=FONTS.small(), padx=10, pady=6,
             cursor="hand2"
@@ -566,8 +579,5 @@ class ThemeDropdown(tk.Frame):
         self.theme_manager.set_theme(theme_name)
         self.current_var.set(theme_name)
         info = self.theme_manager.get_all_themes().get(theme_name)
-        display = info.display_name if info else theme_name
-        self.btn.configure(text=display[:18])
-        
         if self.on_change:
             self.on_change(theme_name)

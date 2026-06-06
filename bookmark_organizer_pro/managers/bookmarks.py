@@ -383,7 +383,7 @@ class BookmarkManager:
         normalizes scheme/host/port/path, removes fragments, sorts query params.
         """
         url_map: Dict[str, List[Bookmark]] = {}
-        for bm in self.bookmarks.values():
+        for bm in list(self.bookmarks.values()):
             canonical = normalize_url(bm.url)
             url_map.setdefault(canonical, []).append(bm)
 
