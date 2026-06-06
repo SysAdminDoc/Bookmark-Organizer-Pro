@@ -2,6 +2,33 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.15] - 2026-06-06
+
+Provider streaming release.
+
+### Added — MCP (R-15 partial)
+
+- **Provider streaming adapters** — `AIClient` now exposes `stream_complete()`
+  while preserving the existing `complete()` contract.
+- **OpenAI-compatible streaming** — OpenAI, Groq, and DeepSeek clients now yield
+  chat completion deltas from native streaming responses.
+- **Ollama streaming** — local Ollama completions now read line-delimited
+  streamed `/api/generate` responses.
+- **RAG stream propagation** — `CollectionChat.stream_answer()` now builds MCP
+  response events from provider deltas when the selected provider supports
+  native streaming.
+
+### Notes
+
+- `chat_with_collection_stream` now reports `mode=provider_stream_events` and
+  `provider_streaming=true` when events came from a native provider stream.
+- FastMCP progress notifications remain open as the next R-15 transport slice.
+
+### Tests
+
+- Added provider adapter tests and service/MCP coverage for provider-streamed
+  chat events.
+
 ## [v6.6.14] - 2026-06-06
 
 MCP chat response event release.

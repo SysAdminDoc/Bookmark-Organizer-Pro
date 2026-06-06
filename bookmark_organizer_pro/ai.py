@@ -12,7 +12,7 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from .constants import AI_CONFIG_FILE
 from .logging_config import log
@@ -389,6 +389,8 @@ class AIConfigManager:
 class AIClient:
     """Base class for AI provider clients."""
 
+    supports_native_streaming = False
+
     def categorize_bookmarks(self, bookmarks: List[Dict], categories: List[str],
                             allow_new: bool = True, suggest_tags: bool = True) -> List[Dict]:
         raise NotImplementedError
@@ -401,6 +403,13 @@ class AIClient:
         """Single-turn text completion. Must be overridden by subclasses
         that support free-form generation."""
         raise NotImplementedError
+
+    def stream_complete(self, prompt: str, system: str = "",
+                        max_tokens: int = 800,
+                        temperature: float = 0.2) -> Iterator[str]:
+        text = self.complete(prompt, system, max_tokens, temperature)
+        if text:
+            yield text
 
     @staticmethod
     def _safe_confidence(value, default: float = 0.5) -> float:
@@ -554,8 +563,21 @@ Respond with ONLY valid JSON in this exact format (no markdown, no explanation):
 {{"results": [{{"url": "https://example.com", "category": "Category Name", "confidence": 0.9, "new_category": false, "tags": ["tag1", "tag2"], "suggested_title": "Better Title Here or null if current is fine"}}]}}"""
 
 
+def _iter_openai_chat_stream(stream) -> Iterator[str]:
+    for chunk in stream:
+        choices = getattr(chunk, "choices", None) or []
+        if not choices:
+            continue
+        delta = getattr(choices[0], "delta", None)
+        content = getattr(delta, "content", None)
+        if content:
+            yield content
+
+
 class OpenAIClient(AIClient):
     """OpenAI API client"""
+
+    supports_native_streaming = True
 
     def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
         self.api_key = api_key
@@ -611,6 +633,22 @@ class OpenAIClient(AIClient):
             temperature=temperature,
         )
         return response.choices[0].message.content if response.choices else ""
+
+    def stream_complete(self, prompt: str, system: str = "",
+                        max_tokens: int = 800,
+                        temperature: float = 0.2) -> Iterator[str]:
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        stream = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            stream=True,
+        )
+        yield from _iter_openai_chat_stream(stream)
 
 
 class AnthropicClient(AIClient):
@@ -717,6 +755,8 @@ class GoogleClient(AIClient):
 class GroqClient(AIClient):
     """Groq API client"""
 
+    supports_native_streaming = True
+
     def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile"):
         self.api_key = api_key
         self.model = model
@@ -772,9 +812,27 @@ class GroqClient(AIClient):
         )
         return response.choices[0].message.content if response.choices else ""
 
+    def stream_complete(self, prompt: str, system: str = "",
+                        max_tokens: int = 800,
+                        temperature: float = 0.2) -> Iterator[str]:
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        stream = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            stream=True,
+        )
+        yield from _iter_openai_chat_stream(stream)
+
 
 class DeepSeekClient(AIClient):
     """DeepSeek API client (OpenAI-compatible)"""
+
+    supports_native_streaming = True
 
     def __init__(self, api_key: str, model: str = "deepseek-chat"):
         self.api_key = api_key
@@ -830,9 +888,27 @@ class DeepSeekClient(AIClient):
         )
         return response.choices[0].message.content if response.choices else ""
 
+    def stream_complete(self, prompt: str, system: str = "",
+                        max_tokens: int = 800,
+                        temperature: float = 0.2) -> Iterator[str]:
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        stream = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            stream=True,
+        )
+        yield from _iter_openai_chat_stream(stream)
+
 
 class OllamaClient(AIClient):
     """Ollama local API client"""
+
+    supports_native_streaming = True
 
     def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3.2"):
         self.base_url = base_url.rstrip('/')
@@ -888,6 +964,37 @@ class OllamaClient(AIClient):
         )
         response.raise_for_status()
         return response.json().get("response", "")
+
+    def stream_complete(self, prompt: str, system: str = "",
+                        max_tokens: int = 800,
+                        temperature: float = 0.2) -> Iterator[str]:
+        requests = importlib.import_module('requests')
+        full = f"{system}\n\n{prompt}" if system else prompt
+        response = requests.post(
+            f"{self.base_url}/api/generate",
+            json={
+                "model": self.model,
+                "prompt": full,
+                "stream": True,
+                "options": {
+                    "temperature": temperature,
+                    "num_predict": max_tokens,
+                },
+            },
+            timeout=180,
+            stream=True,
+        )
+        response.raise_for_status()
+        for line in response.iter_lines(decode_unicode=True):
+            if not line:
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            text = payload.get("response", "")
+            if text:
+                yield text
 
 
 def _create_client_for(config: AIConfigManager, provider: str, model: str) -> AIClient:

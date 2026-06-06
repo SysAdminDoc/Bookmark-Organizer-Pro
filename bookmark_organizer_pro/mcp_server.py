@@ -457,12 +457,19 @@ def t_chat_stream(question: str, restrict_ids: Optional[List[int]] = None,
     s = _services()
     ids = _resolve_chat_scope_ids(s, restrict_ids, restrict_tag, restrict_category)
     chunk_size = normalize_stream_chunk_chars(chunk_chars)
+    provider_streaming = False
     if hasattr(s.chat, "stream_answer"):
-        turn, events = s.chat.stream_answer(
+        stream_result = s.chat.stream_answer(
             question,
             restrict_ids=ids,
             chunk_chars=chunk_size,
         )
+        if hasattr(stream_result, "turn"):
+            turn = stream_result.turn
+            events = stream_result.events
+            provider_streaming = bool(stream_result.provider_streaming)
+        else:
+            turn, events = stream_result
     else:
         turn = s.chat.ask(question, restrict_ids=ids)
         from bookmark_organizer_pro.services.rag_chat import build_chat_stream_events
@@ -471,8 +478,8 @@ def t_chat_stream(question: str, restrict_ids: Optional[List[int]] = None,
     chunk_count = sum(1 for event in event_dicts if event.get("type") == "chunk")
     return {
         "answer": turn.answer,
-        "mode": "chunked_response_events",
-        "provider_streaming": False,
+        "mode": "provider_stream_events" if provider_streaming else "chunked_response_events",
+        "provider_streaming": provider_streaming,
         "chunk_chars": chunk_size,
         "chunk_count": chunk_count,
         "event_count": len(event_dicts),

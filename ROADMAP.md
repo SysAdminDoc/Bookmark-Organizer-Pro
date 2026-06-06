@@ -21,9 +21,9 @@
 
 ---
 
-## State of the Project (v6.6.14)
+## State of the Project (v6.6.15)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.14:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.15:
 
 - **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
@@ -32,7 +32,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 - **Security:** AES-256-GCM encrypted DB, SSRF guards, prompt sanitization, API auth tokens, keyring storage
 - **Import/Export:** 14 importers (incl. Pocket, Readwise, Pinboard, Instapaper, Reddit, Matter, Zotero), 12 export formats (HTML/JSON/CSV/OPML/XBEL/Markdown/ZIP/Obsidian/EPUB/Atom/JSON Feed/Zotero RDF)
 - **UI:** 11 themes (incl. WCAG AA high-contrast), command palette, toast notifications, zoom, high-DPI, dashboard analytics, tksheet-backed virtualized bookmark list
-- **CLI:** 37 subcommands, 326 tests in the current suite
+- **CLI:** 37 subcommands, 331 tests in the current suite
 - **Desktop:** Python ≥3.10, Tkinter, PyInstaller binary, cross-platform (Windows primary, macOS/Linux)
 
 ### Competitive Position (June 2026)
@@ -197,6 +197,16 @@ metadata event while sharing the same bookmark ID/tag/category scoping as
 the current provider client path still returns completed answers. Details:
 `docs/audit/2026-06-06-v6.6.14-mcp-chat-stream-audit.md`.
 
+### Cycle Note — v6.6.15 (2026-06-06)
+
+R-15 remains in progress. The provider abstraction now has
+`stream_complete()` while preserving the existing `complete()` contract.
+OpenAI-compatible providers (OpenAI, Groq, DeepSeek) and Ollama now expose
+native streaming deltas, and `CollectionChat.stream_answer()` builds response
+events from those deltas when available. FastMCP progress notifications remain
+the next transport-level slice. Details:
+`docs/audit/2026-06-06-v6.6.15-provider-streaming-audit.md`.
+
 ### Hard Constraints
 
 - MIT license
@@ -267,7 +277,7 @@ the current provider client path still returns completed answers. Details:
 | ✅ R-12 | YouTube transcript capture | Done | M | [S-6][S-18] |
 | ✅ R-13 | Smart Collections | Done | M | [S-10][S-19] |
 | ✅ R-14 | MCP auth scopes | Done | M | [S-14] |
-| 🚧 R-15 | **MCP streaming** for `chat_with_collection` — stream RAG responses token-by-token. v6.6.14 added stream-shaped MCP response events; provider-native token streaming remains open. Depends on FastMCP 3.x streaming support. | Later | M | [S-14][S-79] |
+| 🚧 R-15 | **MCP streaming** for `chat_with_collection` — stream RAG responses token-by-token. v6.6.14 added stream-shaped MCP response events; v6.6.15 added provider-native streaming adapters for OpenAI-compatible providers and Ollama. FastMCP progress/transport streaming remains open. | Later | M | [S-14][S-79] |
 
 **Justification:** MCP write tools are needed for AI agent curation workflows (Burn 451 already ships delete/update). The 2026-07-28 spec is the biggest MCP revision since launch — going stateless, adding caching, aligning with OAuth 2.0 [S-79]. FastMCP 3.4 brings OTEL observability and remote server support [S-81]. GUI chat panel is the #1 feature gap vs Raindrop Stella and Markwise.
 
@@ -443,6 +453,7 @@ All items below shipped in v6.0.0 through v6.4.1. Full details in [CHANGELOG.md]
 | R-26A | OPDS 1.2 acquisition feed export | v6.6.12 |
 | R-26 | OPDS loopback serving | v6.6.13 |
 | R-15A | MCP chat response events | v6.6.14 |
+| R-15B | Provider streaming adapters for RAG chat | v6.6.15 |
 | BUG-01 through BUG-14 | All 14 known bugs fixed | v6.2.0-v6.4.1 |
 | + 30 v6.1.0 fixes | AI batch processor, chunk overlap, MCP schemas, CI flow, thread safety, etc. | v6.1.0 |
 
