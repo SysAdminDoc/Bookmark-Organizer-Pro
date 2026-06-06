@@ -3,6 +3,19 @@
 Append-only completion log. Detailed release notes remain in `CHANGELOG.md`;
 this file tracks autonomous project-loop completions and roadmap closures.
 
+## 2026-06-06 — v6.6.2 MCP Stateless Readiness
+
+- Advanced R-58: enabled MCP SDK stateless mode for raw SDK and FastMCP stdio
+  transports.
+- Added cache hints to `tools/list` results in both MCP paths.
+- Added read/write/destructive/idempotent/open-world annotations and stateless
+  metadata to raw SDK and FastMCP tool catalogs.
+- Cleaned MCP server module documentation so it stays client-neutral.
+- Verification: compileall passed, targeted MCP/browser-extension tests passed
+  with 29 tests, and the full suite passed with 288 tests.
+- Remaining R-58 work: HTTP Streamable transport header validation is still
+  open because this app currently exposes MCP through stdio.
+
 ## 2026-06-06 — v6.6.1 FastMCP 3.4 Compatibility
 
 - Completed R-59: bumped optional MCP dependency floors to `fastmcp>=3.4,<4`

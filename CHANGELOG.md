@@ -2,6 +2,26 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.2] - 2026-06-06
+
+MCP stateless-readiness release.
+
+### Improved — MCP (R-58 partial)
+
+- **Stateless stdio mode** — raw SDK and FastMCP transports now run with the
+  SDK stateless flag enabled.
+- **Cacheable tool catalog** — `tools/list` results now expose `ttlMs` and
+  `cacheScope` hints in both raw SDK and FastMCP paths.
+- **Tool behavior metadata** — raw SDK and FastMCP tool catalogs now expose
+  read-only, destructive, idempotent, open-world, and stateless metadata.
+- **Client-neutral server docs** — MCP server module docs no longer name
+  specific clients.
+
+### Tests
+
+- Added raw SDK and FastMCP catalog assertions for cache hints, stateless
+  metadata, and tool annotations.
+
 ## [v6.6.1] - 2026-06-06
 
 MCP dependency compatibility release.

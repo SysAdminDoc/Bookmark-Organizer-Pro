@@ -1,8 +1,7 @@
 """Model Context Protocol (MCP) server for Bookmark Organizer Pro.
 
-Exposes the local bookmark library as MCP tools so Claude Desktop, Claude
-Code, Cursor, and other MCP-aware agents can query and manipulate it
-directly. No OSS bookmark manager ships this today — first-mover.
+Exposes the local bookmark library as MCP tools so compatible clients can
+query and manipulate it directly.
 
 Run as:
     python -m bookmark_organizer_pro.mcp_server   # stdio transport
@@ -134,6 +133,101 @@ def _check_mcp_auth(token: Optional[str], tool_name: str) -> Optional[str]:
     if not mgr.validate(token, tool_name):
         return "Invalid token or insufficient permissions for this tool."
     return None
+
+
+MCP_TOOL_LIST_TTL_MS = 300_000
+MCP_TOOL_LIST_CACHE_SCOPE = "public"
+
+MCP_READ_ONLY_TOOLS = {
+    "list_bookmarks", "get_bookmark", "search_bookmarks",
+    "semantic_search", "hybrid_search", "list_tags", "list_categories",
+    "get_extracted_text", "daily_digest", "list_dead_links",
+    "list_flows", "get_flow", "list_snapshots",
+    "chat_with_collection", "summarize_bookmark",
+}
+
+MCP_DESTRUCTIVE_TOOLS = {
+    "delete_bookmark", "update_bookmark", "toggle_pin",
+    "mark_read_later", "add_tags", "remove_tags",
+}
+
+MCP_OPEN_WORLD_TOOLS = {
+    "add_bookmark", "chat_with_collection", "summarize_bookmark",
+}
+
+
+def _mcp_protocol_version() -> str:
+    types = _try_import("mcp.types")
+    if types is not None:
+        version = getattr(types, "LATEST_PROTOCOL_VERSION", None)
+        if version:
+            return str(version)
+    return "2025-11-25"
+
+
+def _tool_annotations(name: str) -> Dict[str, Any]:
+    read_only = name in MCP_READ_ONLY_TOOLS
+    return {
+        "readOnlyHint": read_only,
+        "destructiveHint": name in MCP_DESTRUCTIVE_TOOLS,
+        "idempotentHint": read_only,
+        "openWorldHint": name in MCP_OPEN_WORLD_TOOLS,
+    }
+
+
+def _tool_meta(name: str) -> Dict[str, Any]:
+    return {
+        "io.modelcontextprotocol/protocolVersion": _mcp_protocol_version(),
+        "io.modelcontextprotocol/statelessReady": True,
+        "io.modelcontextprotocol/method": "tools/call",
+        "io.modelcontextprotocol/name": name,
+    }
+
+
+def _list_result_cache_kwargs() -> Dict[str, Any]:
+    return {
+        "ttlMs": MCP_TOOL_LIST_TTL_MS,
+        "cacheScope": MCP_TOOL_LIST_CACHE_SCOPE,
+    }
+
+
+def _with_list_result_cache(result: Any) -> Any:
+    if result is None:
+        return result
+    for key, value in _list_result_cache_kwargs().items():
+        setattr(result, key, value)
+    return result
+
+
+def _mcp_tool_definition(types: Any, name: str, desc: str, schema: Dict[str, Any]) -> Any:
+    return types.Tool(
+        name=name,
+        description=desc,
+        inputSchema=schema,
+        annotations=_tool_annotations(name),
+        _meta=_tool_meta(name),
+    )
+
+
+def _build_mcp_tools_result(types: Any) -> Any:
+    tools = [
+        _mcp_tool_definition(types, name, desc, schema)
+        for name, _, desc, schema in TOOLS
+    ]
+    return types.ListToolsResult(tools=tools, **_list_result_cache_kwargs())
+
+
+def _patch_fastmcp_list_tools_cache(mcp_app: Any) -> None:
+    low_level = getattr(mcp_app, "_mcp_server", None)
+    list_tools_mcp = getattr(mcp_app, "_list_tools_mcp", None)
+    if low_level is None or list_tools_mcp is None:
+        return
+    if not hasattr(low_level, "list_tools"):
+        return
+
+    @low_level.list_tools()
+    async def _list_tools_with_cache(request: Any = None) -> Any:
+        return _with_list_result_cache(await list_tools_mcp(request))
 
 
 # --- pure tool implementations ---------------------------------------------
@@ -720,16 +814,8 @@ async def serve_stdio() -> int:
     server = Server("bookmark-organizer-pro")
 
     @server.list_tools()
-    async def _list_tools() -> List[Any]:
-        from mcp.types import Tool
-        return [
-            Tool(
-                name=name,
-                description=desc,
-                inputSchema=schema,
-            )
-            for name, _, desc, schema in TOOLS
-        ]
+    async def _list_tools(request: Any = None) -> Any:
+        return _build_mcp_tools_result(types)
 
     @server.call_tool()
     async def _call_tool(name: str, arguments: Dict[str, Any]) -> List[Any]:
@@ -764,7 +850,7 @@ async def serve_stdio() -> int:
         )
 
     async with stdio.stdio_server() as (read_stream, write_stream):
-        await server.run(read_stream, write_stream, init_options)
+        await server.run(read_stream, write_stream, init_options, stateless=True)
     return 0
 
 
@@ -781,115 +867,124 @@ def _build_fastmcp_server():
     except Exception:
         return None
 
-    @mcp_app.tool(description="List bookmarks with optional category/tag/read-later filters, sorted newest first.")
+    def tool(name: str, description: str):
+        return mcp_app.tool(
+            name=name,
+            description=description,
+            annotations=_tool_annotations(name),
+            meta=_tool_meta(name),
+        )
+
+    @tool("list_bookmarks", "List bookmarks with optional category/tag/read-later filters, sorted newest first.")
     def list_bookmarks(limit: int = 50, offset: int = 0, category: str | None = None,
                        tag: str | None = None, read_later_only: bool = False) -> list[dict]:
         return t_list_bookmarks(limit, offset, category, tag, read_later_only)
 
-    @mcp_app.tool(description="Get a single bookmark by its numeric ID.")
+    @tool("get_bookmark", "Get a single bookmark by its numeric ID.")
     def get_bookmark(bookmark_id: int) -> dict | None:
         return t_get_bookmark(bookmark_id)
 
-    @mcp_app.tool(description="Keyword search across bookmark titles, URLs, tags, and descriptions.")
+    @tool("search_bookmarks", "Keyword search across bookmark titles, URLs, tags, and descriptions.")
     def search_bookmarks(query: str, limit: int = 25) -> list[dict]:
         return t_search(query, limit)
 
-    @mcp_app.tool(description="Semantic vector search over ingested bookmark content.")
+    @tool("semantic_search", "Semantic vector search over ingested bookmark content.")
     def semantic_search(query: str, k: int = 10) -> list[dict]:
         return t_semantic_search(query, k)
 
-    @mcp_app.tool(description="Hybrid keyword+semantic search via Reciprocal Rank Fusion.")
+    @tool("hybrid_search", "Hybrid keyword+semantic search via Reciprocal Rank Fusion.")
     def hybrid_search(query: str, limit: int = 25) -> list[dict]:
         return t_hybrid_search(query, limit)
 
-    @mcp_app.tool(description="Add a new bookmark with auto-categorization and URL cleaning.")
+    @tool("add_bookmark", "Add a new bookmark with auto-categorization and URL cleaning.")
     def add_bookmark(url: str, title: str = "", category: str = "",
                      tags: list[str] | None = None) -> dict | None:
         return t_add_bookmark(url, title, category, tags)
 
-    @mcp_app.tool(description="List all tags with usage counts.")
+    @tool("list_tags", "List all tags with usage counts.")
     def list_tags(limit: int = 100) -> list[dict]:
         return t_list_tags(limit)
 
-    @mcp_app.tool(description="List all categories with bookmark counts.")
+    @tool("list_categories", "List all categories with bookmark counts.")
     def list_categories() -> list[dict]:
         return t_list_categories()
 
-    @mcp_app.tool(description="Return extracted readable text for a bookmark.")
+    @tool("get_extracted_text", "Return extracted readable text for a bookmark.")
     def get_extracted_text(bookmark_id: int) -> str:
         return t_get_extracted_text(bookmark_id)
 
-    @mcp_app.tool(description="Conversational RAG over the bookmark library.")
+    @tool("chat_with_collection", "Conversational RAG over the bookmark library.")
     def chat_with_collection(question: str, restrict_ids: list[int] | None = None,
                              restrict_tag: str = "", restrict_category: str = "") -> dict:
         return t_chat(question, restrict_ids, restrict_tag, restrict_category)
 
-    @mcp_app.tool(description="AI summary with inline citations back to source spans.")
+    @tool("summarize_bookmark", "AI summary with inline citations back to source spans.")
     def summarize_bookmark(bookmark_id: int) -> dict:
         return t_summarize(bookmark_id)
 
-    @mcp_app.tool(description="Daily digest: on-this-day, rediscover, read-later, stale picks.")
+    @tool("daily_digest", "Daily digest: on-this-day, rediscover, read-later, stale picks.")
     def daily_digest() -> dict:
         return t_daily_digest()
 
-    @mcp_app.tool(description="List bookmarks flagged as broken/redirected by the dead-link scanner.")
+    @tool("list_dead_links", "List bookmarks flagged as broken/redirected by the dead-link scanner.")
     def list_dead_links() -> list[dict]:
         return t_dead_links()
 
-    @mcp_app.tool(description="List all research flows.")
+    @tool("list_flows", "List all research flows.")
     def list_flows() -> list[dict]:
         return t_list_flows()
 
-    @mcp_app.tool(description="Get a research flow with its steps and bookmarks.")
+    @tool("get_flow", "Get a research flow with its steps and bookmarks.")
     def get_flow(flow_id: str) -> dict | None:
         return t_get_flow(flow_id)
 
-    @mcp_app.tool(description="Create a new research flow.")
+    @tool("create_flow", "Create a new research flow.")
     def create_flow(name: str, description: str = "") -> dict:
         return t_create_flow(name, description)
 
-    @mcp_app.tool(description="Add a bookmark to a research flow.")
+    @tool("append_to_flow", "Add a bookmark to a research flow.")
     def append_to_flow(flow_id: str, bookmark_id: int, note: str = "") -> dict:
         return t_append_to_flow(flow_id, bookmark_id, note)
 
-    @mcp_app.tool(description="Export a bookmark as a portable ZIP archive.")
+    @tool("export_zip", "Export a bookmark as a portable ZIP archive.")
     def export_zip(bookmark_id: int) -> dict:
         return t_export_zip(bookmark_id)
 
-    @mcp_app.tool(description="Export bookmarks to an Obsidian vault as Markdown with YAML frontmatter.")
+    @tool("export_to_obsidian", "Export bookmarks to an Obsidian vault as Markdown with YAML frontmatter.")
     def export_to_obsidian(vault_path: str, tag_filter: str = "",
                            category_filter: str = "", since: str = "") -> dict:
         return t_export_to_obsidian(vault_path, tag_filter, category_filter, since)
 
-    @mcp_app.tool(description="List captured HTML snapshots.")
+    @tool("list_snapshots", "List captured HTML snapshots.")
     def list_snapshots(limit: int = 50) -> list[dict]:
         return t_list_snapshots(limit)
 
-    @mcp_app.tool(description="Permanently delete a bookmark by ID.")
+    @tool("delete_bookmark", "Permanently delete a bookmark by ID.")
     def delete_bookmark(bookmark_id: int) -> dict:
         return t_delete_bookmark(bookmark_id)
 
-    @mcp_app.tool(description="Update a bookmark's title, category, notes, or description.")
+    @tool("update_bookmark", "Update a bookmark's title, category, notes, or description.")
     def update_bookmark(bookmark_id: int, title: str = "", category: str = "",
                         notes: str = "", description: str = "") -> dict:
         return t_update_bookmark(bookmark_id, title, category, notes, description)
 
-    @mcp_app.tool(description="Toggle the pinned state of a bookmark.")
+    @tool("toggle_pin", "Toggle the pinned state of a bookmark.")
     def toggle_pin(bookmark_id: int) -> dict:
         return t_toggle_pin(bookmark_id)
 
-    @mcp_app.tool(description="Add or remove a bookmark from the read-later queue.")
+    @tool("mark_read_later", "Add or remove a bookmark from the read-later queue.")
     def mark_read_later(bookmark_id: int, read_later: bool = True) -> dict:
         return t_mark_read_later(bookmark_id, read_later)
 
-    @mcp_app.tool(description="Add tags to a bookmark.")
+    @tool("add_tags", "Add tags to a bookmark.")
     def add_tags(bookmark_id: int, tags: list[str] | None = None) -> dict:
         return t_add_tags(bookmark_id, tags)
 
-    @mcp_app.tool(description="Remove specific tags from a bookmark.")
+    @tool("remove_tags", "Remove specific tags from a bookmark.")
     def remove_tags(bookmark_id: int, tags: list[str] | None = None) -> dict:
         return t_remove_tags(bookmark_id, tags)
 
+    _patch_fastmcp_list_tools_cache(mcp_app)
     return mcp_app
 
 
@@ -902,7 +997,7 @@ def main():
     if fastmcp_app is not None:
         log.info("Using FastMCP transport (auto-schema + ToolAnnotations)")
         try:
-            fastmcp_app.run(transport="stdio")
+            fastmcp_app.run(transport="stdio", stateless=True)
         except KeyboardInterrupt:
             pass
         return
