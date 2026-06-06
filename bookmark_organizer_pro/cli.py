@@ -80,6 +80,7 @@ class BookmarkCLI:
             "mcp-server": self._cmd_mcp_server,
             "mcp-http-server": self._cmd_mcp_http_server,
             "sqlite-migrate": self._cmd_sqlite_migrate,
+            "updates": self._cmd_updates,
             # v6.2.1
             "smart-collections": self._cmd_smart_collections,
             "nl-query": self._cmd_nl_query,
@@ -154,6 +155,8 @@ v6.0.0 commands:
                                 Run the MCP Streamable HTTP server on loopback.
   sqlite-migrate [--source JSON] [--dest DB]
                                 Copy JSON bookmarks into an opt-in SQLite DB.
+  updates [status|check|configure]
+                                Manage disabled-by-default update policy.
 
 Examples:
   python main.py list
@@ -163,6 +166,7 @@ Examples:
   python main.py mcp-server    # expose to an MCP-compatible client
   python main.py mcp-http-server --port 8766
   python main.py sqlite-migrate
+  python main.py updates status
 """)
     
     def _cmd_list(self, args):
@@ -900,6 +904,93 @@ Top Domains:
             return
         count = migrate_json_to_sqlite(source, dest)
         print(f"Migrated {count} bookmarks to {dest}")
+
+    def _cmd_updates(self, args):
+        from bookmark_organizer_pro.services.updates import UpdateManager
+
+        manager = UpdateManager()
+        sub = args[0] if args else "status"
+        if sub == "status":
+            self._print_update_status(manager.status())
+            return
+        if sub == "check":
+            status = manager.status()
+            self._print_update_status(status)
+            if status.can_check:
+                print("Update check ready; download and apply are not enabled in this release.")
+            else:
+                print(f"Update check not ready: {status.reason}")
+            return
+        if sub == "configure":
+            self._configure_updates(manager, args[1:])
+            return
+        print("Usage: updates [status|check|configure]")
+
+    def _print_update_status(self, status):
+        policy = status.policy
+        print(f"Updates: {'enabled' if policy.enabled else 'disabled'}")
+        print(f"Repository: {'configured' if policy.configured else 'not configured'}")
+        print(f"Channel: {policy.channel}")
+        print(f"Current version: {status.current_version}")
+        print(f"tufup: {'available' if status.tufup_installed else 'not installed'}")
+        print(f"Status: {status.reason}")
+
+    def _configure_updates(self, manager, args):
+        enabled = None
+        metadata_url = None
+        targets_url = None
+        channel = None
+        allow_prerelease = None
+        usage = (
+            "Usage: updates configure [--enable|--disable] [--metadata-url URL] "
+            "[--targets-url URL] [--channel NAME]"
+        )
+        i = 0
+        while i < len(args):
+            arg = args[i]
+            if arg == "--enable":
+                enabled = True
+                i += 1
+                continue
+            if arg == "--disable":
+                enabled = False
+                i += 1
+                continue
+            if arg == "--allow-prerelease":
+                allow_prerelease = True
+                i += 1
+                continue
+            if arg == "--no-prerelease":
+                allow_prerelease = False
+                i += 1
+                continue
+            if arg in ("--metadata-url", "--targets-url", "--channel"):
+                if i + 1 >= len(args):
+                    print(usage)
+                    return
+                if arg == "--metadata-url":
+                    metadata_url = args[i + 1]
+                elif arg == "--targets-url":
+                    targets_url = args[i + 1]
+                else:
+                    channel = args[i + 1]
+                i += 2
+                continue
+            print(usage)
+            return
+        try:
+            policy = manager.configure(
+                enabled=enabled,
+                metadata_url=metadata_url,
+                targets_url=targets_url,
+                channel=channel,
+                allow_prerelease=allow_prerelease,
+            )
+        except ValueError as exc:
+            print(f"Could not configure updates: {exc}")
+            return
+        print(f"Updates configured: {'enabled' if policy.enabled else 'disabled'}")
+        print(f"Repository: {'configured' if policy.configured else 'not configured'}")
 
     def _cmd_api_server(self, args):
         from bookmark_organizer_pro.services.api import BookmarkAPI

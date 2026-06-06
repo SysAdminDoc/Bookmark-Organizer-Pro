@@ -21,9 +21,9 @@
 
 ---
 
-## State of the Project (v6.6.8)
+## State of the Project (v6.6.9)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.8:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.9:
 
 - **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
@@ -141,6 +141,16 @@ completed locally with Nuitka 4.1.2/MSVC, and the generated artifact reported
 `Bookmark Organizer Pro v6.6.8` via `--version`. Full GUI bundle validation can
 continue as distribution hardening before replacing PyInstaller as the default
 binary path. Details: `docs/audit/2026-06-06-v6.6.8-nuitka-smoke-audit.md`.
+
+### Cycle Note — v6.6.9 (2026-06-06)
+
+R-41 is in progress. Live package checks confirmed `tufup` 0.10.0 remains the
+current release and `tuf` is at 7.0.0. BOP now has a disabled-by-default
+updater policy service, optional `bookmark-organizer-pro[updates]` extra, HTTPS
+repository validation, and `updates status|check|configure` CLI commands. The
+check path reports readiness only; download/apply remains gated for the next
+R-41 slice. Details:
+`docs/audit/2026-06-06-v6.6.9-updater-policy-audit.md`.
 
 ### Hard Constraints
 
@@ -296,7 +306,7 @@ binary path. Details: `docs/audit/2026-06-06-v6.6.8-nuitka-smoke-audit.md`.
 | # | Item | Tier | Effort | Source |
 |---|------|------|--------|--------|
 | ✅ R-40 | **Nuitka compilation smoke** — build helper, optional Nuitka 4.1+ extra, Tkinter plugin app path, Windows metadata, bounded `--jobs`, smoke target, local standalone compile, report/assets, and artifact `--version` validation shipped in v6.6.6-v6.6.8. Full GUI bundle validation remains release hardening before any installer switch. | Done | L | [S-27][S-87] |
-| 🔲 R-41 | **tufup auto-update** — TUF-based binary diff patches. Works with PyInstaller or Nuitka. v0.10.0 on PyPI, actively maintained. | Later | M | [S-28][S-88] |
+| 🔄 R-41 | **tufup auto-update** — optional tufup 0.10.x extra, disabled-by-default update policy, HTTPS repository guard, and `updates` CLI readiness surface shipped in v6.6.9. Repository metadata/client check and download/apply gates remain. | In Progress | M | [S-28][S-88] |
 | ✅ R-42 | Python version matrix in CI (3.10-3.13) | Done | S | [S-1] |
 
 ---
@@ -382,6 +392,7 @@ All items below shipped in v6.0.0 through v6.4.1. Full details in [CHANGELOG.md]
 | R-40A | Nuitka build helper and dependency extra | v6.6.6 |
 | R-40B | Nuitka toolchain verification and build job controls | v6.6.7 |
 | R-40C | Nuitka smoke target and artifact validation | v6.6.8 |
+| R-41A | Updater policy foundation and disabled updates CLI | v6.6.9 |
 | BUG-01 through BUG-14 | All 14 known bugs fixed | v6.2.0-v6.4.1 |
 | + 30 v6.1.0 fixes | AI batch processor, chunk overlap, MCP schemas, CI flow, thread safety, etc. | v6.1.0 |
 
@@ -441,7 +452,7 @@ All Next-tier items have shipped through v6.6.8. Continue with Later-tier
 distribution and UI work, starting with R-41 unless a higher-priority audit
 finding appears.
 
-### Later — v7.x+ (7 remaining, R-17/R-50 shipped in v6.5.2)
+### Later — v7.x+ (7 remaining, R-41 in progress, R-17/R-50 shipped in v6.5.2)
 
 | # | Item | Effort | Category |
 |---|------|--------|----------|

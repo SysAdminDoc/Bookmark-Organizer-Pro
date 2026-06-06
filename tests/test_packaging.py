@@ -39,7 +39,7 @@ class TestNuitkaBuildHelper(unittest.TestCase):
             mode="onefile",
             output_dir=Path("dist/nuitka"),
             python_executable="python",
-            version="6.6.8",
+            version="6.6.9",
             root=ROOT,
         )
 
@@ -48,8 +48,8 @@ class TestNuitkaBuildHelper(unittest.TestCase):
         self.assertIn("--enable-plugin=tk-inter", command)
         self.assertIn("--include-package=bookmark_organizer_pro", command)
         self.assertIn("--jobs=4", command)
-        self.assertIn("--file-version=6.6.8.0", command)
-        self.assertIn("--product-version=6.6.8.0", command)
+        self.assertIn("--file-version=6.6.9.0", command)
+        self.assertIn("--product-version=6.6.9.0", command)
         self.assertTrue(any(arg.startswith("--include-data-files=") for arg in command))
         self.assertEqual(command[-1], str(ROOT / "main.py"))
 
@@ -66,14 +66,14 @@ class TestNuitkaBuildHelper(unittest.TestCase):
     def test_command_accepts_custom_jobs(self):
         module = _load_nuitka_build()
 
-        command = module.build_command(jobs=2, version="6.6.8", root=ROOT)
+        command = module.build_command(jobs=2, version="6.6.9", root=ROOT)
 
         self.assertIn("--jobs=2", command)
 
     def test_smoke_target_uses_console_entrypoint(self):
         module = _load_nuitka_build()
 
-        command = module.build_command(target="smoke", version="6.6.8", root=ROOT)
+        command = module.build_command(target="smoke", version="6.6.9", root=ROOT)
 
         self.assertIn("--output-filename=BookmarkOrganizerProSmoke", command)
         self.assertFalse(any(arg.startswith("--include-module=") for arg in command))
@@ -93,6 +93,11 @@ class TestNuitkaBuildHelper(unittest.TestCase):
     def test_nuitka_extra_is_declared(self):
         pyproject_text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         self.assertIn('nuitka = ["Nuitka>=4.1,<5.0"]', pyproject_text)
+
+    def test_updates_extra_is_declared(self):
+        pyproject_text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        self.assertIn('updates = ["tufup>=0.10,<0.11"]', pyproject_text)
+        self.assertIn('"bookmark-organizer-pro[tray,ai,encryption,mcp,updates]"', pyproject_text)
 
 
 if __name__ == "__main__":

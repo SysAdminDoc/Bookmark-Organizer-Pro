@@ -63,6 +63,11 @@ class TestCLIDispatch(CLITestBase):
         out = self._run(["help"])
         self.assertIn("Usage", out)
 
+    def test_updates_status_command(self):
+        out = self._run(["updates", "status"])
+        self.assertIn("Updates:", out)
+        self.assertIn("Current version:", out)
+
     def test_main_entrypoint_accepts_argv(self):
         from bookmark_organizer_pro.cli import main
 

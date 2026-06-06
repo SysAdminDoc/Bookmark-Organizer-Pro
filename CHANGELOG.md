@@ -2,6 +2,29 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.9] - 2026-06-06
+
+Updater policy foundation release.
+
+### Added — Distribution (R-41 partial)
+
+- **Optional updater dependency** — added `bookmark-organizer-pro[updates]`
+  with `tufup>=0.10,<0.11`; live package verification confirmed 0.10.0 is the
+  current tufup release.
+- **Disabled-by-default update policy** — added `UpdateManager`,
+  `UpdatePolicy`, and `UpdateStatus` to persist update repository settings
+  without downloading or applying binaries automatically.
+- **CLI update surface** — added `updates status`, `updates check`, and
+  `updates configure` commands. The check path reports readiness only; actual
+  download/apply remains gated.
+- **HTTPS repository guard** — update metadata and target URLs must use HTTPS
+  before they can be persisted.
+
+### Tests
+
+- Added service and CLI coverage for default-disabled status, HTTPS validation,
+  tufup readiness, version comparison, and `updates status`.
+
 ## [v6.6.8] - 2026-06-06
 
 Nuitka compile-smoke release.
