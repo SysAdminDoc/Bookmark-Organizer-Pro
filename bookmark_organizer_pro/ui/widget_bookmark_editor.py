@@ -138,7 +138,7 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
                 conf_color = theme.accent_success if bookmark.ai_confidence >= 0.7 else (
                     theme.accent_warning if bookmark.ai_confidence >= 0.4 else theme.accent_error)
                 tk.Label(conf_row, text=f"{bookmark.ai_confidence:.0%}", bg=theme.bg_primary,
-                        fg=conf_color, font=("Segoe UI", 9, "bold")).pack(side=tk.LEFT)
+                        fg=conf_color, font=FONTS.tiny(bold=True)).pack(side=tk.LEFT)
             
             if bookmark.ai_tags:
                 tags_row = tk.Frame(ai_inner, bg=theme.bg_primary)

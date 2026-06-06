@@ -27,7 +27,9 @@ READ_ONLY_TOOLS = {
 }
 
 WRITE_TOOLS = {
-    "add_bookmark", "create_flow", "append_to_flow",
+    "add_bookmark", "delete_bookmark", "update_bookmark",
+    "toggle_pin", "mark_read_later", "add_tags", "remove_tags",
+    "create_flow", "append_to_flow",
     "export_zip", "export_to_obsidian",
     "chat_with_collection", "summarize_bookmark",
 }

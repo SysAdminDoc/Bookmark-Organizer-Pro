@@ -80,7 +80,7 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         # Category distribution
         cat_frame = tk.LabelFrame(
             self, text="📊 Category Distribution", bg=self.theme.bg_primary,
-            fg=self.theme.text_primary, font=("Segoe UI", 11, "bold")
+            fg=self.theme.text_primary, font=FONTS.body(bold=True)
         )
         cat_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=15)
         
@@ -93,7 +93,7 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         # Top domains
         domain_frame = tk.LabelFrame(
             self, text="🌐 Top Domains", bg=self.theme.bg_primary,
-            fg=self.theme.text_primary, font=("Segoe UI", 11, "bold")
+            fg=self.theme.text_primary, font=FONTS.body(bold=True)
         )
         domain_frame.pack(fill=tk.X, padx=20, pady=(0, 20))
         
@@ -119,13 +119,13 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         # Icon
         tk.Label(
             card, text=icon, bg=self.theme.bg_secondary,
-            font=("Segoe UI", 20)
+            font=FONTS.custom(20)
         ).pack(anchor="w")
         
         # Value
         tk.Label(
             card, text=str(value), bg=self.theme.bg_secondary,
-            fg=self.theme.text_primary, font=("Segoe UI", 24, "bold")
+            fg=self.theme.text_primary, font=FONTS.custom(24, bold=True)
         ).pack(anchor="w")
         
         # Label

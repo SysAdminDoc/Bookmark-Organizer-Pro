@@ -183,7 +183,7 @@ class CategoryManagementDialog(tk.Toplevel):
             # Edit button
             edit_btn = tk.Label(
                 btn_frame, text="✏️", bg=theme.bg_secondary,
-                fg=theme.text_secondary, font=("Segoe UI", 12), cursor="hand2"
+                fg=theme.text_secondary, font=FONTS.custom(12), cursor="hand2"
             )
             edit_btn.pack(side=tk.LEFT, padx=5, pady=5)
             make_keyboard_activatable(edit_btn, lambda n=cat_name: self._edit_category(n))
@@ -192,7 +192,7 @@ class CategoryManagementDialog(tk.Toplevel):
             # Delete button
             del_btn = tk.Label(
                 btn_frame, text="🗑️", bg=theme.bg_secondary,
-                fg=theme.accent_error, font=("Segoe UI", 12), cursor="hand2"
+                fg=theme.accent_error, font=FONTS.custom(12), cursor="hand2"
             )
             del_btn.pack(side=tk.LEFT, padx=5, pady=5)
             make_keyboard_activatable(del_btn, lambda n=cat_name: self._delete_category(n))
@@ -364,7 +364,7 @@ class CustomFaviconDialog(tk.Toplevel):
         
         tk.Label(
             preview_frame, text="→", bg=theme.bg_secondary,
-            fg=theme.text_muted, font=("Segoe UI", 16)
+            fg=theme.text_muted, font=FONTS.custom(16)
         ).pack(side=tk.LEFT, padx=10)
         
         tk.Label(
@@ -374,7 +374,7 @@ class CustomFaviconDialog(tk.Toplevel):
         
         self.new_preview = tk.Label(
             preview_frame, text="?", bg=theme.bg_secondary,
-            font=("Segoe UI", 24), fg=theme.text_muted
+            font=FONTS.custom(24), fg=theme.text_muted
         )
         self.new_preview.pack(side=tk.LEFT, padx=10, pady=10)
         

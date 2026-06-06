@@ -70,7 +70,7 @@ class BulkTagEditorDialog(tk.Toplevel, ThemedWidget):
             tk.Label(
                 common_frame, text="No common tags",
                 bg=theme.bg_primary, fg=theme.text_muted,
-                font=("Segoe UI", 9, "italic")
+                font=FONTS.tiny()
             ).pack(side=tk.LEFT)
         
         # Add tags section

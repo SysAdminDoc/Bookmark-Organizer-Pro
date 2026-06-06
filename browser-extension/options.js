@@ -47,9 +47,40 @@ async function saveOptions() {
   setStatus("Options saved.", "success");
 }
 
+async function testConnection() {
+  const port = Number.parseInt(document.getElementById("apiPort").value, 10);
+  const token = document.getElementById("apiToken").value.trim();
+
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    setStatus("Enter a valid TCP port first.", "error");
+    return;
+  }
+
+  setStatus("Testing...");
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/`, {
+      headers: token ? { "Authorization": `Bearer ${token}` } : {}
+    });
+    const body = await response.json().catch(() => ({}));
+    if (response.ok && body.name) {
+      setStatus(`Connected to ${body.name} v${body.version}.`, "success");
+    } else if (response.status === 401) {
+      setStatus("Server reached but token is invalid.", "error");
+    } else {
+      setStatus(`Unexpected response: ${response.status}`, "error");
+    }
+  } catch {
+    setStatus("Cannot reach API. Start BOP or run: bop api-server", "error");
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   loadOptions().catch(() => setStatus("Could not load options.", "error"));
   document.getElementById("saveOptions").addEventListener("click", () => {
     saveOptions().catch(() => setStatus("Could not save options.", "error"));
+  });
+  document.getElementById("testConnection").addEventListener("click", () => {
+    testConnection().catch(() => setStatus("Connection test failed.", "error"));
   });
 });

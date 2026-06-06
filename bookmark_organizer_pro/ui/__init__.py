@@ -47,13 +47,6 @@ from .quick_add import (
     prepare_quick_add_payload,
 )
 from .reports import ReportGenerator
-from .secondary_views import (
-    KanbanColumn,
-    KanbanView,
-    ReadingListView,
-    TagCloudView,
-    TimelineView,
-)
 from .shell_widgets import (
     CommandPalette,
     StatusBar,
@@ -133,11 +126,6 @@ __all__ = [
     "pick_default_category",
     "prepare_quick_add_payload",
     "ReportGenerator",
-    "KanbanColumn",
-    "KanbanView",
-    "ReadingListView",
-    "TagCloudView",
-    "TimelineView",
     "CommandPalette",
     "StatusBar",
     "StyledDropdownMenu",

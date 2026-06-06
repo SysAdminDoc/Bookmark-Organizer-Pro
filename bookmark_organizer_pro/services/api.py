@@ -33,7 +33,16 @@ def _load_or_create_token() -> str:
             return token
     token = secrets.token_urlsafe(32)
     _TOKEN_FILE.write_text(token, encoding="utf-8")
-    if os.name != "nt":
+    if os.name == "nt":
+        import subprocess
+        username = os.environ.get("USERNAME", "")
+        if username:
+            subprocess.run(
+                ["icacls", str(_TOKEN_FILE), "/inheritance:r",
+                 "/grant:r", f"{username}:(F)"],
+                capture_output=True, check=False,
+            )
+    else:
         os.chmod(_TOKEN_FILE, 0o600)
     log.info(f"API token written to {_TOKEN_FILE}")
     return token
@@ -85,9 +94,8 @@ class BookmarkAPI:
             
             def do_GET(self):
                 path_parts, params = self._parse_path()
-                
+
                 if not path_parts or path_parts[0] == '':
-                    # API info
                     self._send_json({
                         "name": APP_NAME,
                         "version": APP_VERSION,
@@ -102,8 +110,12 @@ class BookmarkAPI:
                             "GET /search?q=query"
                         ]
                     })
-                
-                elif path_parts[0] == 'bookmarks':
+                    return
+
+                if not self._check_auth():
+                    return
+
+                if path_parts[0] == 'bookmarks':
                     if len(path_parts) > 1:
                         # Get single bookmark
                         try:

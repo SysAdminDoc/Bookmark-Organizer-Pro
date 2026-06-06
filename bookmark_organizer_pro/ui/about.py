@@ -176,7 +176,6 @@ Key Highlights:
 • Advanced search with boolean operators
 • Beautiful themes (10+ built-in)
 • Full undo/redo support
-• System tray integration
 
 Build: {BUILD_TYPE}
 Date: {BUILD_DATE}
@@ -201,15 +200,14 @@ License: {LICENSE}
         
         features = [
             ("📥", "Import/Export", "HTML, JSON, CSV, OPML formats"),
-            ("📁", "Categories", "Nested hierarchy with drag-and-drop"),
+            ("📁", "Categories", "Nested hierarchy with auto-categorization"),
             ("🏷️", "Tags", "Color-coded tags with AI suggestions"),
             ("🔍", "Search", "Advanced syntax with filters & highlighting"),
             ("🤖", "AI Features", "Auto-categorize, generate tags, summarize"),
             ("🎨", "Themes", "10+ built-in themes, custom theme creator"),
             ("📊", "Analytics", "Dashboard with statistics and insights"),
             ("⌨️", "Shortcuts", "Full keyboard navigation support"),
-            ("↩️", "Undo/Redo", "Complete action history"),
-            ("🖥️", "System Tray", "Quick access from tray icon"),
+            ("↩️", "Undo/Redo", "Bookmark-level action history"),
             ("🔗", "Link Checker", "Validate bookmark URLs"),
             ("🖼️", "Favicons", "Automatic favicon downloading & caching"),
         ]
@@ -293,7 +291,6 @@ TECHNOLOGIES
 • BeautifulSoup (HTML parsing)
 • Pillow (Image processing)
 • Requests (HTTP client)
-• pystray (System tray)
 
 THEME INSPIRATIONS
 ───────────────────────────────────

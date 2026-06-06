@@ -44,7 +44,7 @@ class SmartFiltersPanel(tk.Frame, ThemedWidget):
         
         tk.Label(
             header, text="Smart Filters", bg=theme.bg_tertiary,
-            fg=theme.text_primary, font=("Segoe UI", 10, "bold"),
+            fg=theme.text_primary, font=FONTS.small(bold=True),
             pady=8
         ).pack(side=tk.LEFT)
         
@@ -178,7 +178,7 @@ class SmartFiltersPanel(tk.Frame, ThemedWidget):
         theme = get_theme()
         tk.Label(
             self.content, text=title, bg=theme.bg_secondary,
-            fg=theme.text_primary, font=("Segoe UI", 10, "bold"),
+            fg=theme.text_primary, font=FONTS.small(bold=True),
             anchor="w"
         ).pack(fill=tk.X, pady=(15, 5))
     
