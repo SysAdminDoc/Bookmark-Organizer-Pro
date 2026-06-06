@@ -36,6 +36,7 @@ python main.py updates check
 python main.py updates download
 python main.py updates staged
 python main.py updates apply --dry-run
+python main.py updates clean-staged
 ```
 
 Repository URLs must use HTTPS. Checks remain opt-in and disabled until
@@ -64,6 +65,8 @@ The client adapter uses `BookmarkOrganizerPro` as the tufup app name.
 9. Verify `updates staged` reports the staged manifest and target file paths.
 10. Verify `updates apply --dry-run` reports apply blockers without mutating
     files.
+11. Verify `updates clean-staged` removes only staged target files and the
+    staged manifest.
 
 ## Safety Gates
 
@@ -77,6 +80,9 @@ The client adapter uses `BookmarkOrganizerPro` as the tufup app name.
   presence. It does not download, extract, install, execute, or replace files.
 - `updates apply --dry-run` only reports staged-update readiness and blockers.
   It does not extract, install, execute, or replace files.
+- `updates clean-staged` only removes the staged manifest and staged target
+  files under `updates/targets/`. It does not remove trusted metadata, extract,
+  install, execute, or replace application files.
 - `updates apply` is an explicit refusal gate in this release. It must stay
   gated until extraction, install directory isolation, rollback, and user
   confirmation are covered by tests.
