@@ -127,7 +127,7 @@ class TestUpdateManager(_IsolatedTestBase):
 
     def test_check_for_updates_uses_client_without_downloading(self):
         updates = self._updates_module()
-        manager = updates.UpdateManager(current_version="6.6.18")
+        manager = updates.UpdateManager(current_version="6.6.19")
         manager.configure(
             enabled=True,
             metadata_url="https://updates.example.com/metadata",
@@ -165,9 +165,9 @@ class TestUpdateManager(_IsolatedTestBase):
     def test_version_comparison(self):
         updates = self._updates_module()
 
-        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.18"))
-        self.assertFalse(updates.is_newer_version("6.6.18", "6.6.18"))
-        self.assertFalse(updates.is_newer_version("6.6.17", "6.6.18"))
+        self.assertTrue(updates.is_newer_version("6.7.0", "6.6.19"))
+        self.assertFalse(updates.is_newer_version("6.6.19", "6.6.19"))
+        self.assertFalse(updates.is_newer_version("6.6.18", "6.6.19"))
 
 
 # ── 1. EmbeddingService ──────────────────────────────────────────────
@@ -913,7 +913,72 @@ class TestBookmarkManagerSQLiteStorage(_IsolatedTestBase):
         self.assertEqual(mgr.filepath, fp.with_suffix(".sqlite"))
 
 
-# ── 15. SnapshotArchiver (chain preference) ─────────────────────────
+# ── 15. Reader annotations ──────────────────────────────────────────
+
+class TestReaderAnnotations(_IsolatedTestBase):
+    """Tests for reader highlight storage and Markdown export."""
+
+    def setUp(self):
+        self.filepath = Path(self._tmp) / "reader_annotations_test.json"
+        if self.filepath.exists():
+            self.filepath.unlink()
+
+    def test_add_highlight_from_text_persists_and_lists(self):
+        from bookmark_organizer_pro.services.reader_annotations import ReaderAnnotationStore
+
+        store = ReaderAnnotationStore(self.filepath)
+        highlight = store.add_from_text(
+            bookmark_id=42,
+            text="Intro selected passage outro",
+            char_start=6,
+            char_end=22,
+            color="blue",
+            note="Keep this",
+        )
+
+        reloaded = ReaderAnnotationStore(self.filepath)
+        items = reloaded.list_for_bookmark(42)
+
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].id, highlight.id)
+        self.assertEqual(items[0].text, "selected passage")
+        self.assertEqual(items[0].color, "blue")
+        self.assertEqual(items[0].note, "Keep this")
+
+    def test_add_for_bookmark_validates_extracted_text_range(self):
+        from bookmark_organizer_pro.services.reader_annotations import ReaderAnnotationStore
+
+        text_path = Path(self._tmp) / "reader-source.txt"
+        text_path.write_text("Short extracted text", encoding="utf-8")
+        bookmark = _make_bookmark(id=7, extracted_text_path=str(text_path))
+        store = ReaderAnnotationStore(self.filepath)
+
+        highlight = store.add_for_bookmark(bookmark, 0, 5, color="green")
+
+        self.assertEqual(highlight.text, "Short")
+        self.assertEqual(highlight.color, "green")
+        with self.assertRaises(ValueError):
+            store.add_for_bookmark(bookmark, 0, 999)
+
+    def test_export_highlights_markdown_contains_quote_and_note(self):
+        from bookmark_organizer_pro.services.reader_annotations import (
+            ReaderAnnotationStore,
+            export_bookmark_highlights,
+        )
+
+        bookmark = _make_bookmark(id=9, title="Reader / Source", url="https://example.com/reader")
+        store = ReaderAnnotationStore(self.filepath)
+        highlight = store.add_from_text(9, "Alpha beta gamma", 6, 10, note="Important")
+
+        out_path = export_bookmark_highlights(bookmark, [highlight], output_dir=Path(self._tmp) / "reader_exports")
+        text = out_path.read_text(encoding="utf-8")
+
+        self.assertIn("# Reader highlights: Reader / Source", text)
+        self.assertIn("> beta", text)
+        self.assertIn("Important", text)
+
+
+# ── 16. SnapshotArchiver (chain preference) ─────────────────────────
 
 class TestSnapshotArchiver(_IsolatedTestBase):
     """Tests for SnapshotArchiver initialization and preferences."""
@@ -931,7 +996,7 @@ class TestSnapshotArchiver(_IsolatedTestBase):
         self.assertLessEqual(archiver.MAX_BYTES, 50_000_000)
 
 
-# ── 16. Embedding model config ──────────────────────────────────────
+# ── 17. Embedding model config ──────────────────────────────────────
 
 class TestEmbeddingModels(_IsolatedTestBase):
     """Tests for the RECOMMENDED_MODELS config."""

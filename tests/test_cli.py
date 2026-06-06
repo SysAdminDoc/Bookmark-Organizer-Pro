@@ -272,6 +272,43 @@ class TestCLIExportSubcommands(CLITestBase):
             os.unlink(tmp) if os.path.exists(tmp) else None
 
 
+class TestCLIReader(CLITestBase):
+    def test_reader_add_list_and_export(self):
+        from bookmark_organizer_pro.cli import BookmarkCLI
+        from bookmark_organizer_pro.constants import EXTRACTED_DIR, READER_ANNOTATIONS_FILE
+
+        if READER_ANNOTATIONS_FILE.exists():
+            READER_ANNOTATIONS_FILE.unlink()
+        cli = BookmarkCLI()
+        bookmark = cli.bookmark_manager.add_bookmark_clean(
+            url="https://reader-cli.example.com",
+            title="Reader CLI",
+            category="Testing",
+        )
+        self.assertIsNotNone(bookmark)
+        EXTRACTED_DIR.mkdir(parents=True, exist_ok=True)
+        text_path = EXTRACTED_DIR / f"{bookmark.id}.txt"
+        text_path.write_text("Useful reader passage for clipping.", encoding="utf-8")
+        bookmark.extracted_text_path = str(text_path)
+        cli.bookmark_manager.save_bookmarks()
+
+        out = self._run([
+            "reader", "add", str(bookmark.id), "7", "13",
+            "--color", "pink", "--note", "Clip",
+        ])
+        self.assertIn("highlight added", out)
+
+        out = self._run(["reader", "list", str(bookmark.id)])
+        self.assertIn("pink", out)
+        self.assertIn("reader", out)
+
+        output_dir = Path(self._tmp) / "reader_cli_exports"
+        out = self._run(["reader", "export", str(bookmark.id), "--output", str(output_dir)])
+
+        self.assertIn("exported", out)
+        self.assertTrue(list(output_dir.glob("*.md")))
+
+
 class TestCLINlQuery(CLITestBase):
     def test_nl_query_no_args(self):
         out = self._run(["nl-query"])

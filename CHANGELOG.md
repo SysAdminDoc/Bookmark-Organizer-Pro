@@ -2,6 +2,31 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.6.19] - 2026-06-06
+
+Reader annotation foundation release.
+
+### Added — Reader (R-21 partial)
+
+- **Reader highlight storage** — added durable JSON-backed reader highlights
+  with bookmark ID, selected text range, selected text, note, timestamps, and
+  four supported colors.
+- **Markdown export** — reader highlights can be exported per bookmark as
+  Markdown with source URL, ranges, quotes, colors, and notes.
+- **CLI workflow** — added `reader list`, `reader add`, `reader note`,
+  `reader delete`, and `reader export` commands against existing extracted
+  text.
+
+### Notes
+
+- R-21 remains open for the desktop reader pane, in-text selection UI, and
+  interactive highlight editing.
+
+### Tests
+
+- Added service coverage for highlight persistence, range validation, Markdown
+  export, and CLI add/list/export routing.
+
 ## [v6.6.18] - 2026-06-06
 
 Sun Valley ttk theme release.
