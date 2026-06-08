@@ -243,12 +243,13 @@ class SnapshotArchiver:
             return False, f"write failed: {exc}"
         return True, str(out_path)
 
+    _MAX_TEXT_BYTES = 2_000_000
+
     def _fetch_text(self, requests, url: str) -> Optional[str]:
         if not URLUtilities._is_safe_url(url):
             return None
         try:
-            r = requests.get(url, timeout=15, allow_redirects=False)
-            # Follow redirects manually with SSRF check on each hop
+            r = requests.get(url, timeout=15, stream=True, allow_redirects=False)
             for _ in range(5):
                 if r.status_code not in (301, 302, 303, 307, 308):
                     break
@@ -259,14 +260,25 @@ class SnapshotArchiver:
                 location = urljoin(url, location)
                 if not URLUtilities._is_safe_url(location):
                     return None
-                r = requests.get(location, timeout=15, allow_redirects=False)
+                r = requests.get(location, timeout=15, stream=True, allow_redirects=False)
             if r.status_code != 200:
+                r.close()
                 return None
-            # Cap response size to prevent memory exhaustion
-            content_len = r.headers.get("content-length")
-            if content_len and int(content_len) > 2_000_000:
+            try:
+                content_len = int(r.headers.get("content-length", 0) or 0)
+            except (TypeError, ValueError):
+                content_len = 0
+            if content_len > self._MAX_TEXT_BYTES:
+                r.close()
                 return None
-            return r.text[:2_000_000]
+            chunks = bytearray()
+            for chunk in r.iter_content(chunk_size=8192):
+                chunks.extend(chunk)
+                if len(chunks) >= self._MAX_TEXT_BYTES:
+                    break
+            r.close()
+            encoding = r.encoding or "utf-8"
+            return bytes(chunks[:self._MAX_TEXT_BYTES]).decode(encoding, errors="replace")
         except Exception:
             return None
 

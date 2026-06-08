@@ -135,7 +135,7 @@ class DailyDigestService:
 
     def _read_later_top(self, bookmarks, count) -> List[Bookmark]:
         out = [b for b in bookmarks if b.read_later and not b.is_archived]
-        out.sort(key=lambda b: (b.read_later_position, -_parse_position(b)))
+        out.sort(key=lambda b: (b.read_later_position, b.created_at))
         return out[:count]
 
     def _stale_high_value(self, bookmarks, today) -> List[Bookmark]:

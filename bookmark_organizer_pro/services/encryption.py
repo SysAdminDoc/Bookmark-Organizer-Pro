@@ -57,7 +57,17 @@ class EncryptedStore:
     def __init__(self, passphrase: str):
         if not passphrase:
             raise ValueError("Passphrase required")
-        self._passphrase = passphrase.encode("utf-8")
+        self._passphrase = bytearray(passphrase.encode("utf-8"))
+
+    def close(self):
+        """Wipe the passphrase material from memory."""
+        if hasattr(self, "_passphrase") and self._passphrase:
+            for i in range(len(self._passphrase)):
+                self._passphrase[i] = 0
+            self._passphrase = bytearray()
+
+    def __del__(self):
+        self.close()
 
     @staticmethod
     def available() -> bool:

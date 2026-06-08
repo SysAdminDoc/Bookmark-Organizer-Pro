@@ -70,6 +70,7 @@ class FlowManager:
     def __init__(self, filepath: Path = FLOWS_FILE):
         self.filepath = Path(filepath)
         self._lock = threading.RLock()
+        self._save_lock = threading.Lock()
         self._flows: Dict[str, Flow] = {}
         self._load()
 
@@ -94,16 +95,17 @@ class FlowManager:
     def _save(self):
         with self._lock:
             payload = [f.to_dict() for f in self._flows.values()]
-        self.filepath.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=self.filepath.parent, suffix=".tmp", text=True)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2, ensure_ascii=False)
-            os.replace(tmp, self.filepath)
-        except Exception:
-            if os.path.exists(tmp):
-                os.remove(tmp)
-            raise
+        with self._save_lock:
+            self.filepath.parent.mkdir(parents=True, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(dir=self.filepath.parent, suffix=".tmp", text=True)
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(payload, f, indent=2, ensure_ascii=False)
+                os.replace(tmp, self.filepath)
+            except Exception:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+                raise
 
     # ---------- CRUD ----------
     def create(self, name: str, description: str = "",
@@ -137,10 +139,12 @@ class FlowManager:
         return True
 
     def get(self, flow_id: str) -> Optional[Flow]:
-        return self._flows.get(flow_id)
+        with self._lock:
+            return self._flows.get(flow_id)
 
     def list_flows(self) -> List[Flow]:
-        return list(self._flows.values())
+        with self._lock:
+            return list(self._flows.values())
 
     # ---------- steps ----------
     def add_step(self, flow_id: str, bookmark_id: int, note: str = "",

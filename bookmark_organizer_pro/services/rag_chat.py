@@ -253,6 +253,7 @@ class CollectionChat:
             use_cache: bool = True) -> ChatTurn:
         if not question.strip():
             return ChatTurn(answer="")
+        restrict_ids = list(restrict_ids) if restrict_ids is not None else None
 
         is_first_turn, cached = self._cache_lookup(question, restrict_ids, use_cache)
         if cached is not None:
@@ -292,6 +293,7 @@ class CollectionChat:
             events = build_chat_stream_events(turn, chunk_chars)
             emit_chunk_events(events, on_event)
             return ChatStreamResult(turn, events)
+        restrict_ids = list(restrict_ids) if restrict_ids is not None else None
 
         is_first_turn, cached = self._cache_lookup(question, restrict_ids, use_cache)
         if cached is not None:
