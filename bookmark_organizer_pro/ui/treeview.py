@@ -239,7 +239,12 @@ class VirtualBookmarkSheet(tk.Frame):
             "arrowkeys",
         )
         self._sheet.extra_bindings("select", lambda _event: self._sync_selection_from_sheet())
-        self._sheet.bind("<ButtonRelease-1>", self._on_button_release, add="+")
+        try:
+            # Table-body clicks update the actionable selection; header clicks sort.
+            self._sheet.MT.bind("<ButtonRelease-1>", self._on_table_release, add="+")
+            self._sheet.CH.bind("<ButtonRelease-1>", self._on_header_release, add="+")
+        except AttributeError:
+            self._sheet.bind("<ButtonRelease-1>", self._on_header_release, add="+")
 
     def heading(self, column: str, text: str | None = None, command=None):
         """Set or get a column heading."""
@@ -395,9 +400,10 @@ class VirtualBookmarkSheet(tk.Frame):
         self._redraw_from_cache()
         return value
 
-    def identify_row(self, event):
+    def identify_row(self, event_or_y):
         try:
-            row = self._sheet.identify_row(event, allow_end=False)
+            y = event_or_y.y if hasattr(event_or_y, 'y') else int(event_or_y)
+            row = self._sheet.MT.identify_row(y=y, allow_end=False)
         except Exception:
             row = None
         if row is None or row < 0 or row >= len(self._row_to_id):
@@ -441,16 +447,28 @@ class VirtualBookmarkSheet(tk.Frame):
 
     config = configure
 
+    _MOUSE_TAGS = ("<Button", "<Double-", "<ButtonRelease", "<Control-Mouse", "<MouseWheel")
+
     def bind(self, sequence=None, func=None, add=None):
         if sequence == "<<TreeviewSelect>>":
             return super().bind(sequence, func, add)
         if sequence:
+            if any(tag in sequence for tag in self._MOUSE_TAGS):
+                try:
+                    return self._sheet.MT.bind(sequence, func, add="+" if add is None else add)
+                except AttributeError:
+                    pass
             return self._sheet.bind(sequence, func, add=add)
         return super().bind(sequence, func, add)
 
     def unbind(self, sequence, funcid=None):
         if sequence == "<<TreeviewSelect>>":
             return super().unbind(sequence, funcid)
+        if any(tag in sequence for tag in self._MOUSE_TAGS):
+            try:
+                return self._sheet.MT.unbind(sequence, funcid)
+            except AttributeError:
+                pass
         return self._sheet.unbind(sequence, funcid)
 
     def event_generate(self, sequence, **kwargs):
@@ -500,29 +518,44 @@ class VirtualBookmarkSheet(tk.Frame):
         )
 
     def _sync_selection_from_sheet(self):
+        rows: set[int] = set()
+        # Captures full-row selections AND rows touched by a single cell click.
         try:
-            rows = sorted(self._sheet.get_selected_rows())
+            rows = set(self._sheet.get_selected_rows(get_cells_as_rows=True))
         except Exception:
-            rows = []
+            rows = set()
+        # Fallback for the lone-cell-click case on tksheet builds that report
+        # nothing through get_selected_rows.
+        if not rows:
+            try:
+                current = self._sheet.get_currently_selected()
+                row = getattr(current, "row", None)
+                if isinstance(row, int) and row >= 0:
+                    rows = {row}
+            except Exception:
+                rows = set()
         selected = [
             self._row_to_id[row]
-            for row in rows
+            for row in sorted(rows)
             if 0 <= row < len(self._row_to_id)
         ]
         if selected != self._selected_ids:
             self._selected_ids = selected
             self.event_generate("<<TreeviewSelect>>")
 
-    def _on_button_release(self, event):
+    def _on_table_release(self, _event):
+        # Guarantees the actionable selection tracks the visual selection even
+        # when tksheet's "select" extra-binding does not fire for a plain click.
+        self.after_idle(self._sync_selection_from_sheet)
+
+    def _on_header_release(self, event):
         try:
             column_index = self._sheet.identify_column(event, allow_end=False)
-            row_index = self._sheet.identify_row(event, allow_end=False)
         except Exception:
             return
-        if column_index is not None and row_index is None:
-            column = self._columns[column_index] if column_index < len(self._columns) else None
-            if column:
-                self._sort_by_column(column)
+        if column_index is None or column_index >= len(self._columns):
+            return
+        self._sort_by_column(self._columns[column_index])
 
     def _sort_by_column(self, column: str):
         if not self._row_to_id:
@@ -599,9 +632,13 @@ class VirtualBookmarkSheet(tk.Frame):
         if redraw:
             self._sheet.redraw()
 
+    _DECORATIVE_TAGS = frozenset(("oddrow", "evenrow"))
+
     def _style_for_tags(self, tags: Iterable[str]) -> Dict[str, str]:
         style: Dict[str, str] = {}
         for tag in tags:
+            if tag in self._DECORATIVE_TAGS:
+                continue
             tag_style = self._tag_styles.get(tag, {})
             if "background" in tag_style:
                 style["background"] = tag_style["background"]

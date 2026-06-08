@@ -1,14 +1,28 @@
-# Bookmark Organizer Pro v6.6.30
+# Bookmark Organizer Pro v6.7.0
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **single-file HTML snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
-![Version](https://img.shields.io/badge/version-6.6.30-blue.svg)
+![Version](https://img.shields.io/badge/version-6.7.0-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
 
 ![Bookmark Organizer Pro Screenshot](assets/screenshot.png)
+
+## What's new in v6.7.0
+
+- **DeepSeek (and all OpenAI-compatible) AI works in the packaged build** — the
+  `openai` SDK is now bundled in the Windows executable, so DeepSeek
+  categorization, tagging, and summaries run from the `.exe` without a separate
+  Python install.
+- **Bookmark list selection fixed** — clicking a row now reliably selects it for
+  toolbar and right-click actions (the visual highlight and the actionable
+  selection are back in sync).
+- **Right-click context menu restored** — right-clicking a bookmark opens the
+  full actions menu (open, edit, move, AI tools, pin, delete) again.
+- **Premium UI polish** — unified typography scale, contrast-aware text colors,
+  and consistent theming across the table, sidebar, dialogs, and toasts.
 
 ## What's new in v6.6.30
 
