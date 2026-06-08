@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Dict, Iterable, List, Sequence
 
-from bookmark_organizer_pro.ui.foundation import FONTS
+from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens
 
 try:  # pragma: no cover - exercised when the optional GUI dependency exists
     from tksheet import Sheet
@@ -169,7 +169,10 @@ class VirtualBookmarkSheet(tk.Frame):
         if Sheet is None:
             raise RuntimeError("tksheet is not available")
 
-        bg = str(kwargs.pop("background", "#111111"))
+        from .widget_runtime import get_theme
+        theme = get_theme()
+
+        bg = str(kwargs.pop("background", theme.bg_primary))
         super().__init__(parent, bg=bg)
         self._columns = ("#0", *tuple(columns))
         self._headers: Dict[str, str] = {column: "" for column in self._columns}
@@ -191,7 +194,7 @@ class VirtualBookmarkSheet(tk.Frame):
             show_row_index=False,
             show_x_scrollbar=True,
             show_y_scrollbar=True,
-            default_row_height=30,
+            default_row_height=DesignTokens.TREEVIEW_ROW_HEIGHT,
             default_header_height=28,
             font=FONTS.body(),
             header_font=FONTS.small(bold=True),
@@ -200,6 +203,30 @@ class VirtualBookmarkSheet(tk.Frame):
             column_drag_and_drop_perform=False,
             row_drag_and_drop_perform=False,
             show_selected_cells_border=False,
+            frame_bg=theme.bg_primary,
+            table_bg=theme.bg_primary,
+            table_fg=theme.text_primary,
+            table_grid_fg=theme.border_muted,
+            table_selected_rows_bg=theme.selection,
+            table_selected_rows_fg=theme.text_primary,
+            table_selected_cells_bg=theme.selection,
+            table_selected_cells_fg=theme.text_primary,
+            table_selected_columns_bg=theme.selection,
+            table_selected_columns_fg=theme.text_primary,
+            header_bg=theme.bg_secondary,
+            header_fg=theme.text_secondary,
+            header_grid_fg=theme.border_muted,
+            header_border_fg=theme.border_muted,
+            header_selected_cells_bg=theme.bg_tertiary,
+            header_selected_cells_fg=theme.text_primary,
+            header_selected_columns_bg=theme.bg_tertiary,
+            header_selected_columns_fg=theme.text_primary,
+            top_left_bg=theme.bg_secondary,
+            top_left_fg=theme.text_secondary,
+            popup_menu_bg=theme.bg_secondary,
+            popup_menu_fg=theme.text_primary,
+            popup_menu_highlight_bg=theme.selection,
+            popup_menu_highlight_fg=theme.text_primary,
         )
         self._sheet.pack(fill=tk.BOTH, expand=True)
         self._sheet.enable_bindings(
@@ -430,6 +457,40 @@ class VirtualBookmarkSheet(tk.Frame):
         if sequence == "<<TreeviewSelect>>":
             return super().event_generate(sequence, **kwargs)
         return self._sheet.event_generate(sequence, **kwargs)
+
+    def apply_theme_colors(self):
+        """Re-apply theme colors after a live theme switch."""
+        from .widget_runtime import get_theme
+        theme = get_theme()
+        self.configure(bg=theme.bg_primary)
+        self._sheet.set_options(
+            frame_bg=theme.bg_primary,
+            table_bg=theme.bg_primary,
+            table_fg=theme.text_primary,
+            table_grid_fg=theme.border_muted,
+            table_selected_rows_bg=theme.selection,
+            table_selected_rows_fg=theme.text_primary,
+            table_selected_cells_bg=theme.selection,
+            table_selected_cells_fg=theme.text_primary,
+            table_selected_columns_bg=theme.selection,
+            table_selected_columns_fg=theme.text_primary,
+            header_bg=theme.bg_secondary,
+            header_fg=theme.text_secondary,
+            header_grid_fg=theme.border_muted,
+            header_border_fg=theme.border_muted,
+            header_selected_cells_bg=theme.bg_tertiary,
+            header_selected_cells_fg=theme.text_primary,
+            header_selected_columns_bg=theme.bg_tertiary,
+            header_selected_columns_fg=theme.text_primary,
+            top_left_bg=theme.bg_secondary,
+            top_left_fg=theme.text_secondary,
+            popup_menu_bg=theme.bg_secondary,
+            popup_menu_fg=theme.text_primary,
+            popup_menu_highlight_bg=theme.selection,
+            popup_menu_highlight_fg=theme.text_primary,
+            redraw=True,
+        )
+        self._apply_row_highlights()
 
     def apply_zoom(self, row_height: int):
         self._sheet.set_options(
