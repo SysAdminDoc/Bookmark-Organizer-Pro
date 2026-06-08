@@ -174,6 +174,10 @@ class ImportExportMixin:
         modal = ImportProgressModal(self.root, source_label=file_names)
 
         def do_import():
+            # Capture a recoverable snapshot of the pre-import state first, so a
+            # bad import can be rolled back from File → Restore from Backup.
+            self.bookmark_manager.create_safepoint("pre-import")
+
             total_added = 0
             total_dupes = 0
             imported_bookmarks = []
@@ -247,6 +251,82 @@ class ImportExportMixin:
 
         threading.Thread(target=do_import, daemon=True).start()
     
+    def _show_restore_dialog(self):
+        """List backups + safepoints and restore the selected one."""
+        import re as _re
+        from tkinter import ttk
+        from bookmark_organizer_pro.ui.foundation import FONTS
+        from bookmark_organizer_pro.ui.widgets import (
+            ModernButton, apply_window_chrome, get_theme,
+        )
+
+        backups = self.bookmark_manager.list_backups()
+        theme = get_theme()
+
+        dlg = tk.Toplevel(self.root)
+        dlg.title("Restore from Backup")
+        dlg.configure(bg=theme.bg_primary)
+        dlg.geometry("640x470")
+        dlg.minsize(540, 380)
+        dlg.transient(self.root)
+        dlg.grab_set()
+        apply_window_chrome(dlg)
+
+        tk.Label(dlg, text="Restore bookmarks from a backup or safepoint",
+                 bg=theme.bg_primary, fg=theme.text_primary,
+                 font=FONTS.subtitle(bold=True)).pack(anchor="w", padx=18, pady=(16, 4))
+        tk.Label(dlg, text=("A safepoint is captured automatically at startup and before each "
+                            "import. Restoring replaces your current bookmarks — a pre-restore "
+                            "backup is saved first, so this is also reversible."),
+                 bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.small(),
+                 wraplength=590, justify=tk.LEFT).pack(anchor="w", padx=18, pady=(0, 10))
+
+        # Buttons pinned to the bottom so they're always visible.
+        btns = tk.Frame(dlg, bg=theme.bg_primary)
+        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=18, pady=14)
+
+        frame = tk.Frame(dlg, bg=theme.bg_primary)
+        frame.pack(fill=tk.BOTH, expand=True, padx=18, pady=(0, 4))
+        sb = ttk.Scrollbar(frame, orient=tk.VERTICAL)
+        lb = tk.Listbox(frame, yscrollcommand=sb.set, bg=theme.bg_secondary,
+                        fg=theme.text_primary, font=FONTS.body(), activestyle="none",
+                        highlightthickness=0, selectmode=tk.SINGLE, borderwidth=0)
+        sb.config(command=lb.yview)
+        sb.pack(side=tk.RIGHT, fill=tk.Y)
+        lb.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        names: List[str] = []
+        for name, mtime, size in backups:
+            if name.startswith("safepoints/"):
+                m = _re.search(r"safepoint_([a-z0-9-]+)_\d", name)
+                kind = f"safepoint · {m.group(1)}" if m else "safepoint"
+            else:
+                kind = "auto-backup"
+            lb.insert(tk.END, f"  {mtime.strftime('%Y-%m-%d  %H:%M:%S')}    [{kind}]    {size // 1024} KB")
+            names.append(name)
+        if names:
+            lb.selection_set(0)
+        else:
+            lb.insert(tk.END, "  (no backups yet — they appear after the first save/import)")
+
+        def do_restore():
+            sel = lb.curselection()
+            if not names or not sel:
+                return
+            if self.bookmark_manager.restore_backup(names[sel[0]]):
+                self._refresh_all()
+                if hasattr(self, "_show_toast"):
+                    self._show_toast("Bookmarks restored from backup", "success")
+                dlg.destroy()
+            elif hasattr(self, "_show_toast"):
+                self._show_toast("Restore failed — see logs", "error")
+
+        ModernButton(btns, text="Cancel", command=dlg.destroy).pack(side=tk.RIGHT, padx=(10, 0))
+        ModernButton(btns, text="Restore selected", command=do_restore,
+                     style="primary").pack(side=tk.RIGHT)
+        lb.bind("<Double-Button-1>", lambda e: do_restore())
+        dlg.bind("<Escape>", lambda e: dlg.destroy())
+
     def _save_import_backup(self, bookmarks: List[Bookmark]):
         """Save imported bookmarks to permanent backup file (grows forever)"""
         backup_file = BACKUP_DIR / "import_history_backup.json"

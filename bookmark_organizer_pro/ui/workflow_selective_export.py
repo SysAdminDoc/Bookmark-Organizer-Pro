@@ -39,8 +39,11 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         theme = get_theme()
         
         self.title("Selective Export")
-        self.geometry("600x660")
-        self.minsize(560, 600)
+        # Fit within the screen so the bottom action buttons are never pushed
+        # off-screen on smaller displays.
+        _h = min(660, max(480, self.winfo_screenheight() - 96))
+        self.geometry(f"600x{_h}")
+        self.minsize(520, min(560, _h))
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
         self.grab_set()
@@ -64,6 +67,17 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
             font=FONTS.small()
         ).pack(side=tk.LEFT, padx=(0, 20), pady=(18, 0))
         
+        # Action buttons — packed BEFORE the content so they are pinned to the
+        # bottom of the window and stay visible even when the dialog is short.
+        btn_frame = tk.Frame(self, bg=theme.bg_primary)
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=15)
+        ModernButton(btn_frame, text="Cancel", command=self.destroy).pack(side=tk.RIGHT, padx=(10, 0))
+        self.export_button = ModernButton(
+            btn_frame, text="Export Bookmarks", command=self._export,
+            style="primary", icon="📤"
+        )
+        self.export_button.pack(side=tk.RIGHT)
+
         # Content
         content = tk.Frame(self, bg=theme.bg_primary)
         content.pack(fill=tk.BOTH, expand=True, padx=20, pady=15)
@@ -191,20 +205,6 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
             variable=self.include_metadata_var
         ).pack(anchor="w")
         
-        # Buttons
-        btn_frame = tk.Frame(self, bg=theme.bg_primary)
-        btn_frame.pack(fill=tk.X, padx=20, pady=15)
-        
-        ModernButton(
-            btn_frame, text="Cancel", command=self.destroy
-        ).pack(side=tk.RIGHT, padx=(10, 0))
-        
-        self.export_button = ModernButton(
-            btn_frame, text="Export Bookmarks", command=self._export,
-            style="primary", icon="📤"
-        )
-        self.export_button.pack(side=tk.RIGHT)
-
         self.format_var.trace_add('write', lambda *args: self._update_export_summary())
         self.bind("<Escape>", lambda e: self.destroy())
         self._update_export_summary()

@@ -95,9 +95,19 @@ class CategoryManagementDialog(tk.Toplevel):
         canvas.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
-        canvas.create_window((0, 0), window=self.cat_list_frame, anchor="nw")
+
+        _win = canvas.create_window((0, 0), window=self.cat_list_frame, anchor="nw")
         self.cat_list_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        # Keep the inner frame as wide as the canvas so rows fill the width.
+        canvas.bind("<Configure>", lambda e: canvas.itemconfig(_win, width=e.width))
+
+        # Mouse-wheel scrolling — this was missing, so the list "wouldn't scroll
+        # down" with the wheel. Bind globally only while hovering the list.
+        def _on_wheel(e):
+            canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
+            return "break"
+        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _on_wheel))
+        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
         
         self._populate_categories()
         

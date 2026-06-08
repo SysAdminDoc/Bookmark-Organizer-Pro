@@ -3,16 +3,22 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 import tempfile
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from ..constants import BACKUP_DIR
 from ..logging_config import log
 from ..models import Bookmark
+
+# Preserved "safepoint" snapshots (startup, pre-import, manual) live in a
+# subdirectory so the rolling per-save backup rotation never deletes them.
+SAFEPOINT_DIR = BACKUP_DIR / "safepoints"
+MAX_SAFEPOINTS = 30
 
 
 class StorageManager:
@@ -20,6 +26,7 @@ class StorageManager:
 
     - save() writes to a temp file then atomically replaces the target
     - Each save creates a timestamped backup; only the 10 most recent are kept
+    - Safepoints (create_safepoint) are preserved separately for disaster recovery
     - load() tolerates individual corrupt entries (logs warning, skips)
     """
 
@@ -97,6 +104,58 @@ class StorageManager:
         except Exception as e:
             log.warning(f"Backup creation failed: {e}")
 
+    def create_safepoint(self, label: str = "manual") -> Optional[str]:
+        """Create a preserved snapshot for disaster recovery.
+
+        Unlike the rolling per-save backups (which rotate out after 10 saves),
+        safepoints are kept in a separate directory and retained for the last
+        MAX_SAFEPOINTS milestones — so a known-good state captured at startup or
+        before an import survives a whole session of edits. Returns the
+        safepoint name (relative to BACKUP_DIR, usable with restore_backup), or
+        None if nothing was captured.
+        """
+        try:
+            if not self.filepath.exists():
+                return None
+            SAFEPOINT_DIR.mkdir(parents=True, exist_ok=True)
+            safe_label = re.sub(r"[^a-z0-9_-]+", "-", str(label).lower()).strip("-") or "manual"
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            base = f"{self.filepath.stem}_safepoint_{safe_label}_{ts}"
+            dest = SAFEPOINT_DIR / f"{base}.json"
+            counter = 1
+            while dest.exists():
+                dest = SAFEPOINT_DIR / f"{base}_{counter}.json"
+                counter += 1
+            with self._lock:
+                shutil.copy2(self.filepath, dest)
+            try:
+                digest = hashlib.sha256(dest.read_bytes()).hexdigest()
+                dest.with_suffix(".sha256").write_text(f"{digest}  {dest.name}\n", encoding="utf-8")
+            except OSError as he:
+                log.warning(f"Could not write safepoint hash: {he}")
+
+            safepoints = sorted(
+                SAFEPOINT_DIR.glob(f"{self.filepath.stem}_safepoint_*.json"),
+                key=lambda p: p.stat().st_mtime,
+            )
+            while len(safepoints) > MAX_SAFEPOINTS:
+                old = safepoints.pop(0)
+                try:
+                    old.unlink()
+                except OSError:
+                    continue
+                sha_file = old.with_suffix(".sha256")
+                try:
+                    if sha_file.exists():
+                        sha_file.unlink()
+                except OSError:
+                    pass
+            log.info(f"Safepoint created ({safe_label}): {dest.name}")
+            return f"safepoints/{dest.name}"
+        except Exception as e:
+            log.warning(f"Safepoint creation failed: {e}")
+            return None
+
     def load(self) -> List[Bookmark]:
         """Load bookmarks, skipping individual corrupt entries."""
         with self._lock:
@@ -136,13 +195,21 @@ class StorageManager:
                 return []
 
     def get_backups(self) -> List[Tuple[str, datetime, int]]:
-        """List available backups as (filename, mtime, size) tuples."""
+        """List available backups + safepoints, newest first.
+
+        Each entry is (name, mtime, size); ``name`` is relative to BACKUP_DIR
+        (e.g. ``safepoints/...json`` for safepoints) and can be passed straight
+        to restore_backup.
+        """
         backups = []
-        for f in BACKUP_DIR.glob(f"{self.filepath.stem}_*.json"):
+        candidates = list(BACKUP_DIR.glob(f"{self.filepath.stem}_*.json"))
+        candidates += list(SAFEPOINT_DIR.glob(f"{self.filepath.stem}_safepoint_*.json"))
+        for f in candidates:
             try:
                 stat = f.stat()
+                rel = str(f.relative_to(BACKUP_DIR)).replace("\\", "/")
                 backups.append((
-                    f.name,
+                    rel,
                     datetime.fromtimestamp(stat.st_mtime),
                     stat.st_size,
                 ))
