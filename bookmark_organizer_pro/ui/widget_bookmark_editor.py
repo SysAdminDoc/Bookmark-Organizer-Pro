@@ -10,7 +10,7 @@ from typing import Callable, List
 from bookmark_organizer_pro.managers import TagManager
 from bookmark_organizer_pro.models import Bookmark
 
-from .foundation import FONTS
+from .foundation import FONTS, readable_text_on
 from .widget_controls import ModernButton, TagEditor, ThemedWidget
 from .widget_runtime import _open_external_url, apply_window_chrome, get_theme
 
@@ -157,7 +157,9 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
                             self.tag_editor.add_tag(tag)
                             current.add(tag.lower())
                 
-                add_btn = tk.Label(tags_row, text="+ Add", bg=theme.accent_primary, fg="white",
+                add_btn = tk.Label(tags_row, text="+ Add",
+                                  bg=theme.accent_primary,
+                                  fg=readable_text_on(theme.accent_primary),
                                   font=FONTS.tiny(), padx=5, pady=1, cursor="hand2")
                 add_btn.pack(side=tk.RIGHT, padx=5)
                 add_btn.bind("<Button-1>", lambda e: add_ai_tags())

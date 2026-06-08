@@ -95,7 +95,7 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         
         tk.Label(
             url_frame, text="🔗", bg=theme.bg_primary,
-            fg=theme.accent_primary, font=FONTS.custom(14)
+            fg=theme.accent_primary, font=FONTS.subtitle(bold=False)
         ).pack(side=tk.LEFT)
         
         self.url_var = tk.StringVar(value=initial_url)
@@ -114,9 +114,9 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         
         tk.Label(
             title_frame, text="📝", bg=theme.bg_primary,
-            fg=theme.text_muted, font=FONTS.custom(14)
+            fg=theme.text_muted, font=FONTS.subtitle(bold=False)
         ).pack(side=tk.LEFT)
-        
+
         self.title_var = tk.StringVar()
         self.title_entry = tk.Entry(
             title_frame, textvariable=self.title_var,
@@ -136,9 +136,9 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         
         tk.Label(
             cat_frame, text="📂", bg=theme.bg_primary,
-            fg=theme.text_muted, font=FONTS.custom(14)
+            fg=theme.text_muted, font=FONTS.subtitle(bold=False)
         ).pack(side=tk.LEFT)
-        
+
         default_category = pick_default_category(categories)
         self.category_var = tk.StringVar(value=default_category)
         self.category_combo = ttk.Combobox(
@@ -153,9 +153,9 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         
         tk.Label(
             favicon_frame, text="🖼️", bg=theme.bg_primary,
-            fg=theme.text_muted, font=FONTS.custom(14)
+            fg=theme.text_muted, font=FONTS.subtitle(bold=False)
         ).pack(side=tk.LEFT)
-        
+
         tk.Label(
             favicon_frame, text="Custom favicon (optional)", bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.small()

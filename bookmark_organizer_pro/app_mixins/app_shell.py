@@ -27,40 +27,8 @@ class AppShellMixin:
         return "break"
     
     def _setup_styles(self):
-        """Configure ttk styles"""
-        theme = get_theme()
-        style = ttk.Style()
-        
-        try:
-            style.theme_use('clam')
-        except Exception:
-            pass
-        
-        style.configure(
-            "Treeview",
-            background=theme.bg_primary,
-            foreground=theme.text_primary,
-            fieldbackground=theme.bg_primary,
-            borderwidth=0,
-            rowheight=DesignTokens.TREEVIEW_ROW_HEIGHT,
-            font=FONTS.body()
-        )
-        
-        style.configure(
-            "Treeview.Heading",
-            background=theme.bg_secondary,
-            foreground=theme.text_secondary,
-            borderwidth=0,
-            relief=tk.FLAT,
-            font=FONTS.small(bold=True)
-        )
-        
-        style.map(
-            "Treeview",
-            background=[("selected", theme.selection), ("focus", theme.bg_hover)],
-            foreground=[("selected", theme.text_primary)],
-        )
-        style.configure("Treeview", focuscolor=theme.accent_primary)
+        """Apply treeview tag colors after style_manager has set base styles."""
+        pass
     
     def _create_menu(self):
         """Create menu bar"""
@@ -229,21 +197,20 @@ class AppShellMixin:
         self.search_entry.bind("<FocusIn>", self._on_search_focus_in)
         self.search_entry.bind("<FocusOut>", self._on_search_focus_out)
         
-        # Clear search button (X) - more visible styling
         self.clear_search_btn = tk.Label(
-            search_frame, text="  ✕  ", bg=theme.bg_tertiary,
-            fg=theme.text_secondary, font=FONTS.body(bold=True), cursor="hand2",
-            relief=tk.FLAT, padx=4, pady=2
+            search_frame, text="  ✕  ", bg=theme.bg_secondary,
+            fg=theme.text_muted, font=FONTS.body(), cursor="hand2",
+            relief=tk.FLAT
         )
-        self.clear_search_btn.pack(side=tk.LEFT, padx=(5, 0))
+        self.clear_search_btn.pack(side=tk.LEFT, padx=(4, 0))
         self.clear_search_btn.pack_forget()
-        
+
         make_keyboard_activatable(self.clear_search_btn, self._clear_search)
         self.clear_search_btn.bind("<Enter>", lambda e: self.clear_search_btn.configure(
-            bg=theme.accent_error, fg="white"))
+            fg=theme.accent_error))
         self.clear_search_btn.bind("<Leave>", lambda e: self.clear_search_btn.configure(
-            bg=theme.bg_tertiary, fg=theme.text_secondary))
-        Tooltip(self.clear_search_btn, "Clear Search")
+            fg=theme.text_muted))
+        Tooltip(self.clear_search_btn, "Clear search (Esc)")
 
         search_shortcut = tk.Label(
             search_frame, text="Ctrl+F", bg=theme.bg_tertiary,
@@ -557,7 +524,7 @@ class AppShellMixin:
         self.tree.tag_configure("oddrow", background=theme.bg_primary)
         self.tree.tag_configure("evenrow", background=theme.bg_secondary)
         self.tree.tag_configure("broken", foreground=theme.accent_error)
-        self.tree.tag_configure("pinned", foreground=theme.text_primary)
+        self.tree.tag_configure("pinned", foreground=theme.accent_warning)
         
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         if tree_scroll_y is not None:
@@ -672,6 +639,8 @@ class AppShellMixin:
             )
             row.pack(fill=tk.X, pady=1)
             row.bind("<Button-1>", lambda e, b=bm: self._select_bookmark_by_id(b.id))
+            row.bind("<Enter>", lambda e, w=row: w.configure(bg=theme.bg_hover, fg=theme.text_primary))
+            row.bind("<Leave>", lambda e, w=row: w.configure(bg=theme.bg_dark, fg=theme.text_secondary))
 
     def _refresh_flows_sidebar(self):
         from bookmark_organizer_pro.services.flows import FlowManager
@@ -699,6 +668,8 @@ class AppShellMixin:
                 cursor="hand2", anchor="w",
             )
             row.pack(fill=tk.X, pady=1)
+            row.bind("<Enter>", lambda e, w=row: w.configure(bg=theme.bg_hover, fg=theme.text_primary))
+            row.bind("<Leave>", lambda e, w=row: w.configure(bg=theme.bg_dark, fg=theme.text_secondary))
 
     def _select_bookmark_by_id(self, bookmark_id: int):
         item_id = str(bookmark_id)

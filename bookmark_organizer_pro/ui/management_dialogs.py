@@ -183,16 +183,16 @@ class CategoryManagementDialog(tk.Toplevel):
             # Edit button
             edit_btn = tk.Label(
                 btn_frame, text="✏️", bg=theme.bg_secondary,
-                fg=theme.text_secondary, font=FONTS.custom(12), cursor="hand2"
+                fg=theme.text_secondary, font=FONTS.body(), cursor="hand2"
             )
             edit_btn.pack(side=tk.LEFT, padx=5, pady=5)
             make_keyboard_activatable(edit_btn, lambda n=cat_name: self._edit_category(n))
             Tooltip(edit_btn, f"Rename {cat_name}")
-            
+
             # Delete button
             del_btn = tk.Label(
                 btn_frame, text="🗑️", bg=theme.bg_secondary,
-                fg=theme.accent_error, font=FONTS.custom(12), cursor="hand2"
+                fg=theme.accent_error, font=FONTS.body(), cursor="hand2"
             )
             del_btn.pack(side=tk.LEFT, padx=5, pady=5)
             make_keyboard_activatable(del_btn, lambda n=cat_name: self._delete_category(n))
@@ -266,8 +266,8 @@ class CategoryManagementDialog(tk.Toplevel):
                 dialog.destroy()
         
         ModernButton(
-            dialog, text="Save", bg=theme.accent_primary, fg="white",
-            command=save, padx=24, pady=8, style="primary"
+            dialog, text="Save", command=save,
+            padx=24, pady=8, style="primary"
         ).pack(pady=15)
         entry.bind("<Return>", lambda e: save())
         dialog.bind("<Escape>", lambda e: dialog.destroy())
@@ -358,23 +358,23 @@ class CustomFaviconDialog(tk.Toplevel):
         
         self.preview_label = tk.Label(
             preview_frame, text="🌐", bg=theme.bg_secondary,
-            font=("Segoe UI Emoji", 24)
+            font=FONTS.hero(bold=False)
         )
         self.preview_label.pack(side=tk.LEFT, padx=10, pady=10)
-        
+
         tk.Label(
             preview_frame, text="→", bg=theme.bg_secondary,
-            fg=theme.text_muted, font=FONTS.custom(16)
+            fg=theme.text_muted, font=FONTS.subtitle(bold=False)
         ).pack(side=tk.LEFT, padx=10)
-        
+
         tk.Label(
             preview_frame, text="New:", bg=theme.bg_secondary,
             fg=theme.text_secondary, font=FONTS.body()
         ).pack(side=tk.LEFT, padx=10, pady=10)
-        
+
         self.new_preview = tk.Label(
             preview_frame, text="?", bg=theme.bg_secondary,
-            font=FONTS.custom(24), fg=theme.text_muted
+            font=FONTS.hero(bold=False), fg=theme.text_muted
         )
         self.new_preview.pack(side=tk.LEFT, padx=10, pady=10)
         
@@ -397,8 +397,8 @@ class CustomFaviconDialog(tk.Toplevel):
         btn_frame.pack(pady=20)
         
         ModernButton(
-            btn_frame, text="Apply", bg=theme.accent_primary, fg="white",
-            command=self._apply, padx=25, pady=8, style="primary"
+            btn_frame, text="Apply", command=self._apply,
+            padx=25, pady=8, style="primary"
         ).pack(side=tk.LEFT, padx=5)
         
         ModernButton(

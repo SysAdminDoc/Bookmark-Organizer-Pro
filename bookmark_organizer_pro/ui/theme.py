@@ -44,6 +44,9 @@ class ThemeColors:
 
     # Accents
     accent_primary: str = "#0d9488"
+    # Backward-compatible secondary accent for callers that expect a sibling to
+    # accent_primary on older/newer theme palettes.
+    accent_secondary: str = "#0d9488"
     accent_success: str = "#168a5c"
     accent_warning: str = "#b7791f"
     accent_error: str = "#d64545"
@@ -118,7 +121,7 @@ class ThemeInfo:
     author: str = "Built-in"
     version: str = "1.0"
     description: str = ""
-    is_dark: bool = True
+    is_dark: bool = False
     colors: ThemeColors = field(default_factory=ThemeColors)
 
     def to_dict(self) -> Dict[str, object]:

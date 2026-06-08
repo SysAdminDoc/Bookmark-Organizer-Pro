@@ -18,12 +18,21 @@ class FontConfig:
     """Centralized font configuration for consistent typography."""
 
     family: str
+    mono_family: str = ""
+    size_display: int = 28
+    size_hero: int = 22
     size_title: int = 18
     size_subtitle: int = 14
     size_header: int = 13
     size_body: int = 11
     size_small: int = 10
     size_tiny: int = 9
+
+    def display(self, bold: bool = True) -> Tuple[str, int, str]:
+        return (self.family, self.size_display, "bold" if bold else "normal")
+
+    def hero(self, bold: bool = True) -> Tuple[str, int, str]:
+        return (self.family, self.size_hero, "bold" if bold else "normal")
 
     def title(self, bold: bool = True) -> Tuple[str, int, str]:
         return (self.family, self.size_title, "bold" if bold else "normal")
@@ -43,6 +52,9 @@ class FontConfig:
     def tiny(self, bold: bool = False) -> Tuple[str, int, str]:
         return (self.family, self.size_tiny, "bold" if bold else "normal")
 
+    def mono(self, size: Optional[int] = None) -> Tuple[str, int, str]:
+        return (self.mono_family or "Consolas", size or self.size_small, "normal")
+
     def custom(self, size: int, bold: bool = False) -> Tuple[str, int, str]:
         return (self.family, size, "bold" if bold else "normal")
 
@@ -56,7 +68,15 @@ def get_system_font() -> str:
     return "DejaVu Sans"
 
 
-FONTS = FontConfig(family=get_system_font())
+def get_mono_font() -> str:
+    if IS_WINDOWS:
+        return "Cascadia Mono"
+    if IS_MAC:
+        return "SF Mono"
+    return "JetBrains Mono"
+
+
+FONTS = FontConfig(family=get_system_font(), mono_family=get_mono_font())
 
 
 class DesignTokens:

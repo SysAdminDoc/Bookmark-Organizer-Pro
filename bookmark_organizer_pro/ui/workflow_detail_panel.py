@@ -9,7 +9,7 @@ from typing import Callable, Optional
 from bookmark_organizer_pro.core import get_category_icon
 from bookmark_organizer_pro.models import Bookmark
 
-from .foundation import FONTS
+from .foundation import DesignTokens, FONTS, readable_text_on
 from .tk_interactions import make_keyboard_activatable
 from .widget_controls import ModernButton, ThemedWidget, create_tooltip
 from .widget_runtime import get_theme
@@ -26,7 +26,7 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
                  on_open: Callable = None,
                  on_delete: Callable = None):
         theme = get_theme()
-        super().__init__(parent, bg=theme.bg_secondary, width=350)
+        super().__init__(parent, bg=theme.bg_secondary, width=DesignTokens.RIGHT_SIDEBAR_WIDTH)
         
         self.on_edit = on_edit
         self.on_open = on_open
@@ -82,8 +82,8 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
         
         icon_label = tk.Label(
             icon_frame, text=bookmark.domain[0].upper(),
-            bg=theme.accent_primary, fg="#ffffff",
-            font=FONTS.custom(24, bold=True),
+            bg=theme.accent_primary, fg=readable_text_on(theme.accent_primary),
+            font=FONTS.hero(bold=True),
             width=3, height=1
         )
         icon_label.pack(side=tk.LEFT)

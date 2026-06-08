@@ -104,7 +104,7 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         
         tk.Label(
             score_frame, text=health_label, bg=theme.bg_secondary,
-            fg=health_color, font=FONTS.custom(28, bold=True)
+            fg=health_color, font=FONTS.display(bold=True)
         ).pack(side=tk.LEFT)
         
         # Progress bar
@@ -148,12 +148,12 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         if icon:
             tk.Label(
                 card, text=icon, bg=theme.bg_secondary,
-                fg=theme.accent_primary, font=FONTS.custom(20)
+                fg=theme.accent_primary, font=FONTS.title(bold=False)
             ).pack(pady=(15, 5))
         
         tk.Label(
             card, text=value, bg=theme.bg_secondary,
-            fg=theme.text_primary, font=FONTS.custom(24, bold=True)
+            fg=theme.text_primary, font=FONTS.hero(bold=True)
         ).pack(pady=(16 if not icon else 0, 0))
         
         tk.Label(
@@ -175,7 +175,7 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         
         tk.Label(
             frame, text=content_text, bg=theme.bg_secondary,
-            fg=theme.text_secondary, font=("Consolas", 9),
+            fg=theme.text_secondary, font=FONTS.mono(),
             justify=tk.LEFT
         ).pack(anchor="w", padx=15, pady=(0, 10))
     

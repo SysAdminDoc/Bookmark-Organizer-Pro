@@ -30,8 +30,8 @@ from bookmark_organizer_pro.constants import (
     SETTINGS_FILE,
 )
 
-from .foundation import FONTS
-from .widgets import get_theme
+from .foundation import FONTS, readable_text_on
+from .widgets import ModernButton, get_theme
 
 
 # Build information
@@ -93,7 +93,7 @@ class AboutDialog(tk.Toplevel):
         
         # App icon
         icon_label = tk.Label(
-            header_content, text="📚", font=("Segoe UI Emoji", 42),
+            header_content, text="📚", font=FONTS.display(),
             bg=theme.bg_secondary, fg=theme.accent_primary
         )
         icon_label.pack()
@@ -133,23 +133,17 @@ class AboutDialog(tk.Toplevel):
         footer_content = tk.Frame(footer, bg=theme.bg_secondary)
         footer_content.pack(pady=12, padx=15, fill=tk.X)
         
-        # Copy info button
-        copy_btn = tk.Button(
-            footer_content, text="📋 Copy Info",
-            font=FONTS.small(), bg=theme.bg_tertiary, fg=theme.text_primary,
-            activebackground=theme.bg_hover, relief=tk.FLAT,
-            padx=12, pady=6, cursor="hand2",
-            command=self._copy_system_info
+        copy_btn = ModernButton(
+            footer_content, text="Copy Info", icon="📋",
+            font=FONTS.small(), command=self._copy_system_info,
+            padx=12, pady=6
         )
         copy_btn.pack(side=tk.LEFT)
-        
-        # Close button
-        close_btn = tk.Button(
-            footer_content, text="Close",
-            font=FONTS.body(), bg=theme.accent_primary, fg="#ffffff",
-            activebackground=theme.selected, relief=tk.FLAT,
-            padx=20, pady=6, cursor="hand2",
-            command=self.destroy
+
+        close_btn = ModernButton(
+            footer_content, text="Close", style="primary",
+            font=FONTS.body(), command=self.destroy,
+            padx=20, pady=6
         )
         close_btn.pack(side=tk.RIGHT)
     
@@ -216,7 +210,7 @@ License: {LICENSE}
             row = tk.Frame(inner, bg=theme.bg_secondary if i % 2 == 0 else theme.bg_primary)
             row.pack(fill=tk.X, pady=1)
             
-            tk.Label(row, text=icon, font=("Segoe UI Emoji", 14),
+            tk.Label(row, text=icon, font=FONTS.subtitle(bold=False),
                     bg=row.cget("bg"), width=3).pack(side=tk.LEFT, padx=(10, 5), pady=8)
             tk.Label(row, text=name, font=FONTS.body(bold=True),
                     bg=row.cget("bg"), fg=theme.text_primary, width=12,
@@ -235,7 +229,7 @@ License: {LICENSE}
         
         text = tk.Text(
             frame, bg=theme.bg_primary, fg=theme.text_primary,
-            font=("Consolas" if IS_WINDOWS else "Monaco", 9),
+            font=FONTS.mono(),
             relief=tk.FLAT, padx=15, pady=15, wrap=tk.WORD,
             cursor="arrow", highlightthickness=0
         )

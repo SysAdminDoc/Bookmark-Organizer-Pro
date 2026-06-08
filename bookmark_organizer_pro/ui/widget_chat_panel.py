@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable, Optional
 
-from .foundation import FONTS, DesignTokens
+from .foundation import FONTS, DesignTokens, readable_text_on
 from .widget_controls import ThemedWidget
 from .widget_runtime import get_theme
 
@@ -130,7 +130,8 @@ class ChatPanel(tk.Frame, ThemedWidget):
             return "break"
         self._entry.delete(0, tk.END)
         self._add_message("user", question)
-        self._status_label.config(text="Thinking...")
+        self._status_label.config(text="Thinking…", fg=get_theme().accent_primary)
+        self._entry.config(state=tk.DISABLED)
         if self._on_ask:
             self._on_ask(question)
         return "break"
@@ -149,7 +150,7 @@ class ChatPanel(tk.Frame, ThemedWidget):
             anchor="e" if is_user else "w",
         )
 
-        fg = "#ffffff" if is_user else theme.text_primary
+        fg = readable_text_on(theme.accent_primary) if is_user else theme.text_primary
         tk.Label(
             bubble, text="You" if is_user else "BOP",
             bg=bubble["bg"], fg=fg, font=FONTS.tiny(bold=True),
@@ -168,7 +169,8 @@ class ChatPanel(tk.Frame, ThemedWidget):
                 title = src.get("title", src.get("url", ""))[:60]
                 src_label = tk.Label(
                     bubble, text=f"  [{title}]",
-                    bg=bubble["bg"], fg=theme.accent_primary if not is_user else "#cce5ff",
+                    bg=bubble["bg"],
+                    fg=theme.accent_primary if not is_user else readable_text_on(theme.accent_primary),
                     font=FONTS.tiny(), cursor="hand2", anchor="w",
                 )
                 src_label.pack(fill=tk.X)
@@ -182,11 +184,13 @@ class ChatPanel(tk.Frame, ThemedWidget):
         self._messages_canvas.yview_moveto(1.0)
 
     def show_answer(self, answer: str, sources: list = None):
-        self._status_label.config(text="")
+        self._entry.config(state=tk.NORMAL)
+        self._status_label.config(text="", fg=get_theme().text_muted)
         self._add_message("assistant", answer, sources=sources)
 
     def show_error(self, message: str):
-        self._status_label.config(text=message)
+        self._entry.config(state=tk.NORMAL)
+        self._status_label.config(text=message, fg=get_theme().accent_error)
 
     def clear_conversation(self):
         for widget in self._messages_inner.winfo_children():
