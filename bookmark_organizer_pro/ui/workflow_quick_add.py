@@ -143,7 +143,7 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         self.category_var = tk.StringVar(value=default_category)
         self.category_combo = ttk.Combobox(
             cat_frame, textvariable=self.category_var,
-            values=categories or [DEFAULT_CATEGORY], state="readonly"
+            values=categories or [default_category], state="readonly"
         )
         self.category_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
         

@@ -238,7 +238,10 @@ class ImportExportMixin:
 
             except Exception as e:
                 log.error(f"Import thread error: {e}")
-                self.root.after(0, lambda: modal.finish_error(str(e)[:120]))
+                # `e` is unbound once this except block exits; capture the text
+                # before scheduling the deferred UI callback.
+                err_text = str(e)[:120]
+                self.root.after(0, lambda: modal.finish_error(err_text))
             finally:
                 self.root.after(0, lambda: self._on_import_done(total_added, total_dupes))
 
@@ -382,7 +385,10 @@ class ImportExportMixin:
 
             except Exception as e:
                 log.error(f"Browser import error: {e}")
-                self.root.after(0, lambda: modal.finish_error(str(e)[:120]))
+                # `e` is unbound once this except block exits; capture the text
+                # before scheduling the deferred UI callback.
+                err_text = str(e)[:120]
+                self.root.after(0, lambda: modal.finish_error(err_text))
 
         threading.Thread(target=do_import, daemon=True).start()
     

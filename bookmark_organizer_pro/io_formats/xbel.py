@@ -12,8 +12,9 @@ import os
 import tempfile
 try:
     from defusedxml import ElementTree as _safe_ET
-except ImportError:
-    import xml.etree.ElementTree as _safe_ET
+except ImportError:  # pragma: no cover - defusedxml is a declared dependency
+    # Refuse rather than alias to the unsafe stdlib parser (XXE/billion-laughs).
+    _safe_ET = None
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
@@ -22,10 +23,12 @@ from typing import Dict, List
 from ..constants import APP_VERSION
 from ..logging_config import log
 from ..models import Bookmark
+from ..utils import xml_safe_text
 
 
 def _escape_xml(text: str) -> str:
-    """Escape XML special characters."""
+    """Escape XML special characters (and strip XML-illegal control chars first)."""
+    text = xml_safe_text(text)
     return (text.replace('&', '&amp;').replace('<', '&lt;')
             .replace('>', '&gt;').replace('"', '&quot;')
             .replace("'", '&apos;'))
@@ -124,6 +127,11 @@ class XBELHandler:
             filepath = Path(filepath)
             if filepath.stat().st_size > 50_000_000:
                 log.error(f"XBEL file too large: {filepath}")
+                return []
+
+            if _safe_ET is None:
+                log.error("XBEL import requires defusedxml for safe XML parsing "
+                          "(install it: pip install defusedxml).")
                 return []
 
             xml_bytes = filepath.read_bytes()

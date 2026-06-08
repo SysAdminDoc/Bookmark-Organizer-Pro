@@ -28,15 +28,25 @@ class BookmarkCLI:
         self.tag_manager = TagManager()
         self.bookmark_manager = BookmarkManager(self.category_manager, self.tag_manager)
     
-    def run(self, args: List[str]):
-        """Run CLI command"""
+    @staticmethod
+    def _error(message: str) -> None:
+        """Print a user-facing error to stderr so pipes/scripts can see it.
+
+        Many handlers previously logged errors via ``log.error`` (which may not
+        reach the terminal) and the process still exited 0, so callers couldn't
+        detect failures. Errors now go to stderr and handlers return non-zero.
+        """
+        print(message, file=sys.stderr)
+
+    def run(self, args: List[str]) -> int:
+        """Run a CLI command. Returns a process exit code (0 = success)."""
         if not args:
             self._print_help()
-            return
+            return 0
         if args[0] in ("--version", "-V"):
             print(f"{APP_NAME} v{APP_VERSION}")
-            return
-        
+            return 0
+
         command = args[0].lower()
         cmd_args = args[1:]
         
@@ -50,6 +60,7 @@ class BookmarkCLI:
             "categories": self._cmd_categories,
             "tags": self._cmd_tags,
             "stats": self._cmd_stats,
+            "ai-audit": self._cmd_ai_audit,
             "check": self._cmd_check,
             "help": self._print_help,
             # v6.0.0 commands
@@ -101,10 +112,20 @@ class BookmarkCLI:
         }
         
         if command in commands:
-            commands[command](cmd_args)
+            try:
+                result = commands[command](cmd_args)
+            except KeyboardInterrupt:
+                self._error("Interrupted")
+                return 130
+            except Exception as exc:
+                log.error(f"Command '{command}' failed", exc_info=True)
+                self._error(f"Error: {exc}")
+                return 1
+            return result if isinstance(result, int) else 0
         else:
             print(f"Unknown command: {command}")
             self._print_help()
+            return 2
     
     def _print_help(self, args=None):
         """Print help message"""
@@ -123,6 +144,8 @@ Commands:
   categories             List all categories
   tags                   List all tags
   stats                  Show statistics
+  ai-audit [sub]         Inspect AI audit log; 'ai-audit learn-defaults' mines
+                         default-category improvements from past AI runs
   check                  Check for broken links
   help                   Show this help message
 
@@ -201,90 +224,192 @@ Examples:
     def _cmd_add(self, args):
         """Add a bookmark"""
         if not args:
-            log.error("Error: URL required")
-            return
-        
+            self._error("Error: URL required")
+            return 1
+
         url = args[0]
         title = ' '.join(args[1:]) if len(args) > 1 else url
-        
+
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
-        
+
         bookmark = self.bookmark_manager.add_bookmark_clean(
             url=url,
             title=title,
             category="Uncategorized / Needs Review",
         )
         if bookmark is None:
-            print("Could not add bookmark: invalid URL or duplicate")
-            return
-        
+            self._error("Could not add bookmark: invalid URL or duplicate")
+            return 1
+
         print(f"✓ Added: {title}")
         print(f"  URL: {url}")
         print(f"  ID: {bookmark.id}")
-    
+        return 0
+
     def _cmd_delete(self, args):
-        """Delete a bookmark"""
-        if not args:
-            log.error("Error: Bookmark ID required")
-            return
-        
+        """Delete a bookmark (prompts for confirmation unless --force/-y)."""
+        force = any(a in ("--force", "-y", "--yes") for a in args)
+        positional = [a for a in args if not a.startswith("-")]
+        if not positional:
+            self._error("Error: Bookmark ID required")
+            return 1
+
         try:
-            bm_id = int(args[0])
-            bookmark = self.bookmark_manager.get_bookmark(bm_id)
-            
-            if bookmark:
-                self.bookmark_manager.delete_bookmark(bm_id)
-                print(f"✓ Deleted: {bookmark.title}")
-            else:
-                log.error(f"Error: Bookmark with ID {bm_id} not found")
+            bm_id = int(positional[0])
         except ValueError:
-            log.error("Error: Invalid bookmark ID")
-    
+            self._error("Error: Invalid bookmark ID")
+            return 1
+
+        bookmark = self.bookmark_manager.get_bookmark(bm_id)
+        if not bookmark:
+            self._error(f"Error: Bookmark with ID {bm_id} not found")
+            return 1
+
+        if not force:
+            try:
+                answer = input(f"Delete [{bm_id}] {bookmark.title[:60]}? [y/N] ").strip().lower()
+            except EOFError:
+                answer = ""  # non-interactive stdin: treat as "no"
+            if answer not in ("y", "yes"):
+                print("Cancelled")
+                return 0
+
+        self.bookmark_manager.delete_bookmark(bm_id)
+        print(f"✓ Deleted: {bookmark.title}")
+        return 0
+
     def _cmd_search(self, args):
         """Search bookmarks"""
         if not args:
-            log.error("Error: Search query required")
-            return
-        
+            self._error("Error: Search query required")
+            return 1
+
         query = ' '.join(args)
         results = self.bookmark_manager.search_bookmarks(query)
-        
+
         print(f"\nSearch results for '{query}' ({len(results)} found):")
         for bm in results[:20]:
             print(f"  [{bm.id}] {bm.title[:50]}")
             print(f"       {bm.domain} | {bm.category}")
-    
+        return 0
+
+    def _cmd_ai_audit(self, args):
+        """Inspect the AI audit log and mine default-pattern improvements.
+
+        Usage:
+          ai-audit stats                      Summary counts of all AI actions
+          ai-audit learn-defaults [options]   Improvement candidates for the
+                                              shipped default categories
+        Options for learn-defaults:
+          --min-confidence X   Ignore AI categories below X (default 0.7)
+          --min-support N      Require >= N confident samples per domain (default 2)
+          --json               Print the full machine-readable JSON report
+          --out FILE           Write the full JSON report to FILE
+        """
+        import json as _json
+        from bookmark_organizer_pro.services.ai_audit_log import (
+            analyze_for_default_improvements, get_audit_stats,
+        )
+
+        sub = args[0] if args and not args[0].startswith("-") else "learn-defaults"
+
+        if sub == "stats":
+            print(_json.dumps(get_audit_stats(), indent=2, ensure_ascii=False))
+            return 0
+
+        if sub not in ("learn-defaults", "defaults", "learn"):
+            self._error(f"Unknown ai-audit subcommand: {sub}")
+            return 1
+
+        def _opt(name, default):
+            if name in args:
+                idx = args.index(name)
+                if idx + 1 < len(args):
+                    return args[idx + 1]
+            return default
+
+        try:
+            min_conf = float(_opt("--min-confidence", "0.7"))
+            min_support = int(_opt("--min-support", "2"))
+        except ValueError:
+            self._error("Error: --min-confidence must be a float and --min-support an int")
+            return 1
+
+        report = analyze_for_default_improvements(
+            min_confidence=min_conf, min_support=min_support)
+
+        if "--out" in args:
+            out_path = _opt("--out", "")
+            if out_path:
+                Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+                Path(out_path).write_text(
+                    _json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+                print(f"Wrote full report to {out_path}")
+
+        if "--json" in args:
+            print(_json.dumps(report, indent=2, ensure_ascii=False))
+            return 0
+
+        # Human-readable summary.
+        s = report["summary"]
+        print(f"\nAI categorization vs. shipped defaults "
+              f"({report['categorize_entries_with_evaluation']} evaluated, "
+              f"{report['unique_domains']} domains, conf>={min_conf}, support>={min_support}):")
+        print(f"  + add patterns:    {s['add_patterns']}  (defaults missed; AI was confident)")
+        print(f"  ~ review patterns: {s['review_patterns']}  (defaults disagree with AI)")
+        print(f"  = confirmed:       {s['confirmed']}  (defaults already correct)\n")
+
+        if report["add_patterns"]:
+            print("Top default patterns to ADD (domain → category, support, avg-conf):")
+            for r in report["add_patterns"][:30]:
+                print(f"  domain:{r['domain']:<32} → {r['suggested_category']:<28} "
+                      f"(n={r['support']}, conf={r['avg_confidence']})")
+        if report["review_patterns"]:
+            print("\nExisting defaults the AI consistently DISAGREES with "
+                  "(⚠ = likely AI artifact, do not auto-apply):")
+            for r in report["review_patterns"][:20]:
+                flag = f"  ⚠ {r['suspect_reason']}" if r.get("suspect") else ""
+                print(f"  {r['domain']:<30} default={r['current_default']!r} "
+                      f"→ AI={r['suggested_category']!r} "
+                      f"(n={r['support']}, share={r.get('share', 0):.0%}, conf={r['avg_confidence']}){flag}")
+        if report["summary"].get("suspect_flagged"):
+            print(f"\n  ({report['summary']['suspect_flagged']} candidate(s) flagged suspect "
+                  f"— search-engine/portal or sensitive reclassification)")
+        print()
+        return 0
+
     def _cmd_import(self, args):
         """Import bookmarks"""
         if not args:
-            log.error("Error: File path required")
-            return
-        
+            self._error("Error: File path required")
+            return 1
+
         filepath = args[0]
-        
+
         if not Path(filepath).exists():
-            log.error(f"Error: File not found: {filepath}")
-            return
-        
+            self._error(f"Error: File not found: {filepath}")
+            return 1
+
         if filepath.endswith('.html') or filepath.endswith('.htm'):
             added, dupes = self.bookmark_manager.import_html_file(filepath)
         elif filepath.endswith('.json'):
             added, dupes = self.bookmark_manager.import_json_file(filepath)
         else:
-            log.error("Error: Unsupported file format (use .html or .json)")
-            return
-        
+            self._error("Error: Unsupported file format (use .html or .json)")
+            return 1
+
         print(f"✓ Imported {added} bookmarks ({dupes} duplicates skipped)")
-    
+        return 0
+
     def _cmd_export(self, args):
         """Export bookmarks"""
         if not args:
-            log.error("Error: File path required")
-            return
-        
+            self._error("Error: File path required")
+            return 1
+
         filepath = args[0]
-        
+
         if filepath.endswith('.html'):
             self.bookmark_manager.export_html(filepath)
         elif filepath.endswith('.json'):
@@ -294,12 +419,15 @@ Examples:
         elif filepath.endswith('.md'):
             self.bookmark_manager.export_markdown(filepath)
         else:
-            # Default to HTML
+            # Unknown extension: be explicit that we're coercing to HTML rather
+            # than silently producing a surprising "<name>.html" file.
+            self._error(f"Note: unrecognized extension; writing HTML to {filepath}.html")
             filepath += '.html'
             self.bookmark_manager.export_html(filepath)
-        
-        count = len(self.bookmark_manager.bookmarks)
+
+        count = len(self.bookmark_manager.get_all_bookmarks())
         print(f"✓ Exported {count} bookmarks to {filepath}")
+        return 0
     
     def _cmd_categories(self, args):
         """List categories"""
@@ -1518,11 +1646,16 @@ Top Domains:
         print(f"Arc Browser import: {added} added, {dupes} duplicates skipped")
 
 
-def main(argv=None):
-    """Console-script and module entry point."""
+def main(argv=None) -> int:
+    """Console-script and module entry point. Returns the command's exit code.
+
+    Returning (rather than calling sys.exit) keeps main() callable/testable; the
+    console_scripts wrapper and the __main__ block below turn it into an exit
+    status.
+    """
     args = sys.argv[1:] if argv is None else list(argv)
-    BookmarkCLI().run(args)
+    return BookmarkCLI().run(args) or 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

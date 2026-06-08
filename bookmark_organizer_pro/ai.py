@@ -10,12 +10,74 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 from .constants import AI_CONFIG_FILE
 from .logging_config import log
+
+# Per-request network timeout (seconds) applied to every remote provider so a
+# hung connection can never block an AI worker thread indefinitely.
+REQUEST_TIMEOUT = 60
+
+# Transient-error hints used to decide whether a failed request is worth
+# retrying with backoff (rate limits, gateway/5xx errors, timeouts, etc.).
+_RETRYABLE_HINTS = (
+    "timeout", "timed out", "rate limit", "ratelimit", "429", "500", "502",
+    "503", "504", "overloaded", "temporarily", "unavailable", "connection",
+    "reset by peer", "try again",
+)
+
+# Hints that a request failed because the selected model is gone/renamed, so we
+# can point the user at AI settings instead of showing a raw stack trace.
+_MODEL_ERROR_HINTS = (
+    "model", "not found", "does not exist", "no such", "404",
+    "decommission", "deprecated", "unsupported", "invalid model",
+)
+
+
+def _is_retryable(exc: Exception) -> bool:
+    """Heuristically decide whether a provider error is worth retrying."""
+    msg = str(exc).lower()
+    return any(hint in msg for hint in _RETRYABLE_HINTS)
+
+
+def _retry(fn: Callable, *, attempts: int = 3, base_delay: float = 1.0, label: str = "") -> Any:
+    """Call ``fn`` with exponential backoff on transient provider failures.
+
+    Non-transient errors (bad request, auth, unknown model) are raised
+    immediately so the user sees the real problem without waiting on retries.
+    """
+    last_exc: Optional[Exception] = None
+    for attempt in range(attempts):
+        try:
+            return fn()
+        except Exception as exc:  # noqa: BLE001 - re-raised below
+            last_exc = exc
+            if attempt == attempts - 1 or not _is_retryable(exc):
+                raise
+            delay = base_delay * (2 ** attempt)
+            log.info(
+                f"Retrying {label or 'AI request'} after transient error "
+                f"({attempt + 1}/{attempts}): {str(exc)[:120]} — waiting {delay:.1f}s"
+            )
+            time.sleep(delay)
+    if last_exc:  # pragma: no cover - defensive
+        raise last_exc
+
+
+def _friendly_model_error(exc: Exception, provider_label: str, model: str) -> str:
+    """Turn a raw provider exception into actionable guidance for the user."""
+    msg = str(exc)
+    if any(hint in msg.lower() for hint in _MODEL_ERROR_HINTS):
+        return (
+            f"{provider_label} could not use model '{model}'. It may have been "
+            f"renamed or retired — open AI settings and pick a current model. "
+            f"({msg[:160]})"
+        )
+    return f"Error: {msg[:200]}"
 
 
 def ensure_package(package: str, import_name: str = None):
@@ -227,12 +289,31 @@ class AIConfigManager:
                 with os.fdopen(fd, 'w', encoding='utf-8') as f:
                     json.dump(self._config, f, indent=2)
                 os.replace(temp_path, self.filepath)
+                self._restrict_permissions()
             except Exception:
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
                 raise
         except Exception as e:
             log.error(f"Error saving AI config: {e}")
+
+    def _restrict_permissions(self):
+        """Lock down the config file — it can hold plaintext API keys when the
+        OS keyring is unavailable. POSIX permissions are set via fchmod before
+        the rename; on Windows, restrict the ACL to the current user."""
+        if os.name != "nt":
+            return
+        username = os.environ.get("USERNAME", "")
+        if not username:
+            return
+        try:
+            subprocess.run(
+                ["icacls", str(self.filepath), "/inheritance:r",
+                 "/grant:r", f"{username}:(F)"],
+                capture_output=True, check=False,
+            )
+        except Exception as exc:  # pragma: no cover - best-effort hardening
+            log.debug(f"Could not restrict AI config permissions: {exc}")
 
     def get_provider(self) -> str:
         return self._config.get("provider", "google")
@@ -526,8 +607,16 @@ class AIClient:
     def _build_prompt(self, bookmarks: List[Dict], categories: List[str],
                      allow_new: bool, suggest_tags: bool) -> str:
         """Build the prompt for categorization (capped to prevent token overflow)."""
-        # Cap bookmark count to prevent oversized prompts (API token limits)
+        # Cap bookmark count to prevent oversized prompts (API token limits).
+        # Callers batch by the configured batch size (<= 50), so this is a
+        # safety net — but if it ever trips it would silently drop bookmarks, so
+        # make the truncation visible in the logs instead of losing them quietly.
         if len(bookmarks) > 50:
+            log.warning(
+                f"Categorization prompt received {len(bookmarks)} bookmarks; "
+                f"capping to 50 to stay within token limits. The caller should "
+                f"batch by ai_config batch_size so no bookmarks are dropped."
+            )
             bookmarks = bookmarks[:50]
         cats_str = ', '.join(f'"{c}"' for c in categories[:50])
 
@@ -574,51 +663,72 @@ def _iter_openai_chat_stream(stream) -> Iterator[str]:
             yield content
 
 
-class OpenAIClient(AIClient):
-    """OpenAI API client"""
+class OpenAICompatibleClient(AIClient):
+    """Shared implementation for OpenAI-compatible chat APIs.
+
+    OpenAI, Groq, and DeepSeek expose the identical ``chat.completions.create``
+    surface; they differ only in which SDK/base URL builds the client and in the
+    user-facing provider name. Subclasses override :meth:`_client_factory` (and
+    the ``provider_label`` / ``api_key_hint`` class attributes); everything else
+    — categorize, complete, stream, connection test, retries — is shared.
+    """
 
     supports_native_streaming = True
+    provider_label = "OpenAI"
+    api_key_hint = "platform.openai.com/api-keys"
+    json_mode = True  # request_format={"type": "json_object"} for categorize
 
-    def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
+    def __init__(self, api_key: str, model: str):
         self.api_key = api_key
         self.model = model
         self._client = None
+
+    def _client_factory(self):  # pragma: no cover - overridden by subclasses
+        openai = ensure_package("openai")
+        return openai.OpenAI(api_key=self.api_key, timeout=REQUEST_TIMEOUT)
 
     @property
     def client(self):
         if self._client is None:
             if not self.api_key:
-                raise ValueError("OpenAI API key is required. Get one at platform.openai.com/api-keys")
-            openai = ensure_package("openai")
-            self._client = openai.OpenAI(api_key=self.api_key)
+                raise ValueError(
+                    f"{self.provider_label} API key is required. Get one at {self.api_key_hint}"
+                )
+            self._client = self._client_factory()
         return self._client
 
     def categorize_bookmarks(self, bookmarks: List[Dict], categories: List[str],
                             allow_new: bool = True, suggest_tags: bool = True) -> List[Dict]:
         prompt = self._build_prompt(bookmarks, categories, allow_new, suggest_tags)
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": "You categorize bookmarks. Respond only with valid JSON."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3,
-            response_format={"type": "json_object"}
-        )
+
+        def _call():
+            kwargs = dict(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You categorize bookmarks. Respond only with valid JSON."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.3,
+            )
+            if self.json_mode:
+                kwargs["response_format"] = {"type": "json_object"}
+            return self.client.chat.completions.create(**kwargs)
+
+        response = _retry(_call, label=f"{self.provider_label} categorize")
         return self._parse_response((response.choices[0].message.content if response.choices else ''), bookmarks)
 
     def test_connection(self) -> Tuple[bool, str]:
         try:
             if not self.api_key:
-                return False, "OpenAI API key is required. Get one at platform.openai.com/api-keys"
+                return False, f"{self.provider_label} API key is required. Get one at {self.api_key_hint}"
             self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": "Say OK"}],
-                max_tokens=10
+                max_tokens=10,
             )
-            return True, f"Connected to OpenAI ({self.model})"
+            return True, f"Connected to {self.provider_label} ({self.model})"
         except Exception as e:
-            return False, f"Error: {str(e)[:200]}"
+            return False, _friendly_model_error(e, self.provider_label, self.model)
 
     def complete(self, prompt: str, system: str = "",
                  max_tokens: int = 800, temperature: float = 0.2) -> str:
@@ -626,12 +736,16 @@ class OpenAIClient(AIClient):
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
+
+        def _call():
+            return self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+
+        response = _retry(_call, label=f"{self.provider_label} complete")
         return response.choices[0].message.content if response.choices else ""
 
     def stream_complete(self, prompt: str, system: str = "",
@@ -651,6 +765,20 @@ class OpenAIClient(AIClient):
         yield from _iter_openai_chat_stream(stream)
 
 
+class OpenAIClient(OpenAICompatibleClient):
+    """OpenAI API client."""
+
+    provider_label = "OpenAI"
+    api_key_hint = "platform.openai.com/api-keys"
+
+    def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
+        super().__init__(api_key, model)
+
+    def _client_factory(self):
+        openai = ensure_package("openai")
+        return openai.OpenAI(api_key=self.api_key, timeout=REQUEST_TIMEOUT)
+
+
 class AnthropicClient(AIClient):
     """Anthropic Claude API client"""
 
@@ -665,17 +793,17 @@ class AnthropicClient(AIClient):
             if not self.api_key:
                 raise ValueError("Anthropic API key is required. Get one at console.anthropic.com/settings/keys")
             anthropic = ensure_package("anthropic")
-            self._client = anthropic.Anthropic(api_key=self.api_key)
+            self._client = anthropic.Anthropic(api_key=self.api_key, timeout=REQUEST_TIMEOUT)
         return self._client
 
     def categorize_bookmarks(self, bookmarks: List[Dict], categories: List[str],
                             allow_new: bool = True, suggest_tags: bool = True) -> List[Dict]:
         prompt = self._build_prompt(bookmarks, categories, allow_new, suggest_tags)
-        response = self.client.messages.create(
+        response = _retry(lambda: self.client.messages.create(
             model=self.model,
             max_tokens=4096,
-            messages=[{"role": "user", "content": prompt}]
-        )
+            messages=[{"role": "user", "content": prompt}],
+        ), label="Anthropic categorize")
         return self._parse_response((response.content[0].text if response.content else ''), bookmarks)
 
     def test_connection(self) -> Tuple[bool, str]:
@@ -689,7 +817,7 @@ class AnthropicClient(AIClient):
             )
             return True, f"Connected to Anthropic ({self.model})"
         except Exception as e:
-            return False, f"Error: {str(e)[:200]}"
+            return False, _friendly_model_error(e, "Anthropic", self.model)
 
     def complete(self, prompt: str, system: str = "",
                  max_tokens: int = 800, temperature: float = 0.2) -> str:
@@ -701,7 +829,7 @@ class AnthropicClient(AIClient):
         }
         if system:
             kwargs["system"] = system
-        response = self.client.messages.create(**kwargs)
+        response = _retry(lambda: self.client.messages.create(**kwargs), label="Anthropic complete")
         return response.content[0].text if response.content else ""
 
 
@@ -724,187 +852,73 @@ class GoogleClient(AIClient):
             self._client = self._genai.GenerativeModel(self.model)
         return self._client
 
+    def _generate(self, content, **gen_kwargs):
+        """Call generate_content with a request timeout when the SDK supports it.
+
+        Older ``google-generativeai`` builds don't accept ``request_options``;
+        fall back gracefully rather than crashing on a TypeError.
+        """
+        try:
+            return self.client.generate_content(
+                content, request_options={"timeout": REQUEST_TIMEOUT}, **gen_kwargs)
+        except TypeError:
+            return self.client.generate_content(content, **gen_kwargs)
+
     def categorize_bookmarks(self, bookmarks: List[Dict], categories: List[str],
                             allow_new: bool = True, suggest_tags: bool = True) -> List[Dict]:
         prompt = self._build_prompt(bookmarks, categories, allow_new, suggest_tags)
-        response = self.client.generate_content(prompt)
+        response = _retry(lambda: self._generate(prompt), label="Google categorize")
         return self._parse_response(response.text, bookmarks)
 
     def test_connection(self) -> Tuple[bool, str]:
         try:
             if not self.api_key:
                 return False, "Google API key is required. Get one at aistudio.google.com/app/apikey"
-            self.client.generate_content("Say OK")
+            self._generate("Say OK")
             return True, f"Connected to Google Gemini ({self.model})"
         except Exception as e:
-            return False, f"Error: {str(e)[:200]}"
+            return False, _friendly_model_error(e, "Google Gemini", self.model)
 
     def complete(self, prompt: str, system: str = "",
                  max_tokens: int = 800, temperature: float = 0.2) -> str:
         full = f"{system}\n\n{prompt}" if system else prompt
-        response = self.client.generate_content(
+        response = _retry(lambda: self._generate(
             full,
             generation_config={
                 "max_output_tokens": max_tokens,
                 "temperature": temperature,
             },
-        )
+        ), label="Google complete")
         return getattr(response, "text", "") or ""
 
 
-class GroqClient(AIClient):
-    """Groq API client"""
+class GroqClient(OpenAICompatibleClient):
+    """Groq API client (OpenAI-compatible surface, Groq SDK)."""
 
-    supports_native_streaming = True
+    provider_label = "Groq"
+    api_key_hint = "console.groq.com/keys"
 
     def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile"):
-        self.api_key = api_key
-        self.model = model
-        self._client = None
+        super().__init__(api_key, model)
 
-    @property
-    def client(self):
-        if self._client is None:
-            if not self.api_key:
-                raise ValueError("Groq API key is required. Get one at console.groq.com/keys")
-            groq = ensure_package("groq")
-            self._client = groq.Groq(api_key=self.api_key)
-        return self._client
-
-    def categorize_bookmarks(self, bookmarks: List[Dict], categories: List[str],
-                            allow_new: bool = True, suggest_tags: bool = True) -> List[Dict]:
-        prompt = self._build_prompt(bookmarks, categories, allow_new, suggest_tags)
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": "You categorize bookmarks. Respond only with valid JSON."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3,
-            response_format={"type": "json_object"}
-        )
-        return self._parse_response((response.choices[0].message.content if response.choices else ''), bookmarks)
-
-    def test_connection(self) -> Tuple[bool, str]:
-        try:
-            if not self.api_key:
-                return False, "Groq API key is required. Get one at console.groq.com/keys"
-            self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": "Say OK"}],
-                max_tokens=10
-            )
-            return True, f"Connected to Groq ({self.model})"
-        except Exception as e:
-            return False, f"Error: {str(e)[:200]}"
-
-    def complete(self, prompt: str, system: str = "",
-                 max_tokens: int = 800, temperature: float = 0.2) -> str:
-        messages = []
-        if system:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
-        return response.choices[0].message.content if response.choices else ""
-
-    def stream_complete(self, prompt: str, system: str = "",
-                        max_tokens: int = 800,
-                        temperature: float = 0.2) -> Iterator[str]:
-        messages = []
-        if system:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
-        stream = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            stream=True,
-        )
-        yield from _iter_openai_chat_stream(stream)
+    def _client_factory(self):
+        groq = ensure_package("groq")
+        return groq.Groq(api_key=self.api_key, timeout=REQUEST_TIMEOUT)
 
 
-class DeepSeekClient(AIClient):
-    """DeepSeek API client (OpenAI-compatible)"""
+class DeepSeekClient(OpenAICompatibleClient):
+    """DeepSeek API client (OpenAI-compatible, OpenAI SDK + custom base URL)."""
 
-    supports_native_streaming = True
+    provider_label = "DeepSeek"
+    api_key_hint = "platform.deepseek.com/api_keys"
 
     def __init__(self, api_key: str, model: str = "deepseek-chat"):
-        self.api_key = api_key
-        self.model = model
-        self._client = None
+        super().__init__(api_key, model)
 
-    @property
-    def client(self):
-        if self._client is None:
-            if not self.api_key:
-                raise ValueError("DeepSeek API key is required. Get one at platform.deepseek.com/api_keys")
-            openai = ensure_package("openai")
-            self._client = openai.OpenAI(api_key=self.api_key, base_url="https://api.deepseek.com")
-        return self._client
-
-    def categorize_bookmarks(self, bookmarks: List[Dict], categories: List[str],
-                            allow_new: bool = True, suggest_tags: bool = True) -> List[Dict]:
-        prompt = self._build_prompt(bookmarks, categories, allow_new, suggest_tags)
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": "You categorize bookmarks. Respond only with valid JSON."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3,
-            response_format={"type": "json_object"},
-        )
-        return self._parse_response((response.choices[0].message.content if response.choices else ''), bookmarks)
-
-    def test_connection(self) -> Tuple[bool, str]:
-        try:
-            if not self.api_key:
-                return False, "DeepSeek API key is required. Get one at platform.deepseek.com/api_keys"
-            self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": "Say OK"}],
-                max_tokens=10,
-                timeout=15,
-            )
-            return True, f"Connected to DeepSeek ({self.model})"
-        except Exception as e:
-            return False, f"Error: {str(e)[:200]}"
-
-    def complete(self, prompt: str, system: str = "",
-                 max_tokens: int = 800, temperature: float = 0.2) -> str:
-        messages = []
-        if system:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
-        return response.choices[0].message.content if response.choices else ""
-
-    def stream_complete(self, prompt: str, system: str = "",
-                        max_tokens: int = 800,
-                        temperature: float = 0.2) -> Iterator[str]:
-        messages = []
-        if system:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
-        stream = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            stream=True,
-        )
-        yield from _iter_openai_chat_stream(stream)
+    def _client_factory(self):
+        openai = ensure_package("openai")
+        return openai.OpenAI(
+            api_key=self.api_key, base_url="https://api.deepseek.com", timeout=REQUEST_TIMEOUT)
 
 
 class OllamaClient(AIClient):

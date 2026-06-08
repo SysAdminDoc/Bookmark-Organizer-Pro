@@ -3,6 +3,7 @@
 import json
 import os
 import tempfile
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -134,6 +135,11 @@ class CategoryManager:
         self.filepath = filepath
         self.categories: Dict[str, Category] = {}
         self.pattern_engine: Optional[PatternEngine] = None
+        # Reentrant so a worker thread (e.g. AI auto-create-categories) and the
+        # UI thread can't corrupt the dict or trip "changed size during
+        # iteration" while one mutates and the other reads. Reentrant because
+        # mutators call save/rebuild which also acquire it.
+        self._lock = threading.RLock()
         self._load_categories()
 
     def _load_categories(self):
@@ -213,14 +219,16 @@ class CategoryManager:
 
     def _rebuild_patterns(self):
         """Recompile the PatternEngine from current categories."""
-        patterns_dict = {cat.full_path: _clean_patterns(cat.patterns) for cat in self.categories.values()}
+        with self._lock:
+            patterns_dict = {cat.full_path: _clean_patterns(cat.patterns) for cat in self.categories.values()}
         self.pattern_engine = PatternEngine(patterns_dict)
 
     def save_categories(self):
         """Persist categories to disk."""
         try:
             self.filepath.parent.mkdir(parents=True, exist_ok=True)
-            data = {name: cat.to_dict() for name, cat in self.categories.items()}
+            with self._lock:
+                data = {name: cat.to_dict() for name, cat in self.categories.items()}
             fd, temp_path = tempfile.mkstemp(
                 dir=self.filepath.parent, suffix='.tmp', text=True
             )
@@ -248,19 +256,20 @@ class CategoryManager:
         """Add a new category."""
         normalized = (name or "").strip()
         parent = (parent or "").strip()
-        if normalized and normalized not in self.categories:
-            if parent and parent not in self.categories:
-                return False
-            cat = Category(
-                name=normalized,
-                parent=parent,
-                patterns=_clean_patterns(patterns or []),
-                icon=icon or get_category_icon(normalized),
-            )
-            self.categories[normalized] = cat
-            self.save_categories()
-            self._rebuild_patterns()
-            return True
+        with self._lock:
+            if normalized and normalized not in self.categories:
+                if parent and parent not in self.categories:
+                    return False
+                cat = Category(
+                    name=normalized,
+                    parent=parent,
+                    patterns=_clean_patterns(patterns or []),
+                    icon=icon or get_category_icon(normalized),
+                )
+                self.categories[normalized] = cat
+                self.save_categories()
+                self._rebuild_patterns()
+                return True
         return False
 
     def remove_category(self, name: str) -> bool:
@@ -354,10 +363,9 @@ class CategoryManager:
 
     def get_root_categories(self) -> List[Category]:
         """Top-level (un-parented) categories, sorted by sort_order then name."""
-        return sorted(
-            [c for c in self.categories.values() if not c.parent],
-            key=lambda x: (x.sort_order, x.name.lower()),
-        )
+        with self._lock:
+            roots = [c for c in self.categories.values() if not c.parent]
+        return sorted(roots, key=lambda x: (x.sort_order, x.name.lower()))
 
     def get_children(self, parent: str) -> List[str]:
         return [c.name for c in self.categories.values() if c.parent == parent]
@@ -378,21 +386,31 @@ class CategoryManager:
 
     def get_sorted_categories(self) -> List[str]:
         """Alphabetically sorted with 'Uncategorized' last."""
-        uncategorized = [c for c in self.categories if "Uncategorized" in c]
-        regular = sorted([c for c in self.categories if "Uncategorized" not in c])
+        with self._lock:
+            names = list(self.categories.keys())
+        uncategorized = [c for c in names if "Uncategorized" in c]
+        regular = sorted([c for c in names if "Uncategorized" not in c])
         return regular + uncategorized
 
     def get_all_categories(self) -> List[str]:
-        return list(self.categories.keys())
+        with self._lock:
+            return list(self.categories.keys())
 
     def get_tree(self) -> List[Tuple[Category, int]]:
         """Flat list of (category, depth) pairs in tree order."""
         result = []
 
+        with self._lock:
+            snapshot = list(self.categories.values())
+
+        children_by_parent: Dict[str, List[Category]] = {}
+        for cat in snapshot:
+            children_by_parent.setdefault(cat.parent, []).append(cat)
+
         def visit(cat: Category, depth: int):
             result.append((cat, depth))
             children = sorted(
-                [c for c in self.categories.values() if c.parent == cat.name],
+                children_by_parent.get(cat.name, []),
                 key=lambda x: (x.sort_order, x.name.lower()),
             )
             for child in children:

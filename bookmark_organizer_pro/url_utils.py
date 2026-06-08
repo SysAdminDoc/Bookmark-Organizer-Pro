@@ -42,11 +42,43 @@ class URLUtilities:
         'awin1.com', 'pepperjam.com', 'jdoqocy.com', 'tkqlhce.com'
     ]
 
+    # NAT64 well-known prefix (RFC 6052) — embeds an IPv4 address in the low bits.
+    _NAT64_PREFIX = ipaddress.ip_network("64:ff9b::/96")
+
+    @classmethod
+    def _ip_is_blocked(cls, ip) -> bool:
+        """True if an IP must not be fetched (SSRF protection).
+
+        Unwraps IPv4-mapped (``::ffff:a.b.c.d``) and NAT64-embedded addresses so
+        an attacker cannot smuggle a private/loopback/metadata target past the
+        filter inside an IPv6 wrapper. ``not is_global`` already covers private
+        ranges on modern Python, but the explicit flags below make the intent
+        clear and stay correct across versions where mapped-address properties
+        behave differently.
+        """
+        if isinstance(ip, ipaddress.IPv6Address):
+            if ip.ipv4_mapped is not None:
+                ip = ip.ipv4_mapped
+            elif ip in cls._NAT64_PREFIX:
+                ip = ipaddress.ip_address(int(ip) & 0xFFFFFFFF)
+        return (
+            ip.is_multicast or ip.is_unspecified or ip.is_loopback
+            or ip.is_link_local or ip.is_private or ip.is_reserved
+            or not ip.is_global
+        )
+
     @classmethod
     def _is_safe_url(cls, url: str) -> bool:
         """Block requests to private/internal networks (SSRF protection).
 
         Domains matching SSRF_ALLOW_LIST regex patterns bypass the private-IP check.
+
+        Note: this validates the hostname's currently-resolved addresses. It is a
+        strong guard against accidental and most malicious SSRF, but it does not
+        by itself defeat a determined DNS-rebinding attacker (the subsequent
+        ``requests`` call re-resolves DNS independently). Callers handling fully
+        untrusted URLs in a hostile environment should additionally pin the
+        validated IP for the connection.
         """
         try:
             parsed = urllib.parse.urlparse(url)
@@ -56,15 +88,18 @@ class URLUtilities:
             if not hostname or hostname in ('localhost', '0.0.0.0', '::'):
                 return False
             ascii_host = hostname.encode("idna").decode("ascii")
+            resolved_any = False
             for info in socket.getaddrinfo(ascii_host, None, socket.AF_UNSPEC):
+                resolved_any = True
                 ip = ipaddress.ip_address(info[4][0])
-                if ip.is_multicast or ip.is_unspecified or not ip.is_global:
+                if cls._ip_is_blocked(ip):
                     # Allow-listed domains may legitimately resolve to private IPs
-                    if cls.SSRF_ALLOW_LIST:
-                        if any(pattern.search(hostname) for pattern in cls.SSRF_ALLOW_LIST):
-                            continue
+                    if cls.SSRF_ALLOW_LIST and any(
+                        pattern.search(hostname) for pattern in cls.SSRF_ALLOW_LIST
+                    ):
+                        continue
                     return False
-            return True
+            return resolved_any
         except Exception:
             return False
 

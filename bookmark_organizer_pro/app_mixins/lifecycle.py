@@ -26,6 +26,22 @@ class LifecycleActionsMixin:
         else:
             self._set_status("Library ready")
 
+    def _post_to_ui(self, callback):
+        """Schedule a callback on the Tk main thread from a worker thread.
+
+        Safe during/after shutdown: does nothing once the app is closing or the
+        root is gone, and swallows the TclError that ``root.after()`` raises on a
+        destroyed interpreter. Returns the after-id, or None if not scheduled.
+        """
+        if getattr(self, "_closing", False):
+            return None
+        try:
+            if not self.root.winfo_exists():
+                return None
+            return self.root.after(0, callback)
+        except Exception:
+            return None
+
     def _undo(self):
         """Undo"""
         if self.command_stack.undo():
@@ -104,13 +120,16 @@ class LifecycleActionsMixin:
     
     def _poll_analytics(self):
         """Poll and refresh analytics periodically"""
+        if getattr(self, "_closing", False):
+            return
         try:
             self._refresh_analytics()
         except Exception:
             log.warning("Analytics poll failed", exc_info=True)
-        
-        # Schedule next poll (30 seconds)
-        self._analytics_poll_id = self.root.after(30000, self._poll_analytics)
+
+        # Schedule next poll (30 seconds) unless the app is shutting down.
+        if not getattr(self, "_closing", False):
+            self._analytics_poll_id = self.root.after(30000, self._poll_analytics)
 
     def _cycle_focus_section(self):
         """Cycle keyboard focus between search, sidebar, and bookmark list (F6)."""
@@ -142,13 +161,29 @@ class LifecycleActionsMixin:
         return "break"
 
     def _on_close(self):
-        """Handle close"""
-        # Cancel polling
-        if hasattr(self, '_analytics_poll_id') and self._analytics_poll_id:
-            self.root.after_cancel(self._analytics_poll_id)
-        if hasattr(self, '_grid_after_id') and self._grid_after_id:
-            self.root.after_cancel(self._grid_after_id)
-        
-        self.favicon_manager.shutdown()
-        self.task_runner.shutdown()
-        self.root.destroy()
+        """Handle close — stop timers and background work before tearing down."""
+        # Signal background workers/poll loops to stop scheduling UI callbacks;
+        # firing root.after() after destroy() raises TclError on worker threads.
+        self._closing = True
+
+        # Cancel any pending after() timers so none fire on a destroyed root.
+        for attr in ("_analytics_poll_id", "_grid_after_id", "_search_after"):
+            after_id = getattr(self, attr, None)
+            if after_id:
+                try:
+                    self.root.after_cancel(after_id)
+                except Exception:
+                    pass
+
+        for manager in (getattr(self, "favicon_manager", None),
+                        getattr(self, "task_runner", None)):
+            if manager is not None:
+                try:
+                    manager.shutdown()
+                except Exception:
+                    log.debug("Error during shutdown", exc_info=True)
+
+        try:
+            self.root.destroy()
+        except Exception:
+            pass

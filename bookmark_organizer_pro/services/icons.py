@@ -107,7 +107,7 @@ class IconLibrary:
             "news": "📰", "article": "📰", "blog": "📝", "read": "📖",
             "game": "🎮", "play": "🎮", "gaming": "🎮", "steam": "🎮",
             "social": "👥", "facebook": "👥", "twitter": "🐦", "linkedin": "💼",
-            "github": "🐙", "git": "🐙", "repo": "📦", "code": "💻",
+            "github": "🐙", "git": "🐙", "repo": "📦",
             "ai": "🤖", "ml": "🤖", "machine": "🤖", "learning": "🎓",
             "finance": "💰", "money": "💰", "bank": "🏦", "invest": "📈",
             "travel": "✈️", "trip": "✈️", "vacation": "🏖️", "hotel": "🏨",

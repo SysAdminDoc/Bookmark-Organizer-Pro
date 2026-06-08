@@ -308,7 +308,7 @@ class BookmarkManager:
 
         soup = soup_class(content, 'html.parser')
         added = duplicates = 0
-        existing_urls = {normalize_url(bm.url) for bm in self.bookmarks.values()}
+        existing_urls = {normalize_url(bm.url) for bm in self._iter_snapshot()}
         source = source_name or Path(filepath).name
 
         for a_tag in soup.find_all('a'):
@@ -359,7 +359,7 @@ class BookmarkManager:
             return 0, 0
 
         added = duplicates = 0
-        existing_urls = {normalize_url(bm.url) for bm in self.bookmarks.values()}
+        existing_urls = {normalize_url(bm.url) for bm in self._iter_snapshot()}
 
         bookmarks_data = data.get("bookmarks", data.get("data", [])) if isinstance(data, dict) else data
         if not isinstance(bookmarks_data, list):
@@ -398,33 +398,44 @@ class BookmarkManager:
                                    include_children: bool = True) -> List[Bookmark]:
         """Get bookmarks in a category"""
         results = []
-        for bm in self.bookmarks.values():
+        for bm in self._iter_snapshot():
             if bm.category == category:
                 results.append(bm)
             elif include_children and bm.parent_category == category:
                 results.append(bm)
         return results
-    
+
     def get_bookmarks_by_tag(self, tag: str) -> List[Bookmark]:
         """Get bookmarks with a specific tag"""
         tag_lower = str(tag or "").strip().lower()
         if not tag_lower:
             return []
-        return [bm for bm in self.bookmarks.values()
+        return [bm for bm in self._iter_snapshot()
                 if any(tag_lower == str(t).lower() for t in bm.tags)]
     
+    def _iter_snapshot(self) -> List[Bookmark]:
+        """Return a thread-safe snapshot for read-only iteration.
+
+        Readers must never iterate ``self.bookmarks`` directly: a concurrent
+        mutating thread (AI categorization, file-watcher reload, merge/trash)
+        can change the dict size mid-iteration and raise ``RuntimeError`` or
+        yield a torn view. Snapshotting the values under the lock avoids both.
+        """
+        with self._lock:
+            return list(self.bookmarks.values())
+
     def get_all_bookmarks(self) -> List[Bookmark]:
         """Get all bookmarks"""
-        return list(self.bookmarks.values())
-    
+        return self._iter_snapshot()
+
     def get_pinned_bookmarks(self) -> List[Bookmark]:
         """Get pinned bookmarks"""
-        return [bm for bm in self.bookmarks.values() if bm.is_pinned]
-    
+        return [bm for bm in self._iter_snapshot() if bm.is_pinned]
+
     def get_archived_bookmarks(self) -> List[Bookmark]:
         """Get archived bookmarks"""
-        return [bm for bm in self.bookmarks.values() if bm.is_archived]
-    
+        return [bm for bm in self._iter_snapshot() if bm.is_archived]
+
     def get_recent_bookmarks(self, days: int = 7) -> List[Bookmark]:
         """Get recently added bookmarks"""
         try:
@@ -433,7 +444,7 @@ class BookmarkManager:
             days = 7
         cutoff = datetime.now() - timedelta(days=days)
         results = []
-        for bm in self.bookmarks.values():
+        for bm in self._iter_snapshot():
             try:
                 created = datetime.fromisoformat(bm.created_at.replace('Z', '+00:00'))
                 if created.replace(tzinfo=None) > cutoff:
@@ -441,11 +452,11 @@ class BookmarkManager:
             except Exception:
                 pass
         return sorted(results, key=lambda x: x.created_at, reverse=True)
-    
+
     def get_stale_bookmarks(self, days: int = 90) -> List[Bookmark]:
         """Get bookmarks not visited in the given number of days."""
-        return [bm for bm in self.bookmarks.values() if bm.age_days > days or bm.is_stale]
-    
+        return [bm for bm in self._iter_snapshot() if bm.age_days > days or bm.is_stale]
+
     def get_frequently_visited(self, limit: int = 20) -> List[Bookmark]:
         """Get most frequently visited bookmarks"""
         try:
@@ -453,7 +464,7 @@ class BookmarkManager:
         except (TypeError, ValueError):
             limit = 20
         visited = [
-            bm for bm in self.bookmarks.values()
+            bm for bm in self._iter_snapshot()
             if safe_int(getattr(bm, "visit_count", 0), 0) > 0
         ]
         return sorted(
@@ -461,18 +472,18 @@ class BookmarkManager:
             key=lambda x: safe_int(getattr(x, "visit_count", 0), 0),
             reverse=True,
         )[:limit]
-    
+
     def get_category_counts(self) -> Dict[str, int]:
         """Get bookmark count per category"""
         counts = {cat: 0 for cat in self.category_manager.categories}
-        for bm in self.bookmarks.values():
+        for bm in self._iter_snapshot():
             counts[bm.category] = counts.get(bm.category, 0) + 1
         return counts
-    
+
     def get_tag_counts(self) -> Dict[str, int]:
         """Get bookmark count per tag"""
         counts: Dict[str, int] = {}
-        for bm in self.bookmarks.values():
+        for bm in self._iter_snapshot():
             for tag in bm.tags:
                 counts[tag] = counts.get(tag, 0) + 1
         return counts
@@ -494,7 +505,7 @@ class BookmarkManager:
         normalizes scheme/host/port/path, removes fragments, sorts query params.
         """
         url_map: Dict[str, List[Bookmark]] = {}
-        for bm in list(self.bookmarks.values()):
+        for bm in self._iter_snapshot():
             canonical = normalize_url(bm.url)
             url_map.setdefault(canonical, []).append(bm)
 
@@ -510,38 +521,45 @@ class BookmarkManager:
         groups_merged = 0
         bookmarks_removed = 0
 
-        for canonical_url, bm_list in dupes.items():
-            if len(bm_list) < 2:
-                continue
+        if dry_run:
+            for bm_list in dupes.values():
+                if len(bm_list) >= 2:
+                    groups_merged += 1
+                    bookmarks_removed += len(bm_list) - 1
+            return groups_merged, bookmarks_removed
 
-            merged_data = merge_duplicate_bookmarks(bm_list)
-            if dry_run:
+        # Mutating the dict (keeper update + removals) must happen under the
+        # lock so a concurrent reader/watcher can't observe a half-merged state
+        # or raise "dictionary changed size during iteration".
+        with self._lock:
+            for canonical_url, bm_list in dupes.items():
+                if len(bm_list) < 2:
+                    continue
+
+                merged_data = merge_duplicate_bookmarks(bm_list)
+                # Keep the first bookmark, update it with merged data, delete the rest
+                keeper = bm_list[0]
+                for key, value in merged_data.items():
+                    if key != 'id' and hasattr(keeper, key):
+                        setattr(keeper, key, value)
+                keeper.modified_at = datetime.now().isoformat()
+                self.bookmarks[keeper.id] = keeper
+
+                for bm in bm_list[1:]:
+                    self.bookmarks.pop(bm.id, None)
+
                 groups_merged += 1
                 bookmarks_removed += len(bm_list) - 1
-                continue
 
-            # Keep the first bookmark, update it with merged data, delete the rest
-            keeper = bm_list[0]
-            for key, value in merged_data.items():
-                if key != 'id' and hasattr(keeper, key):
-                    setattr(keeper, key, value)
-            keeper.modified_at = datetime.now().isoformat()
-            self.bookmarks[keeper.id] = keeper
-
-            for bm in bm_list[1:]:
-                self.bookmarks.pop(bm.id, None)
-
-            groups_merged += 1
-            bookmarks_removed += len(bm_list) - 1
-
-        if not dry_run and groups_merged > 0:
-            self.save_bookmarks()
+            if groups_merged > 0:
+                snapshot = list(self.bookmarks.values())
+                self._save_snapshot(snapshot)
 
         return groups_merged, bookmarks_removed
 
     def get_health_scores(self) -> List[Tuple[Bookmark, int]]:
         """Get health scores for all bookmarks, sorted worst-first."""
-        scored = [(bm, calculate_health_score(bm)) for bm in self.bookmarks.values()]
+        scored = [(bm, calculate_health_score(bm)) for bm in self._iter_snapshot()]
         return sorted(scored, key=lambda x: x[1])
 
     def fetch_metadata_for_bookmark(self, bookmark_id: int) -> bool:
@@ -627,16 +645,19 @@ class BookmarkManager:
 
     def get_trash(self) -> List[Bookmark]:
         """Get all bookmarks in the trash."""
-        return [bm for bm in self.bookmarks.values()
+        return [bm for bm in self._iter_snapshot()
                 if bm.is_archived and '_deleted_at' in bm.custom_data]
 
     def empty_trash(self) -> int:
         """Permanently delete all bookmarks in the trash."""
-        trash_ids = [bm.id for bm in self.get_trash()]
-        for bid in trash_ids:
-            self.bookmarks.pop(bid, None)
-        if trash_ids:
-            self.save_bookmarks()
+        with self._lock:
+            trash_ids = [bm.id for bm in self.bookmarks.values()
+                         if bm.is_archived and '_deleted_at' in bm.custom_data]
+            for bid in trash_ids:
+                self.bookmarks.pop(bid, None)
+            if trash_ids:
+                snapshot = list(self.bookmarks.values())
+                self._save_snapshot(snapshot)
         return len(trash_ids)
 
     # ── Random Bookmark Rediscovery (inspired by Buku) ──────────────────
@@ -646,7 +667,7 @@ class BookmarkManager:
         Excludes archived/trashed bookmarks by default.
         """
         import random
-        candidates = [bm for bm in self.bookmarks.values()
+        candidates = [bm for bm in self._iter_snapshot()
                       if not (exclude_trash and bm.is_archived)]
         return random.choice(candidates) if candidates else None
 
@@ -745,38 +766,44 @@ class BookmarkManager:
             clean = 'http://' + clean[8:]
 
         canonical = normalize_url(url)
+
+        # Auto-categorize before taking the lock (category_manager has its own
+        # lock; doing it here keeps the critical section short).
+        if not category:
+            category = self.category_manager.categorize_url(clean, title)
+
+        # Hold the lock across the duplicate scan AND the insert so two threads
+        # adding the same URL concurrently can't both pass the scan and create a
+        # duplicate (the scan and add_bookmark were previously separate critical
+        # sections — a TOCTOU window). add_bookmark re-enters the reentrant lock.
         with self._lock:
             for bm in self.bookmarks.values():
                 if normalize_url(bm.url) == canonical:
                     return bm  # Already exists — return existing rather than creating duplicate
 
-        # Auto-categorize
-        if not category:
-            category = self.category_manager.categorize_url(clean, title)
-
-        bm = Bookmark(
-            id=None, url=clean, title=title or clean,
-            category=category, tags=tags or [], **kwargs
-        )
-        return self.add_bookmark(bm)
+            bm = Bookmark(
+                id=None, url=clean, title=title or clean,
+                category=category, tags=tags or [], **kwargs
+            )
+            return self.add_bookmark(bm)
 
     def find_broken_links(self) -> List[Bookmark]:
         """Get bookmarks marked as broken"""
-        return [bm for bm in self.bookmarks.values() if not bm.is_valid]
-    
+        return [bm for bm in self._iter_snapshot() if not bm.is_valid]
+
     def find_by_url(self, url: str) -> Optional[Bookmark]:
         """Find a bookmark by its URL"""
         if not url:
             return None
-        
+
         # Normalize URL for comparison
         normalized = normalize_url(url)
-        
-        for bm in self.bookmarks.values():
+
+        for bm in self._iter_snapshot():
             bm_url = normalize_url(bm.url)
             if bm_url == normalized:
                 return bm
-        
+
         return None
     
     def url_exists(self, url: str) -> bool:
@@ -786,7 +813,7 @@ class BookmarkManager:
     def get_domain_stats(self) -> List[Tuple[str, int]]:
         """Get bookmark count per domain"""
         domain_counts: Dict[str, int] = {}
-        for bm in self.bookmarks.values():
+        for bm in self._iter_snapshot():
             domain = bm.domain
             if domain:
                 domain_counts[domain] = domain_counts.get(domain, 0) + 1
@@ -839,7 +866,7 @@ class BookmarkManager:
             by_category = {category: self.get_bookmarks_by_category(category)}
         else:
             by_category: Dict[str, List[Bookmark]] = {}
-            for bm in self.bookmarks.values():
+            for bm in self._iter_snapshot():
                 by_category.setdefault(bm.category, []).append(bm)
         
         # Sort categories
@@ -883,7 +910,7 @@ class BookmarkManager:
             "categories": {name: cat.to_dict()
                           for name, cat in self.category_manager.categories.items()},
             "tags": [tag.to_dict() for tag in self.tag_manager.tags.values()],
-            "bookmarks": [bm.to_dict() for bm in self.bookmarks.values()]
+            "bookmarks": [bm.to_dict() for bm in self._iter_snapshot()]
         }
         filepath = Path(filepath)
         filepath.parent.mkdir(parents=True, exist_ok=True)
@@ -903,9 +930,9 @@ class BookmarkManager:
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, 'w', encoding='utf-8', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(['Title', 'URL', 'Category', 'Tags', 'Notes', 
+            writer.writerow(['Title', 'URL', 'Category', 'Tags', 'Notes',
                            'Created', 'Visits', 'Is Pinned'])
-            for bm in self.bookmarks.values():
+            for bm in self._iter_snapshot():
                 writer.writerow([
                     _csv_safe_cell(bm.title),
                     _csv_safe_cell(bm.url),
@@ -920,7 +947,7 @@ class BookmarkManager:
     def export_markdown(self, filepath: str):
         """Export bookmarks to Markdown format"""
         by_category: Dict[str, List[Bookmark]] = {}
-        for bm in self.bookmarks.values():
+        for bm in self._iter_snapshot():
             by_category.setdefault(bm.category, []).append(bm)
 
         filepath = Path(filepath)
@@ -953,7 +980,7 @@ class BookmarkManager:
     def export_txt(self, filepath: str, include_titles: bool = True):
         """Export bookmarks to text format"""
         by_category: Dict[str, List[Bookmark]] = {}
-        for bm in self.bookmarks.values():
+        for bm in self._iter_snapshot():
             by_category.setdefault(bm.category, []).append(bm)
 
         filepath = Path(filepath)
@@ -973,7 +1000,7 @@ class BookmarkManager:
         filepath = Path(filepath)
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, 'w', encoding='utf-8') as f:
-            for bm in self.bookmarks.values():
+            for bm in self._iter_snapshot():
                 f.write(bm.url + '\n')
     
     def _escape_html(self, text: str) -> str:
@@ -1004,15 +1031,16 @@ class BookmarkManager:
     
     def get_statistics(self) -> Dict[str, Any]:
         """Get comprehensive statistics"""
-        total = len(self.bookmarks)
+        snapshot = self._iter_snapshot()
+        total = len(snapshot)
         category_counts = self.get_category_counts()
         tag_counts = self.get_tag_counts()
         domain_stats = self.get_domain_stats()[:10]
         duplicates = self.find_duplicates()
-        
+
         # Calculate age distribution
         age_dist = {"<7 days": 0, "7-30 days": 0, "1-6 months": 0, ">6 months": 0}
-        for bm in self.bookmarks.values():
+        for bm in snapshot:
             age = bm.age_days
             if age < 7:
                 age_dist["<7 days"] += 1
@@ -1038,6 +1066,6 @@ class BookmarkManager:
             "stale": len(self.get_stale_bookmarks()),
             "broken": len(self.find_broken_links()),
             "age_distribution": age_dist,
-            "with_notes": sum(1 for bm in self.bookmarks.values() if bm.notes),
-            "with_tags": sum(1 for bm in self.bookmarks.values() if bm.tags),
+            "with_notes": sum(1 for bm in snapshot if bm.notes),
+            "with_tags": sum(1 for bm in snapshot if bm.tags),
         }

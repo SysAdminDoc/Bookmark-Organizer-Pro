@@ -99,9 +99,14 @@ class EnhancedProgressBar(tk.Frame, ThemedWidget):
         """Animate indeterminate progress"""
         if not self._animating:
             return
-        
+        # The widget may be destroyed while a frame is still queued via after();
+        # touching a dead widget's place_info() raises TclError. Bail cleanly.
+        if not self.winfo_exists() or not self.bar_fill.winfo_exists():
+            self._animating = False
+            return
+
         theme = get_theme()
-        
+
         # Simple back-and-forth animation
         current_pos = float(self.bar_fill.place_info().get('relx', 0))
         current_width = 0.3
@@ -469,31 +474,50 @@ class ScrollableFrame(tk.Frame):
         self.inner.bind("<Configure>", self._on_frame_configure)
         self.canvas.bind("<Configure>", self._on_canvas_configure)
 
-        # Mouse wheel scrolling — bind on canvas AND propagate from all children
-        self.canvas.bind("<MouseWheel>", self._on_mousewheel)
-        self.inner.bind("<MouseWheel>", self._on_mousewheel)
-
-        # Re-bind mousewheel on every child added so the entire sidebar scrolls
-        self.inner.bind("<Map>", lambda e: self._bind_mousewheel_recursive(self.inner))
+        # Mouse wheel scrolling — bound globally only while the pointer is over
+        # this frame. Previously every child widget was (re)bound on each
+        # <Configure>/<Map> with add="+", which *appends* a new binding without
+        # removing the old ones. In long, widget-heavy views (e.g. the AI
+        # activity feeds) that grew O(n^2) Tcl bindings and leaked large amounts
+        # of memory. A single hover-scoped bind_all scrolls over any descendant
+        # with no per-widget bindings to accumulate.
+        self.canvas.bind("<Enter>", self._activate_mousewheel)
+        self.canvas.bind("<Leave>", self._deactivate_mousewheel)
+        self.bind("<Destroy>", lambda e: self._deactivate_mousewheel())
 
         # Keyboard scrolling
         self.canvas.configure(takefocus=1)
         for key in ("<Prior>", "<Next>", "<Home>", "<End>"):
             self.canvas.bind(key, self._on_key_scroll)
 
-    def _bind_mousewheel_recursive(self, widget):
-        """Walk all descendants and bind mousewheel so scrolling works anywhere."""
+    def _activate_mousewheel(self, event=None):
+        """Capture the wheel globally while the pointer is over this frame."""
         try:
-            widget.bind("<MouseWheel>", self._on_mousewheel, add="+")
-            for child in widget.winfo_children():
-                self._bind_mousewheel_recursive(child)
+            self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
         except Exception:
             pass
+
+    def _deactivate_mousewheel(self, event=None):
+        """Release the global wheel binding once the pointer truly leaves.
+
+        Tk fires <Leave> on the canvas when the pointer crosses onto a child
+        window too, so confirm the pointer is outside the whole frame before
+        unbinding — otherwise scrolling would stop over the feed rows.
+        """
+        try:
+            x, y = self.winfo_pointerxy()
+            w = self.winfo_containing(x, y)
+            while w is not None:
+                if w is self:
+                    return  # pointer is still over a descendant; keep active
+                w = w.master
+            self.canvas.unbind_all("<MouseWheel>")
+        except Exception:
+            self.canvas.unbind_all("<MouseWheel>")
 
     def _on_frame_configure(self, event):
         """Update scroll region when inner frame changes"""
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        self._bind_mousewheel_recursive(self.inner)
 
     def _on_canvas_configure(self, event):
         """Update inner frame width when canvas resizes"""

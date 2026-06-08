@@ -16,10 +16,12 @@ from typing import List, Optional
 from bookmark_organizer_pro.constants import EXPORTS_DIR
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.utils import xml_safe_text
 
 
 def _esc(text: str) -> str:
-    return html.escape(str(text or ""), quote=True)
+    # Strip XML-illegal control chars before escaping (RDF must be valid XML).
+    return html.escape(xml_safe_text(text), quote=True)
 
 
 def import_zotero_rdf(path: str) -> List[Bookmark]:
@@ -28,13 +30,16 @@ def import_zotero_rdf(path: str) -> List[Bookmark]:
         try:
             from defusedxml.ElementTree import parse as _parse
         except ImportError:
-            import xml.etree.ElementTree as _stdlib_ET
-
-            def _parse(source):
-                """Safe XML parse that disables external entities when defusedxml is unavailable."""
-                parser = _stdlib_ET.XMLParser()
-                parser.entity = {}
-                return _stdlib_ET.parse(source, parser=parser)
+            # Clearing `parser.entity` does NOT disable DTD/external-entity
+            # processing in expat, so the stdlib parser is not a safe fallback
+            # for untrusted RDF (XXE / billion-laughs). Refuse rather than parse
+            # unsafely. defusedxml is a declared dependency, so this is only hit
+            # in a broken/partial environment.
+            log.error(
+                "Zotero RDF import requires defusedxml for safe parsing; "
+                "install it (pip install defusedxml) and retry."
+            )
+            return []
         tree = _parse(path)
         root = tree.getroot()
     except Exception as exc:

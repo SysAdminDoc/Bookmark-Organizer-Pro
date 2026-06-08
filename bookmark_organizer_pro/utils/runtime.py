@@ -45,9 +45,29 @@ def atomic_json_write(filepath: Path, data, indent: int = 2) -> None:
 def csv_safe_cell(value) -> str:
     """Return a spreadsheet-safe CSV cell string."""
     text = "" if value is None else str(value)
-    if text.startswith(("=", "+", "-", "@", "\t", "\r")):
+    if text.startswith(("=", "+", "-", "@", "\t", "\r", "|")):
         return "'" + text
     return text
+
+
+# Codepoints legal in XML 1.0 are: tab/newline/CR, 0x20-0xD7FF, 0xE000-0xFFFD,
+# and 0x10000-0x10FFFF. Any other char (e.g. a NUL or 0x1B in a bookmark title)
+# is illegal even when escaped, so a single bad title would otherwise produce an
+# XML/Atom/XBEL/OPML/RDF export no conformant parser can read -- corrupting every
+# XML-family export of the whole collection on round-trip. Strip them defensively.
+def _xml_char_ok(cp: int) -> bool:
+    return (
+        cp in (0x09, 0x0A, 0x0D)
+        or 0x20 <= cp <= 0xD7FF
+        or 0xE000 <= cp <= 0xFFFD
+        or 0x10000 <= cp <= 0x10FFFF
+    )
+
+
+def xml_safe_text(value) -> str:
+    """Strip characters invalid in XML 1.0 (call before XML-escaping)."""
+    text = "" if value is None else str(value)
+    return "".join(ch for ch in text if _xml_char_ok(ord(ch)))
 
 
 def open_external_url(url: str, opener: Optional[Callable[[str], bool]] = None) -> bool:

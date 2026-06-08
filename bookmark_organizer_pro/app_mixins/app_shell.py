@@ -594,13 +594,14 @@ class AppShellMixin:
                     self._chat_service = CollectionChat(self.ai_config, vs)
 
                 turn = self._chat_service.ask(question)
-                self.root.after(0, lambda: self.chat_panel.show_answer(
+                self._post_to_ui(lambda: self.chat_panel.show_answer(
                     turn.answer, sources=turn.sources,
                 ))
             except Exception as exc:
-                self.root.after(0, lambda: self.chat_panel.show_error(
-                    f"Error: {str(exc)[:100]}"
-                ))
+                # Bind the message now: Python unbinds `exc` when the except
+                # block exits, but this callback runs later on the UI thread.
+                err_text = f"Error: {str(exc)[:100]}"
+                self._post_to_ui(lambda: self.chat_panel.show_error(err_text))
 
         threading.Thread(target=_do_ask, daemon=True).start()
 
