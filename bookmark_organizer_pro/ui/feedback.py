@@ -305,8 +305,8 @@ class ToastNotification(tk.Toplevel):
         tk.Label(
             inner, text=message, bg=theme.bg_card,
             fg=theme.text_primary, font=FONTS.body(),
-            padx=(4, 14), pady=10, wraplength=340, justify="left"
-        ).pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            pady=10, wraplength=340, justify="left"
+        ).pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(4, 14))
 
         close_lbl = tk.Label(
             inner, text="✕", bg=theme.bg_card,

@@ -219,9 +219,10 @@ class AiCategorizationMixin:
                     results = client.categorize_bookmarks(bm_data, categories, allow_new, suggest_tags)
                 except Exception as exc:
                     log.warning(f"AI batch failed: {exc}")
+                    err_msg = f"error: {str(exc)[:40]}"
                     for bm in batch:
-                        self.root.after(0, lambda b=bm: _add_feed_entry(
-                            b, {}, False, f"error: {str(exc)[:40]}", client.last_provider, False,
+                        self.root.after(0, lambda b=bm, e=err_msg: _add_feed_entry(
+                            b, {}, False, e, client.last_provider, False,
                         ))
                     processed += len(batch)
                     continue
