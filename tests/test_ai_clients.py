@@ -246,6 +246,38 @@ class TestDefaultCategoriesAsset(unittest.TestCase):
             self.assertIsInstance(patterns, list)
             self.assertTrue(all(isinstance(p, str) for p in patterns))
 
+    def test_curated_categories_present_and_route(self):
+        from bookmark_organizer_pro.core.default_categories import DEFAULT_CATEGORIES
+        from bookmark_organizer_pro.core.category_manager import get_category_icon
+
+        expected = {
+            "Music & Audio": "spotify.com",
+            "Communication": "slack.com",
+            "Cryptocurrency": "coinbase.com",
+            "Maps & Navigation": "maps.google.com",
+            "Books & Literature": "goodreads.com",
+        }
+        dom2cat = {p[7:]: cat for cat, pats in DEFAULT_CATEGORIES.items()
+                   for p in pats if p.startswith("domain:")}
+        for cat, sample in expected.items():
+            self.assertIn(cat, DEFAULT_CATEGORIES, f"missing category {cat}")
+            self.assertGreaterEqual(len(DEFAULT_CATEGORIES[cat]), 10)
+            self.assertEqual(dom2cat.get(sample), cat, f"{sample} should route to {cat}")
+            # A real (non-generic) icon is assigned.
+            self.assertNotEqual(get_category_icon(cat), "\U0001F4C2", f"{cat} has no icon")
+
+    def test_no_domain_rule_in_two_categories(self):
+        """A domain must live in exactly one category — duplicates cause
+        ambiguous matches whose winner depends on dict iteration order."""
+        from collections import Counter
+        from bookmark_organizer_pro.core.default_categories import DEFAULT_CATEGORIES
+
+        counts = Counter(
+            p for pats in DEFAULT_CATEGORIES.values() for p in pats if p.startswith("domain:")
+        )
+        dups = [p for p, n in counts.items() if n > 1]
+        self.assertEqual(dups, [], f"domain rules in multiple categories: {dups[:10]}")
+
 
 if __name__ == "__main__":
     unittest.main()
