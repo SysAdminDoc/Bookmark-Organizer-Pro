@@ -44,6 +44,8 @@ class AppShellMixin:
         file_menu.add_command(label="Import…", accelerator="Ctrl+I", command=self._show_import_dialog)
         file_menu.add_command(label="Export…", accelerator="Ctrl+S", command=self._show_export_dialog)
         file_menu.add_separator()
+        file_menu.add_command(label="Restore from Backup…", command=self._show_restore_dialog)
+        file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self._on_close)
         menubar.add_cascade(label="File", menu=file_menu)
         

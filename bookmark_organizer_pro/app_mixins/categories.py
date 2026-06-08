@@ -251,26 +251,25 @@ class CategoryActionsMixin:
         ).pack(pady=10)
     
     def _delete_category_confirm(self, category: str):
-        """Confirm and delete category"""
+        """Delete a category immediately (no prompt); its bookmarks move to
+        Uncategorized. A session safepoint protects against accidents."""
         count = len(self.bookmark_manager.get_bookmarks_by_category(category))
-        
-        msg = f"Delete the category '{category}'?"
-        if count > 0:
-            msg += f"\n\n{pluralize(count, 'bookmark')} will be moved to 'Uncategorized / Needs Review'."
-        
-        if messagebox.askyesno("Delete Category", msg, parent=self.root):
-            # Move bookmarks to Uncategorized
-            for bm in self.bookmark_manager.get_bookmarks_by_category(category):
-                bm.category = "Uncategorized / Needs Review"
-                self.bookmark_manager.update_bookmark(bm)
-            
-            # Delete the category
-            if category in self.category_manager.categories:
-                del self.category_manager.categories[category]
-                self.category_manager.save_categories()
-            
-            self._refresh_category_list()
-            self._refresh_bookmark_list()
-            self._refresh_analytics()
+
+        # Move bookmarks to Uncategorized
+        for bm in self.bookmark_manager.get_bookmarks_by_category(category):
+            bm.category = "Uncategorized / Needs Review"
+            self.bookmark_manager.update_bookmark(bm)
+
+        # Delete the category
+        if category in self.category_manager.categories:
+            del self.category_manager.categories[category]
+            self.category_manager.save_categories()
+
+        self._refresh_category_list()
+        self._refresh_bookmark_list()
+        self._refresh_analytics()
+        if hasattr(self, "_show_toast"):
+            moved = f" ({pluralize(count, 'bookmark')} → Uncategorized)" if count else ""
+            self._show_toast(f"Deleted category '{category}'{moved}", "info")
             self._set_status(f"Deleted category: {category}")
 

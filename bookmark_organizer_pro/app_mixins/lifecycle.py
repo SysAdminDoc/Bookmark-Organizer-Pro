@@ -16,7 +16,15 @@ class LifecycleActionsMixin:
         self._refresh_category_list()
         self._refresh_bookmark_list()
         self._refresh_analytics()
-        
+
+        # Capture a startup safepoint in the background so the pre-session state
+        # is always recoverable (deletes are immediate / unconfirmed by design).
+        import threading
+        threading.Thread(
+            target=lambda: self.bookmark_manager.create_safepoint("startup"),
+            daemon=True,
+        ).start()
+
         # Queue favicon downloads
         bookmarks = self.bookmark_manager.get_all_bookmarks()
         self.favicon_manager.queue_bookmarks(bookmarks)

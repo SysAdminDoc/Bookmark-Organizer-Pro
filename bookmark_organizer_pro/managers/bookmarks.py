@@ -144,6 +144,38 @@ class BookmarkManager:
         """Reload bookmarks from disk"""
         self._load_bookmarks()
 
+    # --- Safepoints / backups (disaster recovery) ----------------------------
+
+    def create_safepoint(self, label: str = "manual") -> Optional[str]:
+        """Capture a preserved snapshot for recovery (startup, pre-import, etc.).
+
+        Returns the safepoint name or None. No-ops gracefully on storage
+        backends that don't support it.
+        """
+        fn = getattr(self.storage, "create_safepoint", None)
+        if callable(fn):
+            try:
+                return fn(label)
+            except Exception as exc:
+                log.warning(f"Safepoint failed: {exc}")
+        return None
+
+    def list_backups(self) -> List[Tuple[str, datetime, int]]:
+        """Available backups + safepoints (name, mtime, size), newest first."""
+        fn = getattr(self.storage, "get_backups", None)
+        return fn() if callable(fn) else []
+
+    def restore_backup(self, name: str) -> bool:
+        """Restore a backup/safepoint by name and reload into memory."""
+        fn = getattr(self.storage, "restore_backup", None)
+        if not callable(fn):
+            return False
+        with self._lock:
+            if not fn(name):
+                return False
+            self._load_bookmarks()
+        return True
+
     # --- File-change watching (R-74) ----------------------------------------
 
     def start_file_watcher(self, interval: float = 5.0,

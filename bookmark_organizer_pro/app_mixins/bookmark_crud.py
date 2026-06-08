@@ -105,14 +105,9 @@ class BookmarkCrudMixin:
 
         count = len(self.selected_bookmarks)
 
-        if count >= 2:
-            if not messagebox.askyesno(
-                "Delete Bookmarks",
-                f"Delete {pluralize(count, 'bookmark')}?\n\nYou can undo this from the Edit menu.",
-                parent=self.root
-            ):
-                return
-
+        # No confirmation prompt by design — delete is immediate. The operation
+        # is undoable (Edit menu / Ctrl+Z) and a session safepoint + rolling
+        # backups protect against accidents (see StorageManager safepoints).
         cmd = DeleteBookmarksCommand(self.bookmark_manager, list(self.selected_bookmarks))
         self.command_stack.execute(cmd)
 
