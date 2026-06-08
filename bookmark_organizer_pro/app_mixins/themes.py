@@ -66,6 +66,13 @@ class ThemeActionsMixin:
         except Exception:
             pass
         
+        # Update tksheet theme if using the Sheet backend
+        try:
+            if hasattr(self, 'tree') and hasattr(self.tree, 'apply_theme_colors'):
+                self.tree.apply_theme_colors()
+        except Exception:
+            pass
+
         # Refresh all data displays (this recreates widgets with new theme)
         try:
             self._refresh_category_list()
