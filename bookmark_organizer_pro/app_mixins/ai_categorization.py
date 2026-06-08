@@ -240,6 +240,7 @@ class AiCategorizationMixin:
                     result["_old_category"] = bm.category
                     old_category = bm.category
                     old_title = bm.title
+                    old_tags = list(bm.ai_tags) if bm.ai_tags else []
 
                     applied = False
                     reason = ""
@@ -254,6 +255,7 @@ class AiCategorizationMixin:
                             new_category=result.get("category", old_category),
                             confidence=confidence, ai_tags=result.get("tags", []),
                             applied=False, reason=reason,
+                            old_title=old_title, old_tags=old_tags,
                         )
                     else:
                         new_cat = result.get("category", bm.category)
@@ -300,6 +302,7 @@ class AiCategorizationMixin:
                             suggested_title=result.get("suggested_title", ""),
                             summary=reasoning,
                             applied=applied, reason=reason,
+                            old_title=old_title, old_tags=old_tags,
                         )
 
                     if is_failover:

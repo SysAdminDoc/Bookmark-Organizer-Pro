@@ -87,13 +87,27 @@ def log_categorize(
     confidence: float, ai_tags: List[str],
     suggested_title: str = "", summary: str = "",
     applied: bool = True, reason: str = "",
+    old_title: str = "", old_tags: Optional[List[str]] = None,
 ):
     """Log an AI categorization action."""
+    from urllib.parse import urlparse
+    domain = ""
+    try:
+        domain = urlparse(url).netloc.lower()
+    except Exception:
+        pass
+    before: Dict[str, Any] = {"category": old_category}
+    if old_title:
+        before["title"] = old_title[:200]
+    if old_tags:
+        before["tags"] = old_tags
+    if domain:
+        before["domain"] = domain
     log_ai_action(
         action="categorize",
         provider=provider, model=model,
         bookmark_id=bookmark_id, url=url,
-        before={"category": old_category},
+        before=before,
         after={"category": new_category},
         ai_response={
             "category": new_category,
