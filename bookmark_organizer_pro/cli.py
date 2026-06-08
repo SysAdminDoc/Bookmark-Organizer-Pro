@@ -758,27 +758,46 @@ Top Domains:
             print(f"{'wrote' if ok else 'failed'}: {path}")
 
     def _cmd_encrypt(self, args):
-        if len(args) < 1:
-            print("usage: encrypt <passphrase> [src] [dst]"); return
         from bookmark_organizer_pro.constants import MASTER_BOOKMARKS_FILE
         from bookmark_organizer_pro.services.encryption import EncryptedStore
-        passphrase = args[0]
-        src = Path(args[1]) if len(args) > 1 else MASTER_BOOKMARKS_FILE
-        dst = Path(args[2]) if len(args) > 2 else None
+        import getpass as _getpass
+        if args:
+            passphrase = args[0]
+            src = Path(args[1]) if len(args) > 1 else MASTER_BOOKMARKS_FILE
+            dst = Path(args[2]) if len(args) > 2 else None
+        else:
+            passphrase = _getpass.getpass("Passphrase: ")
+            src = MASTER_BOOKMARKS_FILE
+            dst = None
+        if not passphrase:
+            print("error: passphrase required"); return
         try:
-            out = EncryptedStore(passphrase).encrypt_file(src, dst)
+            store = EncryptedStore(passphrase)
+            out = store.encrypt_file(src, dst)
+            store.close()
             print(f"encrypted -> {out}")
         except Exception as e:
             print(f"error: {e}")
 
     def _cmd_decrypt(self, args):
-        if len(args) < 2:
-            print("usage: decrypt <passphrase> <src> [dst]"); return
         from bookmark_organizer_pro.services.encryption import EncryptedStore
+        import getpass as _getpass
+        if len(args) >= 2:
+            passphrase = args[0]
+            src = Path(args[1])
+            dst = Path(args[2]) if len(args) > 2 else None
+        elif len(args) == 1:
+            passphrase = _getpass.getpass("Passphrase: ")
+            src = Path(args[0])
+            dst = None
+        else:
+            print("usage: decrypt [passphrase] <src> [dst]"); return
+        if not passphrase:
+            print("error: passphrase required"); return
         try:
-            out = EncryptedStore(args[0]).decrypt_file(
-                Path(args[1]), Path(args[2]) if len(args) > 2 else None,
-            )
+            store = EncryptedStore(passphrase)
+            out = store.decrypt_file(src, dst)
+            store.close()
             print(f"decrypted -> {out}")
         except Exception as e:
             print(f"error: {e}")

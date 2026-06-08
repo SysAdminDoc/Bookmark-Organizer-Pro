@@ -113,9 +113,6 @@ class NonBlockingTaskRunner:
                 
                 if on_progress:
                     self.root.after(0, lambda i=i, item=item: on_progress(i + 1, total, item))
-                
-                # Small yield to prevent blocking
-                time.sleep(0.01)
             
             if on_complete:
                 self.root.after(0, lambda results=results: on_complete(results))
