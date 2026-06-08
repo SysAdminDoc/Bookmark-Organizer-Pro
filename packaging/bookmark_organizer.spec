@@ -23,7 +23,7 @@ import sys
 # =============================================================================
 
 APP_NAME = "Bookmark Organizer Pro"
-APP_VERSION = "6.6.30"
+APP_VERSION = "6.7.0"
 SCRIPT_NAME = "main.py"
 ICON_FILE = "bookmark_organizer.ico"
 PNG_ICON_FILE = "bookmark_organizer.png"
@@ -117,6 +117,12 @@ hidden_imports = [
     'cryptography',
     'mcp',
     'fastmcp',
+    # AI provider SDKs (lazy-imported via ensure_package — PyInstaller misses them)
+    'openai',
+    'openai.resources',
+    'openai.types',
+    'openai.types.chat',
+    'openai._streaming',
 ]
 
 # Data files to include. Keep bundled runtime assets under the same
@@ -204,7 +210,7 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=exe_icon,
-    version_info=version_info,
+    version=version_info,  # PyInstaller EXE() reads kwargs['version'] for the Windows version resource
 )
 
 # =============================================================================

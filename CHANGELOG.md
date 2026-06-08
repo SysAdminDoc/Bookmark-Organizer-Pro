@@ -2,6 +2,42 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.7.0] - 2026-06-08
+
+AI-in-build and bookmark-list interaction release.
+
+### Fixed — AI
+
+- **DeepSeek / OpenAI-compatible providers work in the packaged executable.**
+  The `openai` SDK is lazy-imported at runtime via `ensure_package`, which
+  PyInstaller could not detect, so the Windows build raised
+  `Required package 'openai' is not installed.` for DeepSeek categorization.
+  Added `openai` (and its `resources`/`types`/`_streaming` submodules) to the
+  PyInstaller hidden imports so the bundled `.exe` can categorize, tag, and
+  summarize with DeepSeek out of the box.
+
+### Fixed — Bookmark list (tksheet backend)
+
+- **Row selection is actionable again.** A single click creates a tksheet
+  *cell* selection, but `_sync_selection_from_sheet` only read fully-selected
+  *rows*, so toolbar/right-click actions saw an empty selection. Now syncs via
+  `get_selected_rows(get_cells_as_rows=True)` with a `get_currently_selected`
+  fallback, and a button-release safety net.
+- **Right-click context menu restored.** Mouse bindings (`<Button-3>`,
+  `<Double-1>`, etc.) are now routed to tksheet's internal table canvas (`MT`)
+  instead of the outer frame, and `identify_row` resolves rows through
+  `MT.identify_row`. Header clicks are routed separately to drive column sort.
+- **Selection highlight no longer masked.** Decorative `oddrow`/`evenrow`
+  zebra tags are excluded from per-row highlighting so the selection color is
+  visible.
+
+### Changed — Packaging / privacy
+
+- Verified the release executable contains no API keys and none of the user's
+  bookmark data (all user data lives in `~/.bookmark_organizer/`, outside the
+  bundle). Removed a stale local Nuitka smoke-build artifact that had captured
+  environment variables; it was gitignored and never committed.
+
 ## [v6.6.30] - 2026-06-06
 
 MCP HTTP compatibility release.
