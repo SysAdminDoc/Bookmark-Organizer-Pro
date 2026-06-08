@@ -21,13 +21,16 @@ try:
     from defusedxml.ElementTree import fromstring as _xml_fromstring
 except ImportError:
     import xml.etree.ElementTree as _stdlib_ET
+    import re as _re
+
+    _DTD_RE = _re.compile(r'<!DOCTYPE[^>]*>', _re.IGNORECASE | _re.DOTALL)
+    _ENTITY_RE = _re.compile(r'<!ENTITY[^>]*>', _re.IGNORECASE | _re.DOTALL)
 
     def _xml_fromstring(text):
-        """Safe XML fromstring that disables external entities when defusedxml is unavailable."""
-        parser = _stdlib_ET.XMLParser()
-        # Disable entity expansion to prevent XXE / billion-laughs
-        parser.entity = {}
-        return _stdlib_ET.fromstring(text, parser=parser)
+        """Safe XML fromstring that strips DTD/entities when defusedxml is unavailable."""
+        text = _DTD_RE.sub('', text)
+        text = _ENTITY_RE.sub('', text)
+        return _stdlib_ET.fromstring(text)
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass, field
 from datetime import datetime

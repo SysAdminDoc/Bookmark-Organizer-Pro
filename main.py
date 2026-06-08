@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Bookmark Organizer Pro - Ultimate Edition v6.2.0
-=================================================
+Bookmark Organizer Pro - Ultimate Edition
+==========================================
 A powerful, modern bookmark manager with:
 - Modular architecture: backend in `bookmark_organizer_pro` package
 - Multi-theme system with 10+ built-in themes
@@ -13,8 +13,6 @@ A powerful, modern bookmark manager with:
 - System tray integration
 - Enhanced favicon caching
 - Professional UI with DPI awareness
-
-Version 6.0.0 - April 2026
 """
 
 import webbrowser

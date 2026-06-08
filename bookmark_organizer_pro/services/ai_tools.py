@@ -56,12 +56,9 @@ class AIBatchProcessor:
     def start(self):
         """Start processing in background thread"""
         with self._lock:
-            has_queue = bool(self._queue)
-        if self._running or not has_queue:
-            return
-        
-        self._running = True
-        with self._lock:
+            if self._running or not self._queue:
+                return
+            self._running = True
             self._processed = 0
             self._results.clear()
             self._errors.clear()
@@ -249,15 +246,17 @@ Respond in JSON format:
 
 class AITagSuggester:
     """Generate tag suggestions using AI"""
-    
+
+    _MAX_CACHE = 2048
+
     def __init__(self, ai_config: AIConfigManager):
         self.ai_config = ai_config
         self._cache: Dict[str, List[str]] = {}
-    
+
     def suggest_tags(self, bookmark: Bookmark, existing_tags: List[str] = None) -> List[str]:
         """Get AI-suggested tags for a bookmark"""
         cache_key = f"{bookmark.url}:{bookmark.title}"
-        
+
         if cache_key in self._cache:
             return self._cache[cache_key]
         
@@ -288,6 +287,11 @@ Return only a JSON array of tag strings: ["tag1", "tag2", ...]"""
                     tags = _json.loads(arr_match.group())
                     if isinstance(tags, list):
                         cleaned = [str(t).strip().lower() for t in tags if str(t).strip()][:7]
+                        if len(self._cache) >= self._MAX_CACHE:
+                            try:
+                                self._cache.pop(next(iter(self._cache)))
+                            except StopIteration:
+                                pass
                         self._cache[cache_key] = cleaned
                         return cleaned
         except Exception as e:

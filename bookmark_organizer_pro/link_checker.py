@@ -41,6 +41,8 @@ class LinkChecker:
         self._running = True
         self._checked = 0
         self._total = len(bookmarks)
+        self._domain_locks.clear()
+        self._domain_last_request.clear()
 
         thread = threading.Thread(
             target=self._worker,
@@ -111,6 +113,7 @@ class LinkChecker:
             redirects = []
             response = None
 
+            seen_urls = {current_url}
             for _ in range(6):
                 if not URLUtilities._is_safe_url(current_url):
                     return False, 0
@@ -136,8 +139,11 @@ class LinkChecker:
                     if not location:
                         break
                     next_url = urljoin(current_url, location)
+                    if next_url in seen_urls:
+                        break
                     if not URLUtilities._is_safe_url(next_url):
                         return False, 0
+                    seen_urls.add(next_url)
                     redirects.append(next_url)
                     current_url = next_url
                     continue

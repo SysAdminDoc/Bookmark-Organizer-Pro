@@ -86,8 +86,7 @@ def sanitize_filename(filename: str) -> str:
     if not filename:
         return "unnamed"
 
-    invalid_chars = '<>:"/\\|?*\x00-\x1f'
-    sanitized = re.sub(f'[{invalid_chars}]', '_', filename)
+    sanitized = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', filename)
     sanitized = sanitized.strip(' .')
 
     if not sanitized:

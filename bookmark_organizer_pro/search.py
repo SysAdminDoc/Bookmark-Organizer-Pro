@@ -37,20 +37,28 @@ class SearchQuery:
         if self.raw_query:
             self._parse(self.raw_query)
 
+    @staticmethod
+    def _safe_compile_regex(pattern: str) -> "re.Pattern | None":
+        if len(pattern) > 250:
+            return None
+        dangerous = re.compile(r'(\(.+\+\)\+|\(\.\*\)\{|\(\[.+\]\+\)\+)')
+        if dangerous.search(pattern):
+            return None
+        try:
+            return re.compile(pattern, re.IGNORECASE)
+        except re.error:
+            return None
+
     def _parse(self, query: str):
         """Parse the query string into structured filters"""
         if query.startswith("/") and "/" in query[1:]:
             end_idx = query.rindex("/")
             if end_idx > 0:
-                try:
-                    pattern = query[1:end_idx]
-                    if len(pattern) > 250:
-                        return
-                    self.regex_pattern = re.compile(pattern, re.IGNORECASE)
+                compiled = self._safe_compile_regex(query[1:end_idx])
+                if compiled is not None:
+                    self.regex_pattern = compiled
                     self.is_regex = True
                     return
-                except re.error:
-                    pass
 
         tokens = []
         current_token = ""

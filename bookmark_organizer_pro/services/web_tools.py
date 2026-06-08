@@ -331,7 +331,8 @@ class AISummarizer:
     """Generate AI summaries for bookmark pages"""
     MAX_FETCH_BYTES = 2_000_000
     MAX_PARSE_BYTES = 100_000
-    
+    _MAX_CACHE = 1024
+
     def __init__(self, ai_config: AIConfigManager):
         self.ai_config = ai_config
         self._cache: Dict[str, str] = {}
@@ -430,6 +431,11 @@ Summary:"""
                 summary = str(summary).strip()
                 if len(summary) > max_length:
                     summary = truncate_string(summary, max_length)
+                if len(self._cache) >= self._MAX_CACHE:
+                    try:
+                        self._cache.pop(next(iter(self._cache)))
+                    except StopIteration:
+                        pass
                 self._cache[cache_key] = summary
                 return summary
             

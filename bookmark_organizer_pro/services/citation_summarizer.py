@@ -17,6 +17,7 @@ from bookmark_organizer_pro.ai import AIConfigManager, create_ai_client
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.embeddings import EmbeddingService
+from bookmark_organizer_pro.utils.safe import sanitize_for_prompt
 
 
 CITATION_PATTERN = re.compile(r"\[#(c\d+)\]")
@@ -101,13 +102,13 @@ class CitationSummarizer:
     # ------------------------------------------------------------------
     def _build_prompt(self, bookmark: Bookmark, chunks: List[Dict]) -> str:
         lines = [
-            f"TITLE: {bookmark.title}",
-            f"URL: {bookmark.url}",
+            f"TITLE: {sanitize_for_prompt(bookmark.title, 300)}",
+            f"URL: {sanitize_for_prompt(bookmark.url, 500)}",
             "",
             "CHUNKS:",
         ]
         for c in chunks:
-            lines.append(f"[{c['id']}] {c['text']}")
+            lines.append(f"[{c['id']}] {sanitize_for_prompt(c['text'], 2000)}")
             lines.append("")
         lines.append("Write the cited summary now.")
         return "\n".join(lines)
