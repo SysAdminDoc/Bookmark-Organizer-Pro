@@ -13,8 +13,11 @@ import shutil
 import tempfile
 try:
     from defusedxml import ElementTree as _safe_ET
-except ImportError:
-    import xml.etree.ElementTree as _safe_ET
+except ImportError:  # pragma: no cover - defusedxml is a declared dependency
+    # Do NOT silently alias to the stdlib parser: it processes DTDs/external
+    # entities (XXE, billion-laughs). Refuse safe-XML parsing; the OPML path
+    # has a regex fallback that does no entity expansion.
+    _safe_ET = None
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -24,6 +27,7 @@ from urllib.parse import urlparse
 from .constants import DATA_DIR, IS_WINDOWS, IS_MAC
 from .logging_config import log
 from .models import Bookmark
+from .utils import xml_safe_text
 
 
 def _decode(text: str) -> str:
@@ -34,8 +38,8 @@ def _decode(text: str) -> str:
 
 
 def _escape_attr(text: str) -> str:
-    """Escape text for XML/HTML attributes."""
-    return html_module.escape(str(text or ""), quote=True)
+    """Escape text for XML/HTML attributes (strips XML-illegal control chars)."""
+    return html_module.escape(xml_safe_text(text), quote=True)
 
 
 def _is_supported_web_url(url: str) -> bool:
@@ -508,6 +512,9 @@ class OPMLImporter:
                     walk(child, current_category)
 
             try:
+                if _safe_ET is None:
+                    log.warning("defusedxml unavailable; using regex OPML fallback (no XML entity expansion)")
+                    raise ET.ParseError("defusedxml unavailable")
                 root = _safe_ET.parse(filepath).getroot()
                 walk(root)
                 return bookmarks

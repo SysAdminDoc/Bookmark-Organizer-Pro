@@ -95,12 +95,28 @@ class MCPTokenManager:
                 for t, v in self._tokens.items()
             ]
 
+    def _match(self, token: str) -> Optional[dict]:
+        """Look up a token using constant-time comparison.
+
+        A plain ``token in self._tokens`` dict lookup can leak token validity
+        through timing. Comparing every stored token with ``compare_digest``
+        (without an early ``break``) keeps the work independent of which token,
+        if any, matched. Token counts here are tiny, so the cost is negligible.
+        """
+        if not token:
+            return None
+        match = None
+        for stored, info in self._tokens.items():
+            if secrets.compare_digest(stored, token):
+                match = info
+        return match
+
     def validate(self, token: str, tool_name: str) -> bool:
         with self._lock:
-            if token not in self._tokens:
-                return False
-            info = self._tokens[token]
-            scope = info.get("scope", "read-write")
+            info = self._match(token)
+        if info is None:
+            return False
+        scope = info.get("scope", "read-write")
         if scope == "read-write":
             return True
         if scope == "read-only":
@@ -109,5 +125,5 @@ class MCPTokenManager:
 
     def get_scope(self, token: str) -> Optional[str]:
         with self._lock:
-            info = self._tokens.get(token)
-            return info["scope"] if info else None
+            info = self._match(token)
+            return info.get("scope") if info else None

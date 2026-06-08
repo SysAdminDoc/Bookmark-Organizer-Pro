@@ -418,12 +418,22 @@ Content:
 
 Summary:"""
             
-            # Use categorize endpoint but extract summary
-            result = client.categorize_bookmark(bookmark.url, bookmark.title, [])
-            
-            if result and 'summary' in result:
-                summary = result['summary']
-            else:
+            # Generate the summary via the provider's text-completion API.
+            # (This previously called a non-existent ``categorize_bookmark``
+            # method, so every call raised and silently fell through to the
+            # naive paragraph extract below — AI summaries never used the model.)
+            try:
+                summary = client.complete(
+                    prompt,
+                    system="You write concise, accurate 1-2 sentence summaries of web pages.",
+                    max_tokens=160,
+                    temperature=0.3,
+                )
+            except Exception as exc:
+                log.warning(f"AI summary failed; using paragraph extract: {exc}")
+                summary = None
+
+            if not summary or not str(summary).strip():
                 # Fallback: extract first meaningful paragraph
                 summary = self._extract_first_paragraph(text)
             

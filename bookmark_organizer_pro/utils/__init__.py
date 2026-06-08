@@ -19,6 +19,7 @@ from .runtime import (
     open_external_url,
     run_with_timeout,
     validate_environment,
+    xml_safe_text,
 )
 
 __all__ = [
@@ -40,5 +41,5 @@ __all__ = [
     # runtime.py
     "ResourceManager", "atomic_json_write", "csv_safe_cell",
     "get_user_friendly_error", "open_external_url", "run_with_timeout",
-    "validate_environment",
+    "validate_environment", "xml_safe_text",
 ]

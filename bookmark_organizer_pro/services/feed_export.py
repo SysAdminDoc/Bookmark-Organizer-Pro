@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION, EXPORTS_DIR
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.utils import xml_safe_text
 
 
 def _iso(ts: str) -> str:
@@ -30,7 +31,9 @@ def _iso(ts: str) -> str:
 
 
 def _esc(text: str) -> str:
-    return html.escape(str(text or ""), quote=True)
+    # Strip XML-illegal control chars before escaping so one bad title can't
+    # produce an Atom/OPDS feed that no parser can read.
+    return html.escape(xml_safe_text(text), quote=True)
 
 
 def _safe_feed_filename(title: str, suffix: str) -> str:

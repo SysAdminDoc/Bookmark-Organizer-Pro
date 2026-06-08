@@ -30,6 +30,10 @@ mcp = ["mcp>=1.24,<2.0", "fastmcp>=3.4,<4.0"]
 nuitka = ["Nuitka>=4.1,<5.0"]
 updates = ["tufup>=0.10,<0.11"]
 sunvalley = ["sv-ttk>=2.6.1,<3.0"]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
 all = [
     "bookmark-organizer-pro[tray,ai,encryption,mcp,updates,sunvalley]",
     "defusedxml>=0.7",
@@ -42,7 +46,38 @@ bop-mcp = "bookmark_organizer_pro.mcp_server:main"
 [tool.setuptools.packages.find]
 include = ["bookmark_organizer_pro*"]
 
+[tool.setuptools.package-data]
+# Ship bundled data assets (e.g. the default category patterns) with the wheel.
+bookmark_organizer_pro = ["**/*.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-ra"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+# Large existing GUI codebase — lint for real correctness problems, not style.
+extend-exclude = ["build", "dist", "packaging"]
+
+[tool.ruff.lint]
+# Pyflakes (F) + syntax errors (E9) catch genuine bugs — undefined names,
+# repeated dict keys, broken f-strings, unreachable code. The two high-volume
+# *debt* rules below are deferred (not real bugs, ~120 pre-existing hits) so the
+# gate stays green and meaningful; remove them from `ignore` as the debt is
+# burned down to start enforcing.
+select = ["F", "E9"]
+ignore = [
+    "F401",  # unused imports — ~96 pre-existing; clean up incrementally
+    "F841",  # unused local variables — ~24 pre-existing
+    "F541",  # f-string without placeholders — harmless, pre-existing
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Forward-reference type hints under `from __future__ import annotations`
+# (organization.py) and a dynamically-injected global (mcp_server.py) are not
+# runtime-undefined; ruff can't see that, so exempt those files from F821.
+"bookmark_organizer_pro/services/organization.py" = ["F821"]
+"bookmark_organizer_pro/mcp_server.py" = ["F821"]
+"tests/*" = ["F841", "B011"]

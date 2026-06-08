@@ -9,7 +9,11 @@ from typing import Dict, List, Optional
 
 from bookmark_organizer_pro.ai import AI_PROVIDERS, create_ai_client
 from bookmark_organizer_pro.logging_config import log
-from bookmark_organizer_pro.services.ollama_manager import OllamaManager, OllamaStatus
+from bookmark_organizer_pro.services.ollama_manager import (
+    OLLAMA_DEFAULT_URL,
+    OllamaManager,
+    OllamaStatus,
+)
 from bookmark_organizer_pro.ui.components import ScrollableFrame
 from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, pluralize
 from bookmark_organizer_pro.ui.widgets import ModernButton, apply_window_chrome, get_theme
@@ -455,8 +459,6 @@ class AiSettingsMixin:
         ttk.Spinbox(settings_frame, from_=1, to=120, textvariable=rate_var, width=8).grid(row=1, column=1, padx=10, pady=4)
 
         # ── Provider change handler ──
-        from bookmark_organizer_pro.services.ollama_manager import OLLAMA_DEFAULT_URL
-
         def on_provider_change(*_):
             provider = provider_var.get()
             info = AI_PROVIDERS.get(provider)

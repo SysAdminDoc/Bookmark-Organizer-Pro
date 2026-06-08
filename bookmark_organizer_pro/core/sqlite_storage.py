@@ -116,29 +116,40 @@ class SQLiteStorageManager:
                     if not isinstance(item, dict):
                         log.warning("Skipping non-object bookmark entry during SQLite save")
                         continue
-                    bookmark = Bookmark.from_dict(item)
-                    payload = bookmark.to_dict()
-                    conn.execute(
-                        """
-                        INSERT OR REPLACE INTO bookmarks(
-                            id, position, url, title, category, parent_category,
-                            created_at, modified_at, is_pinned, read_later, payload_json
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            str(bookmark.id),
-                            position,
-                            bookmark.url,
-                            bookmark.title,
-                            bookmark.category,
-                            bookmark.parent_category,
-                            bookmark.created_at,
-                            bookmark.modified_at,
-                            int(bookmark.is_pinned),
-                            int(bookmark.read_later),
-                            json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
-                        ),
-                    )
+                    # Skip-and-log a single malformed row rather than letting it
+                    # roll back the entire save. Without this, one bad in-memory
+                    # record (e.g. an empty URL from a buggy mutation) would lose
+                    # every bookmark the user has — the JSON backend never does.
+                    try:
+                        bookmark = Bookmark.from_dict(item)
+                        payload = bookmark.to_dict()
+                        conn.execute(
+                            """
+                            INSERT OR REPLACE INTO bookmarks(
+                                id, position, url, title, category, parent_category,
+                                created_at, modified_at, is_pinned, read_later, payload_json
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                str(bookmark.id),
+                                position,
+                                bookmark.url,
+                                bookmark.title,
+                                bookmark.category,
+                                bookmark.parent_category,
+                                bookmark.created_at,
+                                bookmark.modified_at,
+                                int(bookmark.is_pinned),
+                                int(bookmark.read_later),
+                                json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+                            ),
+                        )
+                    except Exception as exc:
+                        log.error(
+                            f"Skipping unsaveable bookmark row "
+                            f"(id={item.get('id', '?')}, url={str(item.get('url', ''))[:80]}): {exc}"
+                        )
+                        continue
                 conn.execute(
                     "INSERT OR REPLACE INTO metadata(key, value) VALUES(?, ?)",
                     ("saved_at", str(payload_meta.get("saved_at", ""))),

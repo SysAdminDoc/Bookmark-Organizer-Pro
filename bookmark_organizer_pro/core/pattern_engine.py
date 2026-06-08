@@ -25,9 +25,18 @@ from urllib.parse import urlparse
 _IS_WINDOWS = sys.platform == "win32"
 _REGEX_TIMEOUT_SECONDS = 2
 
+# Maximum text length fed to a user-supplied regex. Catastrophic backtracking
+# scales with input length, and on Windows there is no signal-based timeout to
+# fall back on (SIGALRM is Unix-only). URLs/titles longer than this are not
+# meaningfully more matchable, so truncating bounds the worst case cheaply on
+# every platform without spawning a watchdog thread per match.
+_MAX_REGEX_TEXT = 2000
+
 
 def _safe_regex_search(pattern, text: str):
-    """Run regex search with a timeout guard (Unix signal or catch-all on Windows)."""
+    """Run regex search with a timeout/length guard (Unix signal + length cap)."""
+    if text and len(text) > _MAX_REGEX_TEXT:
+        text = text[:_MAX_REGEX_TEXT]
     if _IS_WINDOWS:
         try:
             return pattern.search(text)
