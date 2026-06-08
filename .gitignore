@@ -39,5 +39,19 @@ Desktop.ini
 .idea/
 .vscode/
 
-# Local assistant/project notes
+# Local assistant / agent notes, config, and run state (never commit)
 CLAUDE.md
+AGENTS.md
+GEMINI.md
+.cursorrules
+.windsurfrules
+.aider*
+.claude/
+.cursor/
+.codex/
+.github/copilot-instructions.md
+AUTONOMOUS-LOOP-STATE.md
+*LOOP-STATE*.md
+*.autonomous-loop.*
+ai_audit*.jsonl
+default_improvements*.json
