@@ -53,7 +53,7 @@ class ImportProgressModal(tk.Toplevel):
         # --- Icon ---
         tk.Label(
             self, text="↓", bg=theme.bg_primary,
-            fg=theme.accent_primary, font=FONTS.custom(36, bold=True),
+            fg=theme.accent_primary, font=FONTS.display(bold=True),
         ).pack(pady=(28, 8))
 
         # --- Title ---

@@ -206,8 +206,6 @@ class ModernButton(tk.Frame, ThemedWidget):
             hover_bg = hover_bg or theme.bg_hover
             fg = fg or theme.text_primary
 
-        pady = max(pady, 7)
-        
         super().__init__(
             parent, bg=bg, takefocus=1,
             highlightthickness=DesignTokens.FOCUS_RING_WIDTH,
@@ -528,30 +526,47 @@ class TagEditor(tk.Frame, ThemedWidget):
         self.entry_frame.pack(fill=tk.X)
         
         self.entry_var = tk.StringVar()
+        self._placeholder = "Add a tag…"
+        self._placeholder_active = True
         self.entry = tk.Entry(
             self.entry_frame, textvariable=self.entry_var,
-            bg=theme.bg_secondary, fg=theme.text_primary,
+            bg=theme.bg_secondary, fg=theme.text_muted,
             insertbackground=theme.text_primary, bd=0,
             font=FONTS.small()
         )
+        self.entry.insert(0, self._placeholder)
         self.entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.entry.bind("<FocusIn>", self._on_entry_focus_in)
+        self.entry.bind("<FocusOut>", self._on_entry_focus_out)
         self.entry.bind("<Return>", self._add_tag)
         self.entry.bind("<KeyRelease>", self._on_key)
-        
+
         self.add_btn = tk.Label(
             self.entry_frame, text="+", bg=theme.bg_secondary,
-            fg=theme.accent_primary, font=FONTS.header(),
-            cursor="hand2", padx=8
+            fg=theme.accent_primary, font=FONTS.body(bold=True),
+            cursor="hand2", padx=6
         )
         self.add_btn.pack(side=tk.RIGHT)
         make_keyboard_activatable(self.add_btn, self._add_tag)
-        Tooltip(self.add_btn, "Add Tag")
+        Tooltip(self.add_btn, "Add tag (Enter)")
         
         # Suggestions dropdown (hidden by default)
         self.suggestions_list = None
         
         self._refresh_tags()
     
+    def _on_entry_focus_in(self, event=None):
+        if self._placeholder_active:
+            self.entry.delete(0, tk.END)
+            self.entry.configure(fg=self.theme.text_primary)
+            self._placeholder_active = False
+
+    def _on_entry_focus_out(self, event=None):
+        if not self.entry_var.get().strip():
+            self.entry.insert(0, self._placeholder)
+            self.entry.configure(fg=self.theme.text_muted)
+            self._placeholder_active = True
+
     def _refresh_tags(self):
         """Refresh the tags display"""
         for widget in self.tags_frame.winfo_children():
@@ -566,6 +581,8 @@ class TagEditor(tk.Frame, ThemedWidget):
     
     def _add_tag(self, e=None):
         """Add a new tag"""
+        if self._placeholder_active:
+            return
         tag = self.entry_var.get().strip().lower()
         if tag and tag not in self.tags:
             self.tags.append(tag)

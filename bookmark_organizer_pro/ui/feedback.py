@@ -8,7 +8,7 @@ from typing import Optional
 
 from bookmark_organizer_pro.models import Bookmark
 
-from .foundation import FONTS, readable_text_on
+from .foundation import DesignTokens, FONTS, readable_text_on
 from .tk_interactions import make_keyboard_activatable
 from .widgets import ModernButton, get_theme
 
@@ -39,15 +39,18 @@ class HoverPreview:
         
         self.tooltip = tk.Toplevel(self.parent)
         self.tooltip.wm_overrideredirect(True)
-        self.tooltip.configure(bg=theme.bg_dark)
-        
-        # Position near mouse
+        self.tooltip.configure(bg=theme.border_muted)
+        try:
+            self.tooltip.attributes("-topmost", True)
+            self.tooltip.attributes("-alpha", 0.97)
+        except Exception:
+            pass
+
         x = event.x_root + 15
         y = event.y_root + 10
-        
-        # Main frame
+
         frame = tk.Frame(self.tooltip, bg=theme.bg_dark, padx=12, pady=10)
-        frame.pack()
+        frame.pack(padx=1, pady=1)
         
         # Title
         title = bookmark.title[:60] + "..." if len(bookmark.title) > 63 else bookmark.title
@@ -141,7 +144,7 @@ class EmptyState(tk.Frame):
         tk.Label(
             left, text="Start With an Import",
             bg=theme.bg_primary, fg=theme.text_primary,
-            font=FONTS.custom(30, bold=True), justify=tk.LEFT
+            font=FONTS.display(), justify=tk.LEFT
         ).pack(anchor="w")
 
         tk.Label(
@@ -151,7 +154,7 @@ class EmptyState(tk.Frame):
                 "missing tags, weak categories, and broken links from this workspace."
             ),
             bg=theme.bg_primary, fg=theme.text_secondary,
-            font=FONTS.custom(12), justify=tk.LEFT, wraplength=620
+            font=FONTS.body(), justify=tk.LEFT, wraplength=620
         ).pack(anchor="w", pady=(18, 28))
 
         btn_row = tk.Frame(left, bg=theme.bg_primary)
@@ -215,13 +218,13 @@ class FilteredEmptyState(tk.Frame):
 
         tk.Label(
             center, text="🔎", bg=theme.bg_primary,
-            fg=theme.accent_primary, font=FONTS.custom(40)
+            fg=theme.accent_primary, font=FONTS.display(bold=False)
         ).pack(pady=(0, 14))
 
         tk.Label(
             center, text="No bookmarks match this view",
             bg=theme.bg_primary, fg=theme.text_primary,
-            font=FONTS.custom(18, bold=True)
+            font=FONTS.title(bold=True)
         ).pack(pady=(0, 8))
 
         tk.Label(
@@ -283,33 +286,36 @@ class ToastNotification(tk.Toplevel):
         }
         bg, fg, icon = styles.get(style, styles["info"])
 
-        # Build toast
-        frame = tk.Frame(self, bg=bg, padx=1, pady=1)
+        frame = tk.Frame(self, bg=theme.border_muted, padx=1, pady=1)
         frame.pack(fill=tk.BOTH, expand=True)
 
         inner = tk.Frame(frame, bg=theme.bg_card)
         inner.pack(fill=tk.BOTH, expand=True)
 
-        # Icon strip
+        # Accent bar (3px left edge)
+        tk.Frame(inner, bg=bg, width=3).pack(side=tk.LEFT, fill=tk.Y)
+
+        # Icon
         tk.Label(
-            inner, text=icon, bg=bg, fg=fg,
-            font=FONTS.custom(12, bold=True), padx=12, pady=10
-        ).pack(side=tk.LEFT, fill=tk.Y)
+            inner, text=icon, bg=theme.bg_card, fg=bg,
+            font=FONTS.body(bold=True), padx=10, pady=10
+        ).pack(side=tk.LEFT)
 
         # Message
         tk.Label(
             inner, text=message, bg=theme.bg_card,
             fg=theme.text_primary, font=FONTS.body(),
-            padx=14, pady=10, wraplength=350, justify="left"
+            padx=(4, 14), pady=10, wraplength=340, justify="left"
         ).pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        # Close button
         close_lbl = tk.Label(
             inner, text="✕", bg=theme.bg_card,
             fg=theme.text_muted, font=FONTS.small(),
-            cursor="hand2", padx=10
+            cursor="hand2", padx=8
         )
         close_lbl.pack(side=tk.RIGHT, fill=tk.Y)
+        close_lbl.bind("<Enter>", lambda e: close_lbl.configure(fg=theme.text_primary))
+        close_lbl.bind("<Leave>", lambda e: close_lbl.configure(fg=theme.text_muted))
         make_keyboard_activatable(close_lbl, self._dismiss)
 
         # Position: top-right of parent, stacked below existing toasts

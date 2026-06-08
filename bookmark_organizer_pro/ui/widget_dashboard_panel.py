@@ -46,7 +46,7 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         # Title
         title = tk.Label(
             self, text="📊 Dashboard", bg=self.theme.bg_primary,
-            fg=self.theme.text_primary, font=FONTS.title()
+            fg=self.theme.text_primary, font=FONTS.title(bold=True)
         )
         title.pack(pady=(20, 15), padx=20, anchor="w")
         
@@ -119,13 +119,13 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         # Icon
         tk.Label(
             card, text=icon, bg=self.theme.bg_secondary,
-            font=FONTS.custom(20)
+            font=FONTS.title(bold=False)
         ).pack(anchor="w")
         
         # Value
         tk.Label(
             card, text=str(value), bg=self.theme.bg_secondary,
-            fg=self.theme.text_primary, font=FONTS.custom(24, bold=True)
+            fg=self.theme.text_primary, font=FONTS.hero(bold=True)
         ).pack(anchor="w")
         
         # Label

@@ -6,7 +6,7 @@ import tkinter as tk
 from enum import Enum
 from typing import Callable, List, Tuple
 
-from .foundation import FONTS
+from .foundation import DesignTokens, FONTS
 from .tk_interactions import make_keyboard_activatable
 from .widget_controls import ThemedWidget
 from .widget_runtime import get_theme
@@ -79,9 +79,9 @@ class CommandPalette(tk.Toplevel, ThemedWidget):
             shell, textvariable=self.search_var,
             bg=theme.bg_tertiary, fg=theme.text_primary,
             insertbackground=theme.text_primary, bd=0,
-            font=FONTS.custom(12)
+            font=FONTS.body()
         )
-        self.search_entry.pack(fill=tk.X, ipady=9)
+        self.search_entry.pack(fill=tk.X, ipady=8)
         self.search_entry.focus_set()
         
         # Separator
@@ -229,7 +229,7 @@ class StatusBar(tk.Frame, ThemedWidget):
     
     def __init__(self, parent):
         theme = get_theme()
-        super().__init__(parent, bg=theme.bg_dark, height=30)
+        super().__init__(parent, bg=theme.bg_dark, height=DesignTokens.STATUS_BAR_HEIGHT)
         self.pack_propagate(False)
         self.theme = theme
         

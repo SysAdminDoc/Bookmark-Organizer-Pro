@@ -228,7 +228,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
                 inner, textvariable=var, width=8,
                 bg=theme.bg_secondary, fg=theme.text_primary,
                 insertbackground=theme.text_primary, bd=0,
-                font=("Consolas", 9)
+                font=FONTS.mono()
             )
             entry.grid(row=row, column=col*3+2, padx=(0, 20), pady=3)
             var.trace_add('write', lambda *args, f=field_name: self._on_color_change(f))

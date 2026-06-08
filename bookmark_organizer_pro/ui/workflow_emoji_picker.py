@@ -121,7 +121,7 @@ class EmojiPicker(tk.Toplevel, ThemedWidget):
             for i, emoji in enumerate(emojis):
                 btn = tk.Label(
                     grid_frame, text=emoji, bg=theme.bg_primary,
-                    font=("Segoe UI Emoji", 20), cursor="hand2"
+                    font=FONTS.title(bold=False), cursor="hand2"
                 )
                 btn.grid(row=i // 10, column=i % 10, padx=2, pady=2)
                 btn.bind("<Button-1>", lambda e, em=emoji: self._select(em))

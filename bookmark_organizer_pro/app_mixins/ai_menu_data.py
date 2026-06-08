@@ -207,7 +207,7 @@ class AiMenuDataMixin:
                     fg=theme.text_secondary, font=FONTS.body(),
                     width=20, anchor="w").pack(side=tk.LEFT)
             tk.Label(row, text=value, bg=theme.bg_primary,
-                    fg=theme.text_primary, font=("Segoe UI", 10, "bold"),
+                    fg=theme.text_primary, font=FONTS.small(bold=True),
                     anchor="e").pack(side=tk.RIGHT)
         
         # Top AI tags

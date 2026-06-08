@@ -49,7 +49,7 @@ class DependencyCheckDialog(tk.Toplevel):
         tk.Label(
             header,
             text="Dependency Check",
-            font=FONTS.custom(14, bold=True),
+            font=FONTS.subtitle(bold=True),
             bg=theme.bg_secondary,
             fg=theme.text_primary,
         ).pack(anchor="w")

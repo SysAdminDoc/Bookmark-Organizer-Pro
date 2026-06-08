@@ -182,7 +182,7 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
         # Icon
         self.icon_label = tk.Label(
             self, text="↓", bg=theme.bg_secondary,
-            fg=theme.accent_primary, font=FONTS.custom(26, bold=True)
+            fg=theme.accent_primary, font=FONTS.hero(bold=True)
         )
         self.icon_label.pack(pady=(8, 5))
         

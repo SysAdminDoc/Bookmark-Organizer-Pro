@@ -63,7 +63,7 @@ class DashboardActionsMixin:
         block.pack(side=tk.LEFT, padx=(14, 0))
         value_lbl = tk.Label(
             block, text="0", bg=theme.bg_card, fg=color,
-            font=FONTS.custom(18, bold=True), width=5, anchor="e"
+            font=FONTS.title(bold=True), width=5, anchor="e"
         )
         value_lbl.pack(anchor="e")
         label_lbl = tk.Label(
@@ -268,7 +268,7 @@ class DashboardActionsMixin:
         
         tk.Label(
             health_card, text=health_value, bg=theme.bg_card,
-            fg=health_color, font=FONTS.custom(26, bold=True)
+            fg=health_color, font=FONTS.hero(bold=True)
         ).pack(anchor="w", pady=(4, 4))
         
         # Health bar

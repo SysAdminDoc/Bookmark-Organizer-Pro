@@ -25,7 +25,7 @@ def _show_first_run_privacy_notice(root: tk.Tk):
     """Show a one-time privacy banner at the top of the window (non-modal)."""
     import json
     from bookmark_organizer_pro.constants import SETTINGS_FILE
-    from bookmark_organizer_pro.ui.foundation import FONTS
+    from bookmark_organizer_pro.ui.foundation import FONTS, readable_text_on
     try:
         if SETTINGS_FILE.exists():
             settings = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
@@ -45,19 +45,21 @@ def _show_first_run_privacy_notice(root: tk.Tk):
         except Exception:
             pass
 
-    banner = tk.Frame(root, bg="#0f766e", height=40)
+    accent = "#0f766e"
+    accent_fg = readable_text_on(accent)
+    banner = tk.Frame(root, bg=accent, height=40)
     banner.pack(fill=tk.X, side=tk.TOP)
     banner.pack_propagate(False)
 
     tk.Label(
         banner,
-        text="Fully local -- no data leaves your machine unless you configure an AI API key.",
-        bg="#0f766e", fg="#ffffff", font=FONTS.small(),
+        text="Fully local — no data leaves your machine unless you configure an AI API key.",
+        bg=accent, fg=accent_fg, font=FONTS.small(),
         anchor="w",
     ).pack(side=tk.LEFT, padx=(16, 8), fill=tk.Y)
 
     dismiss_btn = tk.Label(
-        banner, text="Got it", bg="#0f766e", fg="#ffffff",
+        banner, text="Got it", bg=accent, fg=accent_fg,
         font=FONTS.small(bold=True), cursor="hand2", padx=12,
     )
     dismiss_btn.pack(side=tk.RIGHT, padx=(0, 12), fill=tk.Y)
