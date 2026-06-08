@@ -99,40 +99,41 @@ class StorageManager:
 
     def load(self) -> List[Bookmark]:
         """Load bookmarks, skipping individual corrupt entries."""
-        if not self.filepath.exists():
-            return []
-
-        try:
-            with open(self.filepath, 'r', encoding='utf-8') as f:
-                raw = json.load(f)
-
-            if isinstance(raw, list):
-                items = raw
-            elif isinstance(raw, dict):
-                items = raw.get("data", [])
-            else:
-                log.warning(f"Unexpected data format in {self.filepath}")
-                return []
-            if not isinstance(items, list):
-                log.warning(f"Unexpected bookmark data shape in {self.filepath}")
+        with self._lock:
+            if not self.filepath.exists():
                 return []
 
-            bookmarks = []
-            for item in items:
-                if not isinstance(item, dict):
-                    log.warning("Skipping non-object bookmark entry")
-                    continue
-                try:
-                    bookmarks.append(Bookmark.from_dict(item))
-                except Exception as e:
-                    log.warning(f"Skipping corrupt bookmark entry: {e}")
-            return bookmarks
-        except json.JSONDecodeError as e:
-            log.error(f"Corrupt JSON in {self.filepath}: {e}")
-            return []
-        except Exception as e:
-            log.error(f"Could not load data from {self.filepath}: {e}")
-            return []
+            try:
+                with open(self.filepath, 'r', encoding='utf-8') as f:
+                    raw = json.load(f)
+
+                if isinstance(raw, list):
+                    items = raw
+                elif isinstance(raw, dict):
+                    items = raw.get("data", [])
+                else:
+                    log.warning(f"Unexpected data format in {self.filepath}")
+                    return []
+                if not isinstance(items, list):
+                    log.warning(f"Unexpected bookmark data shape in {self.filepath}")
+                    return []
+
+                bookmarks = []
+                for item in items:
+                    if not isinstance(item, dict):
+                        log.warning("Skipping non-object bookmark entry")
+                        continue
+                    try:
+                        bookmarks.append(Bookmark.from_dict(item))
+                    except Exception as e:
+                        log.warning(f"Skipping corrupt bookmark entry: {e}")
+                return bookmarks
+            except json.JSONDecodeError as e:
+                log.error(f"Corrupt JSON in {self.filepath}: {e}")
+                return []
+            except Exception as e:
+                log.error(f"Could not load data from {self.filepath}: {e}")
+                return []
 
     def get_backups(self) -> List[Tuple[str, datetime, int]]:
         """List available backups as (filename, mtime, size) tuples."""

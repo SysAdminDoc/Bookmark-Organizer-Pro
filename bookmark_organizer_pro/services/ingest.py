@@ -117,15 +117,31 @@ def _detect_content_type_from_text(text: str, word_count: int) -> str:
     return "link"
 
 
+_lingua_detector = None
+
+
+def _get_lingua_detector():
+    global _lingua_detector
+    if _lingua_detector is not None:
+        return _lingua_detector
+    lingua = _try_import("lingua")
+    if lingua is None:
+        return None
+    try:
+        _lingua_detector = getattr(lingua, "LanguageDetectorBuilder").from_all_languages().build()
+        return _lingua_detector
+    except Exception:
+        return None
+
+
 def _detect_language(text: str) -> str:
     """Try lingua first, then fasttext, then a fragile heuristic."""
     if not text or len(text) < 20:
         return ""
 
-    lingua = _try_import("lingua")
-    if lingua is not None:
+    detector = _get_lingua_detector()
+    if detector is not None:
         try:
-            detector = getattr(lingua, "LanguageDetectorBuilder").from_all_languages().build()
             result = detector.detect_language_of(text[:2000])
             if result is not None:
                 return getattr(result, "iso_code_639_1").name.lower()

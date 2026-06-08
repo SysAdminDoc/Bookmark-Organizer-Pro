@@ -98,6 +98,7 @@ class HybridDuplicateDetector:
 
     SIMHASH_THRESHOLD = 3       # bits Hamming distance
     EMBEDDING_THRESHOLD = 0.92  # cosine similarity
+    MAX_PAIRWISE = 5000         # cap O(n²) passes to avoid minutes-long stalls
 
     def __init__(self, embedder: Optional[EmbeddingService] = None):
         self.embedder = embedder
@@ -119,7 +120,7 @@ class HybridDuplicateDetector:
                 ))
                 report.method_counts["url"] += 1
 
-        remaining = [bm for bm in bookmarks if bm.id not in seen_ids]
+        remaining = [bm for bm in bookmarks if bm.id not in seen_ids][:self.MAX_PAIRWISE]
 
         # --- Pass 2: SimHash
         sims: Dict[int, int] = {}
@@ -151,7 +152,7 @@ class HybridDuplicateDetector:
 
         # --- Pass 3: Embedding cosine
         if self.embedder is not None and self.embedder.available:
-            still_remaining = [bm for bm in bookmarks if bm.id not in seen_ids]
+            still_remaining = [bm for bm in bookmarks if bm.id not in seen_ids][:self.MAX_PAIRWISE]
             texts = [(_read_text(bm)[:1500]) for bm in still_remaining]
             if texts:
                 vectors = self.embedder.embed(texts)

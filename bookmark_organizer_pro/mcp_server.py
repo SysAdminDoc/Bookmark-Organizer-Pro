@@ -31,6 +31,7 @@ import asyncio
 import importlib
 import json
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -105,19 +106,24 @@ class BookmarkServices:
 
 SERVICES: Optional[BookmarkServices] = None
 AUTH: Optional[MCPTokenManager] = None
+_INIT_LOCK = threading.Lock()
 
 
 def _services() -> BookmarkServices:
     global SERVICES
     if SERVICES is None:
-        SERVICES = BookmarkServices()
+        with _INIT_LOCK:
+            if SERVICES is None:
+                SERVICES = BookmarkServices()
     return SERVICES
 
 
 def _auth() -> MCPTokenManager:
     global AUTH
     if AUTH is None:
-        AUTH = MCPTokenManager()
+        with _INIT_LOCK:
+            if AUTH is None:
+                AUTH = MCPTokenManager()
     return AUTH
 
 
@@ -326,10 +332,30 @@ def _mcp_http_middleware() -> List[Any]:
 
 # --- pure tool implementations ---------------------------------------------
 
+_MAX_MCP_LIMIT = 500
+_MAX_MCP_OFFSET = 100_000
+
+
+def _clamp_limit(v: int, default: int = 50) -> int:
+    try:
+        return max(1, min(int(v), _MAX_MCP_LIMIT))
+    except (TypeError, ValueError):
+        return default
+
+
+def _clamp_offset(v: int) -> int:
+    try:
+        return max(0, min(int(v), _MAX_MCP_OFFSET))
+    except (TypeError, ValueError):
+        return 0
+
+
 def t_list_bookmarks(limit: int = 50, offset: int = 0,
                      category: Optional[str] = None,
                      tag: Optional[str] = None,
                      read_later_only: bool = False) -> List[Dict]:
+    limit = _clamp_limit(limit)
+    offset = _clamp_offset(offset)
     s = _services()
     bms = s.bookmark_manager.get_all_bookmarks()
     if category:
@@ -340,7 +366,7 @@ def t_list_bookmarks(limit: int = 50, offset: int = 0,
     if read_later_only:
         bms = [b for b in bms if b.read_later]
     bms.sort(key=lambda b: b.created_at, reverse=True)
-    return [_bm_to_dict(b) for b in bms[offset: offset + max(1, limit)]]
+    return [_bm_to_dict(b) for b in bms[offset: offset + limit]]
 
 
 def t_get_bookmark(bookmark_id: int) -> Optional[Dict]:
@@ -349,12 +375,14 @@ def t_get_bookmark(bookmark_id: int) -> Optional[Dict]:
 
 
 def t_search(query: str, limit: int = 25) -> List[Dict]:
+    limit = _clamp_limit(limit, 25)
     s = _services()
     results = s.bookmark_manager.search_bookmarks(query)[:limit]
     return [_bm_to_dict(b) for b in results]
 
 
 def t_semantic_search(query: str, k: int = 10) -> List[Dict]:
+    k = _clamp_limit(k, 10)
     s = _services()
     hits = s.vector_store.search(query, k=k)
     out: List[Dict] = []
@@ -370,6 +398,7 @@ def t_semantic_search(query: str, k: int = 10) -> List[Dict]:
 
 
 def t_hybrid_search(query: str, limit: int = 25) -> List[Dict]:
+    limit = _clamp_limit(limit, 25)
     s = _services()
     bms = s.bookmark_manager.get_all_bookmarks()
     out = []
@@ -406,6 +435,7 @@ def t_add_bookmark(url: str, title: str = "", category: str = "",
 
 
 def t_list_tags(limit: int = 100) -> List[Dict]:
+    limit = _clamp_limit(limit, 100)
     s = _services()
     counts = s.bookmark_manager.get_tag_counts()
     items = sorted(counts.items(), key=lambda x: -x[1])[:limit]
@@ -1244,8 +1274,19 @@ def _build_fastmcp_server():
     return mcp_app
 
 
+def _is_loopback_bind(host: str) -> bool:
+    return host in ("127.0.0.1", "::1", "localhost")
+
+
 def serve_http(host: str = "127.0.0.1", port: int = 8766, path: str = "/mcp") -> int:
     """Run the FastMCP Streamable HTTP server on an explicit local endpoint."""
+    if not _is_loopback_bind(host) and not _auth().list_tokens():
+        print(
+            "error: binding to a non-loopback address without auth tokens is unsafe.\n"
+            "Configure at least one MCP auth token first, or bind to 127.0.0.1.",
+            file=sys.stderr,
+        )
+        return 1
     fastmcp_app = _build_fastmcp_server()
     if fastmcp_app is None:
         print("error: install `fastmcp` to run the MCP HTTP server", file=sys.stderr)

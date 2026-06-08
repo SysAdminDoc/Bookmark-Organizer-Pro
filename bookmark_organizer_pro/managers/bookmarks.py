@@ -189,15 +189,18 @@ class BookmarkManager:
 
     def save_bookmarks(self):
         """Save all bookmarks to storage (thread-safe — holds lock through write)."""
-        if getattr(self, "_batch_depth", 0) > 0:
-            self._batch_dirty = True
-            return
         with self._lock:
+            if getattr(self, "_batch_depth", 0) > 0:
+                self._batch_dirty = True
+                return
             snapshot = list(self.bookmarks.values())
             self._save_snapshot(snapshot)
 
     def _save_snapshot(self, snapshot: List[Bookmark]):
-        """Persist a snapshot unless the current batch should coalesce saves."""
+        """Persist a snapshot unless the current batch should coalesce saves.
+
+        Caller must hold self._lock when batch state is relevant.
+        """
         if getattr(self, "_batch_depth", 0) > 0:
             self._batch_dirty = True
             return
@@ -214,15 +217,16 @@ class BookmarkManager:
                     manager.add_bookmark_clean(url=url, ...)
             # single save happens here
         """
-        self._batch_depth = getattr(self, "_batch_depth", 0) + 1
-        self._batch_dirty = getattr(self, "_batch_dirty", False)
+        with self._lock:
+            self._batch_depth = getattr(self, "_batch_depth", 0) + 1
+            self._batch_dirty = getattr(self, "_batch_dirty", False)
         try:
             yield
         finally:
-            self._batch_depth -= 1
-            if self._batch_depth == 0 and self._batch_dirty:
-                self._batch_dirty = False
-                with self._lock:
+            with self._lock:
+                self._batch_depth -= 1
+                if self._batch_depth == 0 and self._batch_dirty:
+                    self._batch_dirty = False
                     snapshot = list(self.bookmarks.values())
                     self.storage.save([bm.to_dict() for bm in snapshot])
 

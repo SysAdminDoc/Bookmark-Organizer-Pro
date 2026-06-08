@@ -130,24 +130,37 @@ class Bookmark:
             return f"{self.parent_category} / {self.category}"
         return self.category
 
+    @staticmethod
+    def _parse_iso_naive(ts: str) -> Optional[datetime]:
+        try:
+            dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+            if dt.tzinfo is not None:
+                from datetime import timezone
+                dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+            return dt
+        except Exception:
+            return None
+
     @property
     def age_days(self) -> int:
-        try:
-            created = datetime.fromisoformat(self.created_at.replace('Z', '+00:00'))
-            return max(0, (datetime.now() - created.replace(tzinfo=None)).days)
-        except Exception:
+        created = self._parse_iso_naive(self.created_at)
+        if created is None:
             return 0
+        from datetime import timezone
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        return max(0, (now - created).days)
 
     @property
     def is_stale(self) -> bool:
         """True if bookmark hasn't been visited in 90 days."""
         if not self.last_visited:
             return self.age_days > 90
-        try:
-            visited = datetime.fromisoformat(self.last_visited.replace('Z', '+00:00'))
-            return (datetime.now() - visited.replace(tzinfo=None)).days > 90
-        except Exception:
+        visited = self._parse_iso_naive(self.last_visited)
+        if visited is None:
             return True
+        from datetime import timezone
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        return (now - visited).days > 90
 
     def add_tag(self, tag: str):
         tag = str(tag or "").strip()
@@ -244,7 +257,7 @@ class Bookmark:
                 return None
             try:
                 value = int(v)
-                return value if value > 0 else None
+                return value if value >= 0 else None
             except (TypeError, ValueError):
                 return None
 
