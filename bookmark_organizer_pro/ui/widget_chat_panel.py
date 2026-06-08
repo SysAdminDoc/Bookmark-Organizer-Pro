@@ -101,7 +101,7 @@ class ChatPanel(tk.Frame, ThemedWidget):
         self._placeholder_active = True
 
     def _bind_mousewheel(self, event):
-        self._messages_canvas.bind_all(
+        self._messages_canvas.bind(
             "<MouseWheel>",
             lambda e: self._messages_canvas.yview_scroll(
                 int(-1 * (e.delta / 120)), "units"
@@ -109,7 +109,7 @@ class ChatPanel(tk.Frame, ThemedWidget):
         )
 
     def _unbind_mousewheel(self, event):
-        self._messages_canvas.unbind_all("<MouseWheel>")
+        self._messages_canvas.unbind("<MouseWheel>")
 
     def _on_focus_in(self, event):
         if self._placeholder_active:
