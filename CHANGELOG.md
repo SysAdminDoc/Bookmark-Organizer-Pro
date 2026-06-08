@@ -2,6 +2,48 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.8.0] - 2026-06-08
+
+Default-category expansion, AI-learning loop, and a robustness/security hardening pass.
+
+### Added — Categories & defaults
+
+- **5 new built-in categories** with curated, de-duplicated domain sets and icons:
+  Music & Audio, Communication, Cryptocurrency, Maps & Navigation, and
+  Books & Literature. 98 previously mis-bucketed sites were relocated into them
+  (e.g. all music out of Entertainment, all crypto out of Finance, chat/email
+  tools out of Forums/SysAdmin/Social Media) plus 61 new domains. Now 48
+  categories / 6,232 domain rules, with the invariant that no domain rule
+  appears in two categories.
+- **AI-learning loop:** the AI audit log now records the local default-pattern
+  prediction next to each AI categorization, and `bop ai-audit learn-defaults`
+  mines concrete default improvements (add/fix/confirm) with category-
+  concentration weighting and a suspect-case guard that flags search-engine/
+  portal artifacts (so e.g. `yandex.com -> Adult Content` isn't auto-applied).
+- Verified default corrections derived from a real run (e.g. `frontier.com`
+  News->Technology, `gab.com` Forums->Social Media, `themeforest.net`
+  Media Production->Design).
+
+### Added — Reliability & UX
+
+- Reusable `LiveWorkflowDialog` with a bounded, drip-revealed activity feed for
+  AI categorize/tag/summary runs (memory-safe on very large jobs).
+- AI clients gain per-request timeouts and retry/backoff; OpenAI/Groq/DeepSeek
+  share one implementation; clearer "model not found" guidance.
+- New CI workflow (tests on 3.10-3.13 + ruff) and a focused lint config.
+
+### Fixed — Robustness & security
+
+- Thread-safety in the bookmark store (snapshot-under-lock reads, locked
+  merge/empty-trash + dedup), `CategoryManager` lock, SQLite skip-and-log on a
+  bad row.
+- SSRF IP hardening (IPv4-mapped/NAT64); refuse unsafe XML parsing fallback;
+  strip XML-illegal control chars in exporters; constant-time MCP token compare;
+  Windows ACL on the AI config file.
+- CLI exit codes + stderr errors + delete confirmation; pattern-engine ReDoS
+  input cap; teardown/`after()` guards; ScrollableFrame mouse-wheel binding
+  leak fixed; `default_categories` moved to a JSON asset.
+
 ## [v6.7.0] - 2026-06-08
 
 AI-in-build and bookmark-list interaction release.
