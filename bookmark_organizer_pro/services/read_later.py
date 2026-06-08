@@ -16,10 +16,14 @@ class ReadLaterQueue:
     """Pure-function operations over a bookmark collection's read-later queue."""
 
     @staticmethod
-    def enqueue(bookmark: Bookmark, position: Optional[int] = None) -> None:
+    def enqueue(bookmark: Bookmark, position: Optional[int] = None,
+                all_bookmarks: Optional[Iterable[Bookmark]] = None) -> None:
         bookmark.read_later = True
         if position is not None:
             bookmark.read_later_position = max(0, int(position))
+        elif all_bookmarks is not None:
+            existing = sum(1 for b in all_bookmarks if b.read_later)
+            bookmark.read_later_position = existing
 
     @staticmethod
     def dequeue(bookmark: Bookmark) -> None:

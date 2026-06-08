@@ -183,10 +183,11 @@ class EmbeddingService:
             end = min(n, start + chunk_chars)
             # Try to break at a sentence boundary
             if end < n:
-                window = text[end - 200:end + 200]
+                window_start = max(start, end - 200)
+                window = text[window_start:end + 200]
                 local = window.rfind(". ")
                 if local != -1:
-                    end = (end - 200) + local + 1
+                    end = window_start + local + 1
             end = max(end, start + 1)
             chunk = text[start:end].strip()
             if chunk:

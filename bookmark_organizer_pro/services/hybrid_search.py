@@ -31,15 +31,25 @@ class HybridResult:
     snippet: str = ""
 
 
+_cross_encoder = None
+_cross_encoder_tried = False
+
+
 def _try_rerank(query: str, texts: List[str]) -> Optional[List[float]]:
     """Attempt cross-encoder re-ranking. Returns scores or None if unavailable."""
+    global _cross_encoder, _cross_encoder_tried
+    if _cross_encoder_tried and _cross_encoder is None:
+        return None
     try:
-        from sentence_transformers import CrossEncoder
-        model = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+        if _cross_encoder is None:
+            from sentence_transformers import CrossEncoder
+            _cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+            _cross_encoder_tried = True
         pairs = [(query, t) for t in texts]
-        scores = model.predict(pairs)
+        scores = _cross_encoder.predict(pairs)
         return [float(s) for s in scores]
     except Exception:
+        _cross_encoder_tried = True
         return None
 
 
