@@ -858,6 +858,7 @@ class DeepSeekClient(AIClient):
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,
+            response_format={"type": "json_object"},
         )
         return self._parse_response((response.choices[0].message.content if response.choices else ''), bookmarks)
 
@@ -868,7 +869,8 @@ class DeepSeekClient(AIClient):
             self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": "Say OK"}],
-                max_tokens=10
+                max_tokens=10,
+                timeout=15,
             )
             return True, f"Connected to DeepSeek ({self.model})"
         except Exception as e:
