@@ -84,6 +84,16 @@ CATEGORY_ICONS = {
     "government": "🏛️",
     "legal": "🏛️",
     "streaming": "📡",
+    "communication": "💬",
+    "messaging": "💬",
+    "email": "📧",
+    "crypto": "🪙",
+    "blockchain": "🪙",
+    "web3": "🪙",
+    "maps": "🗺️",
+    "navigation": "🗺️",
+    "book": "📚",
+    "literature": "📚",
 }
 
 
