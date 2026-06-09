@@ -55,3 +55,7 @@ AUTONOMOUS-LOOP-STATE.md
 *.autonomous-loop.*
 ai_audit*.jsonl
 default_improvements*.json
+
+# Markdown files local-only (except README)
+*.md
+!README.md
