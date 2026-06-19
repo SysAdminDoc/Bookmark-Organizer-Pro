@@ -782,6 +782,8 @@ class OpenAIClient(OpenAICompatibleClient):
 class AnthropicClient(AIClient):
     """Anthropic Claude API client"""
 
+    supports_native_streaming = True
+
     def __init__(self, api_key: str, model: str = "claude-sonnet-4-20250514"):
         self.api_key = api_key
         self.model = model
@@ -832,9 +834,27 @@ class AnthropicClient(AIClient):
         response = _retry(lambda: self.client.messages.create(**kwargs), label="Anthropic complete")
         return response.content[0].text if response.content else ""
 
+    def stream_complete(self, prompt: str, system: str = "",
+                        max_tokens: int = 800,
+                        temperature: float = 0.2) -> Iterator[str]:
+        kwargs = {
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if system:
+            kwargs["system"] = system
+        with self.client.messages.stream(**kwargs) as stream:
+            for text in stream.text_stream:
+                if text:
+                    yield text
+
 
 class GoogleClient(AIClient):
     """Google Gemini API client"""
+
+    supports_native_streaming = True
 
     def __init__(self, api_key: str, model: str = "gemini-2.0-flash"):
         self.api_key = api_key
@@ -890,6 +910,31 @@ class GoogleClient(AIClient):
             },
         ), label="Google complete")
         return getattr(response, "text", "") or ""
+
+    def _generate_stream(self, content, **gen_kwargs):
+        """Call generate_content with stream=True and a request timeout."""
+        try:
+            return self.client.generate_content(
+                content, stream=True,
+                request_options={"timeout": REQUEST_TIMEOUT}, **gen_kwargs)
+        except TypeError:
+            return self.client.generate_content(content, stream=True, **gen_kwargs)
+
+    def stream_complete(self, prompt: str, system: str = "",
+                        max_tokens: int = 800,
+                        temperature: float = 0.2) -> Iterator[str]:
+        full = f"{system}\n\n{prompt}" if system else prompt
+        response = self._generate_stream(
+            full,
+            generation_config={
+                "max_output_tokens": max_tokens,
+                "temperature": temperature,
+            },
+        )
+        for chunk in response:
+            text = getattr(chunk, "text", None)
+            if text:
+                yield text
 
 
 class GroqClient(OpenAICompatibleClient):

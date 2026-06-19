@@ -56,6 +56,8 @@ AUTONOMOUS-LOOP-STATE.md
 ai_audit*.jsonl
 default_improvements*.json
 
-# Markdown files local-only (except README)
+# Markdown files local-only (except README, ROADMAP, and Roadmap_Blocked)
 *.md
 !README.md
+!ROADMAP.md
+!Roadmap_Blocked.md

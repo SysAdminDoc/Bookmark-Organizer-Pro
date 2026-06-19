@@ -99,5 +99,82 @@ class TestAIStreamingAdapters(unittest.TestCase):
         self.assertEqual(FakeRequests.kwargs["json"]["options"]["num_predict"], 25)
 
 
+    def test_anthropic_stream_complete_yields_text_stream_deltas(self):
+        from bookmark_organizer_pro.ai import AnthropicClient
+
+        class FakeTextStream:
+            """Simulates anthropic stream.text_stream iterable."""
+            def __iter__(self):
+                yield "hello"
+                yield ""
+                yield " world"
+
+        class FakeStream:
+            """Context manager that exposes a text_stream attribute."""
+            def __enter__(self):
+                self.text_stream = FakeTextStream()
+                return self
+            def __exit__(self, *args):
+                pass
+
+        class FakeMessages:
+            def __init__(self):
+                self.kwargs = None
+            def stream(self, **kwargs):
+                self.kwargs = kwargs
+                return FakeStream()
+
+        messages = FakeMessages()
+        client = AnthropicClient("test-key", "claude-test")
+        client._client = SimpleNamespace(messages=messages)
+
+        chunks = list(client.stream_complete(
+            "prompt", system="system", max_tokens=12, temperature=0.4
+        ))
+
+        self.assertTrue(client.supports_native_streaming)
+        self.assertEqual(chunks, ["hello", " world"])
+        self.assertEqual(messages.kwargs["model"], "claude-test")
+        self.assertEqual(messages.kwargs["max_tokens"], 12)
+        self.assertEqual(messages.kwargs["temperature"], 0.4)
+        self.assertEqual(messages.kwargs["system"], "system")
+        self.assertEqual(messages.kwargs["messages"][0]["role"], "user")
+
+    def test_google_stream_complete_yields_chunk_text(self):
+        from bookmark_organizer_pro.ai import GoogleClient
+
+        class FakeStreamResponse:
+            """Iterable of chunks with .text attributes."""
+            def __iter__(self):
+                yield SimpleNamespace(text="gemini")
+                yield SimpleNamespace(text="")
+                yield SimpleNamespace(text=" response")
+                yield SimpleNamespace(text=None)
+
+        class FakeGenerativeModel:
+            def __init__(self):
+                self.kwargs = None
+            def generate_content(self, content, *, stream=False, **kwargs):
+                self.kwargs = {"content": content, "stream": stream, **kwargs}
+                if stream:
+                    return FakeStreamResponse()
+                return SimpleNamespace(text="non-streamed")
+
+        model = FakeGenerativeModel()
+        client = GoogleClient("test-key", "gemini-test")
+        client._client = model
+
+        chunks = list(client.stream_complete(
+            "prompt", system="system", max_tokens=15, temperature=0.3
+        ))
+
+        self.assertTrue(client.supports_native_streaming)
+        self.assertEqual(chunks, ["gemini", " response"])
+        self.assertTrue(model.kwargs["stream"])
+        gen_config = model.kwargs.get("generation_config", {})
+        self.assertEqual(gen_config["max_output_tokens"], 15)
+        self.assertEqual(gen_config["temperature"], 0.3)
+
+
 if __name__ == "__main__":
     unittest.main()
