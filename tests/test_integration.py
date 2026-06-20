@@ -158,7 +158,6 @@ class TestAISnapshot(_IntegrationBase):
     """AI operation snapshots for undo/rollback."""
 
     def test_create_and_restore_snapshot(self):
-        from bookmark_organizer_pro.models import Bookmark
         from bookmark_organizer_pro.services.ai_snapshot import (
             AI_SNAPSHOTS_DIR,
             create_snapshot,
