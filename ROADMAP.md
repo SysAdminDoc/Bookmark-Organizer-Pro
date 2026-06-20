@@ -795,80 +795,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 > Added 2026-06-20 from `RESEARCH.md` research pass (source S-121). Items verified against existing ROADMAP to avoid duplicates.
 
-### P0 — Fix Now (reliability, correctness, lint debt)
-
-- [ ] P0 — **Pin transitive dependency security floors (urllib3, lxml)**
-  Why: CVE-2026-21441 (urllib3, CVSS 7.5 decompression bomb on redirect, fixed ≥2.6.3) and CVE-2026-41066 (lxml XXE in iterparse, fixed ≥6.1.0) affect BOP's transitive dependency chain — urllib3 via requests, lxml via trafilatura. Neither is directly pinned.
-  Evidence: S-121 research pass dependency audit; urllib3 CVE-2026-21441; lxml CVE-2026-41066 (S-107)
-  Touches: `pyproject.toml` (add `urllib3>=2.6.3` and `lxml>=6.1.0` to dependencies), `requirements.txt`
-  Acceptance: `pip install -e .` resolves urllib3≥2.6.3 and lxml≥6.1.0; no vulnerable transitive versions installable
-  Complexity: S
-
-- [ ] P0 — **Clean 91 unused imports (ruff F401)**
-  Why: 91 autofix-safe unused imports signal unmaintained code; blocks enabling F401 enforcement in CI
-  Evidence: `ruff check bookmark_organizer_pro --select F401 --statistics` → 91 hits; pyproject.toml defers F401/F841
-  Touches: ~30 files across `bookmark_organizer_pro/`
-  Acceptance: `ruff check --select F401` exits 0; F401 removed from `ignore` list in pyproject.toml
-  Complexity: S
-
-- [ ] P0 — **Fix hardcoded link checker User-Agent version**
-  Why: `link_checker.py:14` hardcodes `BookmarkOrganizerPro/6.0` — stale since v5.x and triggers bot detection on some sites
-  Evidence: `bookmark_organizer_pro/link_checker.py:14` — `_USER_AGENT = "BookmarkOrganizerPro/6.0 LinkChecker"`
-  Touches: `bookmark_organizer_pro/link_checker.py`
-  Acceptance: UA reads `f"BookmarkOrganizerPro/{APP_VERSION} LinkChecker"` using constants import
-  Complexity: S
-
-- [ ] P0 — **Gate cross-encoder model auto-download behind opt-in**
-  Why: `hybrid_search.py:46` silently downloads 90MB `cross-encoder/ms-marco-MiniLM-L-6-v2` on first hybrid search with no consent or progress indicator
-  Evidence: `bookmark_organizer_pro/services/hybrid_search.py:38-53` — `CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")` in `_try_rerank()`
-  Touches: `bookmark_organizer_pro/services/hybrid_search.py`, possibly `settings.json` for opt-in flag
-  Acceptance: Cross-encoder only downloads after user enables it in AI settings or passes `--rerank` flag; search works without it (already falls back to None)
-  Complexity: S
-
-- [ ] P0 — **Migrate API token to keyring**
-  Why: REST API token stored as plaintext in `api_token.txt` (ACL-protected on Windows but readable on Linux/macOS); AI API keys already use keyring (R-35)
-  Evidence: `bookmark_organizer_pro/services/api.py:27-48` — `_load_or_create_token()` writes plaintext file
-  Touches: `bookmark_organizer_pro/services/api.py`, `bookmark_organizer_pro/services/mcp_auth.py` (uses same token file)
-  Acceptance: Token stored via `keyring.set_password()`; file fallback for headless/CI; existing token auto-migrated on first run
-  Complexity: S
-
-### P1 — Next Release (high-impact, user-facing)
-
-- [ ] P1 — **Migrate CLI to argparse with subparsers**
-  Why: Hand-rolled command dispatcher in `cli.py:53-112` has no per-subcommand `--help`, no flag validation, no type coercion — every subcommand does ad-hoc `args[0]` indexing. Buku's argparse CLI is the gold standard in this space.
-  Evidence: `bookmark_organizer_pro/cli.py:41-119` — 41 commands in a flat dict with no argument parsing; S-123 (Buku) for contrast
-  Touches: `bookmark_organizer_pro/cli.py` (rewrite), `tests/test_cli.py` (update test invocations)
-  Acceptance: `bop <subcommand> --help` works for all 41 commands; `bop --help` shows grouped subcommands; existing `bop <cmd> <arg>` invocations still work; shell completions updated
-  Complexity: L
-
-- [ ] P1 — **Publish browser extension to Chrome Web Store and Firefox AMO**
-  Why: Unpacked-only distribution blocks adoption — users must enable developer mode and manually load. Every competitor with an extension publishes to at least one store (Karakeep: CWS+AMO+Safari; Linkwarden: CWS+AMO; Wallabag: CWS+AMO).
-  Evidence: `browser-extension/manifest.json` — valid MV3 manifest but no store listing; S-5, S-3, S-8 competitors all have store presence
-  Touches: `browser-extension/` (store metadata, screenshots, privacy policy), `.github/workflows/` (extension build/zip CI)
-  Acceptance: Extension listed on CWS and AMO with working install links in README; version auto-syncs with `APP_VERSION`
-  Complexity: M
-
-- [ ] P1 — **Full-text search over extracted content**
-  Why: BOP extracts page text via trafilatura (`extracted/{id}.txt`) and embeds it for vector search, but the keyword `SearchEngine` only searches title/URL/tags/description — not the extracted body. This means keyword search misses content that semantic search finds.
-  Evidence: `bookmark_organizer_pro/search.py` — `SearchEngine.search()` only checks `bookmark.title`, `bookmark.url`, `bookmark.description`, `bookmark.tags`; extracted text at `~/.bookmark_organizer/extracted/` is unused by keyword path
-  Touches: `bookmark_organizer_pro/search.py`, `bookmark_organizer_pro/services/hybrid_search.py`
-  Acceptance: `bop search "specific phrase from extracted text"` returns the bookmark; search syntax supports `content:` prefix filter
-  Complexity: M
-
-- [ ] P1 — **Scheduled dead-link scanning**
-  Why: Dead-link scanner exists (`services/dead_link_scanner.py`) but requires manual invocation via CLI or GUI menu. LinkAce runs it automatically. Users with 1000+ bookmarks won't remember to scan.
-  Evidence: `bookmark_organizer_pro/services/dead_link_scanner.py` — no scheduling mechanism; `auto_snapshot.py` shows the scheduling pattern (periodic Thread with configurable interval) that could be reused
-  Touches: `bookmark_organizer_pro/services/dead_link_scanner.py`, `bookmark_organizer_pro/app_mixins/lifecycle.py` (start scheduler), `settings.json` (interval config)
-  Acceptance: Dead-link scan runs automatically at configurable interval (default: weekly); results persisted and surfaced in GUI; can be disabled in settings
-  Complexity: S
-
-- [ ] P1 — **Extension native messaging for server-free save**
-  Why: Current extension requires `bop api-server` running separately — if the API server isn't running, saves fail silently. Native messaging lets the extension communicate directly with the desktop app process via stdin/stdout, eliminating the separate server requirement. Karakeep, Linkwarden, and Zotero all use native messaging.
-  Evidence: S-67 (MDN native messaging), S-97 (Universal Bookmark Manager pattern), S-110 (Zotero connector architecture)
-  Touches: new `bookmark_organizer_pro/native_messaging.py` host, `browser-extension/background.js` (native messaging port), platform-specific manifest registration
-  Acceptance: Extension saves bookmarks with desktop app running (no separate `bop api-server`); works on Windows + macOS + Linux; falls back to HTTP API when native messaging unavailable
-  Complexity: L
-
 ### P2 — Later (differentiation, polish)
 
 - [ ] P2 — **Chrome Side Panel extension UI**
@@ -906,35 +832,7 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
   Acceptance: Dashboard shows: recent 10 bookmarks, pinned items, read-later queue, category/tag distribution chart, health score summary, dead-link count badge; all sections clickable to navigate
   Complexity: M
 
-- [ ] P2 — **MSIX packaging + SignPath Foundation code signing**
-  Why: PyInstaller .exe triggers AV false positives (documented in README troubleshooting). MSIX packaging eliminates the temp-extraction pattern AVs flag, and SignPath Foundation provides free OV code signing for OSS projects. Combination enables Microsoft Store distribution ($19 one-time dev fee) where Microsoft re-signs the package.
-  Evidence: S-121 research pass; SignPath Foundation (signpath.org) for free OSS code signing; MSIX AV improvement documented at 82phil.github.io; Nuitka (R-40) already reduces false positives vs PyInstaller
-  Touches: `packaging/` (new MSIX build script, AppxManifest.xml), `.github/workflows/build.yml` (MSIX build step), SignPath Foundation application
-  Acceptance: Windows build produces .msix alongside .exe; MSIX installs without SmartScreen warning; Microsoft Store listing live with auto-updates
-  Complexity: M
-
 ### P3 — Under Consideration
-
-- [ ] P3 — **Browser bookmark file auto-import**
-  Why: Buku auto-detects and imports from the user's actual Chrome/Firefox/Edge bookmark database files without requiring a manual export step. BOP requires the user to export from `chrome://bookmarks` first — friction that power users dislike.
-  Evidence: S-123 (Buku), S-113 (GoSuki file monitoring); BOP's `importers.py` only handles exported HTML/JSON files, not live browser databases
-  Touches: `bookmark_organizer_pro/importers.py` or new `importers_browser_db.py`, platform-specific browser profile path detection
-  Acceptance: `bop import --browser chrome` reads Chrome's Bookmarks JSON directly; GUI Import menu has "Import from Chrome/Firefox/Edge" that auto-detects browser profiles
-  Complexity: M
-
-- [ ] P3 — **End-to-end integration test suite**
-  Why: 397 tests exist but all are unit/service/CLI level. No test exercises the full pipeline: import → categorize → embed → search → export. Regressions in the integration layer (e.g., batch-save coalescing breaking embeddings) aren't caught.
-  Evidence: `tests/` directory — `test_core.py` (162), `test_services.py` (70), `test_cli.py` (43), `test_mcp_tools.py` (35) — all unit-scoped; cycle note v6.6.0 mentions "service regressions found during full-suite verification"
-  Touches: new `tests/test_integration.py`
-  Acceptance: At least 5 E2E tests covering: import→categorize→search, import→embed→semantic_search, import→snapshot→export, add→tag→flow→export, import→dedup→merge
-  Complexity: M
-
-- [ ] P3 — **Performance benchmark suite**
-  Why: No data on JSON load time, search latency, or embedding throughput at scale. Users report "high CPU usage" (README troubleshooting section) but there's no baseline to measure against or regression-test.
-  Evidence: README troubleshooting mentions "High CPU usage" on large imports; no `benchmarks/` directory or perf tests; JSON backend is O(n) for every save
-  Touches: new `benchmarks/` directory with pytest-benchmark or custom timing
-  Acceptance: Benchmark suite measures: JSON load/save at 1K/5K/10K/50K bookmarks, keyword search latency, hybrid search latency, embedding throughput; results documented in ARCHITECTURE.md
-  Complexity: M
 
 - [ ] P3 — **MCP resource subscriptions for live bookmark change notifications**
   Why: MCP spec supports resource subscriptions — clients can subscribe to changes and receive notifications when bookmarks are added/modified/deleted. This would let Claude/Cursor react to bookmark changes in real-time instead of polling.
