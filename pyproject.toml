@@ -15,8 +15,8 @@ dependencies = [
     "Pillow>=12.2.0",
     "defusedxml>=0.7",
     "tksheet>=7.6,<8",
-    "urllib3>=2.6.3",
-    "lxml>=6.1.0",
+    "urllib3>=2.7.0",
+    "lxml>=6.1.1",
 ]
 
 [project.optional-dependencies]
@@ -28,7 +28,7 @@ ai = [
     "lancedb>=0.13,<1.0",
 ]
 encryption = ["cryptography>=46.0.7"]
-mcp = ["mcp>=1.24,<2.0", "fastmcp>=3.4,<4.0"]
+mcp = ["mcp>=1.28,<2.0", "fastmcp>=3.4,<4.0"]
 nuitka = ["Nuitka>=4.1,<5.0"]
 updates = ["tufup>=0.10,<0.11"]
 sunvalley = ["sv-ttk>=2.6.1,<3.0"]

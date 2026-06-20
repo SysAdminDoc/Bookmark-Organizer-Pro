@@ -300,9 +300,9 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
         pyproject_text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         requirements_text = (ROOT / "requirements.txt").read_text(encoding="utf-8")
 
-        self.assertRegex(pyproject_text, re.compile(r'"mcp>=1\.24,<2\.0"'))
+        self.assertRegex(pyproject_text, re.compile(r'"mcp>=1\.28,<2\.0"'))
         self.assertRegex(pyproject_text, re.compile(r'"fastmcp>=3\.4,<4\.0"'))
-        self.assertIn("mcp>=1.24,<2", requirements_text)
+        self.assertIn("mcp>=1.28,<2", requirements_text)
         self.assertIn("fastmcp>=3.4,<4", requirements_text)
 
     def test_raw_mcp_tools_result_has_cache_hints_and_annotations(self):

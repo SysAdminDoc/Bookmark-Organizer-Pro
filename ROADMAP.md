@@ -814,27 +814,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P0 — Now (security, correctness)
 
-- [ ] P0 — **Bump urllib3 to >=2.7.0 (CVE-2026-44431)**
-  Why: Cross-origin redirect leaks Authorization/Cookie headers to attacker-controlled servers. BOP pins >=2.6.3 which is vulnerable.
-  Evidence: CVE-2026-44431, sentinelone.com advisory [S-128]
-  Touches: `pyproject.toml`, `requirements.txt`
-  Acceptance: `pip show urllib3` shows >=2.7.0; no Authorization header leak on cross-origin redirect
-  Complexity: S
-
-- [ ] P0 — **Bump lxml to >=6.1.1 (xlink:href bypass + libxslt patches)**
-  Why: xlink:href bypass in html.defs + bundled libxslt CVE-2025-7424/CVE-2025-11731 patches.
-  Evidence: lxml 6.1.1 changelog, PyPI [S-128]
-  Touches: `pyproject.toml`, `requirements.txt`
-  Acceptance: `pip show lxml` shows >=6.1.1
-  Complexity: S
-
-- [ ] P0 — **Bump MCP SDK to >=1.28 (40+ CVE wave)**
-  Why: NSA/DoD joint advisory (June 2, 2026) flagged STDIO transport input sanitization. 40+ MCP CVEs filed Jan-Apr 2026 including CVE-2026-0755 (CVSS 9.8 command injection).
-  Evidence: NSA/DoD CSI_MCP_SECURITY.PDF, dev.to MCP CVE overview [S-128]
-  Touches: `pyproject.toml`
-  Acceptance: `pip show mcp` shows >=1.28
-  Complexity: S
-
 - [ ] P0 — **Audit MCP tool input validation against NSA advisory**
   Why: NSA/DoD advisory identifies lack of input sanitization on tool parameters as the primary MCP attack vector. BOP has 27 tools accepting user-controlled strings.
   Evidence: NSA/DoD MCP security advisory [S-128]
