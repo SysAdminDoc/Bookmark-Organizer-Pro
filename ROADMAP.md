@@ -781,3 +781,150 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 | S-118 | TabMark: AI saves 30-60 min/week on organization | https://tabmark.dev/blog/ai-bookmark-managers/ |
 | S-119 | shom.dev: Omnivore→Karakeep→Wallabag→Readeck migration | https://shom.dev/posts/20250629_bookmarking-i-mean-omnivoring-no-hoarding-no-bagging-dot-dot-dot-wait-decking/ |
 | S-120 | Betula — federated bookmark manager with ActivityPub | https://codeberg.org/bouncepaw/betula |
+| S-121 | BOP internal audit (research pass, 2026-06-20) | `RESEARCH.md` (local) |
+| S-122 | Chrome Side Panel API | https://developer.chrome.com/docs/extensions/reference/api/sidePanel |
+| S-123 | Buku argparse CLI architecture | https://github.com/jarun/Buku |
+| S-124 | LinkAce — scheduled dead-link monitoring | https://github.com/Kovah/LinkAce |
+| S-125 | Zotero nested tag/collection architecture | https://github.com/zotero/zotero |
+| S-126 | Calibre content server + OPDS architecture | https://manual.calibre-ebook.com/server.html |
+| S-127 | Joplin plugin API via entry_points | https://github.com/laurent22/joplin |
+
+---
+
+## Research-Driven Additions
+
+> Added 2026-06-20 from `RESEARCH.md` research pass (source S-121). Items verified against existing ROADMAP to avoid duplicates.
+
+### P0 — Fix Now (reliability, correctness, lint debt)
+
+- [ ] P0 — **Clean 91 unused imports (ruff F401)**
+  Why: 91 autofix-safe unused imports signal unmaintained code; blocks enabling F401 enforcement in CI
+  Evidence: `ruff check bookmark_organizer_pro --select F401 --statistics` → 91 hits; pyproject.toml defers F401/F841
+  Touches: ~30 files across `bookmark_organizer_pro/`
+  Acceptance: `ruff check --select F401` exits 0; F401 removed from `ignore` list in pyproject.toml
+  Complexity: S
+
+- [ ] P0 — **Fix hardcoded link checker User-Agent version**
+  Why: `link_checker.py:14` hardcodes `BookmarkOrganizerPro/6.0` — stale since v5.x and triggers bot detection on some sites
+  Evidence: `bookmark_organizer_pro/link_checker.py:14` — `_USER_AGENT = "BookmarkOrganizerPro/6.0 LinkChecker"`
+  Touches: `bookmark_organizer_pro/link_checker.py`
+  Acceptance: UA reads `f"BookmarkOrganizerPro/{APP_VERSION} LinkChecker"` using constants import
+  Complexity: S
+
+- [ ] P0 — **Gate cross-encoder model auto-download behind opt-in**
+  Why: `hybrid_search.py:46` silently downloads 90MB `cross-encoder/ms-marco-MiniLM-L-6-v2` on first hybrid search with no consent or progress indicator
+  Evidence: `bookmark_organizer_pro/services/hybrid_search.py:38-53` — `CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")` in `_try_rerank()`
+  Touches: `bookmark_organizer_pro/services/hybrid_search.py`, possibly `settings.json` for opt-in flag
+  Acceptance: Cross-encoder only downloads after user enables it in AI settings or passes `--rerank` flag; search works without it (already falls back to None)
+  Complexity: S
+
+- [ ] P0 — **Migrate API token to keyring**
+  Why: REST API token stored as plaintext in `api_token.txt` (ACL-protected on Windows but readable on Linux/macOS); AI API keys already use keyring (R-35)
+  Evidence: `bookmark_organizer_pro/services/api.py:27-48` — `_load_or_create_token()` writes plaintext file
+  Touches: `bookmark_organizer_pro/services/api.py`, `bookmark_organizer_pro/services/mcp_auth.py` (uses same token file)
+  Acceptance: Token stored via `keyring.set_password()`; file fallback for headless/CI; existing token auto-migrated on first run
+  Complexity: S
+
+### P1 — Next Release (high-impact, user-facing)
+
+- [ ] P1 — **Migrate CLI to argparse with subparsers**
+  Why: Hand-rolled command dispatcher in `cli.py:53-112` has no per-subcommand `--help`, no flag validation, no type coercion — every subcommand does ad-hoc `args[0]` indexing. Buku's argparse CLI is the gold standard in this space.
+  Evidence: `bookmark_organizer_pro/cli.py:41-119` — 41 commands in a flat dict with no argument parsing; S-123 (Buku) for contrast
+  Touches: `bookmark_organizer_pro/cli.py` (rewrite), `tests/test_cli.py` (update test invocations)
+  Acceptance: `bop <subcommand> --help` works for all 41 commands; `bop --help` shows grouped subcommands; existing `bop <cmd> <arg>` invocations still work; shell completions updated
+  Complexity: L
+
+- [ ] P1 — **Publish browser extension to Chrome Web Store and Firefox AMO**
+  Why: Unpacked-only distribution blocks adoption — users must enable developer mode and manually load. Every competitor with an extension publishes to at least one store (Karakeep: CWS+AMO+Safari; Linkwarden: CWS+AMO; Wallabag: CWS+AMO).
+  Evidence: `browser-extension/manifest.json` — valid MV3 manifest but no store listing; S-5, S-3, S-8 competitors all have store presence
+  Touches: `browser-extension/` (store metadata, screenshots, privacy policy), `.github/workflows/` (extension build/zip CI)
+  Acceptance: Extension listed on CWS and AMO with working install links in README; version auto-syncs with `APP_VERSION`
+  Complexity: M
+
+- [ ] P1 — **Full-text search over extracted content**
+  Why: BOP extracts page text via trafilatura (`extracted/{id}.txt`) and embeds it for vector search, but the keyword `SearchEngine` only searches title/URL/tags/description — not the extracted body. This means keyword search misses content that semantic search finds.
+  Evidence: `bookmark_organizer_pro/search.py` — `SearchEngine.search()` only checks `bookmark.title`, `bookmark.url`, `bookmark.description`, `bookmark.tags`; extracted text at `~/.bookmark_organizer/extracted/` is unused by keyword path
+  Touches: `bookmark_organizer_pro/search.py`, `bookmark_organizer_pro/services/hybrid_search.py`
+  Acceptance: `bop search "specific phrase from extracted text"` returns the bookmark; search syntax supports `content:` prefix filter
+  Complexity: M
+
+- [ ] P1 — **Scheduled dead-link scanning**
+  Why: Dead-link scanner exists (`services/dead_link_scanner.py`) but requires manual invocation via CLI or GUI menu. LinkAce runs it automatically. Users with 1000+ bookmarks won't remember to scan.
+  Evidence: `bookmark_organizer_pro/services/dead_link_scanner.py` — no scheduling mechanism; `auto_snapshot.py` shows the scheduling pattern (periodic Thread with configurable interval) that could be reused
+  Touches: `bookmark_organizer_pro/services/dead_link_scanner.py`, `bookmark_organizer_pro/app_mixins/lifecycle.py` (start scheduler), `settings.json` (interval config)
+  Acceptance: Dead-link scan runs automatically at configurable interval (default: weekly); results persisted and surfaced in GUI; can be disabled in settings
+  Complexity: S
+
+- [ ] P1 — **Extension native messaging for server-free save**
+  Why: Current extension requires `bop api-server` running separately — if the API server isn't running, saves fail silently. Native messaging lets the extension communicate directly with the desktop app process via stdin/stdout, eliminating the separate server requirement. Karakeep, Linkwarden, and Zotero all use native messaging.
+  Evidence: S-67 (MDN native messaging), S-97 (Universal Bookmark Manager pattern), S-110 (Zotero connector architecture)
+  Touches: new `bookmark_organizer_pro/native_messaging.py` host, `browser-extension/background.js` (native messaging port), platform-specific manifest registration
+  Acceptance: Extension saves bookmarks with desktop app running (no separate `bop api-server`); works on Windows + macOS + Linux; falls back to HTTP API when native messaging unavailable
+  Complexity: L
+
+### P2 — Later (differentiation, polish)
+
+- [ ] P2 — **Chrome Side Panel extension UI**
+  Why: Chrome Side Panel API lets the extension render a persistent sidebar alongside browsing — matching Raindrop.io and Karakeep's browsing-alongside-library UX. Much richer than a popup that closes on any click outside.
+  Evidence: S-122 (Chrome Side Panel API); Raindrop.io and Karakeep both use side panel for their extensions
+  Touches: `browser-extension/` (new `sidepanel.html`, manifest `side_panel` entry, background.js action handler)
+  Acceptance: Clicking the extension icon opens a persistent side panel showing recent bookmarks, search, and quick-add form; panel survives tab navigation
+  Complexity: M
+
+- [ ] P2 — **Tag hierarchy / nested tags**
+  Why: Flat tags limit organization at scale. Raindrop.io, Linkwarden, Zotero, and DEVONthink all support tag nesting (e.g., `programming/python`, `work/clients`). Users with 100+ tags need structure.
+  Evidence: S-10 (Raindrop nested collections), S-3 (Linkwarden), S-125 (Zotero); BOP's `models/tag.py` has flat `Tag(name, color, icon)` dataclass
+  Touches: `bookmark_organizer_pro/models/tag.py`, `bookmark_organizer_pro/managers/tags.py`, `bookmark_organizer_pro/ui/` (tag tree rendering), sidebar tag display
+  Acceptance: Tags support `/`-separated hierarchy; sidebar shows tag tree with expand/collapse; filtering by parent tag includes children; existing flat tags preserved
+  Complexity: L
+
+- [ ] P2 — **SQLite GUI migration wizard + default promotion**
+  Why: SQLite backend shipped (R-31) but migration requires CLI command or env var — no GUI path. Users with 5K+ bookmarks would benefit from SQLite's faster loads and concurrent MCP+GUI access, but won't discover the option.
+  Evidence: `bookmark_organizer_pro/core/sqlite_storage.py` exists; `cli.py` has `sqlite-migrate` command; no GUI trigger exists
+  Touches: `bookmark_organizer_pro/app_mixins/tools.py` (menu entry), new migration dialog in `ui/`, `settings.json` (backend preference)
+  Acceptance: Tools menu has "Migrate to SQLite" with progress bar; settings shows current backend; SQLite users see "SQLite" in status bar; migration is non-destructive (JSON preserved as backup)
+  Complexity: M
+
+- [ ] P2 — **Bulk AI operation undo/selective rollback**
+  Why: "Categorize All" or "Tag All" via AI modifies potentially thousands of bookmarks with no selective undo. If AI miscategorizes, only option is full backup restore. Calibre's undo-per-operation pattern handles this.
+  Evidence: `bookmark_organizer_pro/app_mixins/ai_processing.py` — batch AI operations write directly without snapshotting pre-AI state; S-126 (Calibre operation undo)
+  Touches: `bookmark_organizer_pro/app_mixins/ai_processing.py`, `bookmark_organizer_pro/services/` (pre-operation snapshot), `bookmark_organizer_pro/commands.py` (undo integration)
+  Acceptance: Before any bulk AI operation, a pre-operation snapshot is saved; GUI offers "Undo Last AI Operation" that restores affected bookmarks to pre-AI state; snapshot auto-expires after 7 days
+  Complexity: M
+
+- [ ] P2 — **Dashboard multi-widget layout**
+  Why: Dashboard exists (`app_mixins/dashboard.py`, `ui/widget_dashboard_panel.py`) but is thin compared to Raindrop.io's visual landing — recent saves, pinned items, read-later queue, health score distribution, category breakdown, and dead-link count would make it the default entry screen.
+  Evidence: `bookmark_organizer_pro/app_mixins/dashboard.py` and `ui/widget_dashboard_panel.py` — current implementation; S-10 (Raindrop dashboard) for comparison
+  Touches: `bookmark_organizer_pro/ui/widget_dashboard_panel.py`, `bookmark_organizer_pro/app_mixins/dashboard.py`
+  Acceptance: Dashboard shows: recent 10 bookmarks, pinned items, read-later queue, category/tag distribution chart, health score summary, dead-link count badge; all sections clickable to navigate
+  Complexity: M
+
+### P3 — Under Consideration
+
+- [ ] P3 — **Browser bookmark file auto-import**
+  Why: Buku auto-detects and imports from the user's actual Chrome/Firefox/Edge bookmark database files without requiring a manual export step. BOP requires the user to export from `chrome://bookmarks` first — friction that power users dislike.
+  Evidence: S-123 (Buku), S-113 (GoSuki file monitoring); BOP's `importers.py` only handles exported HTML/JSON files, not live browser databases
+  Touches: `bookmark_organizer_pro/importers.py` or new `importers_browser_db.py`, platform-specific browser profile path detection
+  Acceptance: `bop import --browser chrome` reads Chrome's Bookmarks JSON directly; GUI Import menu has "Import from Chrome/Firefox/Edge" that auto-detects browser profiles
+  Complexity: M
+
+- [ ] P3 — **End-to-end integration test suite**
+  Why: 397 tests exist but all are unit/service/CLI level. No test exercises the full pipeline: import → categorize → embed → search → export. Regressions in the integration layer (e.g., batch-save coalescing breaking embeddings) aren't caught.
+  Evidence: `tests/` directory — `test_core.py` (162), `test_services.py` (70), `test_cli.py` (43), `test_mcp_tools.py` (35) — all unit-scoped; cycle note v6.6.0 mentions "service regressions found during full-suite verification"
+  Touches: new `tests/test_integration.py`
+  Acceptance: At least 5 E2E tests covering: import→categorize→search, import→embed→semantic_search, import→snapshot→export, add→tag→flow→export, import→dedup→merge
+  Complexity: M
+
+- [ ] P3 — **Performance benchmark suite**
+  Why: No data on JSON load time, search latency, or embedding throughput at scale. Users report "high CPU usage" (README troubleshooting section) but there's no baseline to measure against or regression-test.
+  Evidence: README troubleshooting mentions "High CPU usage" on large imports; no `benchmarks/` directory or perf tests; JSON backend is O(n) for every save
+  Touches: new `benchmarks/` directory with pytest-benchmark or custom timing
+  Acceptance: Benchmark suite measures: JSON load/save at 1K/5K/10K/50K bookmarks, keyword search latency, hybrid search latency, embedding throughput; results documented in ARCHITECTURE.md
+  Complexity: M
+
+- [ ] P3 — **MCP resource subscriptions for live bookmark change notifications**
+  Why: MCP spec supports resource subscriptions — clients can subscribe to changes and receive notifications when bookmarks are added/modified/deleted. This would let Claude/Cursor react to bookmark changes in real-time instead of polling.
+  Evidence: S-15 (MCP specification), S-79 (MCP 2026 spec evolution); BOP's file-change watcher (R-74) already detects external changes
+  Touches: `bookmark_organizer_pro/mcp_server.py` (resource definitions, subscription handlers)
+  Acceptance: MCP client can subscribe to `bookmarks://library` resource; receives notifications on add/delete/update; notification includes changed bookmark IDs
+  Complexity: L
