@@ -821,21 +821,9 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 ### P2 — Later (differentiation, polish)
 
 
-- [ ] P2 — **Chrome Prompt API integration for zero-cost extension categorization**
-  Why: Chrome 138+ stabilized the Prompt API (Gemini Nano) for extensions — on-device AI with zero API keys, zero cost, offline-capable. BOP extension could categorize/tag bookmarks locally.
-  Evidence: Chrome Prompt API documentation, developer.chrome.com [S-130]
-  Touches: `browser-extension/popup.js`, `browser-extension/sidepanel.js`
-  Acceptance: On Chrome 138+, extension auto-suggests category using Gemini Nano; graceful fallback on unsupported browsers
-  Complexity: M
 
 
 
-- [ ] P2 — **First community translation (es or zh)**
-  Why: i18n scaffolding exists (`i18n.py` with `_()`, `ngettext()`, POT generation, `locale/` dir) but zero `.po` files. Shipping one translation validates the entire pipeline end-to-end.
-  Evidence: Internal audit — `i18n.py` fully functional, `locale/README.md` exists for translators [S-128]
-  Touches: `locale/es/LC_MESSAGES/bop.po` (or zh), `i18n.py` (verify round-trip)
-  Acceptance: `bop --lang es help` displays Spanish text; POT→PO→MO pipeline verified
-  Complexity: M
 
 
 ### P3 — Under Consideration
@@ -847,12 +835,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
   Acceptance: Vector search works via SQLite-vec with comparable recall to LanceDB
   Complexity: L
 
-- [ ] P3 — **tufup succession evaluation**
-  Why: tufup 0.10.0 was released Oct 2021 — no releases in 4+ years. The project appears dormant. BOP's updater infrastructure depends on it.
-  Evidence: tufup GitHub releases page — last release Oct 2021 [S-130]
-  Touches: `services/updates.py`, `pyproject.toml`
-  Acceptance: Decision documented: continue with tufup, fork, or evaluate alternatives (e.g., pyupdater, custom TUF client)
-  Complexity: S (evaluation only)
 
 - [ ] P3 — **Spaced repetition for highlights**
   Why: Readwise Reader's highest-value feature ($120/yr) is spaced repetition review of highlights. BOP already has reader annotations (`services/reader_annotations.py`) — adding SM-2 scheduling would be a free alternative to a $120/yr product.

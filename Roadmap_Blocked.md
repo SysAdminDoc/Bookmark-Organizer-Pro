@@ -37,6 +37,18 @@ Items moved here from ROADMAP.md because they have hard blockers preventing impl
 
 **Source:** S-67 (MDN native messaging), S-97 (Universal Bookmark Manager), S-110 (Zotero connectors)
 
+## Chrome Prompt API integration for zero-cost extension categorization
+
+**Blocker:** Requires Chrome 138+ with Gemini Nano on-device model (2.7-4 GB download, 16 GB RAM). Cannot be tested or validated without a Chrome 138+ browser environment with the Prompt API enabled. Implementation is straightforward once a test environment is available.
+
+**Source:** [S-130][S-135]
+
+## First community translation (es or zh)
+
+**Blocker:** The i18n scaffolding (R-50) ships `_()`, `ngettext()`, `setup_locale()`, and POT generation, but zero GUI strings are currently wrapped with `_()`. A translation requires first wrapping all user-facing strings across the GUI with the `_()` function — M-effort — before any `.po` file can be meaningful.
+
+**Source:** [S-128]
+
 ## MSIX packaging + SignPath Foundation code signing
 
 **Blocker:** Requires operator to apply to SignPath Foundation for free OV code signing (signpath.org), create a Microsoft Partner Center developer account ($19 one-time fee), generate AppxManifest.xml with app identity, and set up MSIX build pipeline. These are account-gated actions.
