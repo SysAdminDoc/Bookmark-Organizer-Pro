@@ -11,6 +11,7 @@ from bookmark_organizer_pro.ai import create_failover_client
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.ai_audit_log import log_categorize, log_title_improvement
+from bookmark_organizer_pro.services.ai_snapshot import create_snapshot
 from bookmark_organizer_pro.ui.live_workflow import LiveWorkflowDialog
 
 
@@ -55,6 +56,10 @@ class AiCategorizationMixin:
         )
 
         def _worker():
+            try:
+                create_snapshot("ai_categorize", bookmarks)
+            except Exception as snap_err:
+                log.warning(f"AI snapshot failed (continuing): {snap_err}")
             client = create_failover_client(self.ai_config)
             categories = self.category_manager.get_sorted_categories()
             allow_new = self.ai_config.get_auto_create_categories()

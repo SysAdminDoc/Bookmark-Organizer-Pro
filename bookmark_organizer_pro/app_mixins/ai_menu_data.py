@@ -36,6 +36,8 @@ class AiMenuDataMixin:
         menu.add_command(label="  Summarize", command=self._ai_summarize)
         menu.add_command(label="  Improve Titles", command=self._ai_improve_titles)
         menu.add_separator()
+        menu.add_command(label="  Undo Last AI Operation", command=self._undo_last_ai_operation)
+        menu.add_separator()
         menu.add_command(label="  Merge AI Tags to User Tags", command=self._merge_ai_tags)
         menu.add_separator()
         menu.add_command(label="  Export AI Data (JSON)", command=self._export_ai_data)
@@ -50,6 +52,40 @@ class AiMenuDataMixin:
         y = self.ai_btn.winfo_rooty() + self.ai_btn.winfo_height()
         menu.tk_popup(x, y)
     
+    def _undo_last_ai_operation(self):
+        """Restore bookmarks to their state before the most recent AI batch."""
+        from bookmark_organizer_pro.services.ai_snapshot import list_snapshots, restore_snapshot, delete_snapshot
+
+        snapshots = list_snapshots()
+        if not snapshots:
+            messagebox.showinfo(
+                "No AI Snapshots",
+                "No AI operation snapshots are available to undo.",
+                parent=self.root,
+            )
+            return
+
+        latest = snapshots[0]
+        if not messagebox.askyesno(
+            "Undo AI Operation",
+            f"Restore bookmarks to state before:\n\n"
+            f"Operation: {latest['operation']}\n"
+            f"Date: {latest['created_at'][:19]}\n"
+            f"Bookmarks affected: {latest['bookmark_count']}\n\n"
+            f"This will revert categories, tags, and titles for those bookmarks.",
+            parent=self.root,
+        ):
+            return
+
+        count = restore_snapshot(latest["snapshot_id"], self.bookmark_manager)
+        if count:
+            delete_snapshot(latest["snapshot_id"])
+            self._refresh_all()
+            self._show_toast(f"Restored {count} bookmarks to pre-AI state", "success")
+            self._set_status(f"Undid AI {latest['operation']} — {count} bookmarks restored")
+        else:
+            self._show_toast("No bookmarks could be restored", "info")
+
     def _merge_ai_tags(self):
         """Merge AI-suggested tags into user tags"""
         bookmarks = self.bookmark_manager.get_all_bookmarks()

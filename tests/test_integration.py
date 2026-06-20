@@ -154,6 +154,47 @@ class TestStatsAndDigest(_IntegrationBase):
         self.assertIsInstance(out, str)
 
 
+class TestAISnapshot(_IntegrationBase):
+    """AI operation snapshots for undo/rollback."""
+
+    def test_create_and_restore_snapshot(self):
+        from bookmark_organizer_pro.models import Bookmark
+        from bookmark_organizer_pro.services.ai_snapshot import (
+            AI_SNAPSHOTS_DIR,
+            create_snapshot,
+            delete_snapshot,
+            list_snapshots,
+            restore_snapshot,
+        )
+
+        AI_SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+
+        _, cli = self._run_cli(["add", "https://snap-test.example.com", "Snap", "Test"])
+        bm_mgr = cli.bookmark_manager
+        bms = [b for b in bm_mgr.get_all_bookmarks() if b.url == "https://snap-test.example.com"]
+        self.assertTrue(bms)
+        bm = bms[0]
+        self.assertEqual(bm.category, "Uncategorized / Needs Review")
+
+        snap_id = create_snapshot("test_op", [bm])
+
+        bm.category = "AI Changed"
+        bm.tags = ["ai-generated"]
+        bm_mgr.save_bookmarks()
+
+        snapshots = list_snapshots()
+        self.assertTrue(any(s["snapshot_id"] == snap_id for s in snapshots))
+
+        count = restore_snapshot(snap_id, bm_mgr)
+        self.assertEqual(count, 1)
+        restored = bm_mgr.get_bookmark(bm.id)
+        self.assertEqual(restored.category, "Uncategorized / Needs Review")
+        self.assertEqual(restored.tags, [])
+
+        delete_snapshot(snap_id)
+        self.assertFalse(any(s["snapshot_id"] == snap_id for s in list_snapshots()))
+
+
 class TestTagHierarchy(_IntegrationBase):
     """Tag hierarchy: slash-separated tags create parent/child relationships."""
 

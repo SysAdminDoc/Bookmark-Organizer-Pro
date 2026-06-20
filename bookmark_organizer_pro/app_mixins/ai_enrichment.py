@@ -12,6 +12,7 @@ from bookmark_organizer_pro.ai import create_failover_client
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.ai_audit_log import log_tag_suggestion, log_summary
+from bookmark_organizer_pro.services.ai_snapshot import create_snapshot
 from bookmark_organizer_pro.ui.live_workflow import LiveWorkflowDialog
 
 
@@ -87,6 +88,10 @@ class AiEnrichmentMixin:
         )
 
         def _worker():
+            try:
+                create_snapshot("ai_tags", bookmarks)
+            except Exception as snap_err:
+                log.warning(f"AI snapshot failed (continuing): {snap_err}")
             client = create_failover_client(self.ai_config)
             categories = self.category_manager.get_sorted_categories()
             batch_size = self.ai_config.get_batch_size()
