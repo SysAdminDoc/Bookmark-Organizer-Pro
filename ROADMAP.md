@@ -843,12 +843,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
   Acceptance: `bop --lang es help` displays Spanish text; POT→PO→MO pipeline verified
   Complexity: M
 
-- [ ] P2 — **GUI dead-link scan results panel**
-  Why: Dead-link scanner runs in background (`services/dead_link_scanner.py`) and persists results to `dead_links.json`, but results are only visible via `bop scan` CLI. Community research shows 20% annual link rot — users need visibility.
-  Evidence: Internal audit — scanner writes to `dead_links.json`; no GUI reads it [S-128][S-129]
-  Touches: `app_mixins/tools.py`, Tools menu or dashboard widget
-  Acceptance: Tools menu or dashboard shows broken/redirected links with fix/dismiss actions
-  Complexity: M
 
 ### P3 — Under Consideration
 

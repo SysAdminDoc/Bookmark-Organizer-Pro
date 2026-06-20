@@ -67,6 +67,7 @@ class ToolsActionsMixin:
         menu.add_separator()
 
         menu.add_command(label="  Check All Links", command=self._check_all_links)
+        menu.add_command(label="  View Dead Links", command=self._view_dead_links)
         menu.add_command(label="  Find Duplicates", command=self._find_duplicates)
         menu.add_command(label="  Smart Duplicate Scan", command=self._smart_duplicate_scan)
         menu.add_command(label="  Lint Tags", command=self._lint_tags_gui)
@@ -603,6 +604,40 @@ class ToolsActionsMixin:
             if filters:
                 lines.append(f"    Filters: {'; '.join(filters)}")
         messagebox.showinfo("Smart Collections", "\n".join(lines))
+
+    def _view_dead_links(self):
+        """Show dead-link scan results from the persistent queue."""
+        try:
+            from bookmark_organizer_pro.services.dead_link_scanner import DeadLinkScanner
+            scanner = DeadLinkScanner(
+                get_bookmarks=lambda: self.bookmark_manager.get_all_bookmarks(),
+            )
+            records = scanner.list_dead_links()
+        except Exception:
+            records = []
+
+        if not records:
+            self._show_toast("No dead links on file. Run Check All Links first.", "info")
+            return
+
+        broken = [r for r in records if r.status >= 400 or r.status == 0]
+        redirected = [r for r in records if 300 <= r.status < 400]
+
+        lines = [f"{len(records)} dead/redirected link(s) on file:\n"]
+        if broken:
+            lines.append(f"  Broken ({len(broken)}):")
+            for r in broken[:15]:
+                lines.append(f"    [{r.status}] {r.url[:60]}")
+            if len(broken) > 15:
+                lines.append(f"    ... and {len(broken) - 15} more")
+        if redirected:
+            lines.append(f"\n  Redirected ({len(redirected)}):")
+            for r in redirected[:10]:
+                lines.append(f"    [{r.status}] {r.url[:50]} -> {r.redirect_to[:50]}")
+            if len(redirected) > 10:
+                lines.append(f"    ... and {len(redirected) - 10} more")
+        lines.append("\nUse 'bop scan' from the CLI to refresh.")
+        messagebox.showinfo("Dead Link Scan Results", "\n".join(lines))
 
     def _clean_urls(self):
         """Clean tracking params"""
