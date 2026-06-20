@@ -42,6 +42,19 @@ class TestBrowserExtensionManifest(unittest.TestCase):
         self.assertIn("defaultCategory", options_js)
         self.assertIn("storageSet({ apiPort: port, apiToken, defaultCategory })", options_js)
 
+    def test_manifest_declares_sidepanel(self):
+        manifest = json.loads((EXT_DIR / "manifest.json").read_text(encoding="utf-8"))
+
+        self.assertIn("sidePanel", manifest["permissions"])
+        self.assertEqual(manifest["side_panel"]["default_path"], "sidepanel.html")
+
+    def test_sidepanel_fetches_bookmarks_with_auth(self):
+        sp_js = (EXT_DIR / "sidepanel.js").read_text(encoding="utf-8")
+
+        self.assertIn("/bookmarks", sp_js)
+        self.assertIn("/search?q=", sp_js)
+        self.assertIn("Bearer", sp_js)
+
     def test_extension_assets_exist(self):
         for name in [
             "manifest.json",
@@ -50,6 +63,8 @@ class TestBrowserExtensionManifest(unittest.TestCase):
             "popup.css",
             "options.html",
             "options.js",
+            "sidepanel.html",
+            "sidepanel.js",
         ]:
             self.assertTrue((EXT_DIR / name).is_file(), name)
 

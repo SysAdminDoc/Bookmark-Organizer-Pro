@@ -24,6 +24,16 @@ api.runtime.onInstalled.addListener(() => {
     title: "Save to BOP with selection",
     contexts: ["selection"]
   });
+  api.contextMenus.create({
+    id: "open-bop-sidepanel",
+    title: "Open BOP Side Panel",
+    contexts: ["page"]
+  });
+
+  if (api.sidePanel && api.sidePanel.setPanelBehavior) {
+    api.sidePanel.setPanelBehavior({ openPanelOnActionClick: false })
+      .catch(() => {});
+  }
 });
 
 async function quickSave(url, title, notes) {
@@ -54,6 +64,15 @@ async function quickSave(url, title, notes) {
 }
 
 api.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === "open-bop-sidepanel") {
+    if (api.sidePanel && api.sidePanel.open) {
+      try {
+        await api.sidePanel.open({ windowId: tab.windowId });
+      } catch { /* sidePanel API unavailable in this browser */ }
+    }
+    return;
+  }
+
   let url = info.linkUrl || info.pageUrl || (tab && tab.url) || "";
   let title = tab && tab.title || url;
   let notes = "";

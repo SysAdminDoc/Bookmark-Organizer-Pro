@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bookmark Organizer Pro</title>
+  <link rel="stylesheet" href="popup.css">
+  <style>
+    body {
+      width: 100%;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .panel {
+      padding: 12px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 2px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 12px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      border: none;
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 8px 4px;
+      cursor: pointer;
+    }
+
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .search-box {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .search-box input {
+      flex: 1;
+      padding: 7px 10px;
+      font-size: 13px;
+    }
+
+    .search-box button {
+      padding: 7px 10px;
+      font-size: 13px;
+    }
+
+    .bookmark-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .bookmark-item {
+      display: block;
+      padding: 8px 10px;
+      border-radius: 6px;
+      text-decoration: none;
+      color: var(--text);
+      margin-bottom: 4px;
+      border: 1px solid transparent;
+      cursor: pointer;
+    }
+
+    .bookmark-item:hover {
+      background: var(--panel);
+      border-color: var(--border);
+    }
+
+    .bookmark-title {
+      font-size: 13px;
+      font-weight: 600;
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .bookmark-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 3px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .bookmark-domain {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      font-size: 10px;
+      white-space: nowrap;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      margin: 14px 0 6px;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      padding: 24px 0;
+    }
+
+    .quick-add label {
+      margin: 8px 0;
+    }
+
+    .quick-add input,
+    .quick-add textarea {
+      padding: 7px 10px;
+      font-size: 13px;
+    }
+
+    .quick-add textarea {
+      min-height: 50px;
+    }
+
+    .api-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: var(--panel);
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--error);
+      flex-shrink: 0;
+    }
+
+    .status-dot.connected {
+      background: var(--success);
+    }
+
+    .count-badge {
+      margin-left: auto;
+      font-weight: 700;
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+  <main class="panel">
+    <div class="api-status">
+      <span id="statusDot" class="status-dot"></span>
+      <span id="statusText">Connecting...</span>
+      <span id="totalCount" class="count-badge"></span>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="recent">Recent</button>
+      <button class="tab-btn" data-tab="search">Search</button>
+      <button class="tab-btn" data-tab="add">Add</button>
+    </div>
+
+    <div id="tab-recent" class="tab-content active">
+      <ul id="recentList" class="bookmark-list"></ul>
+    </div>
+
+    <div id="tab-search" class="tab-content">
+      <div class="search-box">
+        <input id="searchInput" type="text" placeholder="Search bookmarks..." autocomplete="off">
+        <button id="searchBtn" type="button">Go</button>
+      </div>
+      <ul id="searchResults" class="bookmark-list"></ul>
+    </div>
+
+    <div id="tab-add" class="tab-content">
+      <div class="quick-add">
+        <p id="addPageTitle" style="margin-bottom:8px; font-size:13px;"></p>
+        <label>
+          Category
+          <input id="addCategory" type="text" autocomplete="off" list="categoryList">
+          <datalist id="categoryList"></datalist>
+        </label>
+        <label>
+          Tags
+          <input id="addTags" type="text" placeholder="comma-separated" autocomplete="off">
+        </label>
+        <label>
+          Notes
+          <textarea id="addNotes" maxlength="5000"></textarea>
+        </label>
+        <label class="checkbox-row">
+          <input id="addReadLater" type="checkbox">
+          <span>Read Later</span>
+        </label>
+        <div class="actions" style="margin-top:10px">
+          <button id="addSaveBtn" type="button">Save</button>
+        </div>
+        <p id="addStatus" class="status" role="status" aria-live="polite"></p>
+      </div>
+    </div>
+  </main>
+  <script src="sidepanel.js"></script>
+</body>
+</html>
