@@ -814,26 +814,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P1 — Next (user-facing gaps)
 
-- [ ] P1 — **GUI surface for smart collections**
-  Why: Smart collections are fully built (`services/smart_collections.py`) with CRUD + auto-matching but have zero GUI exposure. CLI-only limits adoption by the primary desktop user persona.
-  Evidence: Internal audit — `smart_collections.py` has 230+ lines of logic with 18 tests, not surfaced in any UI module [S-128]
-  Touches: `app_mixins/tools.py`, new sidebar section or dialog in `ui/`
-  Acceptance: Users can create, edit, and browse smart collections from the desktop GUI
-  Complexity: M
-
-- [ ] P1 — **GUI surface for tag linter results**
-  Why: Tag linter detects near-duplicate tags, casing drift, and plural variants but is CLI-only (`bop lint-tags`). Desktop users can't discover or fix tag drift.
-  Evidence: Internal audit — `services/tag_linter.py` finds and merges tag variants [S-128]
-  Touches: `app_mixins/tools.py`, new dialog or Tools menu entry in `ui/`
-  Acceptance: Tools menu shows "Lint Tags" that displays suggested merges with apply/dismiss buttons
-  Complexity: M
-
-- [ ] P1 — **GUI surface for duplicate detector**
-  Why: Three-pass hybrid duplicate detector (`services/dup_hybrid.py`) uses URL canonical + SimHash + embedding cosine but has no GUI. Users must run `bop dups` from CLI.
-  Evidence: Internal audit — `dup_hybrid.py` surfaces review queue with method/confidence per group [S-128]
-  Touches: `app_mixins/tools.py`, new dialog in `ui/`
-  Acceptance: Tools menu shows "Find Duplicates" with grouped results and merge/dismiss actions
-  Complexity: M
 
 
 

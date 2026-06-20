@@ -68,8 +68,11 @@ class ToolsActionsMixin:
 
         menu.add_command(label="  Check All Links", command=self._check_all_links)
         menu.add_command(label="  Find Duplicates", command=self._find_duplicates)
+        menu.add_command(label="  Smart Duplicate Scan", command=self._smart_duplicate_scan)
+        menu.add_command(label="  Lint Tags", command=self._lint_tags_gui)
         menu.add_command(label="  Clean Tracking Parameters", command=self._clean_urls)
         menu.add_separator()
+        menu.add_command(label="  Smart Collections", command=self._show_smart_collections)
         menu.add_command(label="  Reader View", command=self._open_reader_view)
         menu.add_command(label="  Graph View", command=self._open_graph_view)
         menu.add_command(label="  Full Analytics", command=self._show_analytics)
@@ -483,6 +486,123 @@ class ToolsActionsMixin:
                     self.bookmark_manager.delete_bookmark(bm.id)
             self._refresh_all()
             self._set_status(f"Removed {total} duplicates")
+
+    def _smart_duplicate_scan(self):
+        """Run the 3-pass hybrid duplicate detector and show grouped results."""
+        import threading
+        self._set_status("Scanning for duplicates (URL + SimHash + semantic)...")
+
+        def _run():
+            try:
+                from bookmark_organizer_pro.services.dup_hybrid import HybridDuplicateDetector
+                bms = self.bookmark_manager.get_all_bookmarks()
+                detector = HybridDuplicateDetector()
+                groups = detector.detect(bms)
+                self.root.after(0, lambda: self._show_dup_results(groups))
+            except Exception as exc:
+                msg = str(exc)
+                self.root.after(0, lambda: self._set_status(f"Duplicate scan failed: {msg}"))
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _show_dup_results(self, groups):
+        if not groups:
+            self._show_toast("No duplicates found", "success")
+            self._set_status("Smart duplicate scan complete: 0 groups")
+            return
+        total = sum(len(g.bookmark_ids) - 1 for g in groups)
+        lines = [f"Found {len(groups)} duplicate group(s) ({total} extra bookmark(s)):\n"]
+        for i, g in enumerate(groups[:20], 1):
+            lines.append(f"  {i}. [{g.method}] confidence={g.confidence:.2f} — IDs: {g.bookmark_ids}")
+        if len(groups) > 20:
+            lines.append(f"  ... and {len(groups) - 20} more groups")
+        lines.append("\nUse 'bop dups --merge' from the CLI to merge duplicates.")
+        messagebox.showinfo("Smart Duplicate Scan", "\n".join(lines))
+        self._set_status(f"Smart duplicate scan: {len(groups)} groups, {total} duplicates")
+
+    def _lint_tags_gui(self):
+        """Run the tag linter and show suggested merges."""
+        import threading
+        self._set_status("Linting tags...")
+
+        def _run():
+            try:
+                from bookmark_organizer_pro.services.tag_linter import TagLinter
+                bms = self.bookmark_manager.get_all_bookmarks()
+                linter = TagLinter()
+                suggestions = linter.lint(bms)
+                self.root.after(0, lambda: self._show_lint_results(suggestions))
+            except Exception as exc:
+                msg = str(exc)
+                self.root.after(0, lambda: self._set_status(f"Tag lint failed: {msg}"))
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _show_lint_results(self, suggestions):
+        if not suggestions:
+            self._show_toast("Tags are clean — no issues found", "success")
+            self._set_status("Tag lint complete: 0 issues")
+            return
+        lines = [f"Found {len(suggestions)} tag issue(s):\n"]
+        for i, s in enumerate(suggestions[:30], 1):
+            lines.append(f"  {i}. {s.get('reason', 'merge')}: "
+                         f"{', '.join(s.get('tags', []))} -> {s.get('canonical', '?')}")
+        if len(suggestions) > 30:
+            lines.append(f"  ... and {len(suggestions) - 30} more")
+        lines.append("\nApply fixes with: bop lint-tags --apply")
+        if messagebox.askyesno("Tag Lint Results", "\n".join(lines) + "\n\nApply suggested merges now?"):
+            try:
+                from bookmark_organizer_pro.services.tag_linter import TagLinter
+                bms = self.bookmark_manager.get_all_bookmarks()
+                linter = TagLinter()
+                applied = linter.apply(bms)
+                if applied:
+                    self.bookmark_manager.save_bookmarks()
+                    self._refresh_all()
+                self._show_toast(f"Applied {applied} tag merge(s)", "success")
+                self._set_status(f"Tag lint: applied {applied} merges")
+            except Exception as exc:
+                self._set_status(f"Tag lint apply failed: {exc}")
+        else:
+            self._set_status(f"Tag lint: {len(suggestions)} issues (not applied)")
+
+    def _show_smart_collections(self):
+        """Show smart collections in a dialog."""
+        try:
+            from bookmark_organizer_pro.services.smart_collections import SmartCollectionManager
+            mgr = SmartCollectionManager()
+            collections = mgr.list_collections()
+        except Exception:
+            collections = []
+
+        if not collections:
+            messagebox.showinfo(
+                "Smart Collections",
+                "No smart collections defined.\n\n"
+                "Create one with: bop smart-collections create <name>\n"
+                "  --tags python,tutorial\n"
+                "  --domains github.com\n"
+                "  --keywords async"
+            )
+            return
+
+        bms = self.bookmark_manager.get_all_bookmarks()
+        lines = [f"{len(collections)} smart collection(s):\n"]
+        for sc in collections:
+            matching = [b for b in bms if sc.matches(b)]
+            lines.append(f"  {sc.icon or '#'} {sc.name}: {len(matching)} bookmark(s)")
+            filters = []
+            if sc.filters.tags:
+                filters.append(f"tags={','.join(sc.filters.tags)}")
+            if sc.filters.domains:
+                filters.append(f"domains={','.join(sc.filters.domains)}")
+            if sc.filters.keywords:
+                filters.append(f"keywords={','.join(sc.filters.keywords)}")
+            if sc.filters.categories:
+                filters.append(f"categories={','.join(sc.filters.categories)}")
+            if filters:
+                lines.append(f"    Filters: {'; '.join(filters)}")
+        messagebox.showinfo("Smart Collections", "\n".join(lines))
 
     def _clean_urls(self):
         """Clean tracking params"""
