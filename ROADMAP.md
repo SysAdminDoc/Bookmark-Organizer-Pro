@@ -788,55 +788,188 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 | S-125 | Zotero nested tag/collection architecture | https://github.com/zotero/zotero |
 | S-126 | Calibre content server + OPDS architecture | https://manual.calibre-ebook.com/server.html |
 | S-127 | Joplin plugin API via entry_points | https://github.com/laurent22/joplin |
+| S-128 | BOP internal audit (research pass 2, 2026-06-20) | `RESEARCH.md` (local) |
+| S-129 | Community signal research (HN, Reddit, blogs, 2025-2026) | Multiple (see RESEARCH.md Sources) |
+| S-130 | Dependency and standards research (2026-06-20) | Multiple (see RESEARCH.md Sources) |
+| S-131 | CVE-2026-44431: urllib3 header leak on cross-origin redirect | https://www.sentinelone.com/vulnerability-database/cve-2026-44431/ |
+| S-132 | NSA/DoD MCP security advisory (June 2, 2026) | https://media.defense.gov/2026/Jun/02/2003943289/-1/-1/0/CSI_MCP_SECURITY.PDF |
+| S-133 | MCP 40+ CVEs overview | https://dev.to/piiiico/mcp-security-vulnerabilities-in-2026-40-cves-and-counting-4pco |
+| S-134 | lxml 6.1.1 xlink fix + libxslt patches | https://pypi.org/project/lxml/ |
+| S-135 | Chrome Prompt API (Gemini Nano) — stable in extensions | https://developer.chrome.com/docs/ai/prompt-api |
+| S-136 | Chrome Reading List API | https://developer.chrome.com/docs/extensions/reference/api/readingList |
+| S-137 | trafilatura 2.1.0 changelog | https://github.com/adbar/trafilatura/releases |
+| S-138 | sqlite-vec — vector search in SQLite | https://github.com/asg017/sqlite-vec |
+| S-139 | Readwise Reader pricing and features | https://www.readless.app/blog/readwise-reader-pricing-2026 |
+| S-140 | Burn 451 26-tool MCP server | https://www.burn451.cloud/ |
+| S-141 | ContextBolt — social bookmark capture + MCP | https://contextbolt.com/bookmarks/ |
+| S-142 | Community: 83% bookmarks never revisited | https://www.burn451.cloud/blog/best-ai-bookmark-manager-2026 |
+| S-143 | HN: Tab hoarding + ADHD patterns | https://news.ycombinator.com/item?id=46529797 |
+| S-144 | tufup dormancy (no release since Oct 2021) | https://github.com/dennisvang/tufup/releases |
 
 ---
 
 ## Research-Driven Additions
 
-> Added 2026-06-20 from `RESEARCH.md` research pass (source S-121). Items verified against existing ROADMAP to avoid duplicates.
+> Added 2026-06-20 from `RESEARCH.md` research pass 2 (source S-128). Items verified against existing ROADMAP to avoid duplicates.
+
+### P0 — Now (security, correctness)
+
+- [ ] P0 — **Bump urllib3 to >=2.7.0 (CVE-2026-44431)**
+  Why: Cross-origin redirect leaks Authorization/Cookie headers to attacker-controlled servers. BOP pins >=2.6.3 which is vulnerable.
+  Evidence: CVE-2026-44431, sentinelone.com advisory [S-128]
+  Touches: `pyproject.toml`, `requirements.txt`
+  Acceptance: `pip show urllib3` shows >=2.7.0; no Authorization header leak on cross-origin redirect
+  Complexity: S
+
+- [ ] P0 — **Bump lxml to >=6.1.1 (xlink:href bypass + libxslt patches)**
+  Why: xlink:href bypass in html.defs + bundled libxslt CVE-2025-7424/CVE-2025-11731 patches.
+  Evidence: lxml 6.1.1 changelog, PyPI [S-128]
+  Touches: `pyproject.toml`, `requirements.txt`
+  Acceptance: `pip show lxml` shows >=6.1.1
+  Complexity: S
+
+- [ ] P0 — **Bump MCP SDK to >=1.28 (40+ CVE wave)**
+  Why: NSA/DoD joint advisory (June 2, 2026) flagged STDIO transport input sanitization. 40+ MCP CVEs filed Jan-Apr 2026 including CVE-2026-0755 (CVSS 9.8 command injection).
+  Evidence: NSA/DoD CSI_MCP_SECURITY.PDF, dev.to MCP CVE overview [S-128]
+  Touches: `pyproject.toml`
+  Acceptance: `pip show mcp` shows >=1.28
+  Complexity: S
+
+- [ ] P0 — **Audit MCP tool input validation against NSA advisory**
+  Why: NSA/DoD advisory identifies lack of input sanitization on tool parameters as the primary MCP attack vector. BOP has 27 tools accepting user-controlled strings.
+  Evidence: NSA/DoD MCP security advisory [S-128]
+  Touches: `mcp_server.py` (all tool handler functions)
+  Acceptance: Every tool parameter validated/sanitized; no tool constructs subprocess commands from user input
+  Complexity: M
+
+### P1 — Next (user-facing gaps)
+
+- [ ] P1 — **GUI surface for smart collections**
+  Why: Smart collections are fully built (`services/smart_collections.py`) with CRUD + auto-matching but have zero GUI exposure. CLI-only limits adoption by the primary desktop user persona.
+  Evidence: Internal audit — `smart_collections.py` has 230+ lines of logic with 18 tests, not surfaced in any UI module [S-128]
+  Touches: `app_mixins/tools.py`, new sidebar section or dialog in `ui/`
+  Acceptance: Users can create, edit, and browse smart collections from the desktop GUI
+  Complexity: M
+
+- [ ] P1 — **GUI surface for tag linter results**
+  Why: Tag linter detects near-duplicate tags, casing drift, and plural variants but is CLI-only (`bop lint-tags`). Desktop users can't discover or fix tag drift.
+  Evidence: Internal audit — `services/tag_linter.py` finds and merges tag variants [S-128]
+  Touches: `app_mixins/tools.py`, new dialog or Tools menu entry in `ui/`
+  Acceptance: Tools menu shows "Lint Tags" that displays suggested merges with apply/dismiss buttons
+  Complexity: M
+
+- [ ] P1 — **GUI surface for duplicate detector**
+  Why: Three-pass hybrid duplicate detector (`services/dup_hybrid.py`) uses URL canonical + SimHash + embedding cosine but has no GUI. Users must run `bop dups` from CLI.
+  Evidence: Internal audit — `dup_hybrid.py` surfaces review queue with method/confidence per group [S-128]
+  Touches: `app_mixins/tools.py`, new dialog in `ui/`
+  Acceptance: Tools menu shows "Find Duplicates" with grouped results and merge/dismiss actions
+  Complexity: M
+
+- [ ] P1 — **GUI trigger for SQLite migration**
+  Why: SQLite backend is complete (R-31) but migration is CLI-only (`bop sqlite-migrate`). Users with 5K+ bookmarks need a one-click GUI trigger in Tools menu.
+  Evidence: Internal audit — `core/sqlite_storage.py` fully functional, no UI entry point [S-128]
+  Touches: `app_mixins/tools.py`, Tools menu
+  Acceptance: Tools > "Migrate to SQLite" runs migration with progress indicator and success/error feedback
+  Complexity: S
+
+- [ ] P1 — **Dashboard daily digest widget**
+  Why: Daily digest service exists (`services/digest.py`) with on-this-day, rediscover, read-later-top sections but is CLI-only. Community research shows retrieval/rediscovery is the #1 user pain point — 83% of bookmarks never revisited.
+  Evidence: Community signal research — "save and forget" is the dominant complaint; BOP has the backend but no GUI surface [S-128][S-129]
+  Touches: `app_mixins/dashboard.py`, `ui/widget_dashboard_panel.py`
+  Acceptance: Dashboard shows recent saves, pinned, read-later, dead-link, and daily digest sections
+  Complexity: M
+
+- [ ] P1 — **Extension shared JS module to eliminate duplication**
+  Why: `popup.js` and `sidepanel.js` duplicate identical `DEFAULTS`, `storageGet`, `queryTabs`, `executeScript`, and `authHeaders` functions (~50 lines each).
+  Evidence: Internal audit — line-by-line comparison of both files [S-128]
+  Touches: `browser-extension/popup.js`, `browser-extension/sidepanel.js`, new `browser-extension/shared.js`
+  Acceptance: Shared functions extracted to one module; zero duplication between popup and sidepanel
+  Complexity: S
+
+- [ ] P1 — **Extension light theme support**
+  Why: Extension popup.css is dark-only. Users on light browser themes get jarring contrast. Raindrop.io and Karakeep extensions adapt to system theme.
+  Evidence: Internal audit — `popup.css` only defines dark CSS variables; competitive parity [S-128]
+  Touches: `browser-extension/popup.css`
+  Acceptance: Extension respects `prefers-color-scheme` media query; light and dark themes available
+  Complexity: S
 
 ### P2 — Later (differentiation, polish)
 
-- [ ] P2 — **Chrome Side Panel extension UI**
-  Why: Chrome Side Panel API lets the extension render a persistent sidebar alongside browsing — matching Raindrop.io and Karakeep's browsing-alongside-library UX. Much richer than a popup that closes on any click outside.
-  Evidence: S-122 (Chrome Side Panel API); Raindrop.io and Karakeep both use side panel for their extensions
-  Touches: `browser-extension/` (new `sidepanel.html`, manifest `side_panel` entry, background.js action handler)
-  Acceptance: Clicking the extension icon opens a persistent side panel showing recent bookmarks, search, and quick-add form; panel survives tab navigation
+- [ ] P2 — **MCP Prompts/Templates**
+  Why: MCP spec supports Prompts (reusable prompt templates) but BOP only exposes tools and resources. Prompts like "Organize my recent saves" or "Summarize my reading list" would improve AI agent workflows.
+  Evidence: MCP specification — prompts section; Burn 451 and Raindrop MCP servers use prompts [S-128]
+  Touches: `mcp_server.py`
+  Acceptance: `prompts/list` returns 3+ reusable prompt templates; agents can invoke them
   Complexity: M
 
-- [ ] P2 — **Tag hierarchy / nested tags**
-  Why: Flat tags limit organization at scale. Raindrop.io, Linkwarden, Zotero, and DEVONthink all support tag nesting (e.g., `programming/python`, `work/clients`). Users with 100+ tags need structure.
-  Evidence: S-10 (Raindrop nested collections), S-3 (Linkwarden), S-125 (Zotero); BOP's `models/tag.py` has flat `Tag(name, color, icon)` dataclass
-  Touches: `bookmark_organizer_pro/models/tag.py`, `bookmark_organizer_pro/managers/tags.py`, `bookmark_organizer_pro/ui/` (tag tree rendering), sidebar tag display
-  Acceptance: Tags support `/`-separated hierarchy; sidebar shows tag tree with expand/collapse; filtering by parent tag includes children; existing flat tags preserved
-  Complexity: L
-
-- [ ] P2 — **SQLite GUI migration wizard + default promotion**
-  Why: SQLite backend shipped (R-31) but migration requires CLI command or env var — no GUI path. Users with 5K+ bookmarks would benefit from SQLite's faster loads and concurrent MCP+GUI access, but won't discover the option.
-  Evidence: `bookmark_organizer_pro/core/sqlite_storage.py` exists; `cli.py` has `sqlite-migrate` command; no GUI trigger exists
-  Touches: `bookmark_organizer_pro/app_mixins/tools.py` (menu entry), new migration dialog in `ui/`, `settings.json` (backend preference)
-  Acceptance: Tools menu has "Migrate to SQLite" with progress bar; settings shows current backend; SQLite users see "SQLite" in status bar; migration is non-destructive (JSON preserved as backup)
+- [ ] P2 — **Chrome Prompt API integration for zero-cost extension categorization**
+  Why: Chrome 138+ stabilized the Prompt API (Gemini Nano) for extensions — on-device AI with zero API keys, zero cost, offline-capable. BOP extension could categorize/tag bookmarks locally.
+  Evidence: Chrome Prompt API documentation, developer.chrome.com [S-130]
+  Touches: `browser-extension/popup.js`, `browser-extension/sidepanel.js`
+  Acceptance: On Chrome 138+, extension auto-suggests category using Gemini Nano; graceful fallback on unsupported browsers
   Complexity: M
 
-- [ ] P2 — **Bulk AI operation undo/selective rollback**
-  Why: "Categorize All" or "Tag All" via AI modifies potentially thousands of bookmarks with no selective undo. If AI miscategorizes, only option is full backup restore. Calibre's undo-per-operation pattern handles this.
-  Evidence: `bookmark_organizer_pro/app_mixins/ai_processing.py` — batch AI operations write directly without snapshotting pre-AI state; S-126 (Calibre operation undo)
-  Touches: `bookmark_organizer_pro/app_mixins/ai_processing.py`, `bookmark_organizer_pro/services/` (pre-operation snapshot), `bookmark_organizer_pro/commands.py` (undo integration)
-  Acceptance: Before any bulk AI operation, a pre-operation snapshot is saved; GUI offers "Undo Last AI Operation" that restores affected bookmarks to pre-AI state; snapshot auto-expires after 7 days
+- [ ] P2 — **Chrome Reading List API import**
+  Why: `chrome.readingList` API is stable — BOP extension could import/sync with Chrome's native reading list, capturing bookmarks users saved via Chrome's built-in feature.
+  Evidence: Chrome Reading List API documentation [S-130]
+  Touches: `browser-extension/sidepanel.js` or new import flow
+  Acceptance: Side panel shows "Import from Reading List" button that pulls Chrome reading list items into BOP
+  Complexity: S
+
+- [ ] P2 — **Performance benchmark gate in CI**
+  Why: `benchmarks/bench_core.py` measures JSON load/save, search, and add latency but isn't run in CI. Regression at scale would go undetected.
+  Evidence: Internal audit — benchmark file exists but `.github/workflows/ci.yml` doesn't reference it [S-128]
+  Touches: `.github/workflows/ci.yml`, `benchmarks/bench_core.py`
+  Acceptance: CI runs benchmarks on Python 3.12; fails if JSON save for 5000 bookmarks exceeds 500ms
+  Complexity: S
+
+- [ ] P2 — **Floccus XBEL round-trip verification**
+  Why: If BOP's XBEL handler works with Floccus, users get free cross-browser bookmark sync via WebDAV/Nextcloud without building sync infrastructure. Zero implementation cost — just validation.
+  Evidence: Floccus uses XBEL as interchange format; BOP already has XBEL import/export [S-103]
+  Touches: `tests/` (new test case), `io_formats/xbel.py` (fixes if needed)
+  Acceptance: BOP XBEL export → Floccus import → Floccus export → BOP import preserves all data
+  Complexity: S
+
+- [ ] P2 — **Bump trafilatura to >=2.1.0**
+  Why: v2.1.0 (Jun 7, 2026) adds faster XPath via XSLT extensions, improved table extraction, better code block detection. Content extraction quality directly affects bookmark ingestion.
+  Evidence: trafilatura 2.1.0 changelog [S-130]
+  Touches: `pyproject.toml`, `requirements.txt`
+  Acceptance: `pip show trafilatura` shows >=2.1.0; existing ingest tests pass
+  Complexity: S
+
+- [ ] P2 — **First community translation (es or zh)**
+  Why: i18n scaffolding exists (`i18n.py` with `_()`, `ngettext()`, POT generation, `locale/` dir) but zero `.po` files. Shipping one translation validates the entire pipeline end-to-end.
+  Evidence: Internal audit — `i18n.py` fully functional, `locale/README.md` exists for translators [S-128]
+  Touches: `locale/es/LC_MESSAGES/bop.po` (or zh), `i18n.py` (verify round-trip)
+  Acceptance: `bop --lang es help` displays Spanish text; POT→PO→MO pipeline verified
   Complexity: M
 
-- [ ] P2 — **Dashboard multi-widget layout**
-  Why: Dashboard exists (`app_mixins/dashboard.py`, `ui/widget_dashboard_panel.py`) but is thin compared to Raindrop.io's visual landing — recent saves, pinned items, read-later queue, health score distribution, category breakdown, and dead-link count would make it the default entry screen.
-  Evidence: `bookmark_organizer_pro/app_mixins/dashboard.py` and `ui/widget_dashboard_panel.py` — current implementation; S-10 (Raindrop dashboard) for comparison
-  Touches: `bookmark_organizer_pro/ui/widget_dashboard_panel.py`, `bookmark_organizer_pro/app_mixins/dashboard.py`
-  Acceptance: Dashboard shows: recent 10 bookmarks, pinned items, read-later queue, category/tag distribution chart, health score summary, dead-link count badge; all sections clickable to navigate
+- [ ] P2 — **GUI dead-link scan results panel**
+  Why: Dead-link scanner runs in background (`services/dead_link_scanner.py`) and persists results to `dead_links.json`, but results are only visible via `bop scan` CLI. Community research shows 20% annual link rot — users need visibility.
+  Evidence: Internal audit — scanner writes to `dead_links.json`; no GUI reads it [S-128][S-129]
+  Touches: `app_mixins/tools.py`, Tools menu or dashboard widget
+  Acceptance: Tools menu or dashboard shows broken/redirected links with fix/dismiss actions
   Complexity: M
 
 ### P3 — Under Consideration
 
-- [ ] P3 — **MCP resource subscriptions for live bookmark change notifications**
-  Why: MCP spec supports resource subscriptions — clients can subscribe to changes and receive notifications when bookmarks are added/modified/deleted. This would let Claude/Cursor react to bookmark changes in real-time instead of polling.
-  Evidence: S-15 (MCP specification), S-79 (MCP 2026 spec evolution); BOP's file-change watcher (R-74) already detects external changes
-  Touches: `bookmark_organizer_pro/mcp_server.py` (resource definitions, subscription handlers)
-  Acceptance: MCP client can subscribe to `bookmarks://library` resource; receives notifications on add/delete/update; notification includes changed bookmark IDs
+- [ ] P3 — **SQLite-vec as alternative to LanceDB**
+  Why: LanceDB is a 200+ MB dependency. SQLite-vec enables vector search within SQLite itself — if BOP migrates to SQLite default, this collapses the vector store into the same DB.
+  Evidence: sqlite-vec project; LanceDB dependency footprint analysis [S-130]
+  Touches: `services/vector_store.py`, `core/sqlite_storage.py`
+  Acceptance: Vector search works via SQLite-vec with comparable recall to LanceDB
+  Complexity: L
+
+- [ ] P3 — **tufup succession evaluation**
+  Why: tufup 0.10.0 was released Oct 2021 — no releases in 4+ years. The project appears dormant. BOP's updater infrastructure depends on it.
+  Evidence: tufup GitHub releases page — last release Oct 2021 [S-130]
+  Touches: `services/updates.py`, `pyproject.toml`
+  Acceptance: Decision documented: continue with tufup, fork, or evaluate alternatives (e.g., pyupdater, custom TUF client)
+  Complexity: S (evaluation only)
+
+- [ ] P3 — **Spaced repetition for highlights**
+  Why: Readwise Reader's highest-value feature ($120/yr) is spaced repetition review of highlights. BOP already has reader annotations (`services/reader_annotations.py`) — adding SM-2 scheduling would be a free alternative to a $120/yr product.
+  Evidence: Readwise Reader pricing/features; BOP already has highlight storage [S-129]
+  Touches: `services/reader_annotations.py`, new scheduling logic, GUI surface
+  Acceptance: Daily digest includes spaced-repetition review of highlights with increasing intervals
   Complexity: L
