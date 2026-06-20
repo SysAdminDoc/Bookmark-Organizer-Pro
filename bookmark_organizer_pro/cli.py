@@ -228,6 +228,14 @@ class BookmarkCLI:
                 _usage_hint=_importer_usage[name],
             )
 
+        p = sub.add_parser("import-browser",
+                          help="Import bookmarks from Chrome/Firefox/Edge/Brave profiles")
+        p.add_argument("browser", nargs="?",
+                       choices=["chrome", "firefox", "edge", "brave"],
+                       help="Browser to import from (auto-detect if omitted)")
+        p.add_argument("--profile", help="Profile name (default: Default)")
+        p.set_defaults(func=self._cmd_import_browser)
+
         # ── Exporters ──────────────────────────────────────────────
         p = sub.add_parser("zip-export", help="Per-bookmark or whole-collection ZIP export")
         p.add_argument("target", nargs="?", default="all", help="Bookmark ID or 'all'")
@@ -1605,6 +1613,50 @@ Top Domains:
         from bookmark_organizer_pro.importers_extra import ArcBrowserImporter, import_into
         added, dupes = import_into(self.bookmark_manager, ArcBrowserImporter(), ns.file)
         print(f"Arc Browser import: {added} added, {dupes} duplicates skipped")
+
+    def _cmd_import_browser(self, ns: argparse.Namespace):
+        from bookmark_organizer_pro.importers import BrowserProfileImporter
+        importer = BrowserProfileImporter()
+
+        browsers = [ns.browser] if ns.browser else importer.get_available_browsers()
+        if not browsers:
+            print("No browser profiles detected on this system.")
+            return 1
+
+        total_added = 0
+        total_dupes = 0
+        for browser in browsers:
+            profiles = importer.get_profiles(browser)
+            if not profiles:
+                print(f"  {browser}: no profiles found")
+                continue
+            target_profiles = profiles
+            if ns.profile:
+                target_profiles = [(n, p) for n, p in profiles if n == ns.profile]
+                if not target_profiles:
+                    print(f"  {browser}: profile '{ns.profile}' not found")
+                    continue
+            for profile_name, profile_path in target_profiles:
+                if browser == "firefox":
+                    bookmarks = importer.import_from_firefox(profile_path)
+                else:
+                    bookmarks = importer.import_from_chrome(profile_path)
+                added = 0
+                dupes = 0
+                for bm in bookmarks:
+                    if self.bookmark_manager.url_exists(bm.url):
+                        dupes += 1
+                        continue
+                    self.bookmark_manager.add_bookmark(bm, save=False)
+                    added += 1
+                if added:
+                    self.bookmark_manager.save_bookmarks()
+                total_added += added
+                total_dupes += dupes
+                print(f"  {browser}/{profile_name}: {added} added, {dupes} duplicates")
+
+        print(f"Browser import complete: {total_added} added, {total_dupes} duplicates skipped")
+        return 0
 
 
 def main(argv=None) -> int:
