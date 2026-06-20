@@ -1,25 +1,7 @@
-const DEFAULTS = {
-  apiPort: 8765,
-  apiToken: "",
-  defaultCategory: "Uncategorized / Needs Review"
-};
+/* global DEFAULTS, api, storageGet, queryTabs, executeScript, getConfig,
+          baseUrl, authHeaders, isSaveableUrl, loadCategories */
 
-const api = globalThis.browser ?? globalThis.chrome;
 let activeTab = null;
-
-function storageGet(keys) {
-  if (api.storage.local.get.length === 1) {
-    return api.storage.local.get(keys);
-  }
-  return new Promise(resolve => api.storage.local.get(keys, resolve));
-}
-
-function queryTabs(queryInfo) {
-  if (api.tabs.query.length === 1) {
-    return api.tabs.query(queryInfo);
-  }
-  return new Promise(resolve => api.tabs.query(queryInfo, resolve));
-}
 
 function openOptionsPage() {
   if (api.runtime.openOptionsPage.length === 0) {
@@ -27,26 +9,6 @@ function openOptionsPage() {
     return result && typeof result.then === "function" ? result : Promise.resolve();
   }
   return new Promise(resolve => api.runtime.openOptionsPage(resolve));
-}
-
-function executeScript(tabId, func) {
-  if (!api.scripting || !api.scripting.executeScript) {
-    return Promise.resolve([]);
-  }
-  const details = { target: { tabId }, func };
-  if (api.scripting.executeScript.length === 1) {
-    return api.scripting.executeScript(details);
-  }
-  return new Promise((resolve, reject) => {
-    api.scripting.executeScript(details, result => {
-      const error = api.runtime.lastError;
-      if (error) {
-        reject(new Error(error.message));
-        return;
-      }
-      resolve(result);
-    });
-  });
 }
 
 function setStatus(message, tone = "info") {
@@ -59,10 +21,6 @@ function setBusy(isBusy) {
   document.getElementById("saveBookmark").disabled = isBusy;
 }
 
-function isSaveableUrl(url) {
-  return /^https?:\/\//i.test(url || "");
-}
-
 async function getSelection(tabId) {
   try {
     const frames = await executeScript(tabId, () => String(window.getSelection() || "").slice(0, 500));
@@ -72,23 +30,10 @@ async function getSelection(tabId) {
   }
 }
 
-async function loadCategories() {
-  const datalist = document.getElementById("categoryList");
-  try {
-    const resp = await fetch(api.runtime.getURL("categories.json"));
-    const categories = await resp.json();
-    for (const cat of categories) {
-      const opt = document.createElement("option");
-      opt.value = cat;
-      datalist.appendChild(opt);
-    }
-  } catch { /* bundled file missing — autocomplete just won't populate */ }
-}
-
 async function loadPopup() {
   const [tab] = await queryTabs({ active: true, currentWindow: true });
   activeTab = tab || null;
-  const values = { ...DEFAULTS, ...(await storageGet(DEFAULTS)) };
+  const values = await getConfig();
 
   document.getElementById("category").value = values.defaultCategory;
   document.getElementById("pageTitle").textContent = activeTab?.title || "No active tab";
@@ -110,7 +55,7 @@ async function loadPopup() {
     document.getElementById("notes").value = `Selected: ${selection}`;
   }
 
-  await loadCategories();
+  await loadCategories("categoryList");
 }
 
 async function saveBookmark() {
@@ -119,7 +64,7 @@ async function saveBookmark() {
     return;
   }
 
-  const values = { ...DEFAULTS, ...(await storageGet(DEFAULTS)) };
+  const values = await getConfig();
   if (!values.apiToken) {
     setStatus("Set the local API token in Options.", "error");
     return;
@@ -138,12 +83,9 @@ async function saveBookmark() {
   };
 
   try {
-    const response = await fetch(`http://127.0.0.1:${values.apiPort}/bookmarks`, {
+    const response = await fetch(`${baseUrl(values)}/bookmarks`, {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${values.apiToken}`,
-        "Content-Type": "application/json"
-      },
+      headers: authHeaders(values),
       body: JSON.stringify(payload)
     });
     const body = await response.json().catch(() => ({}));

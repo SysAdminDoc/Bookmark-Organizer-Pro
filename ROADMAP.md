@@ -849,19 +849,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
   Acceptance: Dashboard shows recent saves, pinned, read-later, dead-link, and daily digest sections
   Complexity: M
 
-- [ ] P1 — **Extension shared JS module to eliminate duplication**
-  Why: `popup.js` and `sidepanel.js` duplicate identical `DEFAULTS`, `storageGet`, `queryTabs`, `executeScript`, and `authHeaders` functions (~50 lines each).
-  Evidence: Internal audit — line-by-line comparison of both files [S-128]
-  Touches: `browser-extension/popup.js`, `browser-extension/sidepanel.js`, new `browser-extension/shared.js`
-  Acceptance: Shared functions extracted to one module; zero duplication between popup and sidepanel
-  Complexity: S
-
-- [ ] P1 — **Extension light theme support**
-  Why: Extension popup.css is dark-only. Users on light browser themes get jarring contrast. Raindrop.io and Karakeep extensions adapt to system theme.
-  Evidence: Internal audit — `popup.css` only defines dark CSS variables; competitive parity [S-128]
-  Touches: `browser-extension/popup.css`
-  Acceptance: Extension respects `prefers-color-scheme` media query; light and dark themes available
-  Complexity: S
 
 ### P2 — Later (differentiation, polish)
 

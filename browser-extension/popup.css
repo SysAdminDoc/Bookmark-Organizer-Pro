@@ -1,5 +1,5 @@
 :root {
-  color-scheme: dark;
+  color-scheme: dark light;
   --bg: #0d1117;
   --panel: #161b22;
   --border: #30363d;
@@ -9,6 +9,20 @@
   --accent-strong: #1f6feb;
   --error: #f85149;
   --success: #3fb950;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #ffffff;
+    --panel: #f6f8fa;
+    --border: #d0d7de;
+    --text: #1f2328;
+    --muted: #656d76;
+    --accent: #0969da;
+    --accent-strong: #0550ae;
+    --error: #cf222e;
+    --success: #1a7f37;
+  }
 }
 
 * {

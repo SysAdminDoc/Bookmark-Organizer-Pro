@@ -27,12 +27,16 @@ class TestBrowserExtensionManifest(unittest.TestCase):
 
     def test_popup_posts_to_local_bookmark_api_with_bearer_token(self):
         popup_js = (EXT_DIR / "popup.js").read_text(encoding="utf-8")
+        shared_js = (EXT_DIR / "shared.js").read_text(encoding="utf-8")
+        combined = shared_js + "\n" + popup_js
 
-        self.assertIn("fetch(`http://127.0.0.1:${values.apiPort}/bookmarks`", popup_js)
-        self.assertIn('"Authorization": `Bearer ${values.apiToken}`', popup_js)
-        self.assertIn('"Content-Type": "application/json"', popup_js)
-        self.assertIn("api.scripting.executeScript", popup_js)
-        self.assertNotIn("apiToken: \"secret", popup_js)
+        self.assertIn("baseUrl(", popup_js)
+        self.assertIn("/bookmarks", popup_js)
+        self.assertIn("http://127.0.0.1:", shared_js)
+        self.assertIn("Bearer", shared_js)
+        self.assertIn('"Content-Type": "application/json"', shared_js)
+        self.assertIn("api.scripting.executeScript", shared_js)
+        self.assertNotIn("apiToken: \"secret", combined)
 
     def test_options_persists_port_token_and_default_category(self):
         options_js = (EXT_DIR / "options.js").read_text(encoding="utf-8")
@@ -50,10 +54,11 @@ class TestBrowserExtensionManifest(unittest.TestCase):
 
     def test_sidepanel_fetches_bookmarks_with_auth(self):
         sp_js = (EXT_DIR / "sidepanel.js").read_text(encoding="utf-8")
+        shared_js = (EXT_DIR / "shared.js").read_text(encoding="utf-8")
 
         self.assertIn("/bookmarks", sp_js)
         self.assertIn("/search?q=", sp_js)
-        self.assertIn("Bearer", sp_js)
+        self.assertIn("Bearer", shared_js)
 
     def test_extension_assets_exist(self):
         for name in [
@@ -63,6 +68,7 @@ class TestBrowserExtensionManifest(unittest.TestCase):
             "popup.css",
             "options.html",
             "options.js",
+            "shared.js",
             "sidepanel.html",
             "sidepanel.js",
         ]:
