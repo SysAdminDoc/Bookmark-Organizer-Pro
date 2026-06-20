@@ -22,7 +22,7 @@ dependencies = [
 [project.optional-dependencies]
 tray = ["pystray>=0.19"]
 ai = [
-    "trafilatura>=2.0",
+    "trafilatura>=2.1",
     "lingua-language-detector>=2.0",
     "fastembed>=0.4,<1.0",
     "lancedb>=0.13,<1.0",

@@ -841,26 +841,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
   Acceptance: Side panel shows "Import from Reading List" button that pulls Chrome reading list items into BOP
   Complexity: S
 
-- [ ] P2 — **Performance benchmark gate in CI**
-  Why: `benchmarks/bench_core.py` measures JSON load/save, search, and add latency but isn't run in CI. Regression at scale would go undetected.
-  Evidence: Internal audit — benchmark file exists but `.github/workflows/ci.yml` doesn't reference it [S-128]
-  Touches: `.github/workflows/ci.yml`, `benchmarks/bench_core.py`
-  Acceptance: CI runs benchmarks on Python 3.12; fails if JSON save for 5000 bookmarks exceeds 500ms
-  Complexity: S
-
-- [ ] P2 — **Floccus XBEL round-trip verification**
-  Why: If BOP's XBEL handler works with Floccus, users get free cross-browser bookmark sync via WebDAV/Nextcloud without building sync infrastructure. Zero implementation cost — just validation.
-  Evidence: Floccus uses XBEL as interchange format; BOP already has XBEL import/export [S-103]
-  Touches: `tests/` (new test case), `io_formats/xbel.py` (fixes if needed)
-  Acceptance: BOP XBEL export → Floccus import → Floccus export → BOP import preserves all data
-  Complexity: S
-
-- [ ] P2 — **Bump trafilatura to >=2.1.0**
-  Why: v2.1.0 (Jun 7, 2026) adds faster XPath via XSLT extensions, improved table extraction, better code block detection. Content extraction quality directly affects bookmark ingestion.
-  Evidence: trafilatura 2.1.0 changelog [S-130]
-  Touches: `pyproject.toml`, `requirements.txt`
-  Acceptance: `pip show trafilatura` shows >=2.1.0; existing ingest tests pass
-  Complexity: S
 
 - [ ] P2 — **First community translation (es or zh)**
   Why: i18n scaffolding exists (`i18n.py` with `_()`, `ngettext()`, POT generation, `locale/` dir) but zero `.po` files. Shipping one translation validates the entire pipeline end-to-end.

@@ -49,3 +49,6 @@ jobs:
         # The Tk-based UI is imported during collection, so a virtual display
         # is needed on headless CI runners.
         run: xvfb-run -a python -m pytest tests/ -ra --tb=short
+      - name: Performance benchmarks
+        if: matrix.python-version == '3.12'
+        run: xvfb-run -a python benchmarks/bench_core.py

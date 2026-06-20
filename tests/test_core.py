@@ -634,6 +634,31 @@ class TestStorageAndExportSafety(unittest.TestCase):
             self.assertEqual(bookmarks[0].category, "Research / Papers")
 
 
+    def test_xbel_round_trip_preserves_all_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            original = [
+                Bookmark(id=1, url="https://example.com/a", title="Alpha",
+                         category="Research / Papers", tags=["python", "ml"],
+                         description="A test bookmark"),
+                Bookmark(id=2, url="https://example.com/b", title="Beta",
+                         category="Development", tags=["rust"],
+                         description="Another bookmark"),
+                Bookmark(id=3, url="https://example.com/c", title="Gamma",
+                         category="General"),
+            ]
+            xbel_path = Path(tmp) / "round_trip.xbel"
+            XBELHandler.export(original, str(xbel_path))
+            imported = XBELHandler.import_from_xbel(str(xbel_path))
+
+            self.assertEqual(len(imported), len(original))
+            by_url = {bm.url: bm for bm in imported}
+            for orig in original:
+                imp = by_url.get(orig.url)
+                self.assertIsNotNone(imp, f"Missing URL: {orig.url}")
+                self.assertEqual(imp.title, orig.title)
+                self.assertEqual(imp.category, orig.category)
+
+
 class TestNetworkSafety(unittest.TestCase):
     """Test network helpers avoid unsafe targets before making requests."""
 

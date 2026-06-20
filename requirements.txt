@@ -13,7 +13,7 @@ lxml>=6.1.1
 # the rest of the application.
 
 # Content extraction (ingest pipeline)
-trafilatura>=2.0; python_version >= "3.9"
+trafilatura>=2.1; python_version >= "3.9"
 lingua-language-detector>=2.0; python_version >= "3.9"
 
 # Local embeddings (semantic search, RAG, hybrid search, hybrid dedup)
