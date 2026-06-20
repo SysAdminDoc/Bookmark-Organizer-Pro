@@ -25,14 +25,47 @@ if TYPE_CHECKING:
     from bookmark_organizer_pro.managers import BookmarkManager
 
 _TOKEN_FILE = DATA_DIR / "api_token.txt"
+_KEYRING_SERVICE = "bookmark-organizer-pro"
+_KEYRING_KEY = "api_token"
 
 
 def _load_or_create_token() -> str:
+    # 1. Try keyring first
+    try:
+        import keyring
+        stored = keyring.get_password(_KEYRING_SERVICE, _KEYRING_KEY)
+        if stored:
+            # Migrate: remove legacy plaintext file if keyring holds the token
+            if _TOKEN_FILE.exists():
+                _TOKEN_FILE.unlink(missing_ok=True)
+                log.info("Migrated API token from plaintext file to OS keyring")
+            return stored
+    except Exception:
+        pass
+
+    # 2. Fall back to legacy file (auto-migrate to keyring if possible)
     if _TOKEN_FILE.exists():
         token = _TOKEN_FILE.read_text(encoding="utf-8").strip()
         if token:
-            return token
+            try:
+                import keyring
+                keyring.set_password(_KEYRING_SERVICE, _KEYRING_KEY, token)
+                _TOKEN_FILE.unlink(missing_ok=True)
+                log.info("Migrated API token from plaintext file to OS keyring")
+                return token
+            except Exception:
+                return token
+
+    # 3. Generate new token — store in keyring, fall back to file
     token = secrets.token_urlsafe(32)
+    try:
+        import keyring
+        keyring.set_password(_KEYRING_SERVICE, _KEYRING_KEY, token)
+        log.info("API token stored in OS keyring")
+        return token
+    except Exception:
+        pass
+
     _TOKEN_FILE.write_text(token, encoding="utf-8")
     if os.name == "nt":
         import subprocess
@@ -45,7 +78,7 @@ def _load_or_create_token() -> str:
             )
     else:
         os.chmod(_TOKEN_FILE, 0o600)
-    log.info(f"API token written to {_TOKEN_FILE}")
+    log.info(f"API token written to {_TOKEN_FILE} (keyring unavailable)")
     return token
 
 

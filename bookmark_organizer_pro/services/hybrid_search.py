@@ -12,8 +12,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, List, Optional, Sequence
 
+from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.search import SearchEngine
+from bookmark_organizer_pro.services.local_state import load_settings
 from bookmark_organizer_pro.services.vector_store import (
     VectorStore,
     reciprocal_rank_fusion,
@@ -34,15 +36,26 @@ _cross_encoder_tried = False
 
 
 def _try_rerank(query: str, texts: List[str]) -> Optional[List[float]]:
-    """Attempt cross-encoder re-ranking. Returns scores or None if unavailable."""
+    """Attempt cross-encoder re-ranking. Returns scores or None if unavailable.
+
+    Only loads the model when ``enable_reranker`` is true in settings.json.
+    The model (~90 MB) is downloaded on first use.
+    """
     global _cross_encoder, _cross_encoder_tried
     if _cross_encoder_tried and _cross_encoder is None:
         return None
     try:
+        settings = load_settings()
+        if not settings.get("enable_reranker", False):
+            log.info("Cross-encoder re-ranking skipped (enable_reranker not set in settings)")
+            _cross_encoder_tried = True
+            return None
         if _cross_encoder is None:
+            log.info("Downloading cross-encoder model (~90 MB) for re-ranking...")
             from sentence_transformers import CrossEncoder
             _cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
             _cross_encoder_tried = True
+            log.info("Cross-encoder model loaded")
         pairs = [(query, t) for t in texts]
         scores = _cross_encoder.predict(pairs)
         return [float(s) for s in scores]
