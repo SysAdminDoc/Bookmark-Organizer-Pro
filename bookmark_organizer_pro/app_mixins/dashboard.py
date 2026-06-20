@@ -437,6 +437,28 @@ class DashboardActionsMixin:
             make_keyboard_activatable(dead_row, lambda: self._apply_filter("Broken"))
             dead_lbl.bind("<Button-1>", lambda e: self._apply_filter("Broken"))
 
+        # Daily digest — rediscover forgotten bookmarks
+        try:
+            from bookmark_organizer_pro.services.digest import DailyDigestService
+            digest_svc = DailyDigestService()
+            digest = digest_svc.build(all_bookmarks, rediscover_count=4, read_later_count=0)
+            for sec in digest.sections:
+                if not sec.bookmarks:
+                    continue
+                section_label(sec.title)
+                for bm in sec.bookmarks[:4]:
+                    row = tk.Frame(self.analytics_frame, bg=theme.bg_secondary, cursor="hand2")
+                    row.pack(fill=tk.X, pady=2)
+                    title_lbl = tk.Label(
+                        row, text=truncate_middle(bm.title or bm.url, 32), bg=theme.bg_secondary,
+                        fg=theme.accent_primary, font=FONTS.small(), cursor="hand2", anchor="w",
+                    )
+                    title_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
+                    make_keyboard_activatable(row, lambda bid=bm.id: self._select_bookmark_by_id(bid))
+                    title_lbl.bind("<Button-1>", lambda e, bid=bm.id: self._select_bookmark_by_id(bid))
+        except Exception:
+            pass
+
         # Top domains - show up to 20 (clickable for filtering)
         top_domains = [(d, c) for d, c in stats.get('top_domains', []) if c > 0]
         num_domains = min(20, len(top_domains)) if len(top_domains) >= 20 else len(top_domains)

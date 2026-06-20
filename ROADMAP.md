@@ -835,19 +835,7 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
   Acceptance: Tools menu shows "Find Duplicates" with grouped results and merge/dismiss actions
   Complexity: M
 
-- [ ] P1 — **GUI trigger for SQLite migration**
-  Why: SQLite backend is complete (R-31) but migration is CLI-only (`bop sqlite-migrate`). Users with 5K+ bookmarks need a one-click GUI trigger in Tools menu.
-  Evidence: Internal audit — `core/sqlite_storage.py` fully functional, no UI entry point [S-128]
-  Touches: `app_mixins/tools.py`, Tools menu
-  Acceptance: Tools > "Migrate to SQLite" runs migration with progress indicator and success/error feedback
-  Complexity: S
 
-- [ ] P1 — **Dashboard daily digest widget**
-  Why: Daily digest service exists (`services/digest.py`) with on-this-day, rediscover, read-later-top sections but is CLI-only. Community research shows retrieval/rediscovery is the #1 user pain point — 83% of bookmarks never revisited.
-  Evidence: Community signal research — "save and forget" is the dominant complaint; BOP has the backend but no GUI surface [S-128][S-129]
-  Touches: `app_mixins/dashboard.py`, `ui/widget_dashboard_panel.py`
-  Acceptance: Dashboard shows recent saves, pinned, read-later, dead-link, and daily digest sections
-  Complexity: M
 
 
 ### P2 — Later (differentiation, polish)
