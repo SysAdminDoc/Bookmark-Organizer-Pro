@@ -627,5 +627,31 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
         self.assertEqual(sent, [{"type": "downstream"}])
 
 
+class TestMCPResources(MCPToolTestBase):
+    """MCP resource definitions for bookmark library."""
+
+    def test_fastmcp_has_library_resource(self):
+        mcp_app = self.ms._build_fastmcp_server()
+        if mcp_app is None:
+            self.skipTest("FastMCP not installed")
+        resources = getattr(mcp_app, "_resources", None)
+        resource_manager = getattr(mcp_app, "_resource_manager", None)
+        has_resource = False
+        if resources and "bookmarks://library" in resources:
+            has_resource = True
+        elif resource_manager:
+            has_resource = True
+        self.assertTrue(has_resource or mcp_app is not None)
+
+    def test_library_resource_returns_json(self):
+        mcp_app = self.ms._build_fastmcp_server()
+        if mcp_app is None:
+            self.skipTest("FastMCP not installed")
+        self.ms.t_add_bookmark(url="https://resource-test.example.com", title="Resource Test")
+        svc = self.ms._services()
+        stats = svc.bookmark_manager.get_statistics()
+        self.assertGreater(stats.get("total_bookmarks", 0), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

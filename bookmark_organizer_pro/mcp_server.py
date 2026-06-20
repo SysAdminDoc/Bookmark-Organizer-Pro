@@ -1270,6 +1270,34 @@ def _build_fastmcp_server():
     def remove_tags(bookmark_id: int, tags: list[str] | None = None) -> dict:
         return t_remove_tags(bookmark_id, tags)
 
+    @mcp_app.resource("bookmarks://library")
+    def library_resource() -> str:
+        """Library summary: total bookmarks, categories, tags, and recent changes."""
+        svc = _services()
+        stats = svc.bookmark_manager.get_statistics()
+        recent = sorted(
+            svc.bookmark_manager.get_all_bookmarks(),
+            key=lambda b: b.modified_at or b.created_at or "",
+            reverse=True,
+        )[:5]
+        return json.dumps({
+            "total_bookmarks": stats.get("total_bookmarks", 0),
+            "categories": stats.get("total_categories", 0),
+            "tags": stats.get("total_tags", 0),
+            "broken": stats.get("broken", 0),
+            "recent": [
+                {"id": bm.id, "title": bm.title, "url": bm.url,
+                 "modified_at": bm.modified_at}
+                for bm in recent
+            ],
+        }, indent=2)
+
+    @mcp_app.resource("bookmarks://stats")
+    def stats_resource() -> str:
+        """Full collection statistics."""
+        svc = _services()
+        return json.dumps(svc.bookmark_manager.get_statistics(), indent=2, default=str)
+
     _patch_fastmcp_list_tools_cache(mcp_app)
     return mcp_app
 
