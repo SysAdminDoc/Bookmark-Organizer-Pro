@@ -906,6 +906,13 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
   Acceptance: Dashboard shows: recent 10 bookmarks, pinned items, read-later queue, category/tag distribution chart, health score summary, dead-link count badge; all sections clickable to navigate
   Complexity: M
 
+- [ ] P2 — **MSIX packaging + SignPath Foundation code signing**
+  Why: PyInstaller .exe triggers AV false positives (documented in README troubleshooting). MSIX packaging eliminates the temp-extraction pattern AVs flag, and SignPath Foundation provides free OV code signing for OSS projects. Combination enables Microsoft Store distribution ($19 one-time dev fee) where Microsoft re-signs the package.
+  Evidence: S-121 research pass; SignPath Foundation (signpath.org) for free OSS code signing; MSIX AV improvement documented at 82phil.github.io; Nuitka (R-40) already reduces false positives vs PyInstaller
+  Touches: `packaging/` (new MSIX build script, AppxManifest.xml), `.github/workflows/build.yml` (MSIX build step), SignPath Foundation application
+  Acceptance: Windows build produces .msix alongside .exe; MSIX installs without SmartScreen warning; Microsoft Store listing live with auto-updates
+  Complexity: M
+
 ### P3 — Under Consideration
 
 - [ ] P3 — **Browser bookmark file auto-import**
