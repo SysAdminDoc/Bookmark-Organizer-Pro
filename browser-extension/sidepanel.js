@@ -183,6 +183,46 @@ function setAddStatus(message, tone) {
   el.dataset.tone = tone || "info";
 }
 
+async function importReadingList() {
+  if (!api.readingList || !api.readingList.query) {
+    setAddStatus("Reading List API not available in this browser.", "error");
+    return;
+  }
+  try {
+    const config = await getConfig();
+    if (!config.apiToken) {
+      setAddStatus("Set API token in Options first.", "error");
+      return;
+    }
+    const items = await api.readingList.query({});
+    if (!items || items.length === 0) {
+      setAddStatus("Reading list is empty.", "info");
+      return;
+    }
+    let imported = 0;
+    for (const item of items) {
+      if (!item.url || !/^https?:\/\//i.test(item.url)) continue;
+      try {
+        const response = await fetch(`${baseUrl(config)}/bookmarks`, {
+          method: "POST",
+          headers: authHeaders(config),
+          body: JSON.stringify({
+            url: item.url,
+            title: item.title || item.url,
+            category: config.defaultCategory,
+            read_later: !item.hasBeenRead
+          })
+        });
+        if (response.status === 201) imported++;
+      } catch { /* skip individual failures */ }
+    }
+    setAddStatus(`Imported ${imported} of ${items.length} reading list item(s).`, "success");
+    if (imported > 0) loadRecent();
+  } catch {
+    setAddStatus("Could not access reading list.", "error");
+  }
+}
+
 function switchTab(tabName) {
   for (const btn of document.querySelectorAll(".tab-btn")) {
     btn.classList.toggle("active", btn.dataset.tab === tabName);
@@ -206,6 +246,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.getElementById("addSaveBtn").addEventListener("click", saveBookmark);
+  document.getElementById("importReadingListBtn").addEventListener("click", importReadingList);
 
   checkConnection();
   loadRecent();

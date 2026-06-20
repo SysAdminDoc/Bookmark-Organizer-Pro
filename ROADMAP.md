@@ -828,12 +828,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
   Acceptance: On Chrome 138+, extension auto-suggests category using Gemini Nano; graceful fallback on unsupported browsers
   Complexity: M
 
-- [ ] P2 — **Chrome Reading List API import**
-  Why: `chrome.readingList` API is stable — BOP extension could import/sync with Chrome's native reading list, capturing bookmarks users saved via Chrome's built-in feature.
-  Evidence: Chrome Reading List API documentation [S-130]
-  Touches: `browser-extension/sidepanel.js` or new import flow
-  Acceptance: Side panel shows "Import from Reading List" button that pulls Chrome reading list items into BOP
-  Complexity: S
 
 
 - [ ] P2 — **First community translation (es or zh)**
