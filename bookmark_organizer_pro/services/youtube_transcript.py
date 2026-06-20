@@ -15,7 +15,7 @@ import subprocess
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Tuple
 
 from bookmark_organizer_pro.constants import EXTRACTED_DIR
 from bookmark_organizer_pro.logging_config import log

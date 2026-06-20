@@ -12,7 +12,7 @@ import secrets
 import tempfile
 import threading
 from pathlib import Path
-from typing import Dict, Optional, Set
+from typing import Dict, Optional
 
 from bookmark_organizer_pro.constants import DATA_DIR
 from bookmark_organizer_pro.logging_config import log

@@ -11,7 +11,7 @@ import json
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
-from typing import Iterable, List, Optional, Sequence
+from typing import List, Optional, Sequence
 
 from bookmark_organizer_pro.ai import AIConfigManager, create_ai_client
 from bookmark_organizer_pro.logging_config import log

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from io import BytesIO
 import hashlib
-from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import Callable, List, Optional
@@ -27,7 +26,6 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 from bookmark_organizer_pro.constants import FAVICON_DIR
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.url_utils import URLUtilities
-from bookmark_organizer_pro.utils.runtime import atomic_json_write
 
 from .foundation import FONTS
 from .quick_add import (
@@ -36,7 +34,7 @@ from .quick_add import (
     pick_default_category,
     prepare_quick_add_payload,
 )
-from .widget_controls import ModernButton, ThemedWidget, Tooltip
+from .widget_controls import ModernButton, ThemedWidget
 from .widget_runtime import apply_window_chrome, get_theme
 
 # =============================================================================

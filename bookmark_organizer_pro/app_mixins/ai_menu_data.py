@@ -3,26 +3,21 @@
 from __future__ import annotations
 
 import json
-import re
-import threading
 import tkinter as tk
 from datetime import datetime
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
-from typing import Dict, List, Optional
+from tkinter import filedialog, messagebox
+from typing import Dict, List
 
 try:
     import requests
 except ImportError:  # pragma: no cover - optional runtime dependency
     requests = None
 
-from bookmark_organizer_pro.ai import AI_PROVIDERS, create_ai_client
 from bookmark_organizer_pro.core.category_manager import get_category_icon
-from bookmark_organizer_pro.logging_config import log
-from bookmark_organizer_pro.models import Bookmark, Category
-from bookmark_organizer_pro.ui.components import ScrollableFrame
-from bookmark_organizer_pro.ui.foundation import FONTS, pluralize
-from bookmark_organizer_pro.ui.widgets import ModernButton, apply_window_chrome, get_theme
+from bookmark_organizer_pro.models import Category
+from bookmark_organizer_pro.ui.foundation import FONTS
+from bookmark_organizer_pro.ui.widgets import get_theme
 
 
 class AiMenuDataMixin:

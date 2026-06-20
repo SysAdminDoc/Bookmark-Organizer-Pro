@@ -18,7 +18,7 @@ import importlib
 import os
 import struct
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 from bookmark_organizer_pro.logging_config import log
 

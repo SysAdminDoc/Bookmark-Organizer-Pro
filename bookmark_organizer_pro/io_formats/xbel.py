@@ -15,7 +15,6 @@ try:
 except ImportError:  # pragma: no cover - defusedxml is a declared dependency
     # Refuse rather than alias to the unsafe stdlib parser (XXE/billion-laughs).
     _safe_ET = None
-import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List

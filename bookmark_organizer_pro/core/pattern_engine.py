@@ -17,7 +17,6 @@ overriding exact domain matches.
 import re
 import signal
 import sys
-from collections import defaultdict
 from collections.abc import Iterable
 from typing import Dict, List, Optional
 from urllib.parse import urlparse

@@ -16,7 +16,7 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, List, Optional
 
 from bookmark_organizer_pro.constants import FLOWS_FILE
 from bookmark_organizer_pro.logging_config import log

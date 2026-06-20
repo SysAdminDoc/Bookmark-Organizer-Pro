@@ -11,7 +11,6 @@ import os
 import platform
 import shutil
 import subprocess
-import sys
 import threading
 from dataclasses import dataclass
 from pathlib import Path

@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from bookmark_organizer_pro.ai import AIConfigManager
-from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION, DATA_DIR, SNAPSHOTS_DIR
+from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION, SNAPSHOTS_DIR
 from bookmark_organizer_pro.services.mcp_auth import MCPTokenManager
 from bookmark_organizer_pro.core import CategoryManager
 from bookmark_organizer_pro.logging_config import log

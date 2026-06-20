@@ -18,7 +18,7 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 from bookmark_organizer_pro.constants import SNAPSHOTS_DIR
 from bookmark_organizer_pro.logging_config import log

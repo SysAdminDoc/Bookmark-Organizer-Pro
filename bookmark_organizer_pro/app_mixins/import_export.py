@@ -7,7 +7,7 @@ import threading
 import tkinter as tk
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 from bookmark_organizer_pro.constants import BACKUP_DIR
 from bookmark_organizer_pro.importers import (
@@ -20,7 +20,7 @@ from bookmark_organizer_pro.importers import (
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.ui.bookmark_workflows import SelectiveExportDialog
-from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, pluralize
+from bookmark_organizer_pro.ui.foundation import FONTS, pluralize
 from bookmark_organizer_pro.ui.widgets import ModernButton, get_theme
 
 

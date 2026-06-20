@@ -1056,7 +1056,7 @@ class TestBatchSave(_IsolatedTestBase):
     """Tests for BookmarkManager.batch() context manager."""
 
     def _manager(self):
-        from bookmark_organizer_pro.core import CategoryManager, StorageManager
+        from bookmark_organizer_pro.core import CategoryManager
         from bookmark_organizer_pro.managers import BookmarkManager, TagManager
         fp = Path(self._tmp) / "batch_test_bookmarks.json"
         cm = CategoryManager()

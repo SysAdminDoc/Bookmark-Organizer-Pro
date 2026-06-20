@@ -13,9 +13,8 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Set
 
-from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 
 

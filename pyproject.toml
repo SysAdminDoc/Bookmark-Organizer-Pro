@@ -15,6 +15,8 @@ dependencies = [
     "Pillow>=12.2.0",
     "defusedxml>=0.7",
     "tksheet>=7.6,<8",
+    "urllib3>=2.6.3",
+    "lxml>=6.1.0",
 ]
 
 [project.optional-dependencies]
@@ -69,7 +71,6 @@ extend-exclude = ["build", "dist", "packaging"]
 # burned down to start enforcing.
 select = ["F", "E9"]
 ignore = [
-    "F401",  # unused imports — ~96 pre-existing; clean up incrementally
     "F841",  # unused local variables — ~24 pre-existing
     "F541",  # f-string without placeholders — harmless, pre-existing
 ]

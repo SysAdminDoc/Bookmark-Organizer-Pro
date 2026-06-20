@@ -585,7 +585,6 @@ class AppShellMixin:
         import threading
         def _do_ask():
             try:
-                from bookmark_organizer_pro.ai import AIConfigManager
                 from bookmark_organizer_pro.services.embeddings import EmbeddingService
                 from bookmark_organizer_pro.services.vector_store import VectorStore
                 from bookmark_organizer_pro.services.rag_chat import CollectionChat

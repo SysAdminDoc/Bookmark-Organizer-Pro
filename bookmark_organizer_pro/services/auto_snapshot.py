@@ -10,9 +10,7 @@ import json
 import os
 import tempfile
 import threading
-import time
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Callable, Dict, List, Optional, Set
 
 from bookmark_organizer_pro.constants import DATA_DIR

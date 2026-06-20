@@ -27,10 +27,8 @@ Format per line (JSONL):
 from __future__ import annotations
 
 import json
-import os
 import threading
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from bookmark_organizer_pro.constants import LOGS_DIR

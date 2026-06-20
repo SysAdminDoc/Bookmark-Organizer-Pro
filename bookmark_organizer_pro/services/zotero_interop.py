@@ -8,7 +8,6 @@ import via its translators.
 from __future__ import annotations
 
 import html
-import re
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional

@@ -16,7 +16,7 @@ from bookmark_organizer_pro.constants import DATA_DIR
 from bookmark_organizer_pro.core.category_manager import get_category_icon
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Category
-from bookmark_organizer_pro.ui.foundation import FONTS, pluralize, readable_text_on
+from bookmark_organizer_pro.ui.foundation import FONTS, readable_text_on
 from bookmark_organizer_pro.ui.graph_view import GraphViewDialog
 from bookmark_organizer_pro.ui.management_dialogs import CategoryManagementDialog, CustomFaviconDialog
 from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog

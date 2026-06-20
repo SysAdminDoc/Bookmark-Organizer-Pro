@@ -1598,7 +1598,6 @@ class TestMainAppManagers(unittest.TestCase):
                 api.stop()
 
     def test_batch_refresh_and_tag_merge_are_defensive(self):
-        import main
 
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)

@@ -5,17 +5,15 @@ from __future__ import annotations
 import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
-from typing import Dict, List, Optional
 
 from bookmark_organizer_pro.ai import AI_PROVIDERS, create_ai_client
-from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.services.ollama_manager import (
     OLLAMA_DEFAULT_URL,
     OllamaManager,
     OllamaStatus,
 )
 from bookmark_organizer_pro.ui.components import ScrollableFrame
-from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, pluralize
+from bookmark_organizer_pro.ui.foundation import FONTS, pluralize
 from bookmark_organizer_pro.ui.widgets import ModernButton, apply_window_chrome, get_theme
 
 

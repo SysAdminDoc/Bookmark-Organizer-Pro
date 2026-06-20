@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from tkinter import messagebox
 from typing import Dict
 
 from bookmark_organizer_pro.commands import DeleteBookmarksCommand

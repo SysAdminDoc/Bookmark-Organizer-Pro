@@ -7,13 +7,11 @@ correctness, YAML injection, collection filtering, and duplicate-title handling.
 """
 
 import importlib
-import json
 import os
 import shutil
 import tempfile
 import unittest
 import zipfile
-from datetime import datetime, timedelta
 from pathlib import Path
 
 

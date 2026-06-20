@@ -24,13 +24,12 @@ from bookmark_organizer_pro.constants import (
     APP_NAME,
     APP_SUBTITLE,
     APP_VERSION,
-    IS_WINDOWS,
     LOG_FILE,
     MASTER_BOOKMARKS_FILE,
     SETTINGS_FILE,
 )
 
-from .foundation import FONTS, readable_text_on
+from .foundation import FONTS
 from .widgets import ModernButton, get_theme
 
 

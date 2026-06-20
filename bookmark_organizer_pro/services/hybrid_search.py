@@ -10,12 +10,10 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence
 
-from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.search import SearchEngine
-from bookmark_organizer_pro.services.embeddings import EmbeddingService
 from bookmark_organizer_pro.services.vector_store import (
     VectorStore,
     reciprocal_rank_fusion,

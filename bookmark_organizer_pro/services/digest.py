@@ -10,7 +10,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Iterable, List, Optional, Sequence
+from typing import List, Optional, Sequence
 
 from bookmark_organizer_pro.models import Bookmark
 

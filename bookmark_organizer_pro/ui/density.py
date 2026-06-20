@@ -7,7 +7,7 @@ import os
 import tempfile
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional, Union
+from typing import Any, Callable, Dict, List, Mapping, Union
 
 from bookmark_organizer_pro.constants import SETTINGS_FILE
 from bookmark_organizer_pro.logging_config import log

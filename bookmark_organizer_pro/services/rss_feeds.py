@@ -35,7 +35,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional
 from urllib.parse import urljoin
 
 from bookmark_organizer_pro.constants import FEEDS_FILE

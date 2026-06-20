@@ -8,7 +8,7 @@ from typing import Optional
 
 from bookmark_organizer_pro.models import Bookmark
 
-from .foundation import DesignTokens, FONTS, readable_text_on
+from .foundation import FONTS, readable_text_on
 from .tk_interactions import make_keyboard_activatable
 from .widgets import ModernButton, get_theme
 

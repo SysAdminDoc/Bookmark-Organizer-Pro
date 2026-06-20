@@ -8,7 +8,6 @@ import threading
 import time
 import urllib.parse
 from datetime import datetime
-from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Callable
 
 from bookmark_organizer_pro.ai import AIClient, AIConfigManager, create_ai_client

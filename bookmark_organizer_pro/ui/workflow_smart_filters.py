@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 import tkinter as tk
 from tkinter import ttk
 from typing import Any, Callable, Dict, List
-from urllib.parse import urlparse
 
 from bookmark_organizer_pro.models import Bookmark
 

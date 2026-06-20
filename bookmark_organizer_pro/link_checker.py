@@ -8,10 +8,11 @@ from datetime import datetime
 from typing import Callable, Dict, List, Optional, Tuple
 from urllib.parse import urljoin, urlparse
 
+from .constants import APP_VERSION
 from .models import Bookmark
 from .url_utils import URLUtilities
 
-_USER_AGENT = "BookmarkOrganizerPro/6.0 LinkChecker"
+_USER_AGENT = f"BookmarkOrganizerPro/{APP_VERSION} LinkChecker"
 
 
 class LinkChecker:

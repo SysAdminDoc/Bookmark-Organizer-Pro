@@ -14,10 +14,8 @@ from __future__ import annotations
 
 import importlib
 import re
-from dataclasses import dataclass, field
-from datetime import datetime
-from pathlib import Path
-from typing import Dict, Optional, Tuple
+from dataclasses import dataclass
+from typing import Dict, Optional
 
 from bookmark_organizer_pro.constants import EXTRACTED_DIR
 from bookmark_organizer_pro.logging_config import log

@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import gettext
 import locale
-import os
 from pathlib import Path
 
 _LOCALE_DIR = Path(__file__).resolve().parent.parent / "locale"
@@ -65,7 +64,6 @@ def setup_locale(lang: str = ""):
 def _generate_pot():
     """Scan source files and write ``locale/bop.pot``."""
     import ast
-    import textwrap
 
     src_root = Path(__file__).resolve().parent
     strings: dict[str, list[str]] = {}

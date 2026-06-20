@@ -13,8 +13,6 @@ from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from bookmark_organizer_pro.ai import AIConfigManager, create_ai_client
 from bookmark_organizer_pro.logging_config import log
-from bookmark_organizer_pro.models import Bookmark
-from bookmark_organizer_pro.services.embeddings import EmbeddingService
 from bookmark_organizer_pro.services.vector_store import VectorStore
 
 

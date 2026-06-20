@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import threading
 import tkinter as tk
 from tkinter import ttk
-from typing import Callable, Optional
+from typing import Callable
 
 from .foundation import FONTS, DesignTokens, readable_text_on
 from .widget_controls import ThemedWidget
