@@ -797,6 +797,13 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P0 — Fix Now (reliability, correctness, lint debt)
 
+- [ ] P0 — **Pin transitive dependency security floors (urllib3, lxml)**
+  Why: CVE-2026-21441 (urllib3, CVSS 7.5 decompression bomb on redirect, fixed ≥2.6.3) and CVE-2026-41066 (lxml XXE in iterparse, fixed ≥6.1.0) affect BOP's transitive dependency chain — urllib3 via requests, lxml via trafilatura. Neither is directly pinned.
+  Evidence: S-121 research pass dependency audit; urllib3 CVE-2026-21441; lxml CVE-2026-41066 (S-107)
+  Touches: `pyproject.toml` (add `urllib3>=2.6.3` and `lxml>=6.1.0` to dependencies), `requirements.txt`
+  Acceptance: `pip install -e .` resolves urllib3≥2.6.3 and lxml≥6.1.0; no vulnerable transitive versions installable
+  Complexity: S
+
 - [ ] P0 — **Clean 91 unused imports (ruff F401)**
   Why: 91 autofix-safe unused imports signal unmaintained code; blocks enabling F401 enforcement in CI
   Evidence: `ruff check bookmark_organizer_pro --select F401 --statistics` → 91 hits; pyproject.toml defers F401/F841
