@@ -73,6 +73,7 @@ class ToolsActionsMixin:
         menu.add_command(label="  Reader View", command=self._open_reader_view)
         menu.add_command(label="  Graph View", command=self._open_graph_view)
         menu.add_command(label="  Full Analytics", command=self._show_analytics)
+        menu.add_command(label="  Migrate to SQLite", command=self._migrate_to_sqlite)
         menu.add_command(label="  Backup Now", command=self._backup_now)
         menu.add_separator()
         menu.add_command(label="  Redownload All Favicons", command=self._redownload_all_favicons)
@@ -602,6 +603,74 @@ class ToolsActionsMixin:
                 self.root, bookmark, self.bookmark_manager,
                 on_update=self._refresh_all
             )
+
+    def _migrate_to_sqlite(self):
+        """Run JSON-to-SQLite migration from the GUI with a progress indicator."""
+        import threading
+        from bookmark_organizer_pro.constants import MASTER_BOOKMARKS_FILE
+
+        sqlite_path = MASTER_BOOKMARKS_FILE.with_suffix(".sqlite")
+        if sqlite_path.exists():
+            messagebox.showinfo(
+                "SQLite Already Exists",
+                f"A SQLite database already exists at:\n{sqlite_path}\n\n"
+                "Delete or rename it before migrating again.",
+                parent=self.root,
+            )
+            return
+
+        bookmarks = self.bookmark_manager.get_all_bookmarks()
+        if not bookmarks:
+            messagebox.showinfo(
+                "Nothing to Migrate",
+                "Add bookmarks before migrating to SQLite.",
+                parent=self.root,
+            )
+            return
+
+        if not messagebox.askyesno(
+            "Migrate to SQLite",
+            f"Copy {len(bookmarks)} bookmark(s) into a SQLite database?\n\n"
+            f"Source: {MASTER_BOOKMARKS_FILE.name}\n"
+            f"Destination: {sqlite_path.name}\n\n"
+            "The original JSON file is preserved as a backup.\n"
+            "After migration, set BOOKMARK_STORAGE_BACKEND=sqlite to use it.",
+            parent=self.root,
+        ):
+            return
+
+        self._set_status("Migrating to SQLite...")
+
+        def _worker():
+            try:
+                from bookmark_organizer_pro.core import migrate_json_to_sqlite
+                count = migrate_json_to_sqlite(MASTER_BOOKMARKS_FILE, sqlite_path)
+                self.root.after(0, lambda: self._on_sqlite_migrate_done(count, sqlite_path))
+            except Exception as exc:
+                err = exc
+                self.root.after(0, lambda: self._on_sqlite_migrate_error(err))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_sqlite_migrate_done(self, count, path):
+        self._set_status(f"Migrated {count} bookmarks to SQLite")
+        self._show_toast(f"SQLite migration complete: {count} bookmarks", "success")
+        messagebox.showinfo(
+            "Migration Complete",
+            f"Migrated {count} bookmark(s) to:\n{path}\n\n"
+            "To use SQLite as the runtime backend, set the environment variable:\n"
+            "  BOOKMARK_STORAGE_BACKEND=sqlite\n"
+            "or pass --backend sqlite to the CLI.",
+            parent=self.root,
+        )
+
+    def _on_sqlite_migrate_error(self, exc):
+        self._set_status("SQLite migration failed")
+        messagebox.showerror(
+            "Migration Failed",
+            f"Could not migrate to SQLite:\n\n{exc}",
+            parent=self.root,
+        )
 
     def _open_reader_view(self):
         """Open the extracted-text reader for the first selected bookmark."""
