@@ -334,6 +334,7 @@ def _mcp_http_middleware() -> List[Any]:
 
 _MAX_MCP_LIMIT = 500
 _MAX_MCP_OFFSET = 100_000
+_MAX_MCP_STRING = 10_000
 
 
 def _clamp_limit(v: int, default: int = 50) -> int:
@@ -350,12 +351,18 @@ def _clamp_offset(v: int) -> int:
         return 0
 
 
+def _sanitize_str(v: Any, max_len: int = _MAX_MCP_STRING) -> str:
+    return str(v or "").strip()[:max_len]
+
+
 def t_list_bookmarks(limit: int = 50, offset: int = 0,
                      category: Optional[str] = None,
                      tag: Optional[str] = None,
                      read_later_only: bool = False) -> List[Dict]:
     limit = _clamp_limit(limit)
     offset = _clamp_offset(offset)
+    category = _sanitize_str(category, 200) if category else None
+    tag = _sanitize_str(tag, 200) if tag else None
     s = _services()
     bms = s.bookmark_manager.get_all_bookmarks()
     if category:
@@ -375,6 +382,7 @@ def t_get_bookmark(bookmark_id: int) -> Optional[Dict]:
 
 
 def t_search(query: str, limit: int = 25) -> List[Dict]:
+    query = _sanitize_str(query, 1000)
     limit = _clamp_limit(limit, 25)
     s = _services()
     results = s.bookmark_manager.search_bookmarks(query)[:limit]
@@ -382,6 +390,7 @@ def t_search(query: str, limit: int = 25) -> List[Dict]:
 
 
 def t_semantic_search(query: str, k: int = 10) -> List[Dict]:
+    query = _sanitize_str(query, 1000)
     k = _clamp_limit(k, 10)
     s = _services()
     hits = s.vector_store.search(query, k=k)
@@ -398,6 +407,7 @@ def t_semantic_search(query: str, k: int = 10) -> List[Dict]:
 
 
 def t_hybrid_search(query: str, limit: int = 25) -> List[Dict]:
+    query = _sanitize_str(query, 1000)
     limit = _clamp_limit(limit, 25)
     s = _services()
     bms = s.bookmark_manager.get_all_bookmarks()
@@ -461,6 +471,8 @@ def t_get_extracted_text(bookmark_id: int) -> str:
 def _resolve_chat_scope_ids(s: BookmarkServices, restrict_ids: Optional[List[int]] = None,
                             restrict_tag: str = "",
                             restrict_category: str = "") -> Optional[List[int]]:
+    restrict_tag = _sanitize_str(restrict_tag, 200)
+    restrict_category = _sanitize_str(restrict_category, 200)
     ids = list(restrict_ids) if restrict_ids else None
     if restrict_tag or restrict_category:
         bms = s.bookmark_manager.get_all_bookmarks()
@@ -478,6 +490,7 @@ def _resolve_chat_scope_ids(s: BookmarkServices, restrict_ids: Optional[List[int
 
 def t_chat(question: str, restrict_ids: Optional[List[int]] = None,
            restrict_tag: str = "", restrict_category: str = "") -> Dict:
+    question = _sanitize_str(question, 5000)
     s = _services()
     ids = _resolve_chat_scope_ids(s, restrict_ids, restrict_tag, restrict_category)
     turn = s.chat.ask(question, restrict_ids=ids)
@@ -492,6 +505,7 @@ def t_chat_stream(question: str, restrict_ids: Optional[List[int]] = None,
                   restrict_tag: str = "", restrict_category: str = "",
                   chunk_chars: int = 160,
                   on_event: Optional[Callable[[Any], None]] = None) -> Dict:
+    question = _sanitize_str(question, 5000)
     s = _services()
     ids = _resolve_chat_scope_ids(s, restrict_ids, restrict_tag, restrict_category)
     chunk_size = normalize_stream_chunk_chars(chunk_chars)
@@ -655,6 +669,7 @@ def t_list_flows() -> List[Dict]:
 
 
 def t_get_flow(flow_id: str) -> Optional[Dict]:
+    flow_id = _sanitize_str(flow_id, 200)
     flow = _services().flows.get(flow_id)
     if flow is None:
         return None
@@ -668,11 +683,15 @@ def t_get_flow(flow_id: str) -> Optional[Dict]:
 
 
 def t_create_flow(name: str, description: str = "") -> Dict:
+    name = _sanitize_str(name, 200)
+    description = _sanitize_str(description, 2000)
     flow = _services().flows.create(name=name, description=description)
     return flow.to_dict()
 
 
 def t_append_to_flow(flow_id: str, bookmark_id: int, note: str = "") -> Dict:
+    flow_id = _sanitize_str(flow_id, 200)
+    note = _sanitize_str(note, 5000)
     s = _services()
     ok = s.flows.add_step(flow_id, int(bookmark_id), note=note)
     if not ok:
@@ -778,8 +797,8 @@ def t_add_tags(bookmark_id: int, tags: List[str] = None) -> Dict:
     bm = s.bookmark_manager.get_bookmark(int(bookmark_id))
     if not bm:
         return {"error": "Bookmark not found"}
-    for tag in (tags or []):
-        t = str(tag).strip()
+    for tag in (tags or [])[:100]:
+        t = _sanitize_str(tag, 200)
         if t:
             bm.add_tag(t)
     s.bookmark_manager.save_bookmarks()
@@ -791,8 +810,8 @@ def t_remove_tags(bookmark_id: int, tags: List[str] = None) -> Dict:
     bm = s.bookmark_manager.get_bookmark(int(bookmark_id))
     if not bm:
         return {"error": "Bookmark not found"}
-    for tag in (tags or []):
-        t = str(tag).strip()
+    for tag in (tags or [])[:100]:
+        t = _sanitize_str(tag, 200)
         if t:
             bm.remove_tag(t)
     s.bookmark_manager.save_bookmarks()

@@ -812,15 +812,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 > Added 2026-06-20 from `RESEARCH.md` research pass 2 (source S-128). Items verified against existing ROADMAP to avoid duplicates.
 
-### P0 — Now (security, correctness)
-
-- [ ] P0 — **Audit MCP tool input validation against NSA advisory**
-  Why: NSA/DoD advisory identifies lack of input sanitization on tool parameters as the primary MCP attack vector. BOP has 27 tools accepting user-controlled strings.
-  Evidence: NSA/DoD MCP security advisory [S-128]
-  Touches: `mcp_server.py` (all tool handler functions)
-  Acceptance: Every tool parameter validated/sanitized; no tool constructs subprocess commands from user input
-  Complexity: M
-
 ### P1 — Next (user-facing gaps)
 
 - [ ] P1 — **GUI surface for smart collections**
