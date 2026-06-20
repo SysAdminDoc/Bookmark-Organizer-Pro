@@ -5,6 +5,7 @@ from __future__ import annotations
 import tkinter as tk
 
 from bookmark_organizer_pro.logging_config import log
+from bookmark_organizer_pro.services.local_state import load_settings
 from bookmark_organizer_pro.ui.foundation import pluralize
 
 
@@ -28,11 +29,13 @@ class LifecycleActionsMixin:
         # Queue favicon downloads
         bookmarks = self.bookmark_manager.get_all_bookmarks()
         self.favicon_manager.queue_bookmarks(bookmarks)
-        
+
         if bookmarks:
             self._set_status(f"Loaded {pluralize(len(bookmarks), 'bookmark')}")
         else:
             self._set_status("Library ready")
+
+        self._start_dead_link_scheduler()
 
     def _post_to_ui(self, callback):
         """Schedule a callback on the Tk main thread from a worker thread.
@@ -168,13 +171,26 @@ class LifecycleActionsMixin:
                 targets[0].focus_set()
         return "break"
 
+    def _start_dead_link_scheduler(self):
+        """Start periodic dead-link scanning if enabled in settings."""
+        settings = load_settings()
+        interval = int(settings.get("dead_link_scan_interval_hours", 0))
+        if interval <= 0:
+            return
+        try:
+            from bookmark_organizer_pro.services.dead_link_scanner import DeadLinkScanner
+            self._dead_link_scanner = DeadLinkScanner(
+                get_bookmarks=self.bookmark_manager.get_all_bookmarks,
+            )
+            self._dead_link_scanner.start(interval_hours=interval)
+            log.info(f"Dead-link scanner started (interval: {interval}h)")
+        except Exception:
+            log.debug("Failed to start dead-link scanner", exc_info=True)
+
     def _on_close(self):
         """Handle close — stop timers and background work before tearing down."""
-        # Signal background workers/poll loops to stop scheduling UI callbacks;
-        # firing root.after() after destroy() raises TclError on worker threads.
         self._closing = True
 
-        # Cancel any pending after() timers so none fire on a destroyed root.
         for attr in ("_analytics_poll_id", "_grid_after_id", "_search_after"):
             after_id = getattr(self, attr, None)
             if after_id:
@@ -182,6 +198,13 @@ class LifecycleActionsMixin:
                     self.root.after_cancel(after_id)
                 except Exception:
                     pass
+
+        scanner = getattr(self, "_dead_link_scanner", None)
+        if scanner is not None:
+            try:
+                scanner.stop()
+            except Exception:
+                log.debug("Error stopping dead-link scanner", exc_info=True)
 
         for manager in (getattr(self, "favicon_manager", None),
                         getattr(self, "task_runner", None)):

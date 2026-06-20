@@ -2,8 +2,10 @@
 
 import re
 from datetime import datetime
+from functools import lru_cache
 from typing import Dict, List, Optional, Tuple
 
+from .constants import EXTRACTED_DIR
 from .models import Bookmark
 
 
@@ -31,6 +33,7 @@ class SearchQuery:
         self.is_broken: Optional[bool] = None
         self.is_stale: Optional[bool] = None
         self.min_visits: Optional[int] = None
+        self.content_filters: List[str] = []
         self.is_regex: bool = False
         self.regex_pattern: Optional[re.Pattern] = None
 
@@ -109,6 +112,10 @@ class SearchQuery:
                 value = token[4:].strip()
                 if value:
                     self.category_filters.append(value)
+            elif lower_token.startswith("content:"):
+                value = token[8:].strip().strip('"')
+                if value:
+                    self.content_filters.append(value)
             elif lower_token.startswith("before:"):
                 try:
                     self.date_before = self._parse_date(token[7:])
@@ -216,6 +223,15 @@ class SearchQuery:
             return False
 
         searchable = f"{bookmark.title} {bookmark.url} {bookmark.notes} {bookmark.description}".lower()
+
+        if self.content_filters:
+            body = _load_extracted_text(bookmark.id)
+            if not body:
+                return False
+            body_lower = body.lower()
+            for phrase in self.content_filters:
+                if phrase.lower() not in body_lower:
+                    return False
 
         for term in self.excluded_terms:
             if term.lower() in searchable:
@@ -339,6 +355,7 @@ Status Filters:
   is:stale               Not visited in 90+ days
 
 Content Filters:
+  content:keyword        Search extracted page text
   has:notes              Has notes
   has:tags               Has tags
   visits:>5              Visited more than 5 times
@@ -351,6 +368,18 @@ Examples:
   #tutorial after:2024-01-01     Recent tutorials
   is:stale cat:Shopping          Stale shopping bookmarks
 """
+
+
+@lru_cache(maxsize=256)
+def _load_extracted_text(bookmark_id: int) -> str:
+    """Load extracted page text for a bookmark, cached for search sessions."""
+    path = EXTRACTED_DIR / f"{bookmark_id}.txt"
+    try:
+        if path.exists():
+            return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        pass
+    return ""
 
 
 def levenshtein_distance(s1: str, s2: str) -> int:
