@@ -820,12 +820,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P2 — Later (differentiation, polish)
 
-- [ ] P2 — **MCP Prompts/Templates**
-  Why: MCP spec supports Prompts (reusable prompt templates) but BOP only exposes tools and resources. Prompts like "Organize my recent saves" or "Summarize my reading list" would improve AI agent workflows.
-  Evidence: MCP specification — prompts section; Burn 451 and Raindrop MCP servers use prompts [S-128]
-  Touches: `mcp_server.py`
-  Acceptance: `prompts/list` returns 3+ reusable prompt templates; agents can invoke them
-  Complexity: M
 
 - [ ] P2 — **Chrome Prompt API integration for zero-cost extension categorization**
   Why: Chrome 138+ stabilized the Prompt API (Gemini Nano) for extensions — on-device AI with zero API keys, zero cost, offline-capable. BOP extension could categorize/tag bookmarks locally.

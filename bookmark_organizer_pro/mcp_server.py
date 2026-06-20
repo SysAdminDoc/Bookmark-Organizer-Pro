@@ -1317,6 +1317,50 @@ def _build_fastmcp_server():
         svc = _services()
         return json.dumps(svc.bookmark_manager.get_statistics(), indent=2, default=str)
 
+    @mcp_app.prompt()
+    def organize_recent(days: int = 7) -> str:
+        """Review and organize bookmarks saved in the last N days."""
+        return (
+            f"Review my bookmarks saved in the last {days} days. "
+            "For each uncategorized bookmark, suggest a category from the existing taxonomy. "
+            "For bookmarks without tags, suggest 2-3 relevant tags. "
+            "List bookmarks that might be duplicates. "
+            "Use the list_bookmarks, list_categories, and list_tags tools to gather data, "
+            "then use update_bookmark and add_tags to apply improvements."
+        )
+
+    @mcp_app.prompt()
+    def summarize_collection(category: str = "", tag: str = "") -> str:
+        """Summarize a bookmark collection by category or tag."""
+        scope = f"in category '{category}'" if category else f"with tag '{tag}'" if tag else "across all categories"
+        return (
+            f"Summarize my bookmark collection {scope}. "
+            "Count bookmarks per category and tag. Identify the most-saved domains. "
+            "Highlight any broken links. Suggest bookmarks I might want to revisit. "
+            "Use list_bookmarks, list_categories, list_tags, and list_dead_links tools."
+        )
+
+    @mcp_app.prompt()
+    def find_duplicates() -> str:
+        """Find and help resolve duplicate bookmarks."""
+        return (
+            "Search my bookmark library for duplicates. "
+            "Use hybrid_search to find semantically similar bookmarks, then compare URLs and titles. "
+            "Group potential duplicates and for each group, recommend which to keep "
+            "(prefer the one with more tags, a better title, or earlier save date). "
+            "Use delete_bookmark to remove confirmed duplicates after listing them."
+        )
+
+    @mcp_app.prompt()
+    def reading_plan() -> str:
+        """Build a reading plan from the read-later queue."""
+        return (
+            "Review my read-later queue using list_bookmarks with read_later_only=true. "
+            "Estimate reading time for each item based on its content type. "
+            "Group them by topic and suggest an order that builds knowledge progressively. "
+            "Use the daily_digest tool to also surface forgotten bookmarks worth revisiting."
+        )
+
     _patch_fastmcp_list_tools_cache(mcp_app)
     return mcp_app
 
