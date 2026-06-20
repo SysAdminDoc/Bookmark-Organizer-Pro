@@ -1543,8 +1543,16 @@ class TestMainAppManagers(unittest.TestCase):
                 api.start()
                 base_url = f"http://127.0.0.1:{api.port}"
 
-                from bookmark_organizer_pro.services.api import _TOKEN_FILE
-                token = _TOKEN_FILE.read_text(encoding="utf-8").strip() if _TOKEN_FILE.exists() else ""
+                from bookmark_organizer_pro.services.api import _TOKEN_FILE, _KEYRING_SERVICE, _KEYRING_KEY
+                token = ""
+                if _TOKEN_FILE.exists():
+                    token = _TOKEN_FILE.read_text(encoding="utf-8").strip()
+                if not token:
+                    try:
+                        import keyring
+                        token = keyring.get_password(_KEYRING_SERVICE, _KEYRING_KEY) or ""
+                    except Exception:
+                        pass
 
                 status, body = post_json(base_url, "not an object", token=token)
                 self.assertEqual(status, 400)

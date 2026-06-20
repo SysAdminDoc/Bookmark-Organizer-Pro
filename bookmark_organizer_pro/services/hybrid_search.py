@@ -12,10 +12,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, List, Optional, Sequence
 
+import json
+
+from bookmark_organizer_pro.constants import SETTINGS_FILE
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.search import SearchEngine
-from bookmark_organizer_pro.services.local_state import load_settings
 from bookmark_organizer_pro.services.vector_store import (
     VectorStore,
     reciprocal_rank_fusion,
@@ -45,7 +47,12 @@ def _try_rerank(query: str, texts: List[str]) -> Optional[List[float]]:
     if _cross_encoder_tried and _cross_encoder is None:
         return None
     try:
-        settings = load_settings()
+        settings = {}
+        try:
+            if SETTINGS_FILE.exists():
+                settings = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            pass
         if not settings.get("enable_reranker", False):
             log.info("Cross-encoder re-ranking skipped (enable_reranker not set in settings)")
             _cross_encoder_tried = True

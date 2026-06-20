@@ -5,7 +5,6 @@ from datetime import datetime
 from functools import lru_cache
 from typing import Dict, List, Optional, Tuple
 
-from .constants import EXTRACTED_DIR
 from .models import Bookmark
 
 
@@ -373,6 +372,7 @@ Examples:
 @lru_cache(maxsize=256)
 def _load_extracted_text(bookmark_id: int) -> str:
     """Load extracted page text for a bookmark, cached for search sessions."""
+    from .constants import EXTRACTED_DIR
     path = EXTRACTED_DIR / f"{bookmark_id}.txt"
     try:
         if path.exists():

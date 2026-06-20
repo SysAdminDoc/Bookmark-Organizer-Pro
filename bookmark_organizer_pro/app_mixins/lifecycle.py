@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import tkinter as tk
 
+import json
+
+from bookmark_organizer_pro.constants import SETTINGS_FILE
 from bookmark_organizer_pro.logging_config import log
-from bookmark_organizer_pro.services.local_state import load_settings
 from bookmark_organizer_pro.ui.foundation import pluralize
 
 
@@ -173,7 +175,12 @@ class LifecycleActionsMixin:
 
     def _start_dead_link_scheduler(self):
         """Start periodic dead-link scanning if enabled in settings."""
-        settings = load_settings()
+        settings = {}
+        try:
+            if SETTINGS_FILE.exists():
+                settings = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            pass
         interval = int(settings.get("dead_link_scan_interval_hours", 0))
         if interval <= 0:
             return
