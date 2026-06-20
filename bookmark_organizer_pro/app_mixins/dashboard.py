@@ -212,6 +212,7 @@ class DashboardActionsMixin:
         theme = get_theme()
 
         stats = self.bookmark_manager.get_statistics()
+        all_bookmarks = self.bookmark_manager.get_all_bookmarks()
 
         if hasattr(self, '_last_analytics_stats') and self._last_analytics_stats == stats:
             return
@@ -373,6 +374,69 @@ class DashboardActionsMixin:
                 widget.bind("<Enter>", lambda e, lbl=cat_lbl: lbl.configure(fg=theme.accent_success))
                 widget.bind("<Leave>", lambda e, lbl=cat_lbl: lbl.configure(fg=theme.accent_primary))
         
+        # Recent bookmarks (clickable)
+        section_label("Recent Saves")
+        recent = sorted(all_bookmarks, key=lambda b: b.created_at or "", reverse=True)[:8]
+        if not recent:
+            empty_note("Bookmarks will appear here as you add them.")
+        for bm in recent:
+            row = tk.Frame(self.analytics_frame, bg=theme.bg_secondary, cursor="hand2")
+            row.pack(fill=tk.X, pady=2)
+            title_lbl = tk.Label(
+                row, text=truncate_middle(bm.title or bm.url, 32), bg=theme.bg_secondary,
+                fg=theme.text_primary, font=FONTS.small(), cursor="hand2", anchor="w",
+            )
+            title_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
+            make_keyboard_activatable(row, lambda bid=bm.id: self._select_bookmark_by_id(bid))
+            title_lbl.bind("<Button-1>", lambda e, bid=bm.id: self._select_bookmark_by_id(bid))
+
+        # Pinned bookmarks
+        pinned = [b for b in all_bookmarks if b.is_pinned]
+        if pinned:
+            section_label(f"Pinned ({len(pinned)})")
+            for bm in pinned[:8]:
+                row = tk.Frame(self.analytics_frame, bg=theme.bg_secondary, cursor="hand2")
+                row.pack(fill=tk.X, pady=2)
+                title_lbl = tk.Label(
+                    row, text=truncate_middle(bm.title or bm.url, 32), bg=theme.bg_secondary,
+                    fg=theme.accent_warning, font=FONTS.small(), cursor="hand2", anchor="w",
+                )
+                title_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
+                make_keyboard_activatable(row, lambda bid=bm.id: self._select_bookmark_by_id(bid))
+                title_lbl.bind("<Button-1>", lambda e, bid=bm.id: self._select_bookmark_by_id(bid))
+
+        # Read Later queue
+        read_later = sorted(
+            [b for b in all_bookmarks if b.read_later],
+            key=lambda b: b.read_later_position,
+        )
+        if read_later:
+            section_label(f"Read Later ({len(read_later)})")
+            for bm in read_later[:6]:
+                row = tk.Frame(self.analytics_frame, bg=theme.bg_secondary, cursor="hand2")
+                row.pack(fill=tk.X, pady=2)
+                title_lbl = tk.Label(
+                    row, text=truncate_middle(bm.title or bm.url, 32), bg=theme.bg_secondary,
+                    fg=theme.accent_primary, font=FONTS.small(), cursor="hand2", anchor="w",
+                )
+                title_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
+                make_keyboard_activatable(row, lambda bid=bm.id: self._select_bookmark_by_id(bid))
+                title_lbl.bind("<Button-1>", lambda e, bid=bm.id: self._select_bookmark_by_id(bid))
+
+        # Dead links badge
+        dead_count = stats.get("broken", 0)
+        if dead_count > 0:
+            section_label(f"Dead Links ({dead_count})")
+            dead_row = tk.Frame(self.analytics_frame, bg=theme.bg_secondary, cursor="hand2")
+            dead_row.pack(fill=tk.X, pady=2)
+            dead_lbl = tk.Label(
+                dead_row, text=f"Review {dead_count} broken link(s)", bg=theme.bg_secondary,
+                fg=theme.accent_error, font=FONTS.small(bold=True), cursor="hand2",
+            )
+            dead_lbl.pack(side=tk.LEFT)
+            make_keyboard_activatable(dead_row, lambda: self._apply_filter("Broken"))
+            dead_lbl.bind("<Button-1>", lambda e: self._apply_filter("Broken"))
+
         # Top domains - show up to 20 (clickable for filtering)
         top_domains = [(d, c) for d, c in stats.get('top_domains', []) if c > 0]
         num_domains = min(20, len(top_domains)) if len(top_domains) >= 20 else len(top_domains)
