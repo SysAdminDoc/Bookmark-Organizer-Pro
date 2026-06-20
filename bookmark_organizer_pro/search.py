@@ -180,7 +180,8 @@ class SearchQuery:
         for tag in self.tag_filters:
             tag_lower = tag.lower()
             all_tags = list(bookmark.tags) + list(getattr(bookmark, "ai_tags", []))
-            if not any(tag_lower == t.lower() for t in all_tags):
+            prefix = tag_lower + "/"
+            if not any(t.lower() == tag_lower or t.lower().startswith(prefix) for t in all_tags):
                 return False
 
         for cat in self.category_filters:

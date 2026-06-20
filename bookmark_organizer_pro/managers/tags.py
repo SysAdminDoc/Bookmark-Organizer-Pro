@@ -73,16 +73,44 @@ class TagManager:
             log.error(f"Error saving tags: {e}")
     
     def add_tag(self, name: str, color: str = "", parent: str = "") -> Optional[Tag]:
-        """Add a new tag (validates name is non-empty)"""
+        """Add a new tag (validates name is non-empty).
+
+        Supports ``/``-separated paths (e.g. ``"programming/python"``).
+        When *name* contains ``/`` and no explicit *parent* is given, the
+        path is split automatically and intermediate parent tags are
+        created if they don't already exist.
+        """
         if not name or not str(name).strip():
             log.warning("Attempted to add tag with empty name")
             return None
         name = str(name).strip()[:50]
-        tag = Tag(name=name, color=str(color or "").strip(), parent=str(parent or "").strip())
+        parent = str(parent or "").strip()
+
+        if "/" in name and not parent:
+            parts = [p.strip() for p in name.split("/") if p.strip()]
+            if len(parts) >= 2:
+                return self._ensure_hierarchy(parts, color)
+
+        tag = Tag(name=name, color=str(color or "").strip(), parent=parent)
         with self._lock:
             if tag.full_path in self.tags:
                 return self.tags[tag.full_path]
             self.tags[tag.full_path] = tag
+            self.save_tags()
+        return tag
+
+    def _ensure_hierarchy(self, parts: List[str], color: str = "") -> Tag:
+        """Create all intermediate parent tags for a ``/``-separated path."""
+        with self._lock:
+            current_parent = ""
+            tag = None
+            for part in parts:
+                tag = Tag(name=part, color=color, parent=current_parent)
+                if tag.full_path not in self.tags:
+                    self.tags[tag.full_path] = tag
+                else:
+                    tag = self.tags[tag.full_path]
+                current_parent = tag.full_path
             self.save_tags()
         return tag
 

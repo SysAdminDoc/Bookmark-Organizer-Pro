@@ -154,5 +154,60 @@ class TestStatsAndDigest(_IntegrationBase):
         self.assertIsInstance(out, str)
 
 
+class TestTagHierarchy(_IntegrationBase):
+    """Tag hierarchy: slash-separated tags create parent/child relationships."""
+
+    def test_slash_tag_creates_hierarchy(self):
+        from bookmark_organizer_pro.managers.tags import TagManager
+        tm = TagManager(filepath=Path(self._tmp) / "tags.json")
+
+        tag = tm.add_tag("programming/python")
+        self.assertIsNotNone(tag)
+        self.assertEqual(tag.name, "python")
+        self.assertEqual(tag.parent, "programming")
+        self.assertEqual(tag.full_path, "programming/python")
+
+        parent = tm.get_tag("programming")
+        self.assertIsNotNone(parent)
+        self.assertEqual(parent.parent, "")
+
+    def test_get_children_returns_child_tags(self):
+        from bookmark_organizer_pro.managers.tags import TagManager
+        tm = TagManager(filepath=Path(self._tmp) / "tags.json")
+
+        tm.add_tag("dev/python")
+        tm.add_tag("dev/rust")
+        tm.add_tag("music")
+
+        children = tm.get_child_tags("dev")
+        child_names = {c.name for c in children}
+        self.assertEqual(child_names, {"python", "rust"})
+
+    def test_tag_filter_matches_children(self):
+        from bookmark_organizer_pro.search import SearchEngine
+        from bookmark_organizer_pro.models import Bookmark
+
+        bm1 = Bookmark(id=1, url="https://a.example.com", title="A", tags=["dev/python"])
+        bm2 = Bookmark(id=2, url="https://b.example.com", title="B", tags=["dev/rust"])
+        bm3 = Bookmark(id=3, url="https://c.example.com", title="C", tags=["music"])
+
+        engine = SearchEngine()
+        results = engine.search([bm1, bm2, bm3], "tag:dev")
+        found_ids = {b.id for b, _ in results}
+        self.assertIn(1, found_ids)
+        self.assertIn(2, found_ids)
+        self.assertNotIn(3, found_ids)
+
+    def test_flat_tags_preserved(self):
+        from bookmark_organizer_pro.managers.tags import TagManager
+        tm = TagManager(filepath=Path(self._tmp) / "tags.json")
+
+        tag = tm.add_tag("simple-tag")
+        self.assertIsNotNone(tag)
+        self.assertEqual(tag.name, "simple-tag")
+        self.assertEqual(tag.parent, "")
+        self.assertEqual(tag.full_path, "simple-tag")
+
+
 if __name__ == "__main__":
     unittest.main()
