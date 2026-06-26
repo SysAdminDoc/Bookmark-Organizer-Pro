@@ -155,6 +155,7 @@ class BookmarkAPI:
                             "GET /tags",
                             "GET /stats",
                             "GET /search?q=query",
+                            "GET /digest",
                             "GET /opds"
                         ]
                     })
@@ -235,6 +236,27 @@ class BookmarkAPI:
                     stats = bookmark_manager.get_statistics()
                     self._send_json(stats)
                 
+                elif path_parts[0] == 'digest':
+                    from bookmark_organizer_pro.services.digest import DailyDigestService
+                    svc = DailyDigestService()
+                    all_bm = bookmark_manager.get_all_bookmarks()
+                    try:
+                        count = max(1, min(20, int(params.get('count', [5])[0])))
+                    except (TypeError, ValueError):
+                        count = 5
+                    digest = svc.build(all_bm, rediscover_count=count, read_later_count=count)
+                    self._send_json({
+                        "generated_at": digest.generated_at,
+                        "sections": [
+                            {
+                                "title": sec.title,
+                                "description": sec.description,
+                                "bookmarks": [asdict(bm) for bm in sec.bookmarks],
+                            }
+                            for sec in digest.sections
+                        ],
+                    })
+
                 elif path_parts[0] == 'search':
                     query = params.get('q', [''])[0]
                     if query:

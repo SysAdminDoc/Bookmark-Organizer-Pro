@@ -829,13 +829,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P1 — Next (user-facing gaps)
 
-- [ ] P1 — **Digest and rediscovery in extension side panel**
-  Why: Daily digest (on-this-day, rediscovery picks) is in the GUI dashboard but not in the extension side panel. The side panel has recent bookmarks and search but no proactive resurfacing. 83% of bookmarks are never revisited — the extension is where casual users would encounter rediscovery most naturally.
-  Evidence: Community signal — "bookmark graveyard" is the #1 complaint [S-129][S-142]; `browser-extension/sidepanel.js` has no digest section
-  Touches: `browser-extension/sidepanel.js`, `browser-extension/sidepanel.html`, `services/api.py` (add `/digest` endpoint)
-  Acceptance: Side panel shows a "Rediscover" section with 3-5 forgotten bookmarks below the recent saves list. Refreshes daily.
-  Complexity: M
-
 
 ### P2 — Later (differentiation, polish)
 

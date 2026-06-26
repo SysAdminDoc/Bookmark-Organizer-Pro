@@ -75,6 +75,25 @@ async function loadRecent() {
   }
 }
 
+async function loadRediscover() {
+  const section = document.getElementById("rediscoverSection");
+  const list = document.getElementById("rediscoverList");
+  try {
+    const config = await getConfig();
+    if (!config.apiToken) return;
+    const data = await apiFetch("/digest?count=5", config);
+    const allBookmarks = (data.sections || []).flatMap(s => s.bookmarks || []);
+    if (!allBookmarks.length) return;
+    list.innerHTML = "";
+    for (const bm of allBookmarks.slice(0, 5)) {
+      list.appendChild(renderBookmark(bm));
+    }
+    section.style.display = "block";
+  } catch {
+    /* silently skip if digest unavailable */
+  }
+}
+
 async function doSearch(query) {
   const results = document.getElementById("searchResults");
   if (!query.trim()) {
@@ -250,6 +269,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   checkConnection();
   loadRecent();
+  loadRediscover();
   loadCategories("categoryList");
 });
 
