@@ -835,41 +835,87 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 > Added 2026-06-20 from `RESEARCH.md` research pass 2 (source S-128). Updated 2026-06-25 from research pass 3 (source S-145). Updated 2026-06-26 from research pass 4 (source S-160). Items verified against existing ROADMAP to avoid duplicates.
 
+### P0 — Trust and data fidelity
+
+- [ ] P0 — Preserve Read Later state from extension and API saves
+  Why: The extension exposes Read Later and imports Chrome Reading List unread state, but the local API drops the field before creating the bookmark.
+  Evidence: `browser-extension/popup.js:84`; `browser-extension/sidepanel.js:175,238`; `bookmark_organizer_pro/services/api.py:334-340`; Chrome Reading List API
+  Touches: `bookmark_organizer_pro/services/api.py`, `bookmark_organizer_pro/managers/bookmarks.py`, `tests/test_core.py`, `tests/test_browser_extension.py`
+  Acceptance: POST `/bookmarks` with `read_later: true` creates a bookmark with `read_later=True` and queue position; Reading List import preserves unread/read state; duplicate and invalid payload behavior still passes tests.
+  Complexity: S
+
+- [ ] P0 — Repair user-facing and AI-facing capability metadata
+  Why: README, roadmap, and MCP copy advertise stale pattern counts, CLI/test counts, tray behavior, and secret-storage behavior, which erodes user and agent trust.
+  Evidence: `README.md:65,93,111,231,318`; `ROADMAP.md:35`; `bookmark_organizer_pro/mcp_server.py:876`; `bookmark_organizer_pro/core/default_categories.py`; `bookmark_organizer_pro/ai.py:359-395`; `bookmark_organizer_pro/services/api.py:27-67`
+  Touches: `README.md`, `ROADMAP.md`, `bookmark_organizer_pro/mcp_server.py`, `bookmark_organizer_pro/ui/about.py`, `CLAUDE.md`
+  Acceptance: Public docs and MCP tool descriptions match actual 56 CLI subcommands, 439 collected tests, 48 categories, 7,550 patterns, keyring-first token/key storage, current Assistant Settings path, and actual tray availability.
+  Complexity: S
+
+### P1 — Reliability, feedback, and verification
+
+- [ ] P1 — Replace residual blocking maintenance dialogs with reversible non-blocking flows
+  Why: Bulk cleanup and maintenance tools still use `messagebox.askyesno/showinfo`, conflicting with the product rule for immediate action plus toast/status feedback and making recovery confidence uneven.
+  Evidence: `bookmark_organizer_pro/app_mixins/tools.py:108,149,199,486,556,667,689,725,788`; `bookmark_organizer_pro/ui/management_dialogs.py:303`; `C:/Users/xray/.claude/CLAUDE.md`
+  Touches: `bookmark_organizer_pro/app_mixins/tools.py`, `bookmark_organizer_pro/ui/management_dialogs.py`, `bookmark_organizer_pro/ui/feedback.py`, backup/safepoint helpers, GUI tests
+  Acceptance: Reversible bulk actions create safepoints, run from the tool surface without blocking confirmation modals, report results through toast/status/report UI, and expose undo/restore where data changes occur.
+  Complexity: M
+
+- [ ] P1 — Add API and extension contract tests for extension payloads
+  Why: Static extension tests missed the `read_later` payload drop; the API boundary needs behavioral tests for each field the extension sends.
+  Evidence: `tests/test_browser_extension.py`; `tests/test_core.py`; `browser-extension/popup.js:78-84`; `browser-extension/sidepanel.js:169-175,231-239`; `bookmark_organizer_pro/services/api.py:334-340`
+  Touches: `tests/test_core.py`, `tests/test_browser_extension.py`, `bookmark_organizer_pro/services/api.py`, `browser-extension/*.js`
+  Acceptance: Tests assert popup save, side-panel save, and Chrome Reading List import fields map to `Bookmark` fields, including tags, notes, category, title, duplicate handling, auth failures, and `read_later`.
+  Complexity: S
+
+- [ ] P1 — Add a diagnostics center and redacted support bundle
+  Why: Logs and AI audit data exist, but users currently have to find paths manually instead of exporting a safe, complete diagnostic snapshot.
+  Evidence: `bookmark_organizer_pro/logging_config.py`; `bookmark_organizer_pro/services/ai_audit_log.py`; `bookmark_organizer_pro/ui/about.py:136-140`; `README.md:319-333`
+  Touches: `bookmark_organizer_pro/ui/about.py`, `bookmark_organizer_pro/logging_config.py`, `bookmark_organizer_pro/constants.py`, `bookmark_organizer_pro/services/local_state.py`, `README.md`
+  Acceptance: About/System offers Open Logs, Copy Diagnostics, and Export Redacted Bundle; exported data includes app/version/platform/dependency status and recent errors while excluding API keys, tokens, and bookmark content unless explicitly included.
+  Complexity: M
+
+- [ ] P1 — Regenerate and gate gettext template freshness
+  Why: The gettext template is stale after Assistant copy changes, so future translations will miss or mistranslate current UI labels.
+  Evidence: `locale/bop.pot:30`; `bookmark_organizer_pro/app_mixins/tools.py:39`; `locale/README.md`
+  Touches: `bookmark_organizer_pro/i18n.py`, `locale/bop.pot`, `tests/`, `.github/workflows/ci.yml`
+  Acceptance: `python -m bookmark_organizer_pro.i18n` produces a fresh POT; CI or tests fail when source strings drift from `locale/bop.pot`.
+  Complexity: S
+
+- [ ] P1 — Add visual regression screenshots for core desktop and extension surfaces
+  Why: Repeated premium UI passes changed many Tk and extension surfaces without automated protection against blank, clipped, low-contrast, or broken states.
+  Evidence: recent UI-polish commits; `.github/workflows/ci.yml`; `tests/test_browser_extension.py`; absence of screenshot/visual tests in `tests/`
+  Touches: `tests/`, `.github/workflows/ci.yml`, `browser-extension/`, `bookmark_organizer_pro/ui/`, screenshot fixtures
+  Acceptance: A local/CI script captures main empty/list states, Assistant Settings, import/export, reader, graph, extension popup/options/sidepanel, and light/dark themes, then fails on blank output, clipped controls, or missing critical text.
+  Complexity: M
+
 ### P2 — Quality and polish
 
-- [ ] P2 — **Remove grid view dead code**
-  Why: `_populate_grid_view()` is a pass-through stub. `_visual_mode_toggle()` toggles a flag with no visual effect. Dead code adds cognitive load without function.
-  Evidence: `app_mixins/bookmarks.py:230-236`, `ui/navigation.py:277-287`
-  Touches: `bookmark_organizer_pro/app_mixins/bookmarks.py`, `bookmark_organizer_pro/ui/navigation.py`
-  Acceptance: Grid view stubs removed; `ViewMode` enum simplified if only LIST remains; no UI regression
+- [ ] P2 — Add extension pending-save queue and retry surface
+  Why: Context-menu quick-save silently fails when the local API is unavailable, so browser capture is less reliable than the desktop and side-panel flows.
+  Evidence: `browser-extension/background.js:39-63`; Chrome `storage.local` API; Karakeep/Linkwarden/Raindrop extension capture patterns
+  Touches: `browser-extension/background.js`, `browser-extension/popup.js`, `browser-extension/sidepanel.js`, `browser-extension/shared.js`, `tests/test_browser_extension.py`
+  Acceptance: Failed context-menu saves are queued in `chrome.storage.local`; popup/sidepanel show pending count with Retry and Clear actions; successful retries remove queued items and duplicate responses are treated as resolved.
+  Complexity: M
+
+- [ ] P2 — Remove or implement placeholder UI modules and no-op visual-mode hotkey
+  Why: Placeholder modules and a bound no-op `v` command make the product feel unfinished and can mislead users and contributors.
+  Evidence: `bookmark_organizer_pro/ui/navigation.py:97,276-278`; `bookmark_organizer_pro/ui/drag_drop.py`; `bookmark_organizer_pro/ui/widget_grid.py`; `bookmark_organizer_pro/ui/widget_lists.py`; `bookmark_organizer_pro/ui/widget_tray.py`; `README.md:93`
+  Touches: `bookmark_organizer_pro/ui/navigation.py`, placeholder UI modules, `README.md`, `bookmark_organizer_pro/ui/about.py`, tests
+  Acceptance: No active keyboard shortcut points to a no-op; unused placeholder modules are removed or backed by shipped behavior; System Tray documentation and diagnostics match the actual feature state.
   Complexity: S
 
-- [ ] P2 — **OS-aware theme auto-detection via darkdetect**
-  Why: sv-ttk is integrated but theme selection is manual. `darkdetect` (0.8.0, 4.5K stars) can detect OS dark/light preference and listen for changes. Auto-matching the OS theme on startup is expected behavior for desktop apps.
-  Evidence: darkdetect PyPI, sv-ttk already integrated, Tkinter best practices research
-  Touches: `pyproject.toml` (optional dep), `bookmark_organizer_pro/ui/style_manager.py` or `theme_runtime.py`
-  Acceptance: On first launch (no saved theme preference), app matches OS dark/light mode. OS theme change triggers app theme switch if user hasn't manually overridden.
-  Complexity: S
+- [ ] P2 — Add guided migration and first-run import center
+  Why: Importers exist, but users leaving Pocket/Arc/browser tools need source-specific guidance, privacy context, duplicate expectations, and post-import next steps.
+  Evidence: `README.md` importer list; `browser-extension/sidepanel.js:213-247`; Mozilla Pocket shutdown/export docs; Readwise/Raindrop import/export workflows
+  Touches: `bookmark_organizer_pro/app_mixins/import_export.py`, import dialogs under `bookmark_organizer_pro/ui/`, `browser-extension/sidepanel.js`, `README.md`
+  Acceptance: First-run/import UI offers source-specific cards for Pocket, Arc, Chrome/Firefox/Edge/Safari, Raindrop, Readwise-compatible files, and Chrome Reading List; each path shows accepted file type, privacy note, duplicate policy, import summary, and next action.
+  Complexity: M
 
-- [ ] P2 — **Update CLAUDE.md with current project state**
-  Why: CLAUDE.md says v6.1.0, 37 tests, 20 CLI subcommands, 15 MCP tools. Actual: v6.8.1, 413 tests, 48 CLI subcommands, 27 MCP tools. Stale docs mislead agents and contributors.
-  Evidence: `constants.py:9` (v6.8.1), test suite output (413), CLI parser count (48), MCP TOOLS list (27)
-  Touches: `CLAUDE.md`
-  Acceptance: Version, test count, CLI subcommand count, MCP tool count all match actual values
-  Complexity: S
+- [ ] P2 — Make duplicate and tag-lint results fully actionable in the GUI
+  Why: Smart duplicate and tag-lint results still rely on modal summaries or CLI handoff instead of in-place review, apply, and recovery controls.
+  Evidence: `bookmark_organizer_pro/app_mixins/tools.py:486-523,546-582`; `bookmark_organizer_pro/services/dup_hybrid.py`; `bookmark_organizer_pro/services/tag_linter.py`; Raindrop duplicate/broken-link utilities
+  Touches: `bookmark_organizer_pro/app_mixins/tools.py`, `bookmark_organizer_pro/ui/`, `bookmark_organizer_pro/services/dup_hybrid.py`, `bookmark_organizer_pro/services/tag_linter.py`, tests
+  Acceptance: Duplicate and tag-lint scans open grouped previews with selection, apply, skip, safepoint, and restore controls; no successful GUI path tells users to switch to the CLI for routine cleanup.
+  Complexity: M
 
 ### P3 — Under Consideration
-
-- [ ] P3 — **Bump `cryptography>=49.0.0`**
-  Why: CVE-2026-34073 (DNS name constraint bypass) only fully fixed in 49.0.0. Low practical risk for BOP (no cert verification). Also adds post-quantum support, Windows ARM64, free-threaded Python 3.14.
-  Evidence: cryptography 49.0.0 changelog, CVE-2026-34073
-  Touches: `pyproject.toml`
-  Acceptance: Existing encryption tests pass; no regression from OpenSSL 1.1.x drop or SECT curve removal
-  Complexity: S
-
-- [ ] P3 — **SM-2 spaced repetition GUI widget in dashboard**
-  Why: SM-2 scheduling exists for reader highlights but only via CLI (`bop reader due`, `bop reader review`). A dashboard section showing due highlights would close the gap with BeeMind/Readwise.
-  Evidence: `services/reader_annotations.py` (due_for_review, record_review), BeeMind competitor analysis
-  Touches: `app_mixins/dashboard.py`, potentially new widget in `ui/`
-  Acceptance: Dashboard shows count of due highlights; clicking opens reader pane for review; review quality recorded via button
-  Complexity: M
