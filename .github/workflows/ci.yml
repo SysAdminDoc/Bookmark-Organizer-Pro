@@ -51,4 +51,4 @@ jobs:
         run: xvfb-run -a python -m pytest tests/ -ra --tb=short
       - name: Performance benchmarks
         if: matrix.python-version == '3.12'
-        run: xvfb-run -a python benchmarks/bench_core.py
+        run: xvfb-run -a python benchmarks/bench_core.py --gate

@@ -829,13 +829,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P1 — Next (user-facing gaps)
 
-- [ ] P1 — **Benchmark CI gate with regression threshold**
-  Why: `bench_core.py` runs in CI on Python 3.12 but only prints results — no failure on regression. A 20% threshold on JSON load/save at 5K bookmarks would catch performance regressions before they ship.
-  Evidence: `.github/workflows/ci.yml:52-54` runs benchmarks but doesn't gate; `benchmarks/bench_core.py` exists [S-145]
-  Touches: `benchmarks/bench_core.py` (add exit code), `.github/workflows/ci.yml` (fail on non-zero)
-  Acceptance: CI fails if JSON save or load time at 5K bookmarks exceeds baseline by 20%
-  Complexity: S
-
 - [ ] P1 — **Digest and rediscovery in extension side panel**
   Why: Daily digest (on-this-day, rediscovery picks) is in the GUI dashboard but not in the extension side panel. The side panel has recent bookmarks and search but no proactive resurfacing. 83% of bookmarks are never revisited — the extension is where casual users would encounter rediscovery most naturally.
   Evidence: Community signal — "bookmark graveyard" is the #1 complaint [S-129][S-142]; `browser-extension/sidepanel.js` has no digest section
