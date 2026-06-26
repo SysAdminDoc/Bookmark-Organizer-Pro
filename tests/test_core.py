@@ -1852,6 +1852,163 @@ class TestMainAppManagers(unittest.TestCase):
         self.assertEqual(processor.errors, [])
 
 
+class TestRESTAPIEndpoints(unittest.TestCase):
+    """Test REST API endpoints that were previously untested."""
+
+    def _make_manager(self, tmp):
+        import main
+        return main.BookmarkManager(
+            filepath=Path(tmp) / "master_bookmarks.json",
+            category_manager=main.CategoryManager(filepath=Path(tmp) / "categories.json"),
+            tag_manager=main.TagManager(filepath=Path(tmp) / "tags.json"),
+        )
+
+    def _get_json(self, base_url, path, token=None):
+        import urllib.request
+        headers = {}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        request = urllib.request.Request(f"{base_url}{path}", headers=headers)
+        try:
+            with urllib.request.urlopen(request, timeout=3) as response:
+                return response.status, json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            return error.code, json.loads(error.read().decode("utf-8"))
+
+    def _get_token(self):
+        from bookmark_organizer_pro.services.api import _TOKEN_FILE, _KEYRING_SERVICE, _KEYRING_KEY
+        token = ""
+        if _TOKEN_FILE.exists():
+            token = _TOKEN_FILE.read_text(encoding="utf-8").strip()
+        if not token:
+            try:
+                import keyring
+                token = keyring.get_password(_KEYRING_SERVICE, _KEYRING_KEY) or ""
+            except Exception:
+                pass
+        return token
+
+    def test_api_stats_endpoint(self):
+        import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            manager.add_bookmark(Bookmark(id=1, url="https://example.com", title="Test"), save=False)
+            api = main.BookmarkAPI(manager, port=0)
+            try:
+                api.start()
+                token = self._get_token()
+                status, body = self._get_json(f"http://127.0.0.1:{api.port}", "/stats", token)
+                self.assertEqual(status, 200)
+                self.assertEqual(body["total_bookmarks"], 1)
+            finally:
+                api.stop()
+
+    def test_api_categories_endpoint(self):
+        import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            manager.add_bookmark(Bookmark(id=1, url="https://example.com", title="Test", category="Dev"), save=False)
+            api = main.BookmarkAPI(manager, port=0)
+            try:
+                api.start()
+                token = self._get_token()
+                status, body = self._get_json(f"http://127.0.0.1:{api.port}", "/categories", token)
+                self.assertEqual(status, 200)
+                self.assertIn("categories", body)
+            finally:
+                api.stop()
+
+    def test_api_tags_endpoint(self):
+        import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            manager.add_bookmark(Bookmark(id=1, url="https://example.com", title="Test", tags=["python"]), save=False)
+            api = main.BookmarkAPI(manager, port=0)
+            try:
+                api.start()
+                token = self._get_token()
+                status, body = self._get_json(f"http://127.0.0.1:{api.port}", "/tags", token)
+                self.assertEqual(status, 200)
+                self.assertIn("tags", body)
+            finally:
+                api.stop()
+
+    def test_api_search_endpoint(self):
+        import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            manager.add_bookmark(Bookmark(id=1, url="https://python.org", title="Python Docs"), save=False)
+            api = main.BookmarkAPI(manager, port=0)
+            try:
+                api.start()
+                token = self._get_token()
+                status, body = self._get_json(f"http://127.0.0.1:{api.port}", "/search?q=Python", token)
+                self.assertEqual(status, 200)
+                self.assertIn("results", body)
+                self.assertGreaterEqual(len(body["results"]), 1)
+            finally:
+                api.stop()
+
+    def test_api_get_single_bookmark(self):
+        import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            manager.add_bookmark(Bookmark(id=42, url="https://example.com", title="By ID"), save=False)
+            api = main.BookmarkAPI(manager, port=0)
+            try:
+                api.start()
+                token = self._get_token()
+                status, body = self._get_json(f"http://127.0.0.1:{api.port}", "/bookmarks/42", token)
+                self.assertEqual(status, 200)
+                self.assertEqual(body["title"], "By ID")
+            finally:
+                api.stop()
+
+    def test_api_digest_endpoint(self):
+        import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            manager.add_bookmark(Bookmark(id=1, url="https://example.com", title="Old One",
+                                          created_at="2024-01-01T12:00:00"), save=False)
+            api = main.BookmarkAPI(manager, port=0)
+            try:
+                api.start()
+                token = self._get_token()
+                status, body = self._get_json(f"http://127.0.0.1:{api.port}", "/digest?count=3", token)
+                self.assertEqual(status, 200)
+                self.assertIn("sections", body)
+                self.assertIn("generated_at", body)
+            finally:
+                api.stop()
+
+    def test_api_options_returns_cors_headers(self):
+        import urllib.request
+        import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            api = main.BookmarkAPI(manager, port=0)
+            try:
+                api.start()
+                request = urllib.request.Request(
+                    f"http://127.0.0.1:{api.port}/bookmarks",
+                    method="OPTIONS",
+                )
+                with urllib.request.urlopen(request, timeout=3) as response:
+                    self.assertEqual(response.status, 204)
+                    self.assertIn("Access-Control-Allow-Origin", response.headers)
+                    self.assertIn("Access-Control-Allow-Methods", response.headers)
+                    self.assertIn("Access-Control-Allow-Headers", response.headers)
+            finally:
+                api.stop()
+
+
 class TestUIFoundation(unittest.TestCase):
     """Test toolkit-independent UI formatting and view-model builders."""
 

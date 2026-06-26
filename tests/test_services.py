@@ -1288,5 +1288,227 @@ class TestEmbeddingModels(_IsolatedTestBase):
         self.assertEqual(nomic["dims"], 768)
 
 
+# ── 19. Encryption recovery key (v2 format) ──────────────────────────
+
+class TestEncryptionRecoveryKey(_IsolatedTestBase):
+    """Tests for v2 encrypt/decrypt with recovery key."""
+
+    def _skip_if_no_crypto(self):
+        from bookmark_organizer_pro.services.encryption import EncryptedStore
+        if not EncryptedStore.available():
+            self.skipTest("cryptography not installed")
+
+    def test_v2_round_trip_with_passphrase(self):
+        self._skip_if_no_crypto()
+        from bookmark_organizer_pro.services.encryption import EncryptedStore, generate_recovery_key
+        store = EncryptedStore("test-passphrase")
+        rk = generate_recovery_key()
+        plaintext = b"secret bookmark data"
+        blob = store.encrypt_with_recovery(plaintext, rk)
+        decrypted = store.decrypt(blob)
+        self.assertEqual(decrypted, plaintext)
+
+    def test_recovery_key_decrypts_without_passphrase(self):
+        self._skip_if_no_crypto()
+        from bookmark_organizer_pro.services.encryption import EncryptedStore, generate_recovery_key
+        store = EncryptedStore("original-passphrase")
+        rk = generate_recovery_key()
+        plaintext = b"recovery test data"
+        blob = store.encrypt_with_recovery(plaintext, rk)
+        decrypted = EncryptedStore.decrypt_with_recovery_key(blob, rk)
+        self.assertEqual(decrypted, plaintext)
+
+    def test_v1_format_still_decrypts(self):
+        self._skip_if_no_crypto()
+        from bookmark_organizer_pro.services.encryption import EncryptedStore
+        store = EncryptedStore("v1-passphrase")
+        plaintext = b"v1 format data"
+        v1_blob = store.encrypt(plaintext)
+        decrypted = store.decrypt(v1_blob)
+        self.assertEqual(decrypted, plaintext)
+
+    def test_recovery_key_on_v1_blob_raises(self):
+        self._skip_if_no_crypto()
+        from bookmark_organizer_pro.services.encryption import EncryptedStore, generate_recovery_key
+        store = EncryptedStore("v1-passphrase")
+        v1_blob = store.encrypt(b"v1 only")
+        with self.assertRaises(ValueError):
+            EncryptedStore.decrypt_with_recovery_key(v1_blob, generate_recovery_key())
+
+    def test_corrupted_v2_blob_raises(self):
+        self._skip_if_no_crypto()
+        from bookmark_organizer_pro.services.encryption import EncryptedStore, generate_recovery_key
+        store = EncryptedStore("test")
+        rk = generate_recovery_key()
+        blob = store.encrypt_with_recovery(b"data", rk)
+        corrupted = blob[:20] + b"\xff\xff" + blob[22:]
+        with self.assertRaises(Exception):
+            store.decrypt(corrupted)
+
+    def test_wrong_recovery_key_raises(self):
+        self._skip_if_no_crypto()
+        from bookmark_organizer_pro.services.encryption import EncryptedStore, generate_recovery_key
+        store = EncryptedStore("test")
+        rk = generate_recovery_key()
+        blob = store.encrypt_with_recovery(b"data", rk)
+        wrong_rk = generate_recovery_key()
+        with self.assertRaises(Exception):
+            EncryptedStore.decrypt_with_recovery_key(blob, wrong_rk)
+
+
+# ── 20. OPDS 2.0 export ──────────────────────────────────────────────
+
+class TestOPDS2Export(_IsolatedTestBase):
+    """Tests for OPDS 2.0 JSON-LD export."""
+
+    def test_render_opds2_structure(self):
+        from bookmark_organizer_pro.services.feed_export import render_opds2
+        bm = _make_bookmark(
+            url="https://example.com/article",
+            title="Test Article",
+            tags=["python", "testing"],
+            category="Development",
+            description="A test article",
+        )
+        result = json.loads(render_opds2([bm], title="My Library"))
+        self.assertEqual(result["metadata"]["title"], "My Library")
+        self.assertIn("publications", result)
+        self.assertEqual(len(result["publications"]), 1)
+
+    def test_publication_entry_fields(self):
+        from bookmark_organizer_pro.services.feed_export import render_opds2
+        bm = _make_bookmark(
+            url="https://example.com/doc.pdf",
+            title="PDF Doc",
+            tags=["research"],
+            category="Science",
+            description="A research paper",
+        )
+        result = json.loads(render_opds2([bm]))
+        pub = result["publications"][0]
+        self.assertEqual(pub["metadata"]["title"], "PDF Doc")
+        self.assertEqual(pub["metadata"]["identifier"], "https://example.com/doc.pdf")
+        self.assertEqual(pub["metadata"]["description"], "A research paper")
+        self.assertEqual(pub["metadata"]["subject"], [{"name": "research"}])
+        self.assertEqual(pub["metadata"]["belongsTo"], {"collection": "Science"})
+
+    def test_catalog_url_in_links(self):
+        from bookmark_organizer_pro.services.feed_export import render_opds2
+        result = json.loads(render_opds2([], catalog_url="http://localhost/opds2"))
+        self.assertEqual(len(result["links"]), 1)
+        self.assertEqual(result["links"][0]["href"], "http://localhost/opds2")
+
+    def test_empty_collection(self):
+        from bookmark_organizer_pro.services.feed_export import render_opds2
+        result = json.loads(render_opds2([]))
+        self.assertEqual(result["publications"], [])
+
+
+# ── 21. LanceDB FTS search ───────────────────────────────────────────
+
+class TestFTSSearch(_IsolatedTestBase):
+    """Tests for VectorStore.fts_search() fallback behavior."""
+
+    def test_fts_returns_empty_for_memory_backend(self):
+        from bookmark_organizer_pro.services.embeddings import EmbeddingService
+        from bookmark_organizer_pro.services.vector_store import VectorStore
+        embedder = EmbeddingService()
+        store = VectorStore(embedder, store_dir=Path(self._tmp) / "fts_test")
+        result = store.fts_search("python")
+        self.assertEqual(result, [])
+
+    def test_fts_returns_empty_for_empty_query(self):
+        from bookmark_organizer_pro.services.embeddings import EmbeddingService
+        from bookmark_organizer_pro.services.vector_store import VectorStore
+        embedder = EmbeddingService()
+        store = VectorStore(embedder, store_dir=Path(self._tmp) / "fts_empty")
+        result = store.fts_search("")
+        self.assertEqual(result, [])
+
+
+# ── 22. SM-2 spaced repetition ───────────────────────────────────────
+
+class TestSpacedRepetition(_IsolatedTestBase):
+    """Tests for SM-2 scheduling in ReaderAnnotationStore."""
+
+    def setUp(self):
+        self.filepath = Path(self._tmp) / "sr_test_annotations.json"
+        if self.filepath.exists():
+            self.filepath.unlink()
+
+    def _make_store_with_highlight(self):
+        from bookmark_organizer_pro.services.reader_annotations import ReaderAnnotationStore
+        store = ReaderAnnotationStore(self.filepath)
+        h = store.add_from_text(
+            bookmark_id=1,
+            text="The quick brown fox jumps over the lazy dog",
+            char_start=4,
+            char_end=19,
+            color="yellow",
+        )
+        return store, h
+
+    def test_new_highlight_is_due_for_review(self):
+        store, h = self._make_store_with_highlight()
+        due = store.due_for_review()
+        self.assertEqual(len(due), 1)
+        self.assertEqual(due[0].id, h.id)
+
+    def test_quality_below_3_resets_interval(self):
+        store, h = self._make_store_with_highlight()
+        store.record_review(h.id, quality=2)
+        reloaded = store.get(h.id)
+        self.assertEqual(reloaded.sr_interval, 1)
+        self.assertEqual(reloaded.sr_repetitions, 0)
+
+    def test_quality_3_sets_interval_1(self):
+        store, h = self._make_store_with_highlight()
+        store.record_review(h.id, quality=3)
+        reloaded = store.get(h.id)
+        self.assertEqual(reloaded.sr_interval, 1)
+        self.assertEqual(reloaded.sr_repetitions, 1)
+
+    def test_quality_4_second_review_sets_interval_6(self):
+        store, h = self._make_store_with_highlight()
+        store.record_review(h.id, quality=4)
+        store.record_review(h.id, quality=4)
+        reloaded = store.get(h.id)
+        self.assertEqual(reloaded.sr_interval, 6)
+        self.assertEqual(reloaded.sr_repetitions, 2)
+
+    def test_quality_5_third_review_grows_interval(self):
+        store, h = self._make_store_with_highlight()
+        store.record_review(h.id, quality=5)
+        store.record_review(h.id, quality=5)
+        store.record_review(h.id, quality=5)
+        reloaded = store.get(h.id)
+        self.assertGreater(reloaded.sr_interval, 6)
+        self.assertEqual(reloaded.sr_repetitions, 3)
+
+    def test_ease_factor_adjusts(self):
+        store, h = self._make_store_with_highlight()
+        initial_ease = store.get(h.id).sr_ease
+        store.record_review(h.id, quality=5)
+        self.assertGreater(store.get(h.id).sr_ease, initial_ease)
+
+    def test_ease_factor_floor(self):
+        store, h = self._make_store_with_highlight()
+        for _ in range(10):
+            store.record_review(h.id, quality=0)
+        self.assertGreaterEqual(store.get(h.id).sr_ease, 1.3)
+
+    def test_reviewed_item_not_due_until_next_date(self):
+        store, h = self._make_store_with_highlight()
+        store.record_review(h.id, quality=4)
+        yesterday = datetime.now() - timedelta(days=1)
+        due = store.due_for_review(today=yesterday)
+        ids = [d.id for d in due]
+        self.assertNotIn(h.id, ids)
+
+    def test_record_review_returns_false_for_unknown(self):
+        store, _ = self._make_store_with_highlight()
+        self.assertFalse(store.record_review("nonexistent-id", quality=3))
+
+
 if __name__ == "__main__":
     unittest.main()
