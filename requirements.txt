@@ -1,6 +1,7 @@
 # Core (required)
 beautifulsoup4>=4.12
-requests>=2.31
+requests>=2.33.0
+idna>=3.15.0
 Pillow>=12.2.0
 pystray>=0.19
 defusedxml>=0.7

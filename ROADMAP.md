@@ -829,13 +829,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P1 — Next (user-facing gaps)
 
-- [ ] P1 — **Bump `requests>=2.33.0` and pin `idna>=3.15.0`**
-  Why: CVE-2026-25645 (path traversal in `extract_zipped_paths`) affects requests <2.33.0. CVE-2026-45409 (ReDoS bypass) affects idna <3.15.0 (transitive dep). BOP doesn't call the affected function directly but pins should be current.
-  Evidence: CVE-2026-25645, CVE-2026-45409; security agent research [S-145]
-  Touches: `pyproject.toml`, `requirements.txt`
-  Acceptance: `pip install -e .` pulls requests>=2.33.0 and idna>=3.15.0; no test regressions
-  Complexity: S
-
 - [ ] P1 — **Search bar filter autocomplete and tooltip update**
   Why: Search tooltip shows 5 of 15+ filters (is:pinned, is:broken, is:recent, is:untagged, domain:xyz). Missing: `content:`, `tag:`, `category:`, `title:`, `url:`, `before:`, `after:`, `has:notes`, `visits:>N`. Users can't discover these without opening Help > Search Syntax. A dropdown or inline hint on focus would surface them.
   Evidence: Code inspection — `app_mixins/app_shell.py:191` tooltip is incomplete vs `search.py` filter list [S-145]
