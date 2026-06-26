@@ -460,6 +460,32 @@ class DashboardActionsMixin:
         except Exception:
             pass
 
+        # Spaced repetition — highlights due for review
+        try:
+            from bookmark_organizer_pro.services.reader_annotations import ReaderAnnotationStore
+            sr_store = ReaderAnnotationStore()
+            due_highlights = sr_store.due_for_review()
+            if due_highlights:
+                section_label(_("Highlights Due") + f" ({len(due_highlights)})")
+                for hl in due_highlights[:5]:
+                    preview = (hl.text or "")[:50].replace("\n", " ")
+                    row = tk.Frame(self.analytics_frame, bg=theme.bg_secondary, cursor="hand2")
+                    row.pack(fill=tk.X, pady=2)
+                    hl_lbl = tk.Label(
+                        row, text=truncate_middle(preview, 32), bg=theme.bg_secondary,
+                        fg=theme.accent_warning, font=FONTS.small(), cursor="hand2", anchor="w",
+                    )
+                    hl_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
+                    day_label = f"{hl.sr_interval}d" if hl.sr_interval else _("new")
+                    tk.Label(
+                        row, text=day_label, bg=theme.bg_secondary,
+                        fg=theme.text_muted, font=FONTS.small(),
+                    ).pack(side=tk.RIGHT)
+                    make_keyboard_activatable(row, lambda bid=hl.bookmark_id: self._select_bookmark_by_id(bid))
+                    hl_lbl.bind("<Button-1>", lambda e, bid=hl.bookmark_id: self._select_bookmark_by_id(bid))
+        except Exception:
+            pass
+
         # Top domains - show up to 20 (clickable for filtering)
         top_domains = [(d, c) for d, c in stats.get('top_domains', []) if c > 0]
         num_domains = min(20, len(top_domains)) if len(top_domains) >= 20 else len(top_domains)
