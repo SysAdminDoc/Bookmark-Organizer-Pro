@@ -9,8 +9,12 @@
 <body>
   <main class="panel">
     <header>
+      <div class="brand-row">
+        <span class="brand-mark">B</span>
+        <p class="eyebrow">Bookmark Organizer Pro</p>
+      </div>
       <h1>Save Bookmark</h1>
-      <p id="pageTitle">Loading active tab...</p>
+      <p id="pageTitle" class="page-summary">Loading active tab...</p>
     </header>
 
     <label>
@@ -21,12 +25,12 @@
 
     <label>
       Tags
-      <input id="tags" type="text" placeholder="comma-separated" autocomplete="off">
+      <input id="tags" type="text" placeholder="design, research, reading" autocomplete="off">
     </label>
 
     <label>
       Notes
-      <textarea id="notes" maxlength="5000"></textarea>
+      <textarea id="notes" maxlength="5000" placeholder="Add context you will want when rediscovering this page."></textarea>
     </label>
 
     <label class="checkbox-row">
@@ -35,7 +39,7 @@
     </label>
 
     <div class="actions">
-      <button id="saveBookmark" type="button">Save</button>
+      <button id="saveBookmark" type="button">Save Bookmark</button>
       <button id="openOptions" class="secondary" type="button">Options</button>
     </div>
 

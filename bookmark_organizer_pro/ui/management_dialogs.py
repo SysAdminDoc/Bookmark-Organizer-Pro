@@ -42,7 +42,7 @@ class CategoryManagementDialog(tk.Toplevel):
         header.pack(fill=tk.X)
         
         tk.Label(
-            header, text="📁 Manage Categories", bg=theme.bg_dark,
+            header, text="Manage Categories", bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.title(bold=True)
         ).pack(anchor="w", padx=22, pady=(18, 4))
         
@@ -75,7 +75,7 @@ class CategoryManagementDialog(tk.Toplevel):
         self.new_cat_entry.bind("<Return>", lambda e: self._add_category())
         
         add_btn = ModernButton(
-            add_inner, text="Add", style="success", icon="➕",
+            add_inner, text="Add", style="success",
             command=self._add_category
         )
         add_btn.pack(side=tk.RIGHT)
@@ -181,7 +181,7 @@ class CategoryManagementDialog(tk.Toplevel):
             
             # Count badge
             tk.Label(
-                row, text=f"{count} bookmark{'s' if count != 1 else ''}",
+                row, text=pluralize(count, "bookmark"),
                 bg=theme.bg_secondary,
                 fg=theme.text_secondary, font=FONTS.small()
             ).pack(side=tk.LEFT)
@@ -192,8 +192,9 @@ class CategoryManagementDialog(tk.Toplevel):
             
             # Edit button
             edit_btn = tk.Label(
-                btn_frame, text="✏️", bg=theme.bg_secondary,
-                fg=theme.text_secondary, font=FONTS.body(), cursor="hand2"
+                btn_frame, text="Rename", bg=theme.bg_secondary,
+                fg=theme.text_secondary, font=FONTS.small(), cursor="hand2",
+                padx=4
             )
             edit_btn.pack(side=tk.LEFT, padx=5, pady=5)
             make_keyboard_activatable(edit_btn, lambda n=cat_name: self._edit_category(n))
@@ -201,8 +202,9 @@ class CategoryManagementDialog(tk.Toplevel):
 
             # Delete button
             del_btn = tk.Label(
-                btn_frame, text="🗑️", bg=theme.bg_secondary,
-                fg=theme.accent_error, font=FONTS.body(), cursor="hand2"
+                btn_frame, text="Delete", bg=theme.bg_secondary,
+                fg=theme.accent_error, font=FONTS.small(), cursor="hand2",
+                padx=4
             )
             del_btn.pack(side=tk.LEFT, padx=5, pady=5)
             make_keyboard_activatable(del_btn, lambda n=cat_name: self._delete_category(n))
@@ -348,7 +350,7 @@ class CustomFaviconDialog(tk.Toplevel):
         
         # Header
         tk.Label(
-            self, text="🎨 Set Custom Favicon", bg=theme.bg_primary,
+            self, text="Set Custom Favicon", bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.title(bold=False)
         ).pack(pady=(20, 5))
         
@@ -367,8 +369,8 @@ class CustomFaviconDialog(tk.Toplevel):
         ).pack(side=tk.LEFT, padx=10, pady=10)
         
         self.preview_label = tk.Label(
-            preview_frame, text="🌐", bg=theme.bg_secondary,
-            font=FONTS.hero(bold=False)
+            preview_frame, text="Site", bg=theme.bg_secondary,
+            fg=theme.text_secondary, font=FONTS.body(bold=True)
         )
         self.preview_label.pack(side=tk.LEFT, padx=10, pady=10)
 
@@ -390,7 +392,7 @@ class CustomFaviconDialog(tk.Toplevel):
         
         # Select button
         ModernButton(
-            self, text="Select Favicon Image", icon="📂",
+            self, text="Select Favicon Image",
             command=self._select_favicon, padx=20, pady=8
         ).pack(pady=15)
         
@@ -480,4 +482,3 @@ class CustomFaviconDialog(tk.Toplevel):
         x = (self.winfo_screenwidth() // 2) - (width // 2)
         y = (self.winfo_screenheight() // 2) - (height // 2)
         self.geometry(f'+{x}+{y}')
-

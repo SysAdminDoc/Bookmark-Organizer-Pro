@@ -78,7 +78,7 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         header.pack(fill=tk.X)
 
         tk.Label(
-            header, text="➕ Add bookmark", bg=theme.bg_dark,
+            header, text="Add bookmark", bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.title(bold=True)
         ).pack(anchor="w", padx=24, pady=(18, 3))
 
@@ -92,8 +92,9 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         url_frame.pack(fill=tk.X, padx=24, pady=(18, 10))
         
         tk.Label(
-            url_frame, text="🔗", bg=theme.bg_primary,
-            fg=theme.accent_primary, font=FONTS.subtitle(bold=False)
+            url_frame, text="URL", bg=theme.bg_primary,
+            fg=theme.text_secondary, font=FONTS.small(bold=True),
+            width=10, anchor="w"
         ).pack(side=tk.LEFT)
         
         self.url_var = tk.StringVar(value=initial_url)
@@ -111,8 +112,9 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         title_frame.pack(fill=tk.X, padx=24, pady=(0, 10))
         
         tk.Label(
-            title_frame, text="📝", bg=theme.bg_primary,
-            fg=theme.text_muted, font=FONTS.subtitle(bold=False)
+            title_frame, text="Title", bg=theme.bg_primary,
+            fg=theme.text_secondary, font=FONTS.small(bold=True),
+            width=10, anchor="w"
         ).pack(side=tk.LEFT)
 
         self.title_var = tk.StringVar()
@@ -133,8 +135,9 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         cat_frame.pack(fill=tk.X, padx=24, pady=(0, 10))
         
         tk.Label(
-            cat_frame, text="📂", bg=theme.bg_primary,
-            fg=theme.text_muted, font=FONTS.subtitle(bold=False)
+            cat_frame, text="Category", bg=theme.bg_primary,
+            fg=theme.text_secondary, font=FONTS.small(bold=True),
+            width=10, anchor="w"
         ).pack(side=tk.LEFT)
 
         default_category = pick_default_category(categories)
@@ -150,8 +153,9 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         favicon_frame.pack(fill=tk.X, padx=24, pady=(0, 8))
         
         tk.Label(
-            favicon_frame, text="🖼️", bg=theme.bg_primary,
-            fg=theme.text_muted, font=FONTS.subtitle(bold=False)
+            favicon_frame, text="Icon", bg=theme.bg_primary,
+            fg=theme.text_secondary, font=FONTS.small(bold=True),
+            width=10, anchor="w"
         ).pack(side=tk.LEFT)
 
         tk.Label(
@@ -199,7 +203,7 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         
         ModernButton(
             btn_frame, text="Add bookmark", command=self._add,
-            style="primary", icon="➕"
+            style="primary"
         ).pack(side=tk.RIGHT)
         
         # Keyboard shortcuts

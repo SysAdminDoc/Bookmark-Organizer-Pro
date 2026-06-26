@@ -3,6 +3,7 @@
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **single-file HTML snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
+![Version](https://img.shields.io/badge/Version-v6.8.2-2dd4bf.svg)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
@@ -74,7 +75,7 @@ Native messaging and offline category/tag suggestions remain on the roadmap.
 - **Multi-format Import**: HTML (Chrome, Firefox, Edge, Safari), JSON, CSV, OPML, TXT
 - **Nested Categories**: Hierarchical category organization with drag-and-drop
 - **Advanced Tagging**: User tags + AI-suggested tags with color coding
-- **Premium List Workspace**: Dense, searchable bookmark table with zoom, command palette, and polished empty states
+- **Premium List Workspace**: Dense, searchable bookmark table with Studio Dark, refined states, zoom, command palette, and polished empty states
 - **Full-text Search**: Advanced syntax with filters, boolean operators, and highlighting
 - **Undo/Redo**: Full command history for all operations
 

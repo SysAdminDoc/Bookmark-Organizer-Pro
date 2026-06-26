@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import ttk
 from typing import Callable, List
 
 from bookmark_organizer_pro.i18n import _
@@ -35,7 +35,7 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
         theme = get_theme()
         
         self.title(_("Edit Bookmark") if bookmark else _("Add Bookmark"))
-        self.geometry("600x700")
+        self.geometry("640x760")
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
         self.grab_set()
@@ -43,27 +43,32 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
         apply_window_chrome(self)
         
         # Header
-        header = tk.Frame(self, bg=theme.bg_dark, height=78)
+        header = tk.Frame(self, bg=theme.bg_dark, height=86)
         header.pack(fill=tk.X)
         header.pack_propagate(False)
 
-        title = "✏️ " + _("Edit bookmark") if bookmark else "➕ " + _("Add bookmark")
+        title = _("Edit bookmark") if bookmark else _("Add bookmark")
         tk.Label(
             header, text=title, bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.title(bold=True)
-        ).pack(anchor="w", padx=24, pady=(16, 2))
+        ).pack(anchor="w", padx=28, pady=(18, 2))
         tk.Label(
             header,
             text=_("Keep the URL, category, tags, and notes clear enough to find later."),
             bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small()
-        ).pack(anchor="w", padx=24, pady=(0, 14))
+        ).pack(anchor="w", padx=28, pady=(0, 14))
         
         # Content
         content = tk.Frame(self, bg=theme.bg_primary)
-        content.pack(fill=tk.BOTH, expand=True, padx=24, pady=18)
+        content.pack(fill=tk.BOTH, expand=True, padx=28, pady=20)
+
+        tk.Label(
+            content, text=_("BOOKMARK DETAILS"), bg=theme.bg_primary,
+            fg=theme.text_muted, font=FONTS.tiny(bold=True)
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
         
         # URL
-        self._create_field(content, _("URL"), 0)
+        self._create_field(content, _("URL"), 1)
         self.url_var = tk.StringVar(value=bookmark.url if bookmark else "")
         self.url_entry = tk.Entry(
             content, textvariable=self.url_var,
@@ -72,10 +77,16 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
             highlightthickness=1, highlightbackground=theme.border_muted,
             highlightcolor=theme.border_active, font=FONTS.body()
         )
-        self.url_entry.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 15), ipady=8, ipadx=10)
+        self.url_entry.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(0, 4), ipady=8, ipadx=10)
+        self.url_feedback = tk.Label(
+            content, text=_("Paste a full URL, or type a domain and the app will add https://."),
+            bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.tiny(), anchor="w"
+        )
+        self.url_feedback.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(0, 14))
+        self.url_var.trace_add("write", lambda *_: self._clear_validation())
         
         # Title
-        self._create_field(content, _("Title"), 2)
+        self._create_field(content, _("Title"), 4)
         self.title_var = tk.StringVar(value=bookmark.title if bookmark else "")
         self.title_entry = tk.Entry(
             content, textvariable=self.title_var,
@@ -84,30 +95,39 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
             highlightthickness=1, highlightbackground=theme.border_muted,
             highlightcolor=theme.border_active, font=FONTS.body()
         )
-        self.title_entry.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(0, 15), ipady=8, ipadx=10)
+        self.title_entry.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(0, 18), ipady=8, ipadx=10)
+
+        tk.Label(
+            content, text=_("ORGANIZATION"), bg=theme.bg_primary,
+            fg=theme.text_muted, font=FONTS.tiny(bold=True)
+        ).grid(row=6, column=0, columnspan=2, sticky="w", pady=(2, 10))
         
         # Category
-        self._create_field(content, _("Category"), 4)
+        self._create_field(content, _("Category"), 7)
         self.category_var = tk.StringVar(value=bookmark.category if bookmark else "Uncategorized / Needs Review")
         self.category_combo = ttk.Combobox(
             content, textvariable=self.category_var,
             values=self.categories,
             font=FONTS.body()
         )
-        self.category_combo.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(0, 15))
+        self.category_combo.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(0, 15))
         
         # Tags
-        self._create_field(content, _("Tags"), 6)
+        self._create_field(content, _("Tags"), 9)
         existing_tags = self.available_tags if self.available_tags else (list(tag_manager.tags.keys()) if tag_manager else [])
         self.tag_editor = TagEditor(
             content, 
             tags=bookmark.tags if bookmark else [],
             available_tags=existing_tags
         )
-        self.tag_editor.grid(row=7, column=0, columnspan=2, sticky="ew", pady=(0, 15))
+        self.tag_editor.grid(row=10, column=0, columnspan=2, sticky="ew", pady=(0, 18))
+
+        tk.Label(
+            content, text=_("NOTES"), bg=theme.bg_primary,
+            fg=theme.text_muted, font=FONTS.tiny(bold=True)
+        ).grid(row=11, column=0, columnspan=2, sticky="w", pady=(2, 10))
         
         # Notes
-        self._create_field(content, _("Notes"), 8)
         self.notes_text = tk.Text(
             content, bg=theme.bg_secondary, fg=theme.text_primary,
             insertbackground=theme.text_primary, bd=0,
@@ -115,18 +135,18 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
             highlightcolor=theme.border_active, font=FONTS.body(), height=4,
             wrap=tk.WORD
         )
-        self.notes_text.grid(row=9, column=0, columnspan=2, sticky="ew", pady=(0, 15))
+        self.notes_text.grid(row=12, column=0, columnspan=2, sticky="ew", pady=(0, 18))
         if bookmark and bookmark.notes:
             self.notes_text.insert("1.0", bookmark.notes)
         
         # AI Data Section (read-only display)
         if bookmark and (bookmark.ai_tags or bookmark.ai_confidence > 0 or bookmark.description):
             ai_frame = tk.LabelFrame(
-                content, text="🤖 AI Data", bg=theme.bg_primary,
+                content, text=_("AI suggestions"), bg=theme.bg_primary,
                 fg=theme.text_secondary, font=FONTS.small(bold=True),
                 relief=tk.FLAT, bd=1
             )
-            ai_frame.grid(row=10, column=0, columnspan=2, sticky="ew", pady=(0, 15))
+            ai_frame.grid(row=13, column=0, columnspan=2, sticky="ew", pady=(0, 15))
             
             ai_inner = tk.Frame(ai_frame, bg=theme.bg_primary)
             ai_inner.pack(fill=tk.X, padx=10, pady=10)
@@ -175,9 +195,9 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
                         anchor="w", justify=tk.LEFT).pack(side=tk.LEFT, fill=tk.X)
             
             # Adjust row numbers for remaining widgets
-            checks_row = 11
+            checks_row = 14
         else:
-            checks_row = 10
+            checks_row = 13
         
         # Checkboxes
         checks_frame = tk.Frame(content, bg=theme.bg_primary)
@@ -185,19 +205,19 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
         
         self.pinned_var = tk.BooleanVar(value=bookmark.is_pinned if bookmark else False)
         self.pinned_check = ttk.Checkbutton(
-            checks_frame, text="📌 Pinned", variable=self.pinned_var
+            checks_frame, text=_("Pinned"), variable=self.pinned_var
         )
         self.pinned_check.pack(side=tk.LEFT, padx=(0, 20))
         
         self.archived_var = tk.BooleanVar(value=bookmark.is_archived if bookmark else False)
         self.archived_check = ttk.Checkbutton(
-            checks_frame, text="📦 Archived", variable=self.archived_var
+            checks_frame, text=_("Archived"), variable=self.archived_var
         )
         self.archived_check.pack(side=tk.LEFT, padx=(0, 20))
 
         self.read_later_var = tk.BooleanVar(value=bookmark.read_later if bookmark else False)
         self.read_later_check = ttk.Checkbutton(
-            checks_frame, text="📖 Read Later", variable=self.read_later_var
+            checks_frame, text=_("Read Later"), variable=self.read_later_var
         )
         self.read_later_check.pack(side=tk.LEFT)
         
@@ -206,7 +226,7 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
         
         # Buttons
         btn_frame = tk.Frame(self, bg=theme.bg_primary)
-        btn_frame.pack(fill=tk.X, padx=24, pady=(0, 18))
+        btn_frame.pack(fill=tk.X, padx=28, pady=(0, 20))
         
         ModernButton(
             btn_frame, text=_("Cancel"), command=self.destroy
@@ -214,13 +234,12 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
 
         ModernButton(
             btn_frame, text=_("Save bookmark"), command=self._save,
-            style="primary", icon="💾"
+            style="primary"
         ).pack(side=tk.RIGHT)
         
         if bookmark:
             ModernButton(
                 btn_frame, text=_("Open in browser"), command=self._open_url,
-                icon="🔗"
             ).pack(side=tk.LEFT)
         
         self.bind("<Escape>", lambda e: self.destroy())
@@ -235,6 +254,23 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
             parent, text=label, bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.small(bold=True)
         ).grid(row=row, column=0, sticky="w", pady=(0, 5))
+
+    def _clear_validation(self):
+        """Reset inline validation once the user edits the URL."""
+        if not hasattr(self, "url_feedback"):
+            return
+        theme = get_theme()
+        self.url_feedback.configure(
+            text=_("Paste a full URL, or type a domain and the app will add https://."),
+            fg=theme.text_muted,
+        )
+        self.url_entry.configure(highlightbackground=theme.border_muted)
+
+    def _show_url_error(self, message: str):
+        """Show URL validation inline instead of interrupting the dialog flow."""
+        theme = get_theme()
+        self.url_feedback.configure(text=message, fg=theme.accent_error)
+        self.url_entry.configure(highlightbackground=theme.accent_error)
     
     def _save(self):
         """Save the bookmark"""
@@ -242,11 +278,7 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
         title = self.title_var.get().strip()
         
         if not url:
-            messagebox.showerror(
-                _("URL required"),
-                _("Enter a bookmark URL before saving."),
-                parent=self
-            )
+            self._show_url_error(_("Enter a bookmark URL before saving."))
             self.url_entry.focus_set()
             return
         

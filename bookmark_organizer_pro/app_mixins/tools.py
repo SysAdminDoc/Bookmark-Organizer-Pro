@@ -18,6 +18,7 @@ from bookmark_organizer_pro.core.category_manager import get_category_icon
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Category
 from bookmark_organizer_pro.ui.foundation import FONTS, readable_text_on
+from bookmark_organizer_pro.ui.widgets import ThemeSelectorDialog
 from bookmark_organizer_pro.ui.graph_view import GraphViewDialog
 from bookmark_organizer_pro.ui.management_dialogs import CategoryManagementDialog, CustomFaviconDialog
 from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog
@@ -35,13 +36,14 @@ class ToolsActionsMixin:
         menu = tk.Menu(self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
                        font=FONTS.body(), activebackground=theme.bg_hover,
                        activeforeground=theme.text_primary, bd=0)
-        menu.add_command(label="  " + _("AI Provider Settings"), command=self._show_ai_settings)
-        menu.add_command(label="  " + _("Manage Categories"), command=self._show_category_manager)
+        menu.add_command(label=_("Assistant Provider Settings"), command=self._show_ai_settings)
+        menu.add_command(label=_("Theme Settings"), command=lambda: ThemeSelectorDialog(self.root, self.theme_manager))
+        menu.add_command(label=_("Manage Categories"), command=self._show_category_manager)
         menu.add_separator()
-        menu.add_command(label="  " + _("Flatten All Folders"), command=self._flatten_all_folders)
-        menu.add_command(label="  " + _("Clear All Tags"), command=self._clear_all_tags)
+        menu.add_command(label=_("Flatten All Folders"), command=self._flatten_all_folders)
+        menu.add_command(label=_("Clear All Tags"), command=self._clear_all_tags)
         menu.add_separator()
-        menu.add_command(label="  " + _("Backup Now"), command=self._backup_now)
+        menu.add_command(label=_("Backup Now"), command=self._backup_now)
 
         x = self.settings_btn.winfo_rootx()
         y = self.settings_btn.winfo_rooty() + self.settings_btn.winfo_height()
@@ -55,34 +57,34 @@ class ToolsActionsMixin:
                       font=FONTS.body(), activebackground=theme.bg_hover,
                       activeforeground=theme.text_primary, bd=0)
         
-        menu.add_command(label="  " + _("Manage Categories"), command=self._show_category_manager)
-        menu.add_command(label="  " + _("Categorize All Bookmarks"), command=self._categorize_all_bookmarks)
-        menu.add_command(label="  " + _("Import Categories File"), command=self._import_categories_file)
-        menu.add_command(label="  " + _("Set Custom Favicon"), command=self._show_custom_favicon_dialog)
+        menu.add_command(label=_("Manage Categories"), command=self._show_category_manager)
+        menu.add_command(label=_("Categorize All Bookmarks"), command=self._categorize_all_bookmarks)
+        menu.add_command(label=_("Import Categories File"), command=self._import_categories_file)
+        menu.add_command(label=_("Set Custom Favicon"), command=self._show_custom_favicon_dialog)
         menu.add_separator()
 
-        menu.add_command(label="  " + _("Flatten All Folders"), command=self._flatten_all_folders)
-        menu.add_command(label="  " + _("Clear All Categories"), command=self._clear_all_categories)
-        menu.add_command(label="  " + _("Clear All Tags"), command=self._clear_all_tags)
+        menu.add_command(label=_("Flatten All Folders"), command=self._flatten_all_folders)
+        menu.add_command(label=_("Clear All Categories"), command=self._clear_all_categories)
+        menu.add_command(label=_("Clear All Tags"), command=self._clear_all_tags)
         menu.add_separator()
 
-        menu.add_command(label="  " + _("Check All Links"), command=self._check_all_links)
-        menu.add_command(label="  " + _("View Dead Links"), command=self._view_dead_links)
-        menu.add_command(label="  " + _("Find Duplicates"), command=self._find_duplicates)
-        menu.add_command(label="  " + _("Smart Duplicate Scan"), command=self._smart_duplicate_scan)
-        menu.add_command(label="  " + _("Lint Tags"), command=self._lint_tags_gui)
-        menu.add_command(label="  " + _("Clean Tracking Parameters"), command=self._clean_urls)
+        menu.add_command(label=_("Check All Links"), command=self._check_all_links)
+        menu.add_command(label=_("View Dead Links"), command=self._view_dead_links)
+        menu.add_command(label=_("Find Duplicates"), command=self._find_duplicates)
+        menu.add_command(label=_("Smart Duplicate Scan"), command=self._smart_duplicate_scan)
+        menu.add_command(label=_("Lint Tags"), command=self._lint_tags_gui)
+        menu.add_command(label=_("Clean Tracking Parameters"), command=self._clean_urls)
         menu.add_separator()
-        menu.add_command(label="  " + _("Smart Collections"), command=self._show_smart_collections)
-        menu.add_command(label="  " + _("Reader View"), command=self._open_reader_view)
-        menu.add_command(label="  " + _("Graph View"), command=self._open_graph_view)
-        menu.add_command(label="  " + _("Full Analytics"), command=self._show_analytics)
-        menu.add_command(label="  " + _("Migrate to SQLite"), command=self._migrate_to_sqlite)
-        menu.add_command(label="  " + _("Backup Now"), command=self._backup_now)
+        menu.add_command(label=_("Smart Collections"), command=self._show_smart_collections)
+        menu.add_command(label=_("Reader View"), command=self._open_reader_view)
+        menu.add_command(label=_("Graph View"), command=self._open_graph_view)
+        menu.add_command(label=_("Full Analytics"), command=self._show_analytics)
+        menu.add_command(label=_("Migrate to SQLite"), command=self._migrate_to_sqlite)
+        menu.add_command(label=_("Backup Now"), command=self._backup_now)
         menu.add_separator()
-        menu.add_command(label="  " + _("Redownload All Favicons"), command=self._redownload_all_favicons)
-        menu.add_command(label="  " + _("Redownload Missing Favicons"), command=self._redownload_missing_favicons)
-        menu.add_command(label="  " + _("Clear Favicon Cache"), command=self._clear_favicon_cache)
+        menu.add_command(label=_("Redownload All Favicons"), command=self._redownload_all_favicons)
+        menu.add_command(label=_("Redownload Missing Favicons"), command=self._redownload_missing_favicons)
+        menu.add_command(label=_("Clear Favicon Cache"), command=self._clear_favicon_cache)
         
         # Position below button
         x = self.tools_btn.winfo_rootx()

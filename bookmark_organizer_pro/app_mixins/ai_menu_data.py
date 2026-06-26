@@ -31,21 +31,21 @@ class AiMenuDataMixin:
                       font=FONTS.body(), activebackground=theme.bg_hover,
                       activeforeground=theme.text_primary, bd=0)
         
-        menu.add_command(label="  Categorize Selected", command=self._ai_categorize)
-        menu.add_command(label="  Suggest Tags", command=self._ai_suggest_tags)
-        menu.add_command(label="  Summarize", command=self._ai_summarize)
-        menu.add_command(label="  Improve Titles", command=self._ai_improve_titles)
+        menu.add_command(label="Categorize Selected", command=self._ai_categorize)
+        menu.add_command(label="Suggest Tags", command=self._ai_suggest_tags)
+        menu.add_command(label="Summarize Selected", command=self._ai_summarize)
+        menu.add_command(label="Improve Titles", command=self._ai_improve_titles)
         menu.add_separator()
-        menu.add_command(label="  Undo Last AI Operation", command=self._undo_last_ai_operation)
+        menu.add_command(label="Undo Last Assistant Action", command=self._undo_last_ai_operation)
         menu.add_separator()
-        menu.add_command(label="  Merge AI Tags to User Tags", command=self._merge_ai_tags)
+        menu.add_command(label="Accept Suggested Tags", command=self._merge_ai_tags)
         menu.add_separator()
-        menu.add_command(label="  Export AI Data (JSON)", command=self._export_ai_data)
-        menu.add_command(label="  Export Learned Patterns", command=self._generate_category_patterns)
-        menu.add_command(label="  Import Learned Patterns", command=self._import_ai_learned_data)
+        menu.add_command(label="Export Assistant Data", command=self._export_ai_data)
+        menu.add_command(label="Export Learned Patterns", command=self._generate_category_patterns)
+        menu.add_command(label="Import Learned Patterns", command=self._import_ai_learned_data)
         menu.add_separator()
-        menu.add_command(label="  View AI Statistics", command=self._show_ai_stats)
-        menu.add_command(label="  AI Settings", command=self._show_ai_settings)
+        menu.add_command(label="Assistant Activity", command=self._show_ai_stats)
+        menu.add_command(label="Assistant Settings", command=self._show_ai_settings)
         
         # Position below button
         x = self.ai_btn.winfo_rootx()
@@ -201,7 +201,7 @@ class AiMenuDataMixin:
         
         # Show dialog
         dialog = tk.Toplevel(self.root)
-        dialog.title("AI Statistics")
+        dialog.title("Assistant Activity")
         dialog.configure(bg=theme.bg_primary)
         dialog.geometry("400x350")
         dialog.transient(self.root)
@@ -214,7 +214,7 @@ class AiMenuDataMixin:
         dialog.geometry(f"+{x}+{y}")
         
         # Header
-        tk.Label(dialog, text="📊 AI Processing Statistics", bg=theme.bg_primary,
+        tk.Label(dialog, text="Assistant Activity", bg=theme.bg_primary,
                 fg=theme.text_primary, font=FONTS.title(bold=False)).pack(pady=20)
         
         # Stats
@@ -223,11 +223,11 @@ class AiMenuDataMixin:
         
         stats = [
             ("Total Bookmarks", str(total)),
-            ("AI Categorized", f"{with_ai_cat} ({100*with_ai_cat//max(1,total)}%)"),
-            ("With AI Tags", f"{with_ai_tags} ({100*with_ai_tags//max(1,total)}%)"),
+            ("Suggested Categories", f"{with_ai_cat} ({100*with_ai_cat//max(1,total)}%)"),
+            ("Suggested Tags", f"{with_ai_tags} ({100*with_ai_tags//max(1,total)}%)"),
             ("With Descriptions", f"{with_desc} ({100*with_desc//max(1,total)}%)"),
             ("Avg. Confidence", f"{avg_confidence:.1%}"),
-            ("Unique AI Tags", str(len(all_ai_tags)))
+            ("Unique Suggestions", str(len(all_ai_tags)))
         ]
         
         for label, value in stats:
@@ -243,7 +243,7 @@ class AiMenuDataMixin:
         
         # Top AI tags
         if all_ai_tags:
-            tk.Label(dialog, text="Top AI Tags:", bg=theme.bg_primary,
+            tk.Label(dialog, text="Top Suggested Tags", bg=theme.bg_primary,
                     fg=theme.text_secondary, font=FONTS.body()).pack(pady=(20, 5))
             
             # Count tag frequency
@@ -396,4 +396,3 @@ class AiMenuDataMixin:
             
         except Exception as e:
             messagebox.showerror("Import Error", f"Failed to import: {str(e)}")
-

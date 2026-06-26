@@ -44,7 +44,7 @@ class BulkTagEditorDialog(tk.Toplevel, ThemedWidget):
         header.pack_propagate(False)
         
         tk.Label(
-            header, text=f"🏷️ Edit Tags for {len(bookmarks)} Bookmarks",
+            header, text=f"Edit tags for {len(bookmarks)} bookmarks",
             bg=theme.bg_dark, fg=theme.text_primary,
             font=FONTS.header()
         ).pack(side=tk.LEFT, padx=20, pady=15)
@@ -127,7 +127,7 @@ class BulkTagEditorDialog(tk.Toplevel, ThemedWidget):
         
         ModernButton(
             btn_frame, text="Apply", command=self._apply,
-            style="primary", icon="✓"
+            style="primary"
         ).pack(side=tk.RIGHT)
         
         self.center_window()

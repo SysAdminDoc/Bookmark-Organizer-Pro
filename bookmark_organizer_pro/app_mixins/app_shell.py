@@ -7,7 +7,7 @@ from tkinter import ttk
 
 from bookmark_organizer_pro.constants import APP_NAME
 from bookmark_organizer_pro.i18n import _
-from bookmark_organizer_pro.ui.components import DragDropImportArea, ScrollableFrame, ThemeDropdown
+from bookmark_organizer_pro.ui.components import DragDropImportArea, ScrollableFrame
 from bookmark_organizer_pro.ui.feedback import EmptyState, FilteredEmptyState
 from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, readable_text_on
 from bookmark_organizer_pro.ui.shell_widgets import ViewMode
@@ -160,7 +160,7 @@ class AppShellMixin:
             fg=theme.text_primary, font=FONTS.title(bold=True)
         ).pack(side=tk.LEFT)
         tk.Label(
-            brand, text="Your bookmark library",
+            brand, text=_("Search, clean up, and revisit saved work"),
             bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small()
         ).pack(anchor="w", pady=(2, 0))
         
@@ -174,10 +174,10 @@ class AppShellMixin:
         self.search_frame = search_frame
 
         self._search_icon_label = tk.Label(
-            search_frame, text="\U0001f50d", bg=theme.bg_secondary,
+            search_frame, text=_("Search"), bg=theme.bg_secondary,
             fg=theme.text_muted, font=FONTS.small()
         )
-        self._search_icon_label.pack(side=tk.LEFT, padx=(12, 4))
+        self._search_icon_label.pack(side=tk.LEFT, padx=(12, 6))
 
         self.search_var = tk.StringVar()
         self.search_var.trace_add('write', self._on_search_change)
@@ -205,7 +205,7 @@ class AppShellMixin:
         self.search_entry.bind("<FocusOut>", self._on_search_focus_out)
         
         self.clear_search_btn = tk.Label(
-            search_frame, text="  ✕  ", bg=theme.bg_secondary,
+            search_frame, text=_("Clear"), bg=theme.bg_secondary,
             fg=theme.text_muted, font=FONTS.body(), cursor="hand2",
             relief=tk.FLAT
         )
@@ -217,24 +217,26 @@ class AppShellMixin:
             fg=theme.accent_error))
         self.clear_search_btn.bind("<Leave>", lambda e: self.clear_search_btn.configure(
             fg=theme.text_muted))
-        Tooltip(self.clear_search_btn, "Clear search (Esc)")
+        Tooltip(self.clear_search_btn, _("Clear search and filters"))
 
         self._nl_search_mode = False
         self._nl_toggle_btn = tk.Label(
-            search_frame, text="AI", bg=theme.bg_tertiary,
+            search_frame, text=_("Smart"), bg=theme.bg_tertiary,
             fg=theme.text_muted, font=FONTS.tiny(bold=True),
             padx=6, pady=3, cursor="hand2",
         )
         self._nl_toggle_btn.pack(side=tk.RIGHT, padx=(4, 4))
         self._nl_toggle_btn.bind("<Button-1>", lambda e: self._toggle_nl_search())
-        Tooltip(self._nl_toggle_btn, "Toggle AI Smart Search — interpret queries as natural language")
+        Tooltip(self._nl_toggle_btn, _("Interpret the query as natural language"))
 
-        search_shortcut = tk.Label(
-            search_frame, text="Ctrl+F", bg=theme.bg_tertiary,
+        search_help = tk.Label(
+            search_frame, text="?", bg=theme.bg_tertiary,
             fg=theme.text_muted, font=FONTS.tiny(bold=True),
-            padx=8, pady=3
+            padx=7, pady=3, cursor="hand2"
         )
-        search_shortcut.pack(side=tk.RIGHT, padx=(8, 4))
+        search_help.pack(side=tk.RIGHT, padx=(8, 4))
+        make_keyboard_activatable(search_help, self._show_search_syntax_help)
+        Tooltip(search_help, _("Show search operators"))
         
         # ===== TOOLBAR BUTTONS =====
         toolbar = tk.Frame(header, bg=theme.bg_dark)
@@ -250,7 +252,7 @@ class AppShellMixin:
         
         # Import button
         import_btn = ModernButton(
-            toolbar, text=_("Import"), icon="↓",
+            toolbar, text=_("Import"),
             command=self._show_import_dialog,
             tooltip=_("Import bookmarks from HTML, JSON, CSV, or OPML files")
         )
@@ -258,7 +260,7 @@ class AppShellMixin:
         
         # Export button
         export_btn = ModernButton(
-            toolbar, text=_("Export"), icon="↑",
+            toolbar, text=_("Export"),
             command=self._show_export_dialog,
             tooltip=_("Export bookmarks to HTML, JSON, CSV, or Markdown")
         )
@@ -269,9 +271,9 @@ class AppShellMixin:
         
         # AI button
         self.ai_btn = ModernButton(
-            toolbar, text="AI",
+            toolbar, text=_("Ask"),
             command=self._show_ai_menu,
-            tooltip="AI-powered tools: Auto-categorize, Generate tags,\nSummarize, Find semantic duplicates"
+            tooltip=_("Assistant tools: categorize, tag, summarize, and find semantic duplicates")
         )
         self.ai_btn.pack(side=tk.LEFT, padx=3)
         
@@ -286,51 +288,16 @@ class AppShellMixin:
         # Separator
         tk.Frame(toolbar, bg=theme.border_muted, width=1, height=30).pack(side=tk.LEFT, padx=8)
         
-        # Settings gear
+        # Settings
         settings_btn = ModernButton(
-            toolbar, text=_("Settings"), icon="⚙",
+            toolbar, text=_("Settings"),
             command=self._show_settings_menu,
             tooltip=_("Settings: AI provider, themes, preferences")
         )
         settings_btn.pack(side=tk.LEFT, padx=3)
         self.settings_btn = settings_btn
 
-        # Theme dropdown
-        self.theme_dropdown = ThemeDropdown(
-            toolbar, self.theme_manager,
-            on_change=lambda t: self._on_theme_change(t)
-        )
-        self.theme_dropdown.pack(side=tk.LEFT, padx=3)
-        Tooltip(self.theme_dropdown, "Choose a color theme")
-
-        # Zoom controls
-        tk.Frame(toolbar, bg=theme.border_muted, width=1, height=30).pack(side=tk.LEFT, padx=8)
-        
-        zoom_frame = tk.Frame(toolbar, bg=theme.bg_dark)
-        zoom_frame.pack(side=tk.LEFT, padx=3)
-        
-        self.zoom_level = 115  # Default slightly larger for high-DPI readability
-        self.zoom_min = 75
-        self.zoom_max = 200
-        
-        zoom_out_btn = ModernButton(
-            zoom_frame, text="−", command=self._zoom_out,
-            tooltip="Zoom Out (Ctrl+Scroll Down)"
-        )
-        zoom_out_btn.pack(side=tk.LEFT, padx=1)
-        
-        self.zoom_label = tk.Label(
-            zoom_frame, text=f"{self.zoom_level}%", bg=theme.bg_secondary,
-            fg=theme.text_primary, font=FONTS.small(), padx=8, pady=4
-        )
-        self.zoom_label.pack(side=tk.LEFT, padx=2)
-        Tooltip(self.zoom_label, "Current zoom level - Use Ctrl+Scroll to zoom")
-        
-        zoom_in_btn = ModernButton(
-            zoom_frame, text="+", command=self._zoom_in,
-            tooltip="Zoom In (Ctrl+Scroll Up)"
-        )
-        zoom_in_btn.pack(side=tk.LEFT, padx=1)
+        self.theme_dropdown = None
         
         # ===== CONTENT AREA =====
         content = tk.Frame(self.main_container, bg=theme.bg_primary)
@@ -397,9 +364,10 @@ class AppShellMixin:
             )
             name_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
             count_lbl = tk.Label(
-                row, text="0", bg=theme.bg_tertiary if is_active else theme.bg_primary,
-                fg=theme.text_secondary, font=FONTS.tiny(bold=True),
-                cursor="hand2", padx=7, pady=1
+                row, text="0", bg=row["bg"],
+                fg=theme.accent_primary if is_active else theme.text_muted,
+                font=FONTS.tiny(bold=True),
+                cursor="hand2", padx=4, pady=1
             )
             count_lbl.pack(side=tk.RIGHT, padx=(4, 8), pady=6)
 
@@ -455,7 +423,7 @@ class AppShellMixin:
         self._rl_frame = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
         self._rl_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(0, 12))
         self._rl_empty = tk.Label(
-            self._rl_frame, text=_("No items queued"),
+            self._rl_frame, text=_("Nothing queued"),
             bg=theme.bg_dark, fg=theme.text_muted, font=FONTS.small(),
             anchor="w",
         )
@@ -477,7 +445,7 @@ class AppShellMixin:
         self._flows_frame = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
         self._flows_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(0, 20))
         self._flows_empty = tk.Label(
-            self._flows_frame, text=_("No research flows"),
+            self._flows_frame, text=_("No active flows"),
             bg=theme.bg_dark, fg=theme.text_muted, font=FONTS.small(),
             anchor="w",
         )
@@ -641,7 +609,7 @@ class AppShellMixin:
         self._rl_count_label.config(text=str(len(queue)))
         if not queue:
             tk.Label(
-                self._rl_frame, text="No items queued",
+                self._rl_frame, text=_("Nothing queued"),
                 bg=theme.bg_dark, fg=theme.text_muted, font=FONTS.small(),
                 anchor="w",
             ).pack(fill=tk.X, pady=2)
@@ -671,7 +639,7 @@ class AppShellMixin:
         self._flows_count_label.config(text=str(len(flows)))
         if not flows:
             tk.Label(
-                self._flows_frame, text="No research flows",
+                self._flows_frame, text=_("No active flows"),
                 bg=theme.bg_dark, fg=theme.text_muted, font=FONTS.small(),
                 anchor="w",
             ).pack(fill=tk.X, pady=2)

@@ -67,7 +67,7 @@ class SmartFiltersPanel(tk.Frame, ThemedWidget):
         theme = get_theme()
         
         # Date Range
-        self._create_section("📅 Date Range")
+        self._create_section("Date Range")
         
         date_frame = tk.Frame(self.content, bg=theme.bg_secondary)
         date_frame.pack(fill=tk.X, pady=5)
@@ -113,11 +113,11 @@ class SmartFiltersPanel(tk.Frame, ThemedWidget):
             Tooltip(btn, f"Show bookmarks from the last {days} day{'s' if days != 1 else ''}")
         
         # Status Filters
-        self._create_section("📊 Status")
+        self._create_section("Status")
         
         self.status_vars = {}
-        for status, label in [("valid", "✓ Valid"), ("broken", "⚠ Broken"), 
-                              ("unchecked", "? Unchecked")]:
+        for status, label in [("valid", "Valid"), ("broken", "Needs Review"),
+                              ("unchecked", "Unchecked")]:
             var = tk.BooleanVar(value=True)
             self.status_vars[status] = var
             cb = ttk.Checkbutton(
@@ -127,13 +127,13 @@ class SmartFiltersPanel(tk.Frame, ThemedWidget):
             cb.pack(anchor="w", pady=2)
         
         # Bookmark Attributes
-        self._create_section("📌 Attributes")
+        self._create_section("Attributes")
         
         self.attr_vars = {}
-        for attr, label in [("pinned", "📌 Pinned Only"), 
-                            ("archived", "📦 Archived Only"),
-                            ("has_notes", "📝 Has Notes"),
-                            ("has_tags", "🏷️ Has Tags")]:
+        for attr, label in [("pinned", "Pinned Only"),
+                            ("archived", "Archived Only"),
+                            ("has_notes", "Has Notes"),
+                            ("has_tags", "Has Tags")]:
             var = tk.BooleanVar(value=False)
             self.attr_vars[attr] = var
             cb = ttk.Checkbutton(
@@ -143,7 +143,7 @@ class SmartFiltersPanel(tk.Frame, ThemedWidget):
             cb.pack(anchor="w", pady=2)
         
         # Domain Filter
-        self._create_section("🌐 Domain")
+        self._create_section("Domain")
         
         self.domain_var = tk.StringVar()
         domain_entry = tk.Entry(
@@ -154,7 +154,7 @@ class SmartFiltersPanel(tk.Frame, ThemedWidget):
         domain_entry.bind("<KeyRelease>", lambda e: self._on_change())
         
         # AI Confidence Slider
-        self._create_section("🤖 AI Confidence")
+        self._create_section("AI Confidence")
         
         self.confidence_var = tk.DoubleVar(value=0.0)
         confidence_frame = tk.Frame(self.content, bg=theme.bg_secondary)

@@ -6,7 +6,6 @@ from datetime import datetime
 import tkinter as tk
 from typing import Callable, Optional
 
-from bookmark_organizer_pro.core import get_category_icon
 from bookmark_organizer_pro.models import Bookmark
 
 from .foundation import DesignTokens, FONTS, readable_text_on
@@ -110,17 +109,17 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
         actions.pack(fill=tk.X, pady=15)
         
         ModernButton(
-            actions, text="Open", icon="🔗",
+            actions, text="Open",
             command=lambda: self._open_bookmark()
         ).pack(side=tk.LEFT, padx=(0, 5))
         
         ModernButton(
-            actions, text="Edit", icon="✏️",
+            actions, text="Edit",
             command=lambda: self._edit_bookmark()
         ).pack(side=tk.LEFT, padx=(0, 5))
         
         ModernButton(
-            actions, text="Delete", icon="🗑️", style="danger",
+            actions, text="Delete", style="danger",
             command=lambda: self._delete_bookmark()
         ).pack(side=tk.LEFT)
         
@@ -129,7 +128,7 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
         
         # Details
         self._add_detail("URL", bookmark.url, is_link=True)
-        self._add_detail("Category", f"{get_category_icon(bookmark.category)} {bookmark.category}")
+        self._add_detail("Category", bookmark.category)
         
         if bookmark.tags:
             tags_text = ", ".join(f"#{t}" for t in bookmark.tags)
@@ -145,13 +144,13 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
         # Status indicators
         status_parts = []
         if bookmark.is_pinned:
-            status_parts.append("📌 Pinned")
+            status_parts.append("Pinned")
         if bookmark.is_archived:
-            status_parts.append("📦 Archived")
+            status_parts.append("Archived")
         if not bookmark.is_valid:
-            status_parts.append("⚠️ Broken")
+            status_parts.append("Needs review")
         if bookmark.ai_categorized:
-            status_parts.append(f"🤖 AI ({int(bookmark.ai_confidence*100)}%)")
+            status_parts.append(f"AI ({int(bookmark.ai_confidence*100)}%)")
         
         if status_parts:
             self._add_detail("Status", " • ".join(status_parts))

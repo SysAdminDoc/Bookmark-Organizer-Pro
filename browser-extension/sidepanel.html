@@ -13,32 +13,34 @@
     }
 
     .panel {
-      padding: 12px;
+      padding: 14px;
     }
 
     .tabs {
       display: flex;
-      gap: 2px;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 12px;
+      gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--border-soft);
+      background: var(--panel);
+      margin-bottom: 14px;
     }
 
     .tab-btn {
       flex: 1;
-      border: none;
-      border-bottom: 2px solid transparent;
-      border-radius: 0;
+      border: 1px solid transparent;
+      border-radius: 6px;
       background: transparent;
       color: var(--muted);
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 750;
       padding: 8px 4px;
       cursor: pointer;
     }
 
     .tab-btn.active {
-      color: var(--accent);
-      border-bottom-color: var(--accent);
+      color: var(--text);
+      border-color: var(--border);
+      background: var(--surface);
     }
 
     .tab-content {
@@ -75,7 +77,6 @@
     .bookmark-item {
       display: block;
       padding: 8px 10px;
-      border-radius: 6px;
       text-decoration: none;
       color: var(--text);
       margin-bottom: 4px;
@@ -115,7 +116,6 @@
     .badge {
       display: inline-block;
       padding: 1px 6px;
-      border-radius: 4px;
       background: var(--panel);
       border: 1px solid var(--border);
       font-size: 10px;
@@ -126,7 +126,7 @@
       font-size: 11px;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0;
       color: var(--muted);
       margin: 14px 0 6px;
     }
@@ -157,7 +157,6 @@
       align-items: center;
       gap: 6px;
       padding: 8px 10px;
-      border-radius: 6px;
       background: var(--panel);
       font-size: 12px;
       color: var(--muted);
@@ -167,7 +166,6 @@
     .status-dot {
       width: 8px;
       height: 8px;
-      border-radius: 50%;
       background: var(--error);
       flex-shrink: 0;
     }
@@ -185,6 +183,13 @@
 </head>
 <body>
   <main class="panel">
+    <header>
+      <div class="brand-row">
+        <span class="brand-mark">B</span>
+        <p class="eyebrow">Bookmark Organizer Pro</p>
+      </div>
+    </header>
+
     <div class="api-status">
       <span id="statusDot" class="status-dot"></span>
       <span id="statusText">Connecting...</span>
@@ -208,14 +213,14 @@
     <div id="tab-search" class="tab-content">
       <div class="search-box">
         <input id="searchInput" type="text" placeholder="Search bookmarks..." autocomplete="off">
-        <button id="searchBtn" type="button">Go</button>
+        <button id="searchBtn" type="button">Search</button>
       </div>
       <ul id="searchResults" class="bookmark-list"></ul>
     </div>
 
     <div id="tab-add" class="tab-content">
       <div class="quick-add">
-        <p id="addPageTitle" style="margin-bottom:8px; font-size:13px;"></p>
+        <p id="addPageTitle" class="current-page"></p>
         <label>
           Category
           <input id="addCategory" type="text" autocomplete="off" list="categoryList">
@@ -223,19 +228,19 @@
         </label>
         <label>
           Tags
-          <input id="addTags" type="text" placeholder="comma-separated" autocomplete="off">
+          <input id="addTags" type="text" placeholder="design, research, reading" autocomplete="off">
         </label>
         <label>
           Notes
-          <textarea id="addNotes" maxlength="5000"></textarea>
+          <textarea id="addNotes" maxlength="5000" placeholder="Add context for future rediscovery."></textarea>
         </label>
         <label class="checkbox-row">
           <input id="addReadLater" type="checkbox">
           <span>Read Later</span>
         </label>
-        <div class="actions" style="margin-top:10px">
-          <button id="addSaveBtn" type="button">Save</button>
-          <button id="importReadingListBtn" class="secondary" type="button" title="Import from Chrome Reading List">Import Reading List</button>
+        <div class="actions">
+          <button id="addSaveBtn" type="button">Save Bookmark</button>
+          <button id="importReadingListBtn" class="secondary" type="button" title="Import from Chrome Reading List">Reading List</button>
         </div>
         <p id="addStatus" class="status" role="status" aria-live="polite"></p>
       </div>

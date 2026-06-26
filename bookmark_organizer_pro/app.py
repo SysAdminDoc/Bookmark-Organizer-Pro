@@ -145,6 +145,9 @@ class FinalBookmarkOrganizerApp(
         self.selection_bar = None
         self.selection_count_label = None
         self.zoom_label = None
+        self.zoom_level = 115
+        self.zoom_min = 75
+        self.zoom_max = 200
         self.search_var = None
         self.search_entry = None
         self._search_after = None
@@ -193,4 +196,3 @@ class FinalBookmarkOrganizerApp(
 
         # Start analytics polling (update every 30 seconds)
         self._start_analytics_polling()
-

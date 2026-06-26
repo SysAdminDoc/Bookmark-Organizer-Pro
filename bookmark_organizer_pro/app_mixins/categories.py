@@ -79,8 +79,8 @@ class CategoryActionsMixin:
             if count > 0:
                 count_lbl = tk.Label(
                     row, text=format_compact_count(count),
-                    bg=theme.bg_tertiary, fg=theme.text_secondary,
-                    font=FONTS.tiny(bold=True), padx=7, pady=1,
+                    bg=bg, fg=theme.accent_primary if is_selected else theme.text_muted,
+                    font=FONTS.tiny(bold=True), padx=4, pady=1,
                     cursor="hand2"
                 )
                 count_lbl.pack(side=tk.RIGHT, padx=(4, 8), pady=6)
@@ -96,6 +96,8 @@ class CategoryActionsMixin:
                     for w in [r, n] + ([cl] if cl else []):
                         w.configure(bg=theme.bg_hover)
                     n.configure(fg=theme.text_primary)
+                    if cl:
+                        cl.configure(fg=theme.text_primary)
             def on_leave(e, r=row, n=name_lbl, cl=count_lbl, c=cat):
                 if c != self.current_category:
                     bg_ = theme.bg_dark
@@ -103,7 +105,7 @@ class CategoryActionsMixin:
                         w.configure(bg=bg_)
                     n.configure(fg=theme.text_secondary)
                     if cl:
-                        cl.configure(bg=theme.bg_tertiary)
+                        cl.configure(bg=bg_, fg=theme.text_muted)
 
             for w in [row, name_lbl] + ([count_lbl] if count_lbl else []):
                 w.bind("<Enter>", on_enter)
@@ -123,10 +125,10 @@ class CategoryActionsMixin:
         
         menu = tk.Menu(self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
                       activebackground=theme.bg_hover, activeforeground=theme.text_primary)
-        menu.add_command(label="  ➕  " + _("Add New Category"), command=self._add_new_category_dialog)
-        menu.add_command(label="  ✏️  " + _("Rename Category"), command=lambda: self._rename_category_dialog(category))
+        menu.add_command(label="  " + _("Add New Category"), command=self._add_new_category_dialog)
+        menu.add_command(label="  " + _("Rename Category"), command=lambda: self._rename_category_dialog(category))
         menu.add_separator()
-        menu.add_command(label="  🗑️  " + _("Delete Category"), command=lambda: self._delete_category_confirm(category))
+        menu.add_command(label="  " + _("Delete Category"), command=lambda: self._delete_category_confirm(category))
         
         menu.tk_popup(event.x_root, event.y_root)
     
@@ -136,7 +138,7 @@ class CategoryActionsMixin:
         
         menu = tk.Menu(self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
                       activebackground=theme.bg_hover, activeforeground=theme.text_primary)
-        menu.add_command(label="  ➕  " + _("Add New Category"), command=self._add_new_category_dialog)
+        menu.add_command(label="  " + _("Add New Category"), command=self._add_new_category_dialog)
 
         menu.tk_popup(event.x_root, event.y_root)
 
@@ -272,4 +274,3 @@ class CategoryActionsMixin:
             moved = f" ({pluralize(count, 'bookmark')} → Uncategorized)" if count else ""
             self._show_toast(_("Deleted category '{category}'{moved}").format(category=category, moved=moved), "info")
             self._set_status(_("Deleted category: {category}").format(category=category))
-

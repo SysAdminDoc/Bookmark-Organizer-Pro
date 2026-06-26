@@ -100,11 +100,11 @@ class SelectionActionsMixin:
                 command=lambda c=cat: self._send_to_category(c)
             )
         
-        menu.add_cascade(label="  Move to Category", menu=send_to_menu)
+        menu.add_cascade(label="Move to Category", menu=send_to_menu)
         menu.add_separator()
-        menu.add_command(label="  Copy URL", command=self._copy_url)
-        menu.add_command(label="  Toggle Pin", command=self._toggle_pin)
-        menu.add_command(label="  Custom Favicon…", command=self._show_custom_favicon_dialog)
+        menu.add_command(label="Copy URL", command=self._copy_url)
+        menu.add_command(label="Toggle Pin", command=self._toggle_pin)
+        menu.add_command(label="Set Custom Favicon…", command=self._show_custom_favicon_dialog)
         menu.add_separator()
         
         # AI Tools submenu
@@ -114,11 +114,11 @@ class SelectionActionsMixin:
         ai_menu.add_command(label="Suggest Tags", command=self._ai_suggest_tags)
         ai_menu.add_command(label="Summarize", command=self._ai_summarize)
         ai_menu.add_command(label="Improve Titles", command=self._ai_improve_titles)
-        menu.add_cascade(label="  AI Tools", menu=ai_menu)
-        
+        menu.add_cascade(label="Assistant Tools", menu=ai_menu)
+
         menu.add_separator()
-        menu.add_command(label="  Mark as Needs Review", command=self._mark_as_broken)
-        menu.add_command(label="  Delete", command=self._delete_selected)
+        menu.add_command(label="Mark as Needs Review", command=self._mark_as_broken)
+        menu.add_command(label="Delete", command=self._delete_selected)
         
         menu.tk_popup(event.x_root, event.y_root)
     

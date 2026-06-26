@@ -152,7 +152,7 @@ class EmptyState(tk.Frame):
             left,
             text=(
                 "Bring in a browser export or add one URL. Then review duplicates, "
-                "missing tags, weak categories, and broken links from this workspace."
+                "missing tags, weak categories, and broken links from a single workspace."
             ),
             bg=theme.bg_primary, fg=theme.text_secondary,
             font=FONTS.body(), justify=tk.LEFT, wraplength=620
@@ -180,7 +180,7 @@ class EmptyState(tk.Frame):
         for eyebrow, title, body in [
             ("01", "Import", "HTML, JSON, CSV, OPML, and plain URL lists."),
             ("02", "Review", "Find broken links, duplicates, uncategorized items, and gaps."),
-            ("03", "Search", "Use domain:, #tags, pinned filters, and command actions."),
+            ("03", "Search", "Use domain:, #tags, saved filters, and library actions."),
         ]:
             row = tk.Frame(runway, bg=theme.bg_primary)
             row.pack(fill=tk.X, pady=7)
@@ -218,11 +218,6 @@ class FilteredEmptyState(tk.Frame):
         center.place(relx=0.5, rely=0.42, anchor="center")
 
         tk.Label(
-            center, text="🔎", bg=theme.bg_primary,
-            fg=theme.accent_primary, font=FONTS.display(bold=False)
-        ).pack(pady=(0, 14))
-
-        tk.Label(
             center, text=_("No bookmarks match this view"),
             bg=theme.bg_primary, fg=theme.text_primary,
             font=FONTS.title(bold=True)
@@ -252,7 +247,7 @@ class FilteredEmptyState(tk.Frame):
 
         tk.Label(
             center,
-            text="Tip: use domain:example.com, is:pinned, is:broken, or #tag in search.",
+            text=_("Try domain:example.com, is:pinned, is:broken, or #tag in search."),
             bg=theme.bg_primary, fg=theme.text_muted,
             font=FONTS.small(), wraplength=440, justify="center"
         ).pack(pady=(20, 0))
@@ -349,6 +344,25 @@ class ToastNotification(tk.Toplevel):
             self.destroy()
         except Exception:
             pass
+        self._reposition_toasts()
+
+    @classmethod
+    def _reposition_toasts(cls):
+        """Keep visible toasts neatly stacked after one closes."""
+        visible = [toast for toast in cls._active_toasts if toast.winfo_exists()]
+        offset_y = 0
+        for toast in visible:
+            try:
+                parent = toast.master
+                parent.update_idletasks()
+                width = min(toast.winfo_reqwidth(), 420)
+                height = toast.winfo_height() or toast.winfo_reqheight()
+                x = parent.winfo_rootx() + parent.winfo_width() - width - 20
+                y = parent.winfo_rooty() + 80 + offset_y
+                toast.geometry(f"{width}x{height}+{x}+{y}")
+                offset_y += height + 6
+            except Exception:
+                continue
 
     @classmethod
     def show(cls, parent, message: str, style: str = "info", duration: int = 3500):

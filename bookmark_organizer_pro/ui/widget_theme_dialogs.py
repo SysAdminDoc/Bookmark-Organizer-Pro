@@ -75,7 +75,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         header.pack_propagate(False)
         
         tk.Label(
-            header, text="🎨 Create Custom Theme", bg=theme.bg_dark,
+            header, text="Create custom theme", bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.title(bold=True)
         ).pack(side=tk.LEFT, padx=20, pady=15)
         
@@ -99,7 +99,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         name_frame.pack(fill=tk.X, pady=15, padx=10)
         
         tk.Label(
-            name_frame, text="Theme Name:", bg=theme.bg_primary,
+            name_frame, text="Theme name", bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.body()
         ).pack(side=tk.LEFT)
         
@@ -124,7 +124,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         base_frame.pack(fill=tk.X, pady=(0, 15), padx=10)
         
         tk.Label(
-            base_frame, text="Base Theme:", bg=theme.bg_primary,
+            base_frame, text="Base theme", bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.body()
         ).pack(side=tk.LEFT)
         
@@ -152,7 +152,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         
         # Preview section
         preview_frame = tk.LabelFrame(
-            content, text="Preview", bg=theme.bg_primary,
+            content, text="Workspace preview", bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.body()
         )
         preview_frame.pack(fill=tk.X, padx=10, pady=15)
@@ -178,7 +178,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         
         ModernButton(
             btn_frame, text="Create Theme", command=self._create_theme,
-            style="primary", icon="✨"
+            style="primary"
         ).pack(side=tk.RIGHT)
         
         # Initialize colors from base theme
@@ -458,13 +458,11 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
         btn_frame.pack(fill=tk.X, padx=20, pady=15)
         
         ModernButton(
-            btn_frame, text="Import Theme", command=self._import_theme,
-            icon="📥"
+            btn_frame, text="Import Theme", command=self._import_theme
         ).pack(side=tk.LEFT, padx=(0, 10))
 
         ModernButton(
-            btn_frame, text="Create Custom", command=self._create_custom_theme,
-            icon="✨"
+            btn_frame, text="Create Custom", command=self._create_custom_theme
         ).pack(side=tk.LEFT)
         
         ModernButton(
@@ -519,7 +517,7 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
                 font=FONTS.small(bold=is_selected)
             ).pack(anchor="w")
             
-            mode_text = "🌙 Dark" if theme_info.is_dark else "☀️ Light"
+            mode_text = "Dark" if theme_info.is_dark else "Light"
             tk.Label(
                 info_frame, text=f"{mode_text} • {theme_info.author}",
                 bg=info_frame.cget('bg'),

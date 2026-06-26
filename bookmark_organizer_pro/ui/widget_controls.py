@@ -209,7 +209,7 @@ class ModernButton(tk.Frame, ThemedWidget):
         super().__init__(
             parent, bg=bg, takefocus=1,
             highlightthickness=DesignTokens.FOCUS_RING_WIDTH,
-            highlightbackground=theme.border_muted,
+            highlightbackground=theme.border_muted if style == "default" else bg,
             highlightcolor=theme.border_active
         )
         self.command = command
@@ -222,14 +222,19 @@ class ModernButton(tk.Frame, ThemedWidget):
         self.focus_bg = hover_bg
         self._pressed_bg = theme.selection if style == "default" else hover_bg
         self._is_hovered = False
+        self._is_focused = False
+        self._normal_border = theme.border_muted if style == "default" else bg
+        self._disabled_bg = theme.bg_tertiary
+        self._disabled_fg = theme.text_muted
         
         # Icon + text
         display_text = f"{icon} {text}" if icon else text
         
         self.label = tk.Label(
             self, text=display_text, bg=bg,
-            fg=fg if state == 'normal' else theme.text_muted,
-            font=font, cursor="hand2" if state == 'normal' else "arrow"
+            fg=fg if state == 'normal' else self._disabled_fg,
+            font=font, cursor="hand2" if state == 'normal' else "arrow",
+            anchor="center"
         )
         self.label.pack(padx=padx, pady=pady)
         
@@ -254,24 +259,28 @@ class ModernButton(tk.Frame, ThemedWidget):
     def _on_enter(self, e):
         if self.state == 'normal':
             self._is_hovered = True
-            self.configure(bg=self.hover_bg)
+            theme = get_theme()
+            self.configure(bg=self.hover_bg, highlightbackground=theme.border_active)
             self.label.configure(bg=self.hover_bg, fg=self.hover_fg)
 
     def _on_leave(self, e):
         if self.state == 'normal':
             self._is_hovered = False
-            self.configure(bg=self.default_bg)
+            border = get_theme().border_active if self._is_focused else self._normal_border
+            self.configure(bg=self.default_bg, highlightbackground=border)
             self.label.configure(bg=self.default_bg, fg=self.fg)
 
     def _on_focus_in(self, e):
         if self.state == 'normal':
             theme = get_theme()
+            self._is_focused = True
             self.configure(highlightbackground=theme.accent_primary)
 
     def _on_focus_out(self, e):
         if self.state == 'normal':
-            theme = get_theme()
-            self.configure(highlightbackground=theme.border_muted)
+            self._is_focused = False
+            border = get_theme().border_active if self._is_hovered else self._normal_border
+            self.configure(highlightbackground=border)
 
     def _on_press(self, e):
         if self.state == 'normal':
@@ -313,12 +322,13 @@ class ModernButton(tk.Frame, ThemedWidget):
             self.label.configure(fg=self.fg, cursor="hand2")
             bg = self.hover_bg if self._is_hovered else self.default_bg
             fg = self.hover_fg if self._is_hovered else self.fg
-            self.configure(bg=bg, highlightbackground=theme.border_muted)
+            border = theme.border_active if self._is_hovered or self._is_focused else self._normal_border
+            self.configure(bg=bg, highlightbackground=border, cursor="hand2")
             self.label.configure(bg=bg, fg=fg)
         else:
-            self.label.configure(fg=theme.text_muted, cursor="arrow")
-            self.configure(bg=theme.bg_tertiary, highlightbackground=theme.border_muted)
-            self.label.configure(bg=theme.bg_tertiary)
+            self.label.configure(fg=self._disabled_fg, cursor="arrow")
+            self.configure(bg=self._disabled_bg, highlightbackground=theme.border_muted, cursor="arrow")
+            self.label.configure(bg=self._disabled_bg)
     
     def set_text(self, text):
         self.label.configure(text=text)
@@ -367,10 +377,10 @@ class ModernSearch(tk.Frame, ThemedWidget):
         
         # Search icon
         self.icon_label = tk.Label(
-            self.inner, text="🔍", bg=theme.bg_secondary,
+            self.inner, text="Search", bg=theme.bg_secondary,
             fg=theme.text_muted, font=FONTS.body()
         )
-        self.icon_label.pack(side=tk.LEFT, padx=(0, 8))
+        self.icon_label.pack(side=tk.LEFT, padx=(0, 10))
         
         # Entry
         self.entry = tk.Entry(
@@ -394,7 +404,7 @@ class ModernSearch(tk.Frame, ThemedWidget):
         
         # Clear button
         self.clear_btn = tk.Label(
-            self.inner, text="✕", bg=theme.bg_secondary,
+            self.inner, text="Clear", bg=theme.bg_secondary,
             fg=theme.text_muted, font=FONTS.body(), cursor="hand2"
         )
         make_keyboard_activatable(self.clear_btn, self._clear)
@@ -479,7 +489,7 @@ class TagWidget(tk.Frame, ThemedWidget):
         # Tag label
         self.label = tk.Label(
             self, text=f"#{tag_name}", bg=theme.bg_secondary,
-            fg=color, font=FONTS.small(), padx=8, pady=2
+            fg=color, font=FONTS.small(), padx=6, pady=2
         )
         self.label.pack(side=tk.LEFT)
         

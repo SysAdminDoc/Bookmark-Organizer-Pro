@@ -897,12 +897,17 @@ class TestReadLaterQueue(_IsolatedTestBase):
 class TestHybridSearchFallback(_IsolatedTestBase):
     """Tests for HybridSearch keyword-only path (no embedding backend)."""
 
+    class _NoEmbeddingBackend:
+        available = False
+
+        def embed_one(self, _text):
+            return []
+
     def test_keyword_search_returns_results(self):
         from bookmark_organizer_pro.services.hybrid_search import HybridSearch
         from bookmark_organizer_pro.services.vector_store import VectorStore
-        from bookmark_organizer_pro.services.embeddings import EmbeddingService
 
-        emb = EmbeddingService()
+        emb = self._NoEmbeddingBackend()
         vs = VectorStore(emb)
         hs = HybridSearch(vs)
         bms = [
@@ -916,9 +921,8 @@ class TestHybridSearchFallback(_IsolatedTestBase):
     def test_empty_query(self):
         from bookmark_organizer_pro.services.hybrid_search import HybridSearch
         from bookmark_organizer_pro.services.vector_store import VectorStore
-        from bookmark_organizer_pro.services.embeddings import EmbeddingService
 
-        emb = EmbeddingService()
+        emb = self._NoEmbeddingBackend()
         vs = VectorStore(emb)
         hs = HybridSearch(vs)
         results = hs.search([], "")

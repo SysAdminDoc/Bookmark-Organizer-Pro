@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-Bookmark Organizer Pro v6.8.1 is the **only open-source desktop bookmark manager** combining local-first architecture, semantic vector search (LanceDB + FastEmbed), AI categorization across 6 providers, a 27-tool MCP server with 4 prompts and 2 resources, conversational RAG with citation provenance, native token streaming across all providers, a reader view with highlights/spaced-repetition, and a Chrome Side Panel extension with Reading List import. No competitor occupies this exact intersection.
+Bookmark Organizer Pro v6.8.2 is the **only open-source desktop bookmark manager** combining local-first architecture, semantic vector search (LanceDB + FastEmbed), AI categorization across 6 providers, a 27-tool MCP server with 4 prompts and 2 resources, conversational RAG with citation provenance, native token streaming across all providers, a reader view with highlights/spaced-repetition, and a polished Chrome Side Panel extension with Reading List import. No competitor occupies this exact intersection.
 
 The project is mature: ~40K LOC, 413 tests across 13 files, 48 categories with 6,232+ domain rules, 16 importers, 14+ export formats, tag hierarchy, graph view, and AI audit learning loop. All 78+ roadmap items have shipped or are explicitly blocked. The competitive window continues narrowing — Karakeep (26K+ stars) has MCP + browser extensions + SingleFile, Raindrop.io has Stella AI chat + 40-tool MCP, Burn 451 offers free-tier MCP (26 tools) — but BOP's desktop-native + local-first + zero-Docker combination remains unmatched.
 

@@ -57,13 +57,13 @@ async function loadRecent() {
   try {
     const config = await getConfig();
     if (!config.apiToken) {
-      showEmpty(list, "Set API token in Options to connect.");
+      showEmpty(list, "Add the API token in Options to connect.");
       return;
     }
     const data = await apiFetch("/bookmarks?limit=30", config);
     const bookmarks = data.bookmarks || [];
     if (!bookmarks.length) {
-      showEmpty(list, "No bookmarks yet. Add one from the Add tab.");
+      showEmpty(list, "No bookmarks yet. Save the current page from the Add tab.");
       return;
     }
     list.innerHTML = "";
@@ -71,7 +71,7 @@ async function loadRecent() {
       list.appendChild(renderBookmark(bm));
     }
   } catch {
-    showEmpty(list, "Cannot connect. Run: bop api-server");
+    showEmpty(list, "Cannot reach the local API. Start the app or run: bop api-server");
   }
 }
 
@@ -113,7 +113,7 @@ async function doSearch(query) {
       results.appendChild(renderBookmark(bm));
     }
   } catch {
-    showEmpty(results, "Cannot connect. Run: bop api-server");
+    showEmpty(results, "Cannot reach the local API. Start the app or run: bop api-server");
   }
 }
 
@@ -154,6 +154,7 @@ async function loadAddTab() {
 
 async function saveBookmark() {
   const titleEl = document.getElementById("addPageTitle");
+  const saveBtn = document.getElementById("addSaveBtn");
   const url = titleEl.dataset.url;
   if (!url) {
     setAddStatus("No saveable page.", "error");
@@ -175,16 +176,18 @@ async function saveBookmark() {
   };
 
   try {
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving...";
     const response = await fetch(`${baseUrl(config)}/bookmarks`, {
       method: "POST",
       headers: authHeaders(config),
       body: JSON.stringify(payload)
     });
     if (response.status === 201) {
-      setAddStatus("Saved.", "success");
+      setAddStatus("Saved to your library.", "success");
       loadRecent();
     } else if (response.status === 409) {
-      setAddStatus("Already saved.", "success");
+      setAddStatus("Already in your library.", "success");
     } else if (response.status === 401) {
       setAddStatus("Invalid token. Check Options.", "error");
     } else {
@@ -192,7 +195,10 @@ async function saveBookmark() {
       setAddStatus(body.error || `Save failed (${response.status}).`, "error");
     }
   } catch {
-    setAddStatus("API not reachable. Run: bop api-server", "error");
+    setAddStatus("Cannot reach the local API. Start the app or run: bop api-server", "error");
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = "Save Bookmark";
   }
 }
 

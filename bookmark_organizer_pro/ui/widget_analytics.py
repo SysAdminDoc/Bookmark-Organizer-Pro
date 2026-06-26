@@ -31,14 +31,18 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         apply_window_chrome(self)
         
         # Header
-        header = tk.Frame(self, bg=theme.bg_dark, height=60)
+        header = tk.Frame(self, bg=theme.bg_dark, height=82)
         header.pack(fill=tk.X)
         header.pack_propagate(False)
         
         tk.Label(
             header, text="Collection Analytics", bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.title(bold=True)
-        ).pack(side=tk.LEFT, padx=20, pady=15)
+        ).pack(anchor="w", padx=22, pady=(15, 2))
+        tk.Label(
+            header, text="Health, coverage, and cleanup signals for the current library.",
+            bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small()
+        ).pack(anchor="w", padx=22)
         
         # Stats summary cards
         cards_frame = tk.Frame(self, bg=theme.bg_primary)
@@ -77,7 +81,10 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
         # Health Score
-        health_frame = tk.Frame(content, bg=theme.bg_secondary)
+        health_frame = tk.Frame(
+            content, bg=theme.bg_secondary,
+            highlightbackground=theme.border_muted, highlightthickness=1
+        )
         health_frame.pack(fill=tk.X, pady=(0, 15))
         
         health_score = self._calculate_health_score()
@@ -165,7 +172,10 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         """Create a section with title and content"""
         theme = get_theme()
         
-        frame = tk.Frame(parent, bg=theme.bg_secondary)
+        frame = tk.Frame(
+            parent, bg=theme.bg_secondary,
+            highlightbackground=theme.border_muted, highlightthickness=1
+        )
         frame.pack(fill=tk.X, pady=(0, 15))
         
         tk.Label(
@@ -263,16 +273,16 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         issues = []
         
         if self.stats["uncategorized"] > 0:
-            issues.append(f"• {self.stats['uncategorized']} uncategorized bookmarks")
+            issues.append(f"- {self.stats['uncategorized']} uncategorized bookmarks")
         
         if self.stats["duplicate_bookmarks"] > 0:
-            issues.append(f"• {self.stats['duplicate_bookmarks']} duplicate bookmarks in {self.stats['duplicate_groups']} groups")
+            issues.append(f"- {self.stats['duplicate_bookmarks']} duplicate bookmarks in {self.stats['duplicate_groups']} groups")
         
         if self.stats["broken"] > 0:
-            issues.append(f"• {self.stats['broken']} broken links")
+            issues.append(f"- {self.stats['broken']} broken links")
         
         if self.stats["stale"] > 0:
-            issues.append(f"• {self.stats['stale']} stale bookmarks (not visited in 90+ days)")
+            issues.append(f"- {self.stats['stale']} stale bookmarks not visited in 90+ days")
         
         return "\n".join(issues) if issues else ""
     

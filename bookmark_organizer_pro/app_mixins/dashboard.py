@@ -134,12 +134,12 @@ class DashboardActionsMixin:
         self.selection_count_label.pack(side=tk.LEFT, padx=(14, 10), pady=8)
 
         ModernButton(
-            self.selection_bar, text=_("Open"), icon="🔗",
+            self.selection_bar, text=_("Open"),
             command=self._open_selected, padx=12, pady=6,
             tooltip=_("Open selected bookmarks in browser")
         ).pack(side=tk.RIGHT, padx=(4, 10), pady=6)
         ModernButton(
-            self.selection_bar, text=_("Edit"), icon="✏️",
+            self.selection_bar, text=_("Edit"),
             command=self._edit_selected, padx=12, pady=6,
             tooltip=_("Edit the selected bookmark")
         ).pack(side=tk.RIGHT, padx=4, pady=6)
@@ -154,12 +154,12 @@ class DashboardActionsMixin:
             tooltip=_("Remove all tags from selected bookmarks")
         ).pack(side=tk.RIGHT, padx=4, pady=6)
         ModernButton(
-            self.selection_bar, text=_("Pin"), icon="★",
+            self.selection_bar, text=_("Pin"),
             command=self._toggle_pin, padx=12, pady=6,
             tooltip=_("Pin or unpin selected bookmarks")
         ).pack(side=tk.RIGHT, padx=4, pady=6)
         ModernButton(
-            self.selection_bar, text=_("Delete"), icon="🗑️",
+            self.selection_bar, text=_("Delete"),
             command=self._delete_selected, style="danger", padx=12, pady=6,
             tooltip=_("Delete selected bookmarks")
         ).pack(side=tk.RIGHT, padx=4, pady=6)
@@ -170,7 +170,7 @@ class DashboardActionsMixin:
             return
         count = len(self.selected_bookmarks)
         if count:
-            self.selection_count_label.configure(text=f"{pluralize(count, 'bookmark')} Selected")
+            self.selection_count_label.configure(text=f"{pluralize(count, 'bookmark')} selected")
             if not self.selection_bar.winfo_ismapped():
                 self.selection_bar.pack(
                     fill=tk.X,
@@ -227,7 +227,7 @@ class DashboardActionsMixin:
         health = self._calculate_health_score(stats)
         if total == 0:
             health_color = theme.text_muted
-            health_label = "Not Started"
+            health_label = "Ready"
             health_value = "Ready"
         else:
             health_color = theme.accent_success if health >= 70 else (theme.accent_warning if health >= 40 else theme.accent_error)
@@ -290,7 +290,7 @@ class DashboardActionsMixin:
         if total == 0:
             summary = "Import or add bookmarks to start measuring collection quality."
         elif issue_parts:
-            summary = "Review " + ", ".join(issue_parts) + " bookmark signals."
+            summary = "Review " + ", ".join(issue_parts) + " signals."
         else:
             summary = "No major collection issues detected."
 
@@ -607,4 +607,3 @@ class DashboardActionsMixin:
             right_frame, text=f"v{APP_VERSION}", bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.tiny()
         ).pack(side=tk.LEFT, padx=DesignTokens.SPACE_MD)
-

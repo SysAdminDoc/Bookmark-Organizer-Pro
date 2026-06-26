@@ -18,7 +18,9 @@ function setStatus(message, tone = "info") {
 }
 
 function setBusy(isBusy) {
-  document.getElementById("saveBookmark").disabled = isBusy;
+  const button = document.getElementById("saveBookmark");
+  button.disabled = isBusy;
+  button.textContent = isBusy ? "Saving..." : "Save Bookmark";
 }
 
 async function getSelection(tabId) {
@@ -45,7 +47,7 @@ async function loadPopup() {
   }
 
   if (!values.apiToken) {
-    setStatus("Set the local API token in Options.", "error");
+    setStatus("Add the local API token in Options before saving.", "error");
     setBusy(true);
     return;
   }
@@ -66,7 +68,7 @@ async function saveBookmark() {
 
   const values = await getConfig();
   if (!values.apiToken) {
-    setStatus("Set the local API token in Options.", "error");
+    setStatus("Add the local API token in Options before saving.", "error");
     return;
   }
 
@@ -90,16 +92,16 @@ async function saveBookmark() {
     });
     const body = await response.json().catch(() => ({}));
     if (response.status === 201) {
-      setStatus("Saved.", "success");
+      setStatus("Saved to your library.", "success");
     } else if (response.status === 409) {
-      setStatus("Already saved.", "success");
+      setStatus("Already in your library.", "success");
     } else if (response.status === 401) {
       setStatus("Invalid API token. Check Options.", "error");
     } else {
       setStatus(body.error || `Save failed (${response.status}).`, "error");
     }
   } catch {
-    setStatus("API not reachable. Start BOP or run: bop api-server", "error");
+    setStatus("Cannot reach the local API. Start the app or run: bop api-server", "error");
   } finally {
     setBusy(false);
   }

@@ -29,7 +29,7 @@ from bookmark_organizer_pro.constants import (
     SETTINGS_FILE,
 )
 
-from .foundation import FONTS
+from .foundation import FONTS, readable_text_on
 from .widgets import ModernButton, get_theme
 
 
@@ -92,8 +92,9 @@ class AboutDialog(tk.Toplevel):
         
         # App icon
         icon_label = tk.Label(
-            header_content, text="📚", font=FONTS.display(),
-            bg=theme.bg_secondary, fg=theme.accent_primary
+            header_content, text="B", font=FONTS.display(),
+            bg=theme.accent_primary, fg=readable_text_on(theme.accent_primary),
+            padx=12, pady=2
         )
         icon_label.pack()
         
@@ -133,7 +134,7 @@ class AboutDialog(tk.Toplevel):
         footer_content.pack(pady=12, padx=15, fill=tk.X)
         
         copy_btn = ModernButton(
-            footer_content, text="Copy Info", icon="📋",
+            footer_content, text="Copy diagnostics",
             font=FONTS.small(), command=self._copy_system_info,
             padx=12, pady=6
         )
@@ -192,28 +193,26 @@ License: {LICENSE}
         canvas.configure(yscrollcommand=scrollbar.set)
         
         features = [
-            ("📥", "Import/Export", "HTML, JSON, CSV, OPML formats"),
-            ("📁", "Categories", "Nested hierarchy with auto-categorization"),
-            ("🏷️", "Tags", "Color-coded tags with AI suggestions"),
-            ("🔍", "Search", "Advanced syntax with filters & highlighting"),
-            ("🤖", "AI Features", "Auto-categorize, generate tags, summarize"),
-            ("🎨", "Themes", "10+ built-in themes, custom theme creator"),
-            ("📊", "Analytics", "Dashboard with statistics and insights"),
-            ("⌨️", "Shortcuts", "Full keyboard navigation support"),
-            ("↩️", "Undo/Redo", "Bookmark-level action history"),
-            ("🔗", "Link Checker", "Validate bookmark URLs"),
-            ("🖼️", "Favicons", "Automatic favicon downloading & caching"),
+            ("Import/Export", "HTML, JSON, CSV, and OPML formats"),
+            ("Categories", "Nested hierarchy with auto-categorization"),
+            ("Tags", "User tags plus AI suggestions"),
+            ("Search", "Advanced syntax with filters and highlighting"),
+            ("AI Features", "Auto-categorize, generate tags, and summarize"),
+            ("Themes", "Built-in themes and a custom theme creator"),
+            ("Analytics", "Collection health, cleanup signals, and insights"),
+            ("Navigation", "Keyboard-friendly navigation and command actions"),
+            ("Undo/Redo", "Bookmark-level action history"),
+            ("Link Checker", "Validate bookmark URLs"),
+            ("Favicons", "Automatic favicon downloading and caching"),
         ]
         
-        for i, (icon, name, desc) in enumerate(features):
+        for i, (name, desc) in enumerate(features):
             row = tk.Frame(inner, bg=theme.bg_secondary if i % 2 == 0 else theme.bg_primary)
             row.pack(fill=tk.X, pady=1)
             
-            tk.Label(row, text=icon, font=FONTS.subtitle(bold=False),
-                    bg=row.cget("bg"), width=3).pack(side=tk.LEFT, padx=(10, 5), pady=8)
             tk.Label(row, text=name, font=FONTS.body(bold=True),
-                    bg=row.cget("bg"), fg=theme.text_primary, width=12,
-                    anchor="w").pack(side=tk.LEFT, pady=8)
+                    bg=row.cget("bg"), fg=theme.text_primary, width=14,
+                    anchor="w").pack(side=tk.LEFT, padx=(12, 8), pady=8)
             tk.Label(row, text=desc, font=FONTS.body(),
                     bg=row.cget("bg"), fg=theme.text_secondary,
                     anchor="w").pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10), pady=8)

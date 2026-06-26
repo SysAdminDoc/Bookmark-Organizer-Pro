@@ -56,6 +56,7 @@ class ChatPanel(tk.Frame, ThemedWidget):
             command=self._messages_canvas.yview,
         )
         self._messages_inner = tk.Frame(self._messages_canvas, bg=theme.bg_dark)
+        self._welcome_frame = None
 
         self._messages_inner.bind(
             "<Configure>",
@@ -69,6 +70,7 @@ class ChatPanel(tk.Frame, ThemedWidget):
         self._messages_canvas.configure(yscrollcommand=self._messages_scrollbar.set)
         self._messages_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self._messages_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self._show_welcome(theme)
 
         # Bind mousewheel for scrolling
         self._messages_canvas.bind("<Enter>", self._bind_mousewheel)
@@ -101,6 +103,33 @@ class ChatPanel(tk.Frame, ThemedWidget):
 
         self._placeholder_active = True
 
+    def _show_welcome(self, theme=None):
+        """Render the calm empty state shown before the first question."""
+        theme = theme or get_theme()
+        if self._welcome_frame and self._welcome_frame.winfo_exists():
+            return
+        self._welcome_frame = tk.Frame(self._messages_inner, bg=theme.bg_dark)
+        self._welcome_frame.pack(fill=tk.X, pady=(4, DesignTokens.SPACE_MD))
+        tk.Label(
+            self._welcome_frame,
+            text=_("Ask about saved links, themes, projects, or old research."),
+            bg=theme.bg_dark, fg=theme.text_secondary,
+            font=FONTS.small(), wraplength=230, justify=tk.LEFT,
+            anchor="w",
+        ).pack(fill=tk.X)
+        tk.Label(
+            self._welcome_frame,
+            text=_("Answers cite matching bookmarks when the local search index is available."),
+            bg=theme.bg_dark, fg=theme.text_muted,
+            font=FONTS.tiny(), wraplength=230, justify=tk.LEFT,
+            anchor="w",
+        ).pack(fill=tk.X, pady=(6, 0))
+
+    def _hide_welcome(self):
+        if self._welcome_frame and self._welcome_frame.winfo_exists():
+            self._welcome_frame.destroy()
+        self._welcome_frame = None
+
     def _bind_mousewheel(self, event):
         self._messages_canvas.bind(
             "<MouseWheel>",
@@ -113,14 +142,17 @@ class ChatPanel(tk.Frame, ThemedWidget):
         self._messages_canvas.unbind("<MouseWheel>")
 
     def _on_focus_in(self, event):
+        theme = get_theme()
+        self._entry.configure(highlightbackground=theme.accent_primary)
         if self._placeholder_active:
             self._entry.delete(0, tk.END)
-            self._entry.config(fg=get_theme().text_primary)
+            self._entry.config(fg=theme.text_primary)
             self._placeholder_active = False
 
     def _on_focus_out(self, event):
+        theme = get_theme()
+        self._entry.configure(highlightbackground=theme.border_muted)
         if not self._entry.get().strip():
-            theme = get_theme()
             self._entry.insert(0, _("Ask about your bookmarks..."))
             self._entry.config(fg=theme.text_muted)
             self._placeholder_active = True
@@ -131,7 +163,7 @@ class ChatPanel(tk.Frame, ThemedWidget):
             return "break"
         self._entry.delete(0, tk.END)
         self._add_message("user", question)
-        self._status_label.config(text=_("Thinking…"), fg=get_theme().accent_primary)
+        self._status_label.config(text=_("Searching your library..."), fg=get_theme().accent_primary)
         self._entry.config(state=tk.DISABLED)
         if self._on_ask:
             self._on_ask(question)
@@ -140,6 +172,7 @@ class ChatPanel(tk.Frame, ThemedWidget):
     def _add_message(self, role: str, text: str, sources=None):
         theme = get_theme()
         is_user = role == "user"
+        self._hide_welcome()
 
         bubble = tk.Frame(
             self._messages_inner,
@@ -197,3 +230,4 @@ class ChatPanel(tk.Frame, ThemedWidget):
         for widget in self._messages_inner.winfo_children():
             widget.destroy()
         self._status_label.config(text="")
+        self._show_welcome()

@@ -182,8 +182,7 @@ class FilterActionsMixin:
         theme = get_theme()
         row, name_lbl, count_lbl = parts
         bg = theme.selection if active else (theme.bg_hover if hover else theme.bg_dark)
-        badge_bg = theme.bg_tertiary if active or hover else theme.bg_primary
-        fg = theme.text_primary if active else theme.text_secondary
+        count_fg = theme.accent_primary if active else (theme.text_primary if hover else theme.text_muted)
         for widget in (row, name_lbl):
             try:
                 widget.configure(bg=bg)
@@ -191,7 +190,7 @@ class FilterActionsMixin:
                 pass
         try:
             row.configure(highlightbackground=theme.border_muted if active else bg)
-            count_lbl.configure(bg=badge_bg, fg=fg)
+            count_lbl.configure(bg=bg, fg=count_fg)
         except Exception:
             pass
 
@@ -398,4 +397,3 @@ class FilterActionsMixin:
         def reset_flag():
             self._suppress_search_callback = False
         self.root.after(50, reset_flag)
-

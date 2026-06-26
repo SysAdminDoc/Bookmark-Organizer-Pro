@@ -44,7 +44,7 @@ async function saveOptions() {
   }
 
   await storageSet({ apiPort: port, apiToken, defaultCategory });
-  setStatus("Options saved.", "success");
+  setStatus("Settings saved.", "success");
 }
 
 async function testConnection() {
@@ -56,7 +56,7 @@ async function testConnection() {
     return;
   }
 
-  setStatus("Testing...");
+  setStatus("Testing connection...");
 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/`, {
@@ -71,7 +71,7 @@ async function testConnection() {
       setStatus(`Unexpected response: ${response.status}`, "error");
     }
   } catch {
-    setStatus("Cannot reach API. Start BOP or run: bop api-server", "error");
+    setStatus("Cannot reach the local API. Start the app or run: bop api-server", "error");
   }
 }
 

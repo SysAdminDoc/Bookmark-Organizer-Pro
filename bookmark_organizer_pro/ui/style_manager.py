@@ -168,7 +168,8 @@ class StyleManager:
             fieldbackground=colors.bg_secondary,
             font=FONTS.body(),
             borderwidth=0,
-            focuscolor=colors.accent_primary
+            focuscolor=colors.accent_primary,
+            troughcolor=colors.bg_tertiary
         )
         
         # ===== TREEVIEW STYLING =====
@@ -178,7 +179,8 @@ class StyleManager:
             fieldbackground=colors.bg_primary,
             borderwidth=0,
             rowheight=DesignTokens.TREEVIEW_ROW_HEIGHT,
-            font=FONTS.body()
+            font=FONTS.body(),
+            relief="flat"
         )
         
         self.style.configure("Treeview.Heading",
@@ -186,7 +188,8 @@ class StyleManager:
             foreground=colors.text_secondary,
             borderwidth=0,
             font=FONTS.small(bold=True),
-            padding=(DesignTokens.SPACE_SM, DesignTokens.SPACE_SM)
+            padding=(DesignTokens.SPACE_MD, DesignTokens.SPACE_SM),
+            relief="flat"
         )
         
         self.style.map("Treeview",
@@ -204,27 +207,38 @@ class StyleManager:
             background=[
                 ("active", colors.bg_tertiary),
                 ("!active", colors.bg_secondary)
+            ],
+            foreground=[
+                ("active", colors.text_primary),
+                ("!active", colors.text_secondary)
             ]
         )
         
         # ===== BUTTON STYLING =====
         self.style.configure("TButton",
-            background=colors.bg_tertiary,
+            background=colors.bg_secondary,
             foreground=colors.text_primary,
             borderwidth=1,
+            bordercolor=colors.border_muted,
             focusthickness=0,
-            padding=(DesignTokens.SPACE_MD, DesignTokens.SPACE_SM),
-            font=FONTS.body()
+            focuscolor=colors.border_active,
+            padding=(DesignTokens.BUTTON_PAD_X, DesignTokens.BUTTON_PAD_Y),
+            font=FONTS.small(bold=True)
         )
         
         self.style.map("TButton",
             background=[
-                ("pressed", colors.bg_hover),
+                ("pressed", colors.bg_tertiary),
                 ("active", colors.bg_hover),
-                ("disabled", colors.bg_secondary)
+                ("disabled", colors.bg_tertiary)
             ],
             foreground=[
                 ("disabled", colors.text_muted)
+            ],
+            bordercolor=[
+                ("focus", colors.border_active),
+                ("active", colors.border_active),
+                ("!focus", colors.border_muted)
             ]
         )
         
@@ -233,7 +247,9 @@ class StyleManager:
             background=colors.accent_primary,
             foreground="#ffffff",
             borderwidth=0,
-            padding=(DesignTokens.SPACE_LG, DesignTokens.SPACE_SM)
+            bordercolor=colors.accent_primary,
+            padding=(DesignTokens.SPACE_LG, DesignTokens.SPACE_SM),
+            font=FONTS.small(bold=True)
         )
         
         self.style.map("Primary.TButton",
@@ -241,6 +257,9 @@ class StyleManager:
                 ("pressed", colors.selected),
                 ("active", colors.selected),
                 ("disabled", colors.bg_tertiary)
+            ],
+            foreground=[
+                ("disabled", colors.text_muted)
             ]
         )
         
@@ -248,7 +267,8 @@ class StyleManager:
         self.style.configure("Success.TButton",
             background=colors.accent_success,
             foreground="#ffffff",
-            borderwidth=0
+            borderwidth=0,
+            font=FONTS.small(bold=True)
         )
         
         self.style.map("Success.TButton",
@@ -262,7 +282,8 @@ class StyleManager:
         self.style.configure("Danger.TButton",
             background=colors.accent_error,
             foreground="#ffffff",
-            borderwidth=0
+            borderwidth=0,
+            font=FONTS.small(bold=True)
         )
         
         self.style.map("Danger.TButton",
@@ -277,6 +298,7 @@ class StyleManager:
             fieldbackground=colors.bg_secondary,
             foreground=colors.text_primary,
             borderwidth=1,
+            bordercolor=colors.border_muted,
             padding=DesignTokens.SPACE_SM,
             font=FONTS.body()
         )
@@ -289,6 +311,10 @@ class StyleManager:
             bordercolor=[
                 ("focus", colors.accent_primary),
                 ("!focus", colors.border)
+            ],
+            foreground=[
+                ("disabled", colors.text_muted),
+                ("!disabled", colors.text_primary)
             ]
         )
         
@@ -299,6 +325,7 @@ class StyleManager:
             foreground=colors.text_primary,
             arrowcolor=colors.text_secondary,
             borderwidth=1,
+            bordercolor=colors.border_muted,
             padding=DesignTokens.SPACE_SM,
             font=FONTS.body()
         )
@@ -309,7 +336,11 @@ class StyleManager:
                 ("focus", colors.bg_tertiary)
             ],
             selectbackground=[("!focus", colors.selection)],
-            selectforeground=[("!focus", colors.text_primary)]
+            selectforeground=[("!focus", colors.text_primary)],
+            bordercolor=[
+                ("focus", colors.border_active),
+                ("!focus", colors.border_muted)
+            ]
         )
         
         # ===== SCROLLBAR STYLING =====
@@ -356,16 +387,18 @@ class StyleManager:
             background=colors.bg_secondary,
             foreground=colors.text_secondary,
             padding=(DesignTokens.SPACE_LG, DesignTokens.SPACE_SM),
-            font=FONTS.body()
+            font=FONTS.small(bold=True)
         )
         
         self.style.map("TNotebook.Tab",
             background=[
                 ("selected", colors.bg_primary),
+                ("active", colors.bg_hover),
                 ("!selected", colors.bg_secondary)
             ],
             foreground=[
                 ("selected", colors.text_primary),
+                ("active", colors.text_primary),
                 ("!selected", colors.text_secondary)
             ],
             expand=[("selected", [0, 0, 0, 2])]
@@ -377,13 +410,18 @@ class StyleManager:
             foreground=colors.text_primary,
             font=FONTS.body(),
             indicatorbackground=colors.bg_secondary,
-            indicatorforeground=colors.accent_primary
+            indicatorforeground=colors.accent_primary,
+            focuscolor=colors.border_active
         )
         
         self.style.map("TCheckbutton",
             background=[
                 ("active", colors.bg_hover),
                 ("!active", colors.bg_primary)
+            ],
+            foreground=[
+                ("disabled", colors.text_muted),
+                ("!disabled", colors.text_primary)
             ],
             indicatorbackground=[
                 ("selected", colors.accent_primary),
@@ -396,7 +434,8 @@ class StyleManager:
             background=colors.bg_primary,
             foreground=colors.text_primary,
             font=FONTS.body(),
-            indicatorbackground=colors.bg_secondary
+            indicatorbackground=colors.bg_secondary,
+            focuscolor=colors.border_active
         )
         
         self.style.map("TRadiobutton",
@@ -432,6 +471,7 @@ class StyleManager:
         self.style.configure("TLabelframe",
             background=colors.bg_primary,
             borderwidth=1,
+            bordercolor=colors.border_muted,
             relief="solid"
         )
         
@@ -521,6 +561,12 @@ class StyleManager:
             font=FONTS.small()
         )
         
+        self.style.configure("Section.TLabel",
+            background=colors.bg_primary,
+            foreground=colors.text_muted,
+            font=FONTS.tiny(bold=True)
+        )
+
         # Link label style
         self.style.configure("Link.TLabel",
             background=colors.bg_primary,
