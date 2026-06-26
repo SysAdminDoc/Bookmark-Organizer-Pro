@@ -116,13 +116,18 @@ class HybridSearch:
             if bid not in semantic_ids:
                 semantic_ids.append(bid)
 
-        if not semantic_ids:
+        fts_ids = self.vector_store.fts_search(query, k=semantic_k)
+
+        if not semantic_ids and not fts_ids:
             return [
                 HybridResult(bookmark=bm, score=score, keyword_rank=i)
                 for i, (bm, score) in enumerate(keyword_hits[:limit])
             ]
 
-        fused = reciprocal_rank_fusion([keyword_ids, semantic_ids])
+        rankings = [keyword_ids, semantic_ids]
+        if fts_ids:
+            rankings.append(fts_ids)
+        fused = reciprocal_rank_fusion(rankings)
         bm_lookup = {bm.id: bm for bm in bookmarks}
         keyword_rank = {bid: i for i, bid in enumerate(keyword_ids)}
         semantic_rank = {bid: i for i, bid in enumerate(semantic_ids)}

@@ -196,6 +196,29 @@ class VectorStore:
             return scored[:k]
 
     # ------------------------------------------------------------------
+    def fts_search(self, query: str, k: int = 50) -> List[int]:
+        """Full-text search via LanceDB FTS index. Returns ranked bookmark IDs."""
+        if self._backend != "lancedb":
+            return []
+        table = self._table()
+        if table is None:
+            return []
+        try:
+            if not getattr(self, "_fts_indexed", False):
+                table.create_fts_index("text", replace=True)
+                self._fts_indexed = True
+            rows = table.search(query, query_type="fts").limit(k).to_list()
+            seen = []
+            for row in rows:
+                bid = int(row.get("bookmark_id", 0))
+                if bid not in seen:
+                    seen.append(bid)
+            return seen
+        except Exception as exc:
+            log.debug(f"LanceDB FTS search failed: {exc}")
+            return []
+
+    # ------------------------------------------------------------------
     def stats(self) -> Dict[str, int]:
         with self._lock:
             if self._backend == "lancedb":

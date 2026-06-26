@@ -45,9 +45,15 @@ Items moved here from ROADMAP.md because they have hard blockers preventing impl
 
 ## First community translation (es or zh)
 
-**Blocker:** The i18n scaffolding (R-50) ships `_()`, `ngettext()`, `setup_locale()`, and POT generation, but zero GUI strings are currently wrapped with `_()`. A translation requires first wrapping all user-facing strings across the GUI with the `_()` function — M-effort — before any `.po` file can be meaningful.
+**Blocker:** 263 GUI strings are now wrapped with `_()` and the POT file is generated. However, creating the actual `.po` translation file requires a fluent translator for the target language. This is a human-gated task.
 
 **Source:** [S-128]
+
+## Awesome-list and ecosystem submissions
+
+**Blocker:** Requires submitting PRs to external repositories (awesome-bookmarking, awesome-mcp-servers, awesome-selfhosted). These are operator-gated actions requiring a GitHub account with permissions to fork and submit PRs to third-party repos, plus waiting for maintainer review.
+
+**Source:** [S-145][S-154]
 
 ## MSIX packaging + SignPath Foundation code signing
 

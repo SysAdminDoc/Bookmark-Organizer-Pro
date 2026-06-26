@@ -832,20 +832,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P2 — Later (differentiation, polish)
 
-- [ ] P2 — **Awesome-list and ecosystem submissions**
-  Why: BOP is not listed on awesome-bookmarking (no AI/MCP entries), awesome-mcp-servers (no local-first bookmark MCP), or awesome-selfhosted. Getting listed increases discoverability. 97M monthly MCP SDK downloads means the MCP ecosystem is the primary discovery channel.
-  Evidence: awesome-bookmarking has no AI entries; awesome-mcp-servers knowledge-management section lacks local-first [S-145]
-  Touches: External PRs to: `dogancelik/awesome-bookmarking`, `TensorBlock/awesome-mcp-servers`, `awesome-selfhosted/awesome-selfhosted`
-  Acceptance: BOP is listed on at least 2 of the 3 awesome-lists with accurate description
-  Complexity: S
-
-- [ ] P2 — **LanceDB FTS Boolean operators in hybrid search**
-  Why: LanceDB 0.33+ supports Boolean operators (SHOULD, MUST, MUST_NOT) and `slop` for typo-tolerant phrase matching. BOP's hybrid search uses LanceDB for vector similarity but doesn't leverage these FTS improvements, which could improve search precision.
-  Evidence: LanceDB 0.33.0 changelog — FTS Boolean operators [S-95]
-  Touches: `services/hybrid_search.py`, `services/vector_store.py`
-  Acceptance: `hybrid_search` passes Boolean operators through to LanceDB FTS. Search for `"python" MUST_NOT "java"` returns correct results.
-  Complexity: M
-
 - [ ] P2 — **MCP Apps exploration**
   Why: MCP spec 2026-07-28 introduces MCP Apps — server-rendered HTML UIs in sandboxed iframes. A bookmark MCP server could render its own dashboard/search UI inside Claude Desktop, ChatGPT, or other MCP hosts. This is a leapfrog feature — no bookmark MCP server ships an app.
   Evidence: MCP 2026-07-28 RC — MCP Apps (SEP-1865) [S-79]
