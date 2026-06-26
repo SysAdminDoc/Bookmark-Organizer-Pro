@@ -114,10 +114,7 @@ class BookmarkViewMixin:
                     pady=(0, DesignTokens.CONTENT_PAD_Y)
                 )
 
-        if self.view_mode == ViewMode.LIST:
-            self._populate_list_view(bookmarks)
-        else:
-            self._populate_grid_view(bookmarks)
+        self._populate_list_view(bookmarks)
 
     def _show_toast(self, message: str, style: str = "info"):
         """Show a non-blocking toast notification."""
@@ -226,14 +223,6 @@ class BookmarkViewMixin:
             self.selected_bookmarks = []
         self._update_status_counts()
         self._update_selection_bar()
-    
-    def _populate_grid_view(self, bookmarks: List[Bookmark]):
-        """Grid view disabled - using list view only"""
-        pass  # Grid view removed - list view with zoom is now used
-    
-    def _load_next_grid_batch(self):
-        """Grid view disabled - this is a stub"""
-        pass
     
     def _on_favicon_progress(self, completed: int, total: int, current: str):
         """Favicon progress callback - thread-safe"""
