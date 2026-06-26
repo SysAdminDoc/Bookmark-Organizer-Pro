@@ -45,19 +45,22 @@ class BookmarkViewMixin:
         else:
             # Apply search query only if no quick filter
             if query:
-                try:
-                    bookmarks = self.bookmark_manager.search_bookmarks(
-                        query, category=self.current_category
-                    )
-                except Exception:
-                    query_lower = query.lower()
-                    bookmarks = [
-                        bm for bm in bookmarks
-                        if query_lower in bm.title.lower() or
-                        query_lower in bm.url.lower() or
-                        query_lower in (bm.category or "").lower() or
-                        query_lower in ' '.join(bm.tags).lower()
-                    ]
+                if getattr(self, '_nl_search_mode', False):
+                    bookmarks = self._nl_search_sync(query, bookmarks)
+                else:
+                    try:
+                        bookmarks = self.bookmark_manager.search_bookmarks(
+                            query, category=self.current_category
+                        )
+                    except Exception:
+                        query_lower = query.lower()
+                        bookmarks = [
+                            bm for bm in bookmarks
+                            if query_lower in bm.title.lower() or
+                            query_lower in bm.url.lower() or
+                            query_lower in (bm.category or "").lower() or
+                            query_lower in ' '.join(bm.tags).lower()
+                        ]
         
         if query:
             bookmarks.sort(key=lambda b: not b.is_pinned)

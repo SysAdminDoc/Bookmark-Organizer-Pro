@@ -829,13 +829,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P1 — Next (user-facing gaps)
 
-- [ ] P1 — **NL query toggle in search bar**
-  Why: `nl_query.py` translates natural language to structured bookmark queries via AI but has no GUI surface (CLI/MCP only). A toggle or mode switch on the search bar ("Smart Search") would let desktop users ask questions like "python articles from last month" without learning filter syntax.
-  Evidence: `services/nl_query.py` exists, zero GUI references; community demand for semantic/AI search [S-129]
-  Touches: `app_mixins/app_shell.py`, `app_mixins/filters.py`, `services/nl_query.py`
-  Acceptance: Toggle in search bar activates NL mode. Query processed by `nl_query.py`, results displayed in bookmark list.
-  Complexity: M
-
 - [ ] P1 — **Benchmark CI gate with regression threshold**
   Why: `bench_core.py` runs in CI on Python 3.12 but only prints results — no failure on regression. A 20% threshold on JSON load/save at 5K bookmarks would catch performance regressions before they ship.
   Evidence: `.github/workflows/ci.yml:52-54` runs benchmarks but doesn't gate; `benchmarks/bench_core.py` exists [S-145]

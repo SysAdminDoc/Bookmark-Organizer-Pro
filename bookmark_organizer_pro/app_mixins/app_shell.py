@@ -218,12 +218,22 @@ class AppShellMixin:
             fg=theme.text_muted))
         Tooltip(self.clear_search_btn, "Clear search (Esc)")
 
+        self._nl_search_mode = False
+        self._nl_toggle_btn = tk.Label(
+            search_frame, text="AI", bg=theme.bg_tertiary,
+            fg=theme.text_muted, font=FONTS.tiny(bold=True),
+            padx=6, pady=3, cursor="hand2",
+        )
+        self._nl_toggle_btn.pack(side=tk.RIGHT, padx=(4, 4))
+        self._nl_toggle_btn.bind("<Button-1>", lambda e: self._toggle_nl_search())
+        Tooltip(self._nl_toggle_btn, "Toggle AI Smart Search — interpret queries as natural language")
+
         search_shortcut = tk.Label(
             search_frame, text="Ctrl+F", bg=theme.bg_tertiary,
             fg=theme.text_muted, font=FONTS.tiny(bold=True),
             padx=8, pady=3
         )
-        search_shortcut.pack(side=tk.RIGHT, padx=(8, 10))
+        search_shortcut.pack(side=tk.RIGHT, padx=(8, 4))
         
         # ===== TOOLBAR BUTTONS =====
         toolbar = tk.Frame(header, bg=theme.bg_dark)

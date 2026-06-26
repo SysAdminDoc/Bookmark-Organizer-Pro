@@ -96,6 +96,38 @@ class FilterActionsMixin:
         popup.geometry(f"+{x}+{y}")
         self.__class__._filter_hint_popup = popup
 
+    def _toggle_nl_search(self):
+        """Toggle between standard keyword search and AI natural-language search."""
+        self._nl_search_mode = not getattr(self, '_nl_search_mode', False)
+        theme = get_theme()
+        btn = getattr(self, '_nl_toggle_btn', None)
+        if btn:
+            if self._nl_search_mode:
+                btn.configure(bg=theme.accent_primary, fg="#ffffff")
+            else:
+                btn.configure(bg=theme.bg_tertiary, fg=theme.text_muted)
+        placeholder = "Ask anything about your bookmarks..." if self._nl_search_mode else "Search bookmarks…"
+        self._search_placeholder = placeholder
+        if not self.search_entry.get() or self.search_entry.get() in (
+            "Search bookmarks…", "Ask anything about your bookmarks..."
+        ):
+            self._suppress_search_callback = True
+            self.search_entry.delete(0, tk.END)
+            self.search_entry.insert(0, self._search_placeholder)
+            self.search_entry.configure(fg=theme.text_muted)
+            self._suppress_search_callback = False
+
+    def _nl_search_sync(self, query, bookmarks):
+        """Run NL-to-structured-query translation and filter bookmarks."""
+        try:
+            from bookmark_organizer_pro.ai import AIConfigManager
+            from bookmark_organizer_pro.services.nl_query import NLQueryTranslator, execute_query
+            translator = NLQueryTranslator(AIConfigManager())
+            structured = translator.translate(query)
+            return execute_query(structured, bookmarks)
+        except Exception:
+            return bookmarks
+
     def _dismiss_filter_hints(self, event=None):
         popup = self.__class__._filter_hint_popup
         if popup is not None:
