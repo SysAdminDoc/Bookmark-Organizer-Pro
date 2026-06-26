@@ -33,6 +33,7 @@ mcp = ["mcp>=1.28,<2.0", "fastmcp>=3.4.1,<4.0"]
 nuitka = ["Nuitka>=4.1,<5.0"]
 updates = ["tufup>=0.10,<0.11"]
 sunvalley = ["sv-ttk>=2.6.1,<3.0"]
+themedetect = ["darkdetect>=0.8"]
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",

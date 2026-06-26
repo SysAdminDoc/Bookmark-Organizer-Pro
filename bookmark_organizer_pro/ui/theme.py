@@ -180,11 +180,31 @@ class ThemeManager:
         self._load_settings()
 
     def _load_settings(self) -> None:
-        """Load theme preference from settings, falling back safely."""
+        """Load theme preference from settings.
+
+        When no theme is saved, try to match the OS dark/light preference via
+        ``darkdetect`` (optional dependency). Falls back to the built-in
+        default if darkdetect is unavailable or the OS preference is unknown.
+        """
         settings = _read_json_object(self.settings_file)
-        theme_name = settings.get("theme", self.default_theme)
+        theme_name = settings.get("theme", "")
+        if not theme_name:
+            theme_name = self._detect_os_theme() or self.default_theme
         if isinstance(theme_name, str):
             self.current_theme = self.get_all_themes().get(theme_name, self.current_theme)
+
+    @staticmethod
+    def _detect_os_theme() -> str:
+        """Return a built-in theme name matching OS dark/light, or '' if unknown."""
+        try:
+            import darkdetect
+            if darkdetect.isDark():
+                return "github_dark"
+            if darkdetect.isLight():
+                return "github_light"
+        except Exception:
+            pass
+        return ""
 
     def _load_custom_themes(self) -> None:
         """Load custom themes without allowing them to shadow built-ins."""
