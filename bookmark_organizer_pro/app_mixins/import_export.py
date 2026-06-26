@@ -411,7 +411,7 @@ class ImportExportMixin:
             ("Arc Browser (JSON)", "*.json", self._import_service_arc),
             ("Zotero (RDF)", "*.rdf", self._import_service_zotero),
         ]
-        for label, _, callback in service_importers:
+        for label, _ext, callback in service_importers:
             menu.add_command(label="  " + _("Import from {source}").format(source=label), command=callback)
 
         menu.tk_popup(self.root.winfo_pointerx(), self.root.winfo_pointery())
