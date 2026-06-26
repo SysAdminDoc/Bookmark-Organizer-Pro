@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from bookmark_organizer_pro.constants import APP_NAME
+from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.ui.components import DragDropImportArea, ScrollableFrame, ThemeDropdown
 from bookmark_organizer_pro.ui.feedback import EmptyState, FilteredEmptyState
 from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, readable_text_on
@@ -39,39 +40,39 @@ class AppShellMixin:
         
         # File menu
         file_menu = tk.Menu(menubar, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary)
-        file_menu.add_command(label="New Bookmark", accelerator="Ctrl+N", command=self._add_bookmark)
+        file_menu.add_command(label=_("New Bookmark"), accelerator="Ctrl+N", command=self._add_bookmark)
         file_menu.add_separator()
-        file_menu.add_command(label="Import…", accelerator="Ctrl+I", command=self._show_import_dialog)
-        file_menu.add_command(label="Export…", accelerator="Ctrl+S", command=self._show_export_dialog)
+        file_menu.add_command(label=_("Import…"), accelerator="Ctrl+I", command=self._show_import_dialog)
+        file_menu.add_command(label=_("Export…"), accelerator="Ctrl+S", command=self._show_export_dialog)
         file_menu.add_separator()
-        file_menu.add_command(label="Restore from Backup…", command=self._show_restore_dialog)
+        file_menu.add_command(label=_("Restore from Backup…"), command=self._show_restore_dialog)
         file_menu.add_separator()
-        file_menu.add_command(label="Exit", command=self._on_close)
-        menubar.add_cascade(label="File", menu=file_menu)
-        
+        file_menu.add_command(label=_("Exit"), command=self._on_close)
+        menubar.add_cascade(label=_("File"), menu=file_menu)
+
         # Edit menu
         edit_menu = tk.Menu(menubar, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary)
-        edit_menu.add_command(label="Undo", accelerator="Ctrl+Z", command=self._undo)
-        edit_menu.add_command(label="Redo", accelerator="Ctrl+Y", command=self._redo)
+        edit_menu.add_command(label=_("Undo"), accelerator="Ctrl+Z", command=self._undo)
+        edit_menu.add_command(label=_("Redo"), accelerator="Ctrl+Y", command=self._redo)
         edit_menu.add_separator()
-        edit_menu.add_command(label="Select All", accelerator="Ctrl+A", command=self._select_all_bookmarks)
-        menubar.add_cascade(label="Edit", menu=edit_menu)
-        
+        edit_menu.add_command(label=_("Select All"), accelerator="Ctrl+A", command=self._select_all_bookmarks)
+        menubar.add_cascade(label=_("Edit"), menu=edit_menu)
+
         # View menu
         view_menu = tk.Menu(menubar, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary)
-        view_menu.add_command(label="List View", command=lambda: self._set_view_mode(ViewMode.LIST))
+        view_menu.add_command(label=_("List View"), command=lambda: self._set_view_mode(ViewMode.LIST))
         view_menu.add_separator()
-        view_menu.add_command(label="Command Palette", accelerator="Ctrl+P", command=self._show_command_palette)
+        view_menu.add_command(label=_("Command Palette"), accelerator="Ctrl+P", command=self._show_command_palette)
         view_menu.add_separator()
-        view_menu.add_command(label="Refresh", accelerator="F5", command=self._refresh_all)
-        menubar.add_cascade(label="View", menu=view_menu)
+        view_menu.add_command(label=_("Refresh"), accelerator="F5", command=self._refresh_all)
+        menubar.add_cascade(label=_("View"), menu=view_menu)
 
         help_menu = tk.Menu(menubar, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary)
-        help_menu.add_command(label="Search Syntax", command=self._show_search_syntax_help)
-        help_menu.add_command(label="Keyboard Shortcuts", command=self._show_keyboard_shortcuts)
+        help_menu.add_command(label=_("Search Syntax"), command=self._show_search_syntax_help)
+        help_menu.add_command(label=_("Keyboard Shortcuts"), command=self._show_keyboard_shortcuts)
         help_menu.add_separator()
-        help_menu.add_command(label="About", command=self._show_about_dialog)
-        menubar.add_cascade(label="Help", menu=help_menu)
+        help_menu.add_command(label=_("About"), command=self._show_about_dialog)
+        menubar.add_cascade(label=_("Help"), menu=help_menu)
 
         self.root.config(menu=menubar)
 
@@ -241,25 +242,25 @@ class AppShellMixin:
         
         # Add button
         add_btn = ModernButton(
-            toolbar, text="New", icon="+", style="primary",
+            toolbar, text=_("New"), icon="+", style="primary",
             command=self._add_bookmark,
-            tooltip="Add a new bookmark manually"
+            tooltip=_("Add a new bookmark manually")
         )
         add_btn.pack(side=tk.LEFT, padx=3)
         
         # Import button
         import_btn = ModernButton(
-            toolbar, text="Import", icon="↓",
+            toolbar, text=_("Import"), icon="↓",
             command=self._show_import_dialog,
-            tooltip="Import bookmarks from HTML, JSON, CSV, or OPML files"
+            tooltip=_("Import bookmarks from HTML, JSON, CSV, or OPML files")
         )
         import_btn.pack(side=tk.LEFT, padx=3)
         
         # Export button
         export_btn = ModernButton(
-            toolbar, text="Export", icon="↑",
+            toolbar, text=_("Export"), icon="↑",
             command=self._show_export_dialog,
-            tooltip="Export bookmarks to HTML, JSON, CSV, or Markdown"
+            tooltip=_("Export bookmarks to HTML, JSON, CSV, or Markdown")
         )
         export_btn.pack(side=tk.LEFT, padx=3)
         
@@ -276,9 +277,9 @@ class AppShellMixin:
         
         # Tools button
         self.tools_btn = ModernButton(
-            toolbar, text="Tools",
+            toolbar, text=_("Tools"),
             command=self._show_tools_menu,
-            tooltip="Tools: Check links, Find duplicates,\nClean URLs, Manage categories, Backup"
+            tooltip=_("Tools: Check links, Find duplicates,\nClean URLs, Manage categories, Backup")
         )
         self.tools_btn.pack(side=tk.LEFT, padx=3)
         
@@ -287,9 +288,9 @@ class AppShellMixin:
         
         # Settings gear
         settings_btn = ModernButton(
-            toolbar, text="Settings", icon="⚙",
+            toolbar, text=_("Settings"), icon="⚙",
             command=self._show_settings_menu,
-            tooltip="Settings: AI provider, themes, preferences"
+            tooltip=_("Settings: AI provider, themes, preferences")
         )
         settings_btn.pack(side=tk.LEFT, padx=3)
         self.settings_btn = settings_btn
@@ -356,7 +357,7 @@ class AppShellMixin:
         filters_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(0, DesignTokens.SPACE_MD))
         
         tk.Label(
-            filters_frame, text="VIEWS", bg=theme.bg_dark,
+            filters_frame, text=_("VIEWS"), bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.tiny(bold=True)
         ).pack(anchor="w", pady=(5, 7))
         
@@ -366,19 +367,19 @@ class AppShellMixin:
         
         # Filter tooltips
         filter_tooltips = {
-            "All": "Show all bookmarks",
-            "Pinned": "Show only pinned bookmarks",
-            "Recent": "Show bookmarks added in the last 7 days",
-            "Broken": "Show bookmarks with broken links",
-            "Untagged": "Show bookmarks without any tags"
+            "All": _("Show all bookmarks"),
+            "Pinned": _("Show only pinned bookmarks"),
+            "Recent": _("Show bookmarks added in the last 7 days"),
+            "Broken": _("Show bookmarks with broken links"),
+            "Untagged": _("Show bookmarks without any tags"),
         }
-        
+
         for filter_name, label in [
-            ("All", "All Links"),
-            ("Pinned", "Pinned"),
-            ("Recent", "Recent"),
-            ("Broken", "Needs Review"),
-            ("Untagged", "Untagged"),
+            ("All", _("All Links")),
+            ("Pinned", _("Pinned")),
+            ("Recent", _("Recent")),
+            ("Broken", _("Needs Review")),
+            ("Untagged", _("Untagged")),
         ]:
             is_active = (filter_name == "All")  # All is active by default
             row = tk.Frame(
@@ -430,7 +431,7 @@ class AppShellMixin:
         cat_header.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(16, 7))
         
         tk.Label(
-            cat_header, text="CATEGORIES", bg=theme.bg_dark,
+            cat_header, text=_("CATEGORIES"), bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.tiny(bold=True)
         ).pack(side=tk.LEFT)
         
@@ -442,7 +443,7 @@ class AppShellMixin:
         rl_header = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
         rl_header.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(4, 7))
         tk.Label(
-            rl_header, text="READ LATER", bg=theme.bg_dark,
+            rl_header, text=_("READ LATER"), bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.tiny(bold=True),
         ).pack(side=tk.LEFT)
         self._rl_count_label = tk.Label(
@@ -454,7 +455,7 @@ class AppShellMixin:
         self._rl_frame = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
         self._rl_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(0, 12))
         self._rl_empty = tk.Label(
-            self._rl_frame, text="No items queued",
+            self._rl_frame, text=_("No items queued"),
             bg=theme.bg_dark, fg=theme.text_muted, font=FONTS.small(),
             anchor="w",
         )
@@ -464,7 +465,7 @@ class AppShellMixin:
         flows_header = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
         flows_header.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(4, 7))
         tk.Label(
-            flows_header, text="FLOWS", bg=theme.bg_dark,
+            flows_header, text=_("FLOWS"), bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.tiny(bold=True),
         ).pack(side=tk.LEFT)
         self._flows_count_label = tk.Label(
@@ -476,7 +477,7 @@ class AppShellMixin:
         self._flows_frame = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
         self._flows_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(0, 20))
         self._flows_empty = tk.Label(
-            self._flows_frame, text="No research flows",
+            self._flows_frame, text=_("No research flows"),
             bg=theme.bg_dark, fg=theme.text_muted, font=FONTS.small(),
             anchor="w",
         )
@@ -485,19 +486,19 @@ class AppShellMixin:
         # ----- MAIN CONTENT -----
         self.content_area = tk.Frame(content, bg=theme.bg_primary)
         self.content_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
+
         # Content header
         content_header = tk.Frame(self.content_area, bg=theme.bg_primary)
         content_header.pack(fill=tk.X, padx=DesignTokens.CONTENT_PAD_X, pady=(16, 8))
-        
+
         self.count_label = tk.Label(
-            content_header, text="Library", bg=theme.bg_primary,
+            content_header, text=_("Library"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.header(bold=True)
         )
         self.count_label.pack(side=tk.LEFT)
 
         self.view_hint_label = tk.Label(
-            content_header, text="List view",
+            content_header, text=_("List view"),
             bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.small()
         )
         self.view_hint_label.pack(side=tk.RIGHT)
@@ -518,16 +519,16 @@ class AppShellMixin:
         self.tree.heading("#0", text="")
         self.tree.column("#0", width=34, stretch=False, minwidth=34)
         
-        self.tree.heading("title", text="Title")
+        self.tree.heading("title", text=_("Title"))
         self.tree.column("title", width=245, minwidth=160)
-        
-        self.tree.heading("url", text="Domain")
+
+        self.tree.heading("url", text=_("Domain"))
         self.tree.column("url", width=190, minwidth=150)
-        
-        self.tree.heading("category", text="Category")
+
+        self.tree.heading("category", text=_("Category"))
         self.tree.column("category", width=170, minwidth=130)
-        
-        self.tree.heading("tags", text="Tags")
+
+        self.tree.heading("tags", text=_("Tags"))
         self.tree.column("tags", width=170, minwidth=130)
         
         # Scrollbars

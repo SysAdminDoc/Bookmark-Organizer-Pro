@@ -832,13 +832,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P2 — Later (differentiation, polish)
 
-- [ ] P2 — **Wrap ~500 GUI strings with `_()` for i18n**
-  Why: i18n scaffolding (R-50) is complete but zero GUI strings use `_()`. No module imports `from bookmark_organizer_pro.i18n import _`. This blocks all translation work — the `.pot` file is empty. This is the prerequisite to unblocking "First community translation" in Roadmap_Blocked.md.
-  Evidence: `grep _\(\"` returns zero hits in `ui/`; `locale/bop.pot` contains only headers [S-145]
-  Touches: All files in `ui/`, `app_mixins/`, `app.py` — every user-facing string literal
-  Acceptance: `python -m bookmark_organizer_pro.i18n` generates a `.pot` file with 200+ translatable strings. A test verifies `.pot` generation.
-  Complexity: L
-
 - [ ] P2 — **Awesome-list and ecosystem submissions**
   Why: BOP is not listed on awesome-bookmarking (no AI/MCP entries), awesome-mcp-servers (no local-first bookmark MCP), or awesome-selfhosted. Getting listed increases discoverability. 97M monthly MCP SDK downloads means the MCP ecosystem is the primary discovery channel.
   Evidence: awesome-bookmarking has no AI entries; awesome-mcp-servers knowledge-management section lacks local-first [S-145]

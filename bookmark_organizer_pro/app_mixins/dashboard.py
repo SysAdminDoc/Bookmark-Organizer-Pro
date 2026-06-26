@@ -7,6 +7,7 @@ from tkinter import ttk
 from typing import Dict
 
 from bookmark_organizer_pro.constants import APP_VERSION
+from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, format_compact_count, pluralize, truncate_middle
 from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable
 from bookmark_organizer_pro.ui.view_models import build_collection_summary
@@ -33,13 +34,13 @@ class DashboardActionsMixin:
         left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(18, 10), pady=14)
 
         self.summary_title_label = tk.Label(
-            left, text="Library Overview", bg=theme.bg_card,
+            left, text=_("Library Overview"), bg=theme.bg_card,
             fg=theme.text_primary, font=FONTS.header(bold=True), anchor="w"
         )
         self.summary_title_label.pack(anchor="w")
 
         self.summary_detail_label = tk.Label(
-            left, text="Import bookmarks or add one manually to begin.",
+            left, text=_("Import bookmarks or add one manually to begin."),
             bg=theme.bg_card, fg=theme.text_secondary,
             font=FONTS.small(), anchor="w", wraplength=520, justify=tk.LEFT
         )
@@ -133,34 +134,34 @@ class DashboardActionsMixin:
         self.selection_count_label.pack(side=tk.LEFT, padx=(14, 10), pady=8)
 
         ModernButton(
-            self.selection_bar, text="Open", icon="🔗",
+            self.selection_bar, text=_("Open"), icon="🔗",
             command=self._open_selected, padx=12, pady=6,
-            tooltip="Open selected bookmarks in browser"
+            tooltip=_("Open selected bookmarks in browser")
         ).pack(side=tk.RIGHT, padx=(4, 10), pady=6)
         ModernButton(
-            self.selection_bar, text="Edit", icon="✏️",
+            self.selection_bar, text=_("Edit"), icon="✏️",
             command=self._edit_selected, padx=12, pady=6,
-            tooltip="Edit the selected bookmark"
+            tooltip=_("Edit the selected bookmark")
         ).pack(side=tk.RIGHT, padx=4, pady=6)
         ModernButton(
-            self.selection_bar, text="Organize",
+            self.selection_bar, text=_("Organize"),
             command=self._organize_selected, padx=12, pady=6, style="primary",
-            tooltip="Auto-categorize and tag selected bookmarks with the pattern engine"
+            tooltip=_("Auto-categorize and tag selected bookmarks with the pattern engine")
         ).pack(side=tk.RIGHT, padx=4, pady=6)
         ModernButton(
-            self.selection_bar, text="Clear Tags",
+            self.selection_bar, text=_("Clear Tags"),
             command=self._clear_all_tags, padx=12, pady=6,
-            tooltip="Remove all tags from selected bookmarks"
+            tooltip=_("Remove all tags from selected bookmarks")
         ).pack(side=tk.RIGHT, padx=4, pady=6)
         ModernButton(
-            self.selection_bar, text="Pin", icon="★",
+            self.selection_bar, text=_("Pin"), icon="★",
             command=self._toggle_pin, padx=12, pady=6,
-            tooltip="Pin or unpin selected bookmarks"
+            tooltip=_("Pin or unpin selected bookmarks")
         ).pack(side=tk.RIGHT, padx=4, pady=6)
         ModernButton(
-            self.selection_bar, text="Delete", icon="🗑️",
+            self.selection_bar, text=_("Delete"), icon="🗑️",
             command=self._delete_selected, style="danger", padx=12, pady=6,
-            tooltip="Delete selected bookmarks"
+            tooltip=_("Delete selected bookmarks")
         ).pack(side=tk.RIGHT, padx=4, pady=6)
 
     def _update_selection_bar(self):
@@ -189,7 +190,7 @@ class DashboardActionsMixin:
         header.pack(fill=tk.X)
         
         tk.Label(
-            header, text="Signals", bg=theme.bg_secondary,
+            header, text=_("Signals"), bg=theme.bg_secondary,
             fg=theme.text_primary, font=FONTS.body(bold=True),
             padx=15, pady=12
         ).pack(side=tk.LEFT)
@@ -258,7 +259,7 @@ class DashboardActionsMixin:
         health_header.pack(fill=tk.X)
         
         tk.Label(
-            health_header, text="Collection Health", bg=theme.bg_card,
+            health_header, text=_("Collection Health"), bg=theme.bg_card,
             fg=theme.text_secondary, font=FONTS.small()
         ).pack(side=tk.LEFT)
 
@@ -300,7 +301,7 @@ class DashboardActionsMixin:
         ).pack(anchor="w")
         
         # Quick stats grid - streamlined (removed With Notes, Pinned, With Tags)
-        section_label("Overview", top_pad=6)
+        section_label(_("Overview"), top_pad=6)
         
         active_category_count = (
             sum(1 for count in stats.get('category_counts', {}).values() if count > 0)
@@ -329,7 +330,7 @@ class DashboardActionsMixin:
             ).pack(side=tk.RIGHT)
         
         # Top categories (compact) - clickable like domains
-        section_label("Top Categories")
+        section_label(_("Top Categories"))
         
         sorted_cats = [
             item for item in sorted(
@@ -375,7 +376,7 @@ class DashboardActionsMixin:
                 widget.bind("<Leave>", lambda e, lbl=cat_lbl: lbl.configure(fg=theme.accent_primary))
         
         # Recent bookmarks (clickable)
-        section_label("Recent Saves")
+        section_label(_("Recent Saves"))
         recent = sorted(all_bookmarks, key=lambda b: b.created_at or "", reverse=True)[:8]
         if not recent:
             empty_note("Bookmarks will appear here as you add them.")
@@ -531,7 +532,7 @@ class DashboardActionsMixin:
         left_frame.pack(side=tk.LEFT, fill=tk.Y)
         
         self.status_label = tk.Label(
-            left_frame, text="Ready", bg=theme.bg_dark,
+            left_frame, text=_("Ready"), bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.small()
         )
         self.status_label.pack(side=tk.LEFT, padx=DesignTokens.SPACE_MD, pady=DesignTokens.SPACE_SM)

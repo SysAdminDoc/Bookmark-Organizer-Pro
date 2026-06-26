@@ -6,6 +6,7 @@ import tkinter as tk
 from datetime import datetime, timedelta
 from typing import Dict, List
 
+from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.ui.feedback import ToastNotification
 from bookmark_organizer_pro.ui.foundation import DesignTokens, display_or_fallback, pluralize, truncate_middle

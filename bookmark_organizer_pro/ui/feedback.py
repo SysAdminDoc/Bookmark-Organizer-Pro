@@ -6,6 +6,7 @@ import tkinter as tk
 from datetime import datetime
 from typing import Optional
 
+from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.models import Bookmark
 
 from .foundation import FONTS, readable_text_on
@@ -137,12 +138,12 @@ class EmptyState(tk.Frame):
         left.pack(fill=tk.BOTH, expand=True, padx=(32, 0))
 
         tk.Label(
-            left, text="EMPTY LIBRARY", bg=theme.bg_primary,
+            left, text=_("EMPTY LIBRARY"), bg=theme.bg_primary,
             fg=theme.accent_primary, font=FONTS.tiny(bold=True)
         ).pack(anchor="w", pady=(10, 14))
 
         tk.Label(
-            left, text="Start With an Import",
+            left, text=_("Start With an Import"),
             bg=theme.bg_primary, fg=theme.text_primary,
             font=FONTS.display(), justify=tk.LEFT
         ).pack(anchor="w")
@@ -161,14 +162,14 @@ class EmptyState(tk.Frame):
         btn_row.pack(anchor="w")
 
         import_btn = ModernButton(
-            btn_row, text="Import Bookmarks", icon="↓",
+            btn_row, text=_("Import Bookmarks"), icon="↓",
             style="primary", command=self._on_import,
             font=FONTS.body(bold=True), padx=22, pady=11
         )
         import_btn.pack(side=tk.LEFT, padx=(0, 10))
 
         add_btn = ModernButton(
-            btn_row, text="Add URL", icon="+",
+            btn_row, text=_("Add URL"), icon="+",
             command=self._on_add,
             font=FONTS.body(), padx=20, pady=11
         )
@@ -222,14 +223,14 @@ class FilteredEmptyState(tk.Frame):
         ).pack(pady=(0, 14))
 
         tk.Label(
-            center, text="No bookmarks match this view",
+            center, text=_("No bookmarks match this view"),
             bg=theme.bg_primary, fg=theme.text_primary,
             font=FONTS.title(bold=True)
         ).pack(pady=(0, 8))
 
         tk.Label(
             center,
-            text="Broaden the search, choose another filter, or reset the view to return to the full library.",
+            text=_("Broaden the search, choose another filter, or reset the view to return to the full library."),
             bg=theme.bg_primary, fg=theme.text_secondary,
             font=FONTS.body(), justify="center", wraplength=420
         ).pack(pady=(0, 24))
@@ -238,13 +239,13 @@ class FilteredEmptyState(tk.Frame):
         btn_row.pack()
 
         ModernButton(
-            btn_row, text="Reset view", style="primary",
+            btn_row, text=_("Reset view"), style="primary",
             command=self._on_clear, font=FONTS.body(bold=True),
             padx=20, pady=10
         ).pack(side=tk.LEFT, padx=6)
 
         ModernButton(
-            btn_row, text="Add bookmark",
+            btn_row, text=_("Add bookmark"),
             command=self._on_add, font=FONTS.body(),
             padx=20, pady=10
         ).pack(side=tk.LEFT, padx=6)
