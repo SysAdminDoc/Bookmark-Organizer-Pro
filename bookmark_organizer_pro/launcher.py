@@ -121,7 +121,7 @@ def main(argv: Sequence[str] | None = None):
 
         from bookmark_organizer_pro.app import FinalBookmarkOrganizerApp
 
-        app = FinalBookmarkOrganizerApp(root)
+        FinalBookmarkOrganizerApp(root)
         root.mainloop()
 
     except Exception as e:

@@ -985,7 +985,7 @@ class BookmarkManager:
         filepath = Path(filepath)
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(f'# Bookmarks\n\n')
+            f.write('# Bookmarks\n\n')
             f.write(f'Exported: {datetime.now().strftime("%Y-%m-%d %H:%M")}\n\n')
             f.write(f'Total: {len(self.bookmarks)} bookmarks\n\n---\n\n')
             

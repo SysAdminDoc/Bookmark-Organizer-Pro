@@ -311,7 +311,7 @@ class HighSpeedFaviconManager:
                         img.save(filepath, "PNG")
                         filepath = str(filepath)
                         break
-                    except Exception as img_error:
+                    except Exception:
                         # If can't open as image, save raw content
                         content_type = response.headers.get('content-type', '')
                         if not content_type.lower().startswith('image/'):
@@ -324,7 +324,7 @@ class HighSpeedFaviconManager:
                             f.write(content)
                         filepath = str(filepath)
                         break
-            except Exception as e:
+            except Exception:
                 continue
         
         # Update state

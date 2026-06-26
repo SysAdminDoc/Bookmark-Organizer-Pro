@@ -647,7 +647,7 @@ class ToolsActionsMixin:
 
     def _show_analytics(self):
         """Show full analytics"""
-        dialog = AnalyticsDashboard(self.root, self.bookmark_manager)
+        AnalyticsDashboard(self.root, self.bookmark_manager)
 
     def _backup_now(self):
         """Create backup"""

@@ -107,7 +107,7 @@ class NonBlockingTaskRunner:
                 try:
                     result = process_func(item)
                     results.append(result)
-                except Exception as e:
+                except Exception:
                     results.append(None)
                 
                 if on_progress:

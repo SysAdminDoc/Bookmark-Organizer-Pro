@@ -820,21 +820,56 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 | S-157 | Python 3.14 free-threaded mode | https://docs.python.org/3/whatsnew/3.14.html |
 | S-158 | Grimoire archived June 2026 — project dead | https://github.com/goniszewski/grimoire |
 | S-159 | Karakeep v0.32 — Safari ext, SingleFile in-extension, 26.3K stars | https://github.com/karakeep-app/karakeep |
+| S-160 | BOP internal audit (research pass 4, 2026-06-26) | `RESEARCH.md` (local) |
+| S-161 | requests 2.34.2 Session verify=False bug | https://requests.readthedocs.io/en/latest/community/updates/ |
+| S-162 | FastMCP 3.4.1 Starlette CVE-2026-48710 fix | https://gofastmcp.com/changelog |
+| S-163 | cryptography 49.0.0 CVE-2026-34073 DNS bypass fix | https://cryptography.io/en/stable/changelog/ |
+| S-164 | darkdetect — OS dark/light theme detection | https://github.com/albertosottile/darkdetect |
+| S-165 | MCP SDK v2.0.0a1 (June 11) — stateless core migration | https://pypi.org/project/mcp/ |
+| S-166 | BeeMind — SM-2 spaced repetition for bookmarks | https://beemind.app |
+| S-167 | Burn 451 — free-tier MCP (26 tools) | https://www.burn451.cloud |
 
 ---
 
 ## Research-Driven Additions
 
-> Added 2026-06-20 from `RESEARCH.md` research pass 2 (source S-128). Updated 2026-06-25 from research pass 3 (source S-145). Items verified against existing ROADMAP to avoid duplicates.
+> Added 2026-06-20 from `RESEARCH.md` research pass 2 (source S-128). Updated 2026-06-25 from research pass 3 (source S-145). Updated 2026-06-26 from research pass 4 (source S-160). Items verified against existing ROADMAP to avoid duplicates.
 
-### P1 — Next (user-facing gaps)
+### P2 — Quality and polish
 
+- [ ] P2 — **Remove grid view dead code**
+  Why: `_populate_grid_view()` is a pass-through stub. `_visual_mode_toggle()` toggles a flag with no visual effect. Dead code adds cognitive load without function.
+  Evidence: `app_mixins/bookmarks.py:230-236`, `ui/navigation.py:277-287`
+  Touches: `bookmark_organizer_pro/app_mixins/bookmarks.py`, `bookmark_organizer_pro/ui/navigation.py`
+  Acceptance: Grid view stubs removed; `ViewMode` enum simplified if only LIST remains; no UI regression
+  Complexity: S
 
-### P2 — Later (differentiation, polish)
+- [ ] P2 — **OS-aware theme auto-detection via darkdetect**
+  Why: sv-ttk is integrated but theme selection is manual. `darkdetect` (0.8.0, 4.5K stars) can detect OS dark/light preference and listen for changes. Auto-matching the OS theme on startup is expected behavior for desktop apps.
+  Evidence: darkdetect PyPI, sv-ttk already integrated, Tkinter best practices research
+  Touches: `pyproject.toml` (optional dep), `bookmark_organizer_pro/ui/style_manager.py` or `theme_runtime.py`
+  Acceptance: On first launch (no saved theme preference), app matches OS dark/light mode. OS theme change triggers app theme switch if user hasn't manually overridden.
+  Complexity: S
 
-
-
+- [ ] P2 — **Update CLAUDE.md with current project state**
+  Why: CLAUDE.md says v6.1.0, 37 tests, 20 CLI subcommands, 15 MCP tools. Actual: v6.8.1, 413 tests, 48 CLI subcommands, 27 MCP tools. Stale docs mislead agents and contributors.
+  Evidence: `constants.py:9` (v6.8.1), test suite output (413), CLI parser count (48), MCP TOOLS list (27)
+  Touches: `CLAUDE.md`
+  Acceptance: Version, test count, CLI subcommand count, MCP tool count all match actual values
+  Complexity: S
 
 ### P3 — Under Consideration
 
-All P3 items are blocked or moved to `Roadmap_Blocked.md`.
+- [ ] P3 — **Bump `cryptography>=49.0.0`**
+  Why: CVE-2026-34073 (DNS name constraint bypass) only fully fixed in 49.0.0. Low practical risk for BOP (no cert verification). Also adds post-quantum support, Windows ARM64, free-threaded Python 3.14.
+  Evidence: cryptography 49.0.0 changelog, CVE-2026-34073
+  Touches: `pyproject.toml`
+  Acceptance: Existing encryption tests pass; no regression from OpenSSL 1.1.x drop or SECT curve removal
+  Complexity: S
+
+- [ ] P3 — **SM-2 spaced repetition GUI widget in dashboard**
+  Why: SM-2 scheduling exists for reader highlights but only via CLI (`bop reader due`, `bop reader review`). A dashboard section showing due highlights would close the gap with BeeMind/Readwise.
+  Evidence: `services/reader_annotations.py` (due_for_review, record_review), BeeMind competitor analysis
+  Touches: `app_mixins/dashboard.py`, potentially new widget in `ui/`
+  Acceptance: Dashboard shows count of due highlights; clicking opens reader pane for review; review quality recorded via button
+  Complexity: M

@@ -65,16 +65,7 @@ line-length = 120
 extend-exclude = ["build", "dist", "packaging"]
 
 [tool.ruff.lint]
-# Pyflakes (F) + syntax errors (E9) catch genuine bugs — undefined names,
-# repeated dict keys, broken f-strings, unreachable code. The two high-volume
-# *debt* rules below are deferred (not real bugs, ~120 pre-existing hits) so the
-# gate stays green and meaningful; remove them from `ignore` as the debt is
-# burned down to start enforcing.
 select = ["F", "E9"]
-ignore = [
-    "F841",  # unused local variables — ~24 pre-existing
-    "F541",  # f-string without placeholders — harmless, pre-existing
-]
 
 [tool.ruff.lint.per-file-ignores]
 # Forward-reference type hints under `from __future__ import annotations`

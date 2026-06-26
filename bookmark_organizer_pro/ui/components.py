@@ -107,7 +107,7 @@ class EnhancedProgressBar(tk.Frame, ThemedWidget):
             self._animating = False
             return
 
-        theme = get_theme()
+        get_theme()
 
         # Simple back-and-forth animation
         current_pos = float(self.bar_fill.place_info().get('relx', 0))
@@ -293,7 +293,7 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
     
     def set_importing(self, is_importing: bool):
         """Visual feedback during import"""
-        theme = get_theme()
+        get_theme()
         
         if is_importing:
             self.icon_label.configure(text="⏳")
@@ -606,6 +606,6 @@ class ThemeDropdown(tk.Frame):
         """Select a theme"""
         self.theme_manager.set_theme(theme_name)
         self.current_var.set(theme_name)
-        info = self.theme_manager.get_all_themes().get(theme_name)
+        self.theme_manager.get_all_themes().get(theme_name)
         if self.on_change:
             self.on_change(theme_name)

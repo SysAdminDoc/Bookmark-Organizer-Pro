@@ -1112,9 +1112,9 @@ async def serve_stdio() -> int:
             result = impl(**args)
         except TypeError as exc:
             return [TextContent(type="text", text=f"Bad arguments: {exc}")]
-        except Exception as exc:
+        except Exception:
             log.exception(f"MCP tool {name} failed")
-            return [TextContent(type="text", text=f"Error: internal server error (see logs)")]
+            return [TextContent(type="text", text="Error: internal server error (see logs)")]
         return [TextContent(type="text",
                             text=json.dumps(result, indent=2, default=str))]
 

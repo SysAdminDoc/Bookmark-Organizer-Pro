@@ -17,7 +17,7 @@ class BookmarkCrudMixin:
 
     def _add_bookmark(self):
         """Add new bookmark"""
-        dialog = QuickAddDialog(
+        QuickAddDialog(
             self.root, self.category_manager.get_sorted_categories(),
             on_add=self._on_bookmark_added
         )
@@ -52,7 +52,7 @@ class BookmarkCrudMixin:
         if self.selected_bookmarks:
             bookmark = self.bookmark_manager.get_bookmark(self.selected_bookmarks[0])
             if bookmark:
-                dialog = BookmarkEditorDialog(
+                BookmarkEditorDialog(
                     self.root, bookmark,
                     categories=self.category_manager.get_sorted_categories(),
                     available_tags=self.tag_manager.get_all_tags(),

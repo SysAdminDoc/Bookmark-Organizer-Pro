@@ -35,7 +35,7 @@ def _chapter_xhtml(bookmark: Bookmark, text: str) -> str:
             if para:
                 body += f"<p>{_safe_xhtml(para)}</p>\n"
     if not body:
-        body = f"<p>No extracted text available for this bookmark.</p>\n"
+        body = "<p>No extracted text available for this bookmark.</p>\n"
 
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>

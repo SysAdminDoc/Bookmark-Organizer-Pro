@@ -183,7 +183,7 @@ class SmartFiltersPanel(tk.Frame, ThemedWidget):
     
     def _toggle(self, e=None):
         """Toggle panel collapsed state"""
-        theme = get_theme()
+        get_theme()
         self.is_collapsed = not self.is_collapsed
         
         if self.is_collapsed:

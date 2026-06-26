@@ -127,7 +127,7 @@ class HybridDuplicateDetector:
             tokens = WORD_RE.findall(_read_text(bm).lower())
             sims[bm.id] = _simhash64(tokens)
 
-        sim_groups: Dict[int, List[int]] = defaultdict(list)
+        defaultdict(list)
         used: set[int] = set()
         ids = list(sims.keys())
         for i, a in enumerate(ids):

@@ -449,7 +449,7 @@ Summary:"""
                 self._cache[cache_key] = summary
                 return summary
             
-        except Exception as e:
+        except Exception:
             pass
         
         return None

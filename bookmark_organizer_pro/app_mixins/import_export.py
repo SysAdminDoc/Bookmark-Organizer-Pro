@@ -356,7 +356,7 @@ class ImportExportMixin:
                 json.dump(existing, f, indent=2, ensure_ascii=False)
             
             log.info("Saved %s bookmarks to import backup. Total: %s", len(bookmarks), len(existing))
-        except Exception as e:
+        except Exception:
             log.warning("Error saving import backup", exc_info=True)
     
     def _on_import_done(self, added: int, dupes: int):
@@ -550,5 +550,5 @@ class ImportExportMixin:
 
     def _show_export_dialog(self):
         """Show export dialog"""
-        dialog = SelectiveExportDialog(self.root, self.bookmark_manager)
+        SelectiveExportDialog(self.root, self.bookmark_manager)
 

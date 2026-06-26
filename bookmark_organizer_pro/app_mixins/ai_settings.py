@@ -150,7 +150,7 @@ class AiSettingsMixin:
         ollama_panel = tk.Frame(body, bg=theme.bg_secondary, padx=16, pady=14,
                                 highlightbackground=theme.border_muted, highlightthickness=1)
 
-        ollama_mgr = OllamaManager(self.ai_config.get_ollama_url())
+        OllamaManager(self.ai_config.get_ollama_url())
 
         # Status line
         ollama_status_var = tk.StringVar(value=_("Checking Ollama…"))

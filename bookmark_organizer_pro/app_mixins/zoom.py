@@ -82,7 +82,7 @@ class ZoomActionsMixin:
     def _rescale_layout(self, scale: float):
         """Resize header, sidebar, status bar, and padding based on zoom scale."""
         # Header height
-        header_h = max(60, int(76 * scale))
+        max(60, int(76 * scale))
         for child in self.main_container.winfo_children():
             try:
                 if child.winfo_height() and child.cget("height"):

@@ -68,7 +68,6 @@ class CategoryActionsMixin:
             )
             row.pack(fill=tk.X, pady=2)
 
-            prefix = "  " if depth == 0 else "└ "
             name_lbl = tk.Label(
                 row, text=truncate_middle(display_name, 20 - depth * 2),
                 bg=bg, fg=theme.text_primary if is_selected else theme.text_secondary,

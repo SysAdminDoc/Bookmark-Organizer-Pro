@@ -26,7 +26,7 @@ class AiSupportMixin:
         
         try:
             return create_ai_client(self.ai_config)
-        except Exception as e:
+        except Exception:
             log.warning("Error creating AI client", exc_info=True)
             return None
 

@@ -94,7 +94,7 @@ class BackupScheduler:
     def _do_backup(self):
         """Perform a backup"""
         try:
-            filepath = self.create_backup()
+            self.create_backup()
             self.config["last_backup"] = datetime.now().isoformat()
             self._save_config()
             self._cleanup_old_backups()

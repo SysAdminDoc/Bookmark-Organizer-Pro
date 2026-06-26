@@ -178,8 +178,8 @@ class EncryptedStore:
         offset += 4
         if version != VERSION_RECOVERY:
             raise ValueError("File does not contain a recovery key (version 1 format)")
-        salt = blob[offset:offset + SALT_LEN]; offset += SALT_LEN
-        nonce = blob[offset:offset + NONCE_LEN]; offset += NONCE_LEN
+        blob[offset:offset + SALT_LEN]; offset += SALT_LEN
+        blob[offset:offset + NONCE_LEN]; offset += NONCE_LEN
         (ct_len,) = struct.unpack(">I", blob[offset:offset + 4]); offset += 4
         offset += ct_len
 

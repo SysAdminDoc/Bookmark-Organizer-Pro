@@ -239,7 +239,7 @@ class VimNavigator:
     def _delete(self):
         """Delete selected (dd)"""
         # This would trigger the main app's delete
-        event = type('Event', (), {'widget': self.tree})()
+        type('Event', (), {'widget': self.tree})()
         self.tree.event_generate('<<Delete>>')
     
     def _yank(self):

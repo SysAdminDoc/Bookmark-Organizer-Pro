@@ -2,131 +2,117 @@
 
 ## Executive Summary
 
-Bookmark Organizer Pro v6.8.1 is the **only open-source desktop bookmark manager** combining local-first architecture, semantic vector search (LanceDB + FastEmbed), AI categorization across 6 providers, a 27-tool MCP server with 4 prompts and 2 resources, conversational RAG with citation provenance, native token streaming across all providers, a reader view with highlights, and a Chrome Side Panel extension with Reading List import. No competitor occupies this exact intersection.
+Bookmark Organizer Pro v6.8.1 is the **only open-source desktop bookmark manager** combining local-first architecture, semantic vector search (LanceDB + FastEmbed), AI categorization across 6 providers, a 27-tool MCP server with 4 prompts and 2 resources, conversational RAG with citation provenance, native token streaming across all providers, a reader view with highlights/spaced-repetition, and a Chrome Side Panel extension with Reading List import. No competitor occupies this exact intersection.
 
-The project is mature: ~40K LOC, 411 tests across 13 files, 48 categories with 6,232+ domain rules, 16 importers, 14+ export formats, tag hierarchy, graph view, and AI audit learning loop. All 78+ roadmap items have shipped or are explicitly blocked. The competitive window continues narrowing — Karakeep (25.9K+ stars) has MCP + browser extensions + SingleFile, Raindrop.io has Stella AI chat, and Burn 451 ships 22+ MCP tools — but BOP's desktop-native + local-first + zero-Docker combination remains unmatched.
+The project is mature: ~40K LOC, 413 tests across 13 files, 48 categories with 6,232+ domain rules, 16 importers, 14+ export formats, tag hierarchy, graph view, and AI audit learning loop. All 78+ roadmap items have shipped or are explicitly blocked. The competitive window continues narrowing — Karakeep (26K+ stars) has MCP + browser extensions + SingleFile, Raindrop.io has Stella AI chat + 40-tool MCP, Burn 451 offers free-tier MCP (26 tools) — but BOP's desktop-native + local-first + zero-Docker combination remains unmatched.
 
-**Top 10 opportunities in priority order:**
+**Top opportunities in priority order:**
 
-1. **Bump `requests>=2.33.0`** — CVE-2026-25645 path traversal. Low practical risk (BOP doesn't call `extract_zipped_paths`) but pin should be current.
-2. **Pin `idna>=3.15.0`** — CVE-2026-45409 ReDoS bypass in transitive dependency. Not directly pinned.
-3. **Benchmark CI gate** — `bench_core.py` runs in CI but doesn't fail on regression. A 20% threshold would catch JSON load/save regressions.
-4. **Search bar filter discoverability** — tooltip shows 5 of 15+ filters. `content:`, `tag:`, `before:`, `after:`, `has:notes`, `visits:>N` are undiscoverable without Help menu.
-5. **NL query in GUI** — the natural-language-to-structured-query translator (`nl_query.py`) has no GUI surface. A "smart search" toggle on the search bar would surface it.
-6. **Nuitka as primary binary** — Nuitka 4.1.3 ships lower AV false-positive rates than PyInstaller. Smoke compile validated; full GUI bundle should replace PyInstaller as default.
-7. **MCP Apps adoption** — MCP spec 2026-07-28 introduces HTML UIs served via MCP. BOP could ship interactive bookmark management UIs through MCP hosts.
-8. **Wrap GUI strings with `_()`** — i18n scaffolding exists but zero of ~500+ GUI strings use `_()`. Blocks all translation work.
-9. **Digest in extension side panel** — daily digest is in the GUI dashboard but not in the extension side panel. Rediscovery is the #1 community complaint.
-10. **OPDS 2.0 migration** — OPDS 2.0 (JSON-LD) became the official standard in May 2026. BOP ships OPDS 1.2 (Atom XML).
+1. **Bump `requests>=2.34.2`** — Session `verify=False` bug leaks to subsequent same-origin requests. Actionable security fix.
+2. **Bump `FastMCP>=3.4.1`** — Transitive Starlette CVE-2026-48710 fix. BOP currently allows 3.4.0 which is vulnerable.
+3. **Test coverage for 6 recently-shipped features** — Encryption recovery key, OPDS 2.0, LanceDB FTS, SM-2 spaced repetition, NL search sync, and filter hints all shipped with zero tests. Regression risk.
+4. **CORS preflight handler missing headers** — `do_OPTIONS` sends no CORS headers, breaking Firefox extension preflight requests.
+5. **REST API endpoint test coverage** — Only 3 of 11 API endpoints have tests. `/digest`, `/opds2`, `/search`, `/stats`, `/categories`, `/tags` are untested.
+6. **MCP SDK v2 preparation** — v2.0.0a1 dropped June 11, stable July 27. Current `<2.0` pin protects production. Migration plan needed for Q3.
+7. **Ruff lint debt burndown** — 24 unused variables + 3 empty f-strings deferred via `ignore`. Clean these to tighten the lint gate.
+8. **CLI subcommand count stale in docs** — CLAUDE.md says 39, ROADMAP says 39, actual count is 48.
 
 ## Product Map
 
 ### Core Workflows
 1. **Import** — 16 importers (browsers, Pocket HTML+JSON, Readwise, Pinboard, Instapaper, Reddit, Matter, Wallabag, Arc, Zotero, OPML, CSV, TXT, OneTab, Chrome Reading List via extension)
 2. **Organize** — 6,232+ pattern auto-categorization across 48 categories, AI enrichment (titles, tags, summaries), smart collections, tag linter, tag hierarchy, AI audit learning loop
-3. **Search** — keyword (15+ filter types, boolean ops) + semantic vector (LanceDB) + hybrid RRF + optional cross-encoder re-rank + full-text content search + NL-to-structured query
+3. **Search** — keyword (15+ filter types, boolean ops) + semantic vector (LanceDB) + hybrid RRF + LanceDB FTS + optional cross-encoder re-rank + NL-to-structured query
 4. **Preserve** — 4-backend HTML snapshot chain (monolith/singlefile/playwright/python), Wayback Machine, auto-snapshot scheduler, dead-link scanner with GUI results
-5. **Chat/Query** — conversational RAG with citation provenance, NL query, daily digest (CLI + GUI dashboard), GUI chat panel, 4 MCP prompt templates
+5. **Chat/Query** — conversational RAG with citation provenance, NL query, daily digest (CLI + GUI dashboard + extension side panel), GUI chat panel, 4 MCP prompt templates
 
 ### User Personas
 - **Power organizer** — imports thousands, relies on auto-categorization and bulk operations
 - **AI-native** — uses MCP server with Claude/Cursor, conversational RAG, semantic search
-- **Privacy-conscious archivist** — local snapshots, AES-256-GCM encryption, zero cloud dependency
+- **Privacy-conscious archivist** — local snapshots, AES-256-GCM encryption with recovery key, zero cloud dependency
 - **Casual saver** — browser extension Side Panel quick-save, Chrome Reading List import
-- **Researcher** — flows, reader highlights, Obsidian/EPUB/Zotero export, graph view
+- **Researcher** — flows, reader highlights with SM-2 spaced repetition, Obsidian/EPUB/Zotero export, graph view
 
 ### Platforms and Distribution
-- Desktop: Windows (primary), macOS, Linux — Python 3.10+, Tkinter GUI, PyInstaller binary, Nuitka smoke validated
+- Desktop: Windows (primary), macOS, Linux — Python 3.10+, Tkinter GUI, Nuitka binary (Windows CI), PyInstaller (Linux/macOS CI)
 - Browser extension: Chrome + Firefox MV3 with Side Panel, context menus, Reading List import (unpacked only)
 - MCP: stdio + Streamable HTTP, 27 tools + 2 resources + 4 prompts, FastMCP 3.4+
-- CLI: 41 subcommands via `bop` entry point
+- CLI: 48 subcommands via `bop` entry point
 
 ### Key Integrations
 - AI providers: OpenAI, Anthropic, Google Gemini, Groq, DeepSeek, Ollama — all with native streaming
 - Embedding: FastEmbed (ONNX, auto-CUDA in 0.8+), model2vec fallback, Nomic Embed v2
-- Vector store: LanceDB (primary), in-memory JSON fallback
+- Vector store: LanceDB (primary with FTS), in-memory JSON fallback
 - Archive: monolith, singlefile, Playwright, BeautifulSoup
 - Content extraction: trafilatura 2.1+
 
 ## Competitive Landscape
 
-### Karakeep (26.3K stars, growing fast) — AI bookmark everything
-- **Does well:** Browser extensions (Chrome/FF/Safari) with integrated SingleFile, Meilisearch FTS, AI auto-tagging (OpenAI/Anthropic/Ollama), official MCP server, skills/actions system, mobile apps, granular scoped API keys. v0.32 added Safari extension and SingleFile in-extension for authenticated crawling.
-- **Learn from:** SingleFile integrated into extension for instant archiving. Skills system for composable AI workflows. Mobile app extends reach beyond desktop. Safari extension broadens platform coverage.
-- **Avoid:** Docker-only. Server-required architecture means no true offline use.
+### Karakeep (26K+ stars, growing fast) — AI bookmark everything
+- **Does well:** Browser extensions (Chrome/FF/Safari) with integrated SingleFile, Meilisearch FTS, AI auto-tagging (OpenAI/Anthropic/Ollama), mobile apps, granular scoped API keys, skills/actions system. v0.32 added Safari extension and SingleFile in-extension.
+- **Learn from:** SingleFile integrated into extension for instant archiving. Skills system for composable AI workflows.
+- **Avoid:** Docker-only. No native MCP server yet — community-built only. Server-required architecture.
 
-### Linkwarden (18.5K+ stars) — collaborative bookmarks
-- **Does well:** Reader view with highlights/annotations (v2.14+), browser extensions, team collaboration, Meilisearch, polished web UI
-- **Learn from:** Reader highlights are first-class with color categories and export. Native messaging in extension.
-- **Avoid:** Multi-user complexity. PostgreSQL dependency. Server-required.
+### Raindrop.io (commercial, $28/yr Pro) — polished cloud
+- **Does well:** Stella AI chat (NL questions, summarize, find duplicates, merge tags, YouTube transcript Q&A — runs on own infra), first-party MCP server (40+ tools, Pro-only), multi-platform apps, nested collections, highlights.
+- **Learn from:** Stella conversational UX is the gold standard for bookmark AI. MCP server breadth (40+ tools vs BOP's 27).
+- **Avoid:** Cloud-locked. AI features Pro-only ($28/yr).
 
-### Raindrop.io (commercial, $38/yr Pro) — polished cloud
-- **Does well:** Stella AI chat + MCP server, multi-platform apps, nested collections, highlights (Pro), side panel extension, broken link checker
-- **Learn from:** Stella conversational UX is the gold standard. Visual bookmark cards. Multi-view modes (list/card/moodboard).
-- **Avoid:** Cloud-locked. Key features paywalled ($38-156/yr).
+### Burn 451 (commercial, free+$48/yr Pro) — AI-first triage
+- **Does well:** 26 MCP tools on **free tier**, AI summaries, vault digests, YouTube transcripts, 24-hour "burn" timer forces triage, Chrome extension.
+- **Learn from:** Free-tier MCP is unique competitive positioning. Action-oriented batch tools.
+- **Avoid:** 24-hour auto-delete causes data anxiety. Cloud-only.
+
+### Readwise Reader (commercial, $120/yr) — deepest reading workflow
+- **Does well:** Official MCP server, Ghostreader AI summaries with source citations, **spaced repetition for highlights**, PDF/EPUB/newsletter/RSS/YouTube in one inbox, best export ecosystem.
+- **Learn from:** Spaced repetition is the highest-value rediscovery mechanism. BOP has SM-2 for highlights but only via CLI — no GUI surface yet.
+- **Avoid:** Everything paywalled behind $120/yr.
+
+### BeeMind (free on Setapp, $7/mo standalone) — spaced repetition for knowledge
+- **Does well:** Enhanced SM-2 algorithm schedules reviews at optimal intervals, AI auto-identifies content matching user-defined topics and queues for review.
+- **Learn from:** SM-2 + AI-driven auto-promotion to review queue is the most sophisticated "save and forget" solution. BOP has SM-2 for reader highlights; extending to bookmarks is the opportunity.
+- **Avoid:** No MCP, no bookmark management, narrow scope.
 
 ### ArchiveBox (27.6K+ stars) — multi-format archiver
 - **Does well:** WARC + DOM snapshot + screenshot + PDF + Git + media. Most comprehensive format support.
 - **Learn from:** Multi-format archiving philosophy. Config-driven archival policies.
 - **Avoid:** Overly complex for bookmarking. Docker-only.
 
-### Burn 451 (commercial, free+$49/yr Pro) — AI-first triage
-- **Does well:** 26 MCP tools (free tier!), AI categorization, triage inbox with burn timer, reading-time estimates, Chrome extension, voice note transcription
-- **Learn from:** MCP on free tier is unique. Action-oriented batch tools. "Decision loop state" (Flame/Spark/Vault/Ash) instead of flat archive.
-- **Avoid:** 24-hour auto-delete causes data anxiety. Cloud-only.
-
 ### Buku (7.1K stars) — CLI bookmark manager
-- **Does well:** Pure CLI, auto-import from browser bookmark files (no export step), encryption, shell completions
-- **Learn from:** Direct browser file import without manual export. Pure-CLI power.
+- **Does well:** Pure CLI, auto-import from browser bookmark files (no export step), encryption, shell completions.
+- **Learn from:** Direct browser file import without manual export — Buku reads Chrome/Firefox/Edge bookmark databases directly.
 - **Avoid:** No AI, no semantic search, no archiving.
-
-### Floccus (3.1K+ stars) — cross-browser sync
-- **Does well:** XBEL + WebDAV/Nextcloud/Google Drive sync across Chrome/Firefox/Edge/Brave
-- **Learn from:** XBEL round-trip compatibility enables free cross-browser sync.
-- **Avoid:** Sync-only, no organization or AI.
-
-### ContextBolt (commercial, free+$72/yr Pro) — social media specialist
-- **Does well:** MCP endpoint (Pro), AI semantic search, auto-tagging, topic clustering. Purpose-built for X/Twitter, Reddit, LinkedIn bookmark capture.
-- **Learn from:** Social media content extraction is a gap BOP doesn't address.
-- **Avoid:** Cloud-dependent. Narrow social focus.
-
-### Readwise Reader (commercial, $120/yr) — deepest reading workflow
-- **Does well:** Official MCP server, Ghostreader (GPT-4) for summaries with source citations, spaced repetition of highlights, PDF/EPUB/newsletter/RSS/YouTube in one inbox. Best export ecosystem (Obsidian, Notion, Roam, Logseq).
-- **Learn from:** Spaced repetition for highlights is the highest-value free feature BOP could add. Source-cited AI summaries. Multi-format inbox.
-- **Avoid:** Everything paywalled behind $120/yr.
-
-### Arcmark (macOS, MIT, new 2026) — native local-first
-- **Does well:** Native macOS sidebar via Accessibility APIs, single JSON file, Swift + AppKit. Zero configuration.
-- **Learn from:** Validates local-first + zero-setup + native desktop as a viable product model.
-- **Avoid:** macOS-only. No AI, no search, no archiving.
 
 ## Security, Privacy, and Reliability
 
 ### Action Required
 
-1. **requests CVE-2026-25645** (MEDIUM) — Path traversal in `extract_zipped_paths()`. BOP pins `>=2.31` which is vulnerable. Fixed in 2.33.0. BOP does not call this function directly (low practical risk) but pin should be bumped. Path: `pyproject.toml:8`, `requirements.txt:3`.
+1. **requests 2.34.2 Session verify bug** (MEDIUM) — `verify=False` on a `Session`'s first request leaks to subsequent requests to the same origin. BOP pins `>=2.33.0`, which is vulnerable. Fixed in 2.34.2. Relevant if BOP uses `requests.Session` with mixed verification. Path: `pyproject.toml`, `requirements.txt`.
 
-2. **idna CVE-2026-45409** (MEDIUM) — ReDoS bypass in `idna.encode()`. Transitive dependency via requests. Not directly pinned. Add `idna>=3.15.0`. Path: `pyproject.toml`, `requirements.txt`.
+2. **FastMCP transitive Starlette CVE-2026-48710** (MEDIUM) — FastMCP 3.4.1 floors Starlette at `>=1.0.1` to fix this CVE. BOP pins `>=3.4` which allows 3.4.0. Bump floor to `>=3.4.1`. Path: `pyproject.toml`.
+
+3. **CORS preflight handler omits Access-Control headers** — `do_OPTIONS` in `services/api.py:371` sends 204 with `X-Content-Type-Options` only. No `Access-Control-Allow-Origin`, `Access-Control-Allow-Methods`, or `Access-Control-Allow-Headers`. Firefox extension preflight requests will fail. Path: `services/api.py:371-374`.
 
 ### Resolved Since Last Review
 
+- requests CVE-2026-25645 — pinned `>=2.33.0` ✓
 - urllib3 CVE-2026-44431/44432 — pinned `>=2.7.0` ✓
 - lxml CVE-2026-41066 — pinned `>=6.1.1` ✓
 - MCP SDK CVEs — pinned `>=1.28` ✓
-- cryptography CVEs — pinned `>=46.0.7` ✓
-- Pillow CVEs — pinned `>=12.2.0` ✓
-- FastMCP CVEs — pinned `>=3.4` ✓
-- NSA/DoD MCP advisory — input sanitization applied (commit `b6ad8cf`) ✓
+- cryptography CVE-2026-39892/34073 — pinned `>=46.0.7` ✓
+- Pillow 4 CVEs — pinned `>=12.2.0` ✓
+- idna CVE-2026-45409 — pinned `>=3.15.0` ✓
+- NSA/DoD MCP advisory — input sanitization applied ✓
 
 ### Remaining Concerns
 
-3. **Cross-encoder auto-download** — `_try_rerank` in `hybrid_search.py:40-60` downloads ~90MB model on first use. Gated behind `enable_reranker` setting but no download consent or progress indicator.
+4. **cryptography CVE-2026-34073 (DNS name constraint bypass)** — Only fully fixed in 49.0.0 (compiled with OpenSSL 3.5.6). Current pin `>=46.0.7` covers buffer overflow CVE-2026-39892 but not this DNS bypass. Low practical risk for BOP (bookmark manager doesn't do cert verification), but pin should track security fixes. 49.0.0 also adds post-quantum (ML-KEM/ML-DSA), free-threaded Python 3.14 support, Windows ARM64. Breaking: drops OpenSSL 1.1.x, removes SECT curves. BOP's AES-256-GCM + PBKDF2 usage is unaffected by removals.
 
-4. **CORS origin hardcoded** — `services/api.py` returns `Access-Control-Allow-Origin: null`. Correct for extension→localhost but doesn't adapt for non-null extension origins.
+5. **Cross-encoder auto-download** — `_try_rerank` in `hybrid_search.py:40-60` downloads ~90MB model on first use. Gated behind `enable_reranker` setting but no download consent or progress indicator.
 
-5. **tksheet maintenance-only** — v7.6.0 development ceased except bugfixes. No published security policy. No better Tkinter alternative exists.
+6. **tksheet maintenance-only** — v7.6.0 development ceased except bugfixes. No published security policy. No better Tkinter alternative exists.
 
-6. **Encryption key recovery** — passphrase loss = permanent data loss. No recovery key, backup key, or key escrow mechanism.
+7. **MCP SDK v2 migration timeline** — v2.0.0a1 published June 11. Beta targeted June 30, stable July 27. Breaking changes include `FastMcp` → `McpServer` rename, stateless core, stricter types. Current `<2.0` pin is correct. Plan migration after stable release.
 
 ## Architecture Assessment
 
@@ -137,44 +123,52 @@ The project is mature: ~40K LOC, 411 tests across 13 files, 48 categories with 6
 - Thread safety throughout: locks on BookmarkManager, CategoryManager, SQLite, TagManager, domain rate-limiting
 - Dual MCP transport: stdio + Streamable HTTP with auth enforcement
 - AI audit learning loop — records every AI action as JSONL, mines improvements for categorization defaults
-- Pre-operation snapshots enable bulk AI undo
+- Encryption recovery key (v2 format) — solves passphrase-loss permanent data loss
 
 ### Improvements Needed
 
-1. **Search filter discoverability** — search bar tooltip mentions 5 of 15+ available filters (`is:pinned`, `is:broken`, `is:recent`, `is:untagged`, `domain:xyz`). Missing from tooltip: `content:keyword`, `tag:name`, `category:name`, `title:text`, `url:text`, `before:date`, `after:date`, `has:notes`, `has:tags`, `visits:>N`, `lang:en`, `type:article`. Path: `app_mixins/app_shell.py:191`.
+1. **Test coverage for recently-shipped features** — Six features shipped in the last cycle with zero test coverage:
+   - Encryption recovery key v2 format (`services/encryption.py:137-197`)
+   - OPDS 2.0 export (`services/feed_export.py:196-252`)
+   - LanceDB FTS search (`services/vector_store.py:199-219`)
+   - SM-2 spaced repetition (`services/reader_annotations.py:262-292`)
+   - NL search sync in GUI (`app_mixins/filters.py:120-128`)
+   - Search filter hints popup (`app_mixins/filters.py:63-97`)
 
-2. **NL query has no GUI surface** — `nl_query.py` translates natural language to structured bookmark queries via AI. Accessible only via CLI (`bop nl-query`) and MCP. A "smart search" toggle or mode switch in the search bar would expose this to desktop users. Path: `services/nl_query.py`, `app_mixins/app_shell.py`.
+2. **REST API test coverage** — Only 3 of 11 HTTP endpoints tested. Missing: `/digest`, `/opds2`, `/search`, `/stats`, `/categories`, `/tags`, `GET /bookmarks/:id`. Path: `tests/test_core.py`.
 
-3. **Benchmark not gated in CI** — `bench_core.py` runs on Python 3.12 in CI but only prints results. A 20% regression threshold on JSON load/save at 5K bookmarks would catch performance regressions. Path: `.github/workflows/ci.yml:52-54`, `benchmarks/bench_core.py`.
+3. **CORS preflight bug** — `do_OPTIONS` handler lacks CORS response headers. Firefox extension save will fail with preflight. Path: `services/api.py:371-374`.
 
-4. **i18n strings not wrapped** — `i18n.py` provides `_()`, `ngettext()`, `setup_locale()`. The `locale/bop.pot` file is empty (zero translatable strings). Zero of ~500+ user-facing GUI strings are wrapped with `_()`. No module imports `from bookmark_organizer_pro.i18n import _`. Path: all `ui/` and `app_mixins/` files.
+4. **Grid view stub** — `_populate_grid_view()` in `app_mixins/bookmarks.py:230` is a pass-through stub. `_visual_mode_toggle()` in `ui/navigation.py:277` toggles a flag that produces no visual change. Dead code should be removed or the feature implemented.
 
-5. **Digest not in extension** — daily digest (rediscover, on-this-day) is in the GUI dashboard but not in the extension side panel. The extension's side panel has recent bookmarks and search but no rediscovery section. Path: `browser-extension/sidepanel.js`.
+5. **Ruff lint debt** — 24 `F841` (unused variables) and 3 `F541` (empty f-strings) deferred in config. Auto-fixable with `ruff check --fix`.
 
-### Test Gaps
-- **UI tests**: zero — all 411 tests are backend/service/CLI
-- **Extension integration tests**: 7 tests, all static analysis (manifest, permissions, asset presence)
-- **Performance regression gate**: benchmarks run in CI but don't fail on regression
-- **i18n round-trip test**: no test verifies POT generation or translation loading
+6. **CLI subcommand count drift** — 48 actual subparsers vs 39 documented in CLAUDE.md/ROADMAP.md.
+
+### Test Summary
+- 413 total test methods across 13 files
+- 5 failures from `TestMCPRuntimeCompatibility` (require optional `mcp` package)
+- Zero UI tests — all testing is backend/service/CLI
+- Zero tests for 6 recently-shipped features
+- API endpoint coverage: 3 of 11
 
 ## Rejected Ideas
 
 | Idea | Source | Reason |
 |------|--------|--------|
-| Electron/Tauri rewrite | General | Hard constraint: "Python ≥ 3.10, Tkinter GUI (no Electron/Tauri rewrite)". Python ecosystem is the stack. |
+| Electron/Tauri rewrite | General | Hard constraint: "Python ≥ 3.10, Tkinter GUI (no Electron/Tauri rewrite)". |
 | Multi-user / team features | Linkwarden | Contradicts local-first single-user design. |
 | Docker as primary deployment | Karakeep | No-Docker is a differentiator per project constraints. |
 | Meilisearch sidecar | Karakeep | Built-in FTS + LanceDB is a simplicity advantage. |
-| ActivityPub federation | Betula | Niche for local-first. Federation implies a running server. |
-| Tab session management | Toby.so | Different product category — ephemeral tabs vs persistent bookmarks. |
 | Subscription pricing | Business model | BOP is free and local-first per constraints. |
-| Textual TUI | Modernization | Would split dev effort. CLI covers terminal users. |
+| 24-hour auto-delete triage | Burn 451 | Causes data anxiety. Contradicts archival philosophy. |
 | CustomTkinter | UI modernization | Stagnating (no releases in 12+ months). sv-ttk already integrated. |
 | Full browser history import | Community | Privacy risk too high per project philosophy. |
-| 24-hour auto-delete triage | Burn 451 | Causes data anxiety. Contradicts archival philosophy. |
-| Grimoire-style SvelteKit rewrite | Grimoire | Project archived June 2026 — dead. SvelteKit is the wrong stack. |
-| MCP SDK v2 migration now | MCP roadmap | v2 Python alpha not yet released. Wait for H2 2026. |
-| OPDS 2.0 rewrite now | OPDS spec | 1.2 works. Migrate only if/when an OPDS client requests 2.0. |
+| MCP SDK v2 migration now | MCP roadmap | v2 alpha published June 11 but stable not until July 27. Pin `<2.0` and wait. |
+| OPDS 2.0 rewrite now | OPDS spec | 1.2 and 2.0 both shipped. No client has requested 2.0 exclusively. |
+| cryptography 49.0 mandatory bump | Security | AES-256-GCM/PBKDF2 unaffected by removals. Optional upgrade. |
+| Extend SM-2 to all bookmarks | BeeMind | Complexity of surfacing spaced repetition for 5K+ bookmarks without a queue UX. Reader highlights (smaller set) are the right scope for now. |
+| Grimoire-style SvelteKit rewrite | Grimoire | Project archived June 2026 — dead. |
 
 ## Sources
 
@@ -183,94 +177,50 @@ The project is mature: ~40K LOC, 411 tests across 13 files, 48 categories with 6
 - https://github.com/linkwarden/linkwarden
 - https://github.com/ArchiveBox/ArchiveBox
 - https://github.com/sissbruecker/linkding
-- https://github.com/wallabag/wallabag
 - https://github.com/jarun/Buku
 - https://github.com/floccusaddon/floccus
-- https://github.com/blob42/gosuki
 - https://github.com/denho/faved
-- https://github.com/go-shiori/shiori
 
 ### Commercial Services
 - https://raindrop.io
 - https://readwise.io/read
 - https://www.burn451.cloud
-- https://markwise.app
-- https://goodlinks.app
+- https://contextbolt.com
+- https://beemind.app
 
 ### Security Advisories
-- https://nvd.nist.gov/vuln/detail/CVE-2026-25645 (requests path traversal)
-- https://github.com/advisories/GHSA-65pc-fj4g-8rjx (idna ReDoS)
-- https://www.sentinelone.com/vulnerability-database/cve-2026-44431/ (urllib3 header leak — resolved)
-- https://media.defense.gov/2026/Jun/02/2003943289/-1/-1/0/CSI_MCP_SECURITY.PDF (NSA MCP advisory — applied)
+- https://www.sentinelone.com/vulnerability-database/cve-2026-25645/ (requests path traversal — resolved)
+- https://requests.readthedocs.io/en/latest/community/updates/ (requests 2.34.2 Session verify fix)
+- https://gofastmcp.com/changelog (FastMCP 3.4.1 Starlette CVE-2026-48710)
+- https://cryptography.io/en/stable/changelog/ (cryptography 49.0 post-quantum, SECT removal)
+- https://media.defense.gov/2026/Jun/02/2003943289/-1/-1/0/CSI_MCP_SECURITY.PDF (NSA MCP advisory)
+- https://github.com/advisories/GHSA-65pc-fj4g-8rjx (idna ReDoS — resolved)
 
 ### Standards and Specs
 - https://modelcontextprotocol.io/specification
 - https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/
-- https://specs.opds.io/ (OPDS 2.0 now official)
-- https://www.w3.org/TR/WCAG22/
-- https://developer.chrome.com/docs/extensions/reference/api/sidePanel
+- https://pypi.org/project/mcp/ (v2.0.0a1 June 11, stable July 27)
+- https://specs.opds.io/
 
 ### Dependencies
-- https://pypi.org/project/fastmcp/ (3.4.2)
-- https://pypi.org/project/mcp/ (1.28.0, v2 alpha pending)
-- https://github.com/lancedb/lancedb (0.33.0, FTS Boolean ops)
-- https://pypi.org/project/fastembed/ (0.8.0, auto-CUDA)
-- https://pypi.org/project/trafilatura/ (2.1.0)
-- https://nuitka.net (4.1.3, recommended over PyInstaller for distribution)
+- https://pypi.org/project/fastmcp/ (3.4.2, Starlette fix in 3.4.1)
+- https://pypi.org/project/mcp/ (1.28.0 stable, 2.0.0a1 alpha)
+- https://github.com/lancedb/lancedb (0.33.0, streaming ops, ngram tokenizer)
+- https://pypi.org/project/fastembed/ (0.8.0, Jina v2, CLIP, parallel cross-encoders)
+- https://nuitka.net (4.1.3, VS 2026 support, Python 3.14)
 - https://pypi.org/project/tksheet/ (7.6.0, maintenance-only)
-- https://docs.python.org/3/whatsnew/3.14.html (free-threaded mode, zstandard)
 
 ### Community Signal
 - https://reddit.com/r/selfhosted
 - https://news.ycombinator.com/item?id=42648006
-- https://awesome-selfhosted.net/tags/bookmarks-and-link-sharing.html
-- https://www.burn451.cloud/blog/best-ai-bookmark-manager-2026 (83% bookmarks never revisited)
-- https://www.digitalapplied.com/blog/mcp-adoption-statistics-2026-model-context-protocol (97M SDK downloads, 9.6K servers)
-- https://github.com/dogancelik/awesome-bookmarking (no AI/MCP entries yet)
-- https://github.com/TensorBlock/awesome-mcp-servers (no local-first bookmark MCP)
-- https://www.dsebastien.net/agentic-knowledge-management-the-next-evolution-of-pkm/
-- https://github.com/Geek-1001/arcmark (macOS local-first, validates desktop model)
-
-### Commercial MCP Status
-- https://developer.raindrop.io/mcp/mcp (40+ tools, Pro-only beta)
-- https://readwise.io/mcp (unified highlights + documents MCP)
-- https://contextbolt.com/blog/bookmarks-mcp-claude-code/ (Pro-only MCP)
-- https://www.burn451.cloud (26 tools, free tier)
-
-## Community Signal
-
-### The Retrieval/Rediscovery Gap
-Tools optimize for **capture**. Users struggle with **retrieval and rediscovery**. 83% of bookmarks are never revisited. The gap: proactive, context-aware resurfacing — not just better search, but unsolicited reminders. BOP's daily digest is now in the GUI dashboard with on-this-day and rediscovery sections, but not yet in the extension side panel where casual users would encounter it most naturally.
-
-### Top User Complaints (2025-2026)
-1. "Save and forget" — bookmarks become graveyards; no tool solves proactive resurfacing
-2. Browser bookmark UX is frozen — no visual organization, no semantic search
-3. Search degrades at scale — "easier to Google than find your own bookmark"
-4. Cross-device sync is painful — capture-on-phone, organize-on-desktop gap
-5. Third-party tools overreach — users want one thing done well
-
-### Feature Demand Signals
-- **Semantic/AI search** over content (not just titles) — dominant request. BOP has this.
-- **Auto-tagging with local LLM** — Karakeep's Ollama integration frequently cited. BOP has this.
-- **One-click capture with zero friction** — especially ADHD/neurodivergent users. BOP has Side Panel.
-- **Dead link detection** — 20% annual link rot rate. BOP has scheduled scanning + GUI results.
-- **Import/export interop** — BOP has 16 importers and 14+ export formats.
-
-### MCP Ecosystem at Inflection Point
-97 million monthly SDK downloads, 9,652 servers in the official registry, 41% of surveyed orgs have MCP in limited or broad production. No local-first desktop bookmark MCP server exists in the ecosystem besides BOP. Getting listed on awesome-mcp-servers and awesome-bookmarking would increase discovery.
-
-### Competitive Moat Assessment
-What BOP offers free that competitors paywall ($28-456/yr): full-text search (Raindrop Pro), AI auto-tagging (Raindrop Pro, Burn 451 Pro), semantic vector search (Raindrop Pro), page archiving (Raindrop Pro, Pinboard $39/yr), MCP server (Raindrop Pro $28/yr, ContextBolt Pro $72/yr, Recall Max $456/yr), RAG chat (Readwise $120/yr), reader highlights (Raindrop Pro, Readwise $120/yr), dead-link scanning (Raindrop Pro). Total annual value of BOP's free feature set vs commercial equivalents: **$200-450+/yr**.
-
-### Pocket Migration Wave
-Pocket died July 8, 2025. Post-Pocket, interest in self-hosted tools spiked. BOP's 16 importers (including Pocket HTML+JSON) position it as a universal landing pad.
+- https://www.burn451.cloud/blog/best-ai-bookmark-manager-2026
+- https://www.digitalapplied.com/blog/mcp-adoption-statistics-2026-model-context-protocol
+- https://github.com/dogancelik/awesome-bookmarking
 
 ## Open Questions
 
-1. **Should SQLite become the default backend?** — JSON is still default. GUI migration exists (Tools > Migrate to SQLite). Blocking question: what's the actual user distribution of bookmark counts? If most users have <1K, JSON is fine.
+1. **MCP SDK v2 migration timeline** — Stable v2 targets July 27. Plan migration for Q3 (August)? Or wait until ecosystem settles (September)?
 
-2. **Nuitka as default binary path** — smoke compile validated in v6.6.8. Full GUI bundle not yet tested. Should PyInstaller be replaced as the default? Nuitka has lower AV false-positive rates but slower build times.
+2. **cryptography 49.0 adoption** — Post-quantum support (ML-KEM/ML-DSA) requires OpenSSL 3.5+. Is BOP's user base on OpenSSL 3.x? The `>=46.0.7` pin works. Upgrade is optional.
 
-3. **MCP spec 2026-07-28 adoption timeline** — spec finalizes July 28. MCP Apps (HTML UIs in iframes) and Extensions framework are new capabilities. Adopt when Python SDK v2 ships (expected H2 2026) or earlier if Tier 1 SDKs support within the 10-week validation window?
-
-4. **tksheet succession plan** — maintenance-only since March 2026. No better Tkinter alternative exists. Fork strategy needed only if a critical unfixed bug surfaces.
+3. **Should SM-2 spaced repetition get a GUI surface?** — Currently CLI-only (`bop reader due`, `bop reader review`). A dashboard widget showing due highlights would close the gap with BeeMind/Readwise. But it's a non-trivial UI addition.
