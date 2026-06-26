@@ -832,13 +832,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P2 — Later (differentiation, polish)
 
-- [ ] P2 — **Nuitka as default binary distribution**
-  Why: Nuitka 4.1.3 produces significantly lower AV false-positive rates than PyInstaller 6.21. R-40 validated a smoke compile; a full GUI bundle should replace PyInstaller as the primary distribution path. PyInstaller can remain as a fallback.
-  Evidence: Nuitka vs PyInstaller AV comparison articles; R-40 smoke validated in v6.6.8 [S-87]
-  Touches: `packaging/nuitka_build.py`, `.github/workflows/build.yml`, `packaging/bookmark_organizer.spec` (demote)
-  Acceptance: CI release workflow produces a Nuitka onefile binary. Windows Defender does not flag it.
-  Complexity: L
-
 - [ ] P2 — **Wrap ~500 GUI strings with `_()` for i18n**
   Why: i18n scaffolding (R-50) is complete but zero GUI strings use `_()`. No module imports `from bookmark_organizer_pro.i18n import _`. This blocks all translation work — the `.pot` file is empty. This is the prerequisite to unblocking "First community translation" in Roadmap_Blocked.md.
   Evidence: `grep _\(\"` returns zero hits in `ui/`; `locale/bop.pot` contains only headers [S-145]
