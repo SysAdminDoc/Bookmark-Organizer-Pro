@@ -60,3 +60,9 @@ Items moved here from ROADMAP.md because they have hard blockers preventing impl
 **Blocker:** Requires operator to apply to SignPath Foundation for free OV code signing (signpath.org), create a Microsoft Partner Center developer account ($19 one-time fee), generate AppxManifest.xml with app identity, and set up MSIX build pipeline. These are account-gated actions.
 
 **Source:** S-121 (research pass), signpath.org, 82phil.github.io MSIX guide
+
+## MCP Apps exploration
+
+**Blocker:** MCP Apps (SEP-1865) is part of the 2026-07-28 Release Candidate spec. The spec finalizes July 28, 2026. Neither the Python MCP SDK (v1.28) nor FastMCP (v3.4) support MCP Apps declarations yet. Implementation requires waiting for SDK support.
+
+**Source:** [S-148]

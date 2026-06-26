@@ -832,13 +832,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P2 — Later (differentiation, polish)
 
-- [ ] P2 — **MCP Apps exploration**
-  Why: MCP spec 2026-07-28 introduces MCP Apps — server-rendered HTML UIs in sandboxed iframes. A bookmark MCP server could render its own dashboard/search UI inside Claude Desktop, ChatGPT, or other MCP hosts. This is a leapfrog feature — no bookmark MCP server ships an app.
-  Evidence: MCP 2026-07-28 RC — MCP Apps (SEP-1865) [S-79]
-  Touches: `mcp_server.py` (new `mcp_app` declaration), new HTML templates
-  Acceptance: When hosted in a compatible MCP client, BOP renders a minimal bookmark search/browse UI. Prototype only.
-  Complexity: L
-
 
 
 
@@ -864,13 +857,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
   Evidence: OPDS 2.0 official status (May 2026); BOP ships 1.2 via `services/feed_export.py` [S-89]
   Touches: `services/feed_export.py`, `services/api.py`, `cli.py`
   Acceptance: `opds-export --version 2` produces valid OPDS 2.0 JSON-LD. Loopback serves at `GET /opds2`.
-  Complexity: M
-
-- [ ] P3 — **Encryption recovery key**
-  Why: Passphrase loss for the AES-256-GCM encrypted DB means permanent data loss. No recovery key, backup key, or key escrow. Users who enable encryption without understanding this risk can lose their entire library.
-  Evidence: `services/encryption.py` — single passphrase, no recovery mechanism [S-145]
-  Touches: `services/encryption.py`, `cli.py` (key generation/display), GUI settings
-  Acceptance: On first encryption, a one-time recovery key is generated and displayed for user to save. Recovery key can decrypt the DB independently of the passphrase.
   Complexity: M
 
 - [ ] P3 — **Python 3.14 free-threaded mode for embedding generation**

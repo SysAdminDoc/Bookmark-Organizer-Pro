@@ -288,12 +288,15 @@ class BookmarkCLI:
         p.add_argument("passphrase", nargs="?", help="Encryption passphrase")
         p.add_argument("src", nargs="?", help="Source JSON file")
         p.add_argument("dst", nargs="?", help="Destination file")
+        p.add_argument("--no-recovery", dest="recovery", action="store_false",
+                       default=True, help="Skip recovery key generation")
         p.set_defaults(func=self._cmd_encrypt)
 
         p = sub.add_parser("decrypt", help="Decrypt an encrypted JSON file")
         p.add_argument("passphrase", nargs="?", help="Decryption passphrase")
         p.add_argument("src", nargs="?", help="Source encrypted file")
         p.add_argument("dst", nargs="?", help="Destination file")
+        p.add_argument("--recovery-key", help="Decrypt using recovery key instead of passphrase")
         p.set_defaults(func=self._cmd_decrypt)
 
         # ── Read-later ─────────────────────────────────────────────
@@ -1080,11 +1083,12 @@ Top Domains:
 
     def _cmd_encrypt(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.constants import MASTER_BOOKMARKS_FILE as _MBF
-        from bookmark_organizer_pro.services.encryption import EncryptedStore
+        from bookmark_organizer_pro.services.encryption import EncryptedStore, generate_recovery_key
         import getpass as _getpass
         passphrase = ns.passphrase
         src = Path(ns.src) if ns.src else _MBF
         dst = Path(ns.dst) if ns.dst else None
+        use_recovery = getattr(ns, 'recovery', True)
         if not passphrase:
             passphrase = _getpass.getpass("Passphrase: ")
         if not passphrase:
@@ -1092,9 +1096,28 @@ Top Domains:
             return
         try:
             store = EncryptedStore(passphrase)
-            out = store.encrypt_file(src, dst)
+            if use_recovery:
+                rk = generate_recovery_key()
+                data = src.read_bytes()
+                encrypted = store.encrypt_with_recovery(data, rk)
+                import tempfile
+                out_path = dst or src.with_suffix(src.suffix + ".enc")
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                fd, tmp = tempfile.mkstemp(dir=out_path.resolve().parent, suffix=".tmp")
+                try:
+                    import os as _os
+                    _os.write(fd, encrypted)
+                    _os.close(fd)
+                    _os.replace(tmp, out_path)
+                except Exception:
+                    _os.close(fd) if not _os.path.exists(tmp) else None
+                    raise
+                print(f"encrypted -> {out_path}")
+                print(f"\nRECOVERY KEY (save this — it can decrypt without the passphrase):\n  {rk}\n")
+            else:
+                out = store.encrypt_file(src, dst)
+                print(f"encrypted -> {out}")
             store.close()
-            print(f"encrypted -> {out}")
         except Exception as e:
             print(f"error: {e}")
 
@@ -1104,12 +1127,9 @@ Top Domains:
         passphrase = ns.passphrase
         src_val = ns.src
         dst = Path(ns.dst) if ns.dst else None
+        recovery_key = getattr(ns, 'recovery_key', None)
 
-        # Handle legacy positional: decrypt [passphrase] <src> [dst]
-        # With argparse positional order: passphrase, src, dst
-        # If only one positional given, it's the src (prompt for passphrase)
         if passphrase and not src_val:
-            # Only one positional was given — treat it as src
             src_val = passphrase
             passphrase = None
 
@@ -1118,6 +1138,18 @@ Top Domains:
             return
 
         src = Path(src_val)
+
+        if recovery_key:
+            try:
+                data = src.read_bytes()
+                plaintext = EncryptedStore.decrypt_with_recovery_key(data, recovery_key)
+                out_path = dst or src.with_suffix("")
+                out_path.write_bytes(plaintext)
+                print(f"decrypted (recovery key) -> {out_path}")
+            except Exception as e:
+                print(f"error: {e}")
+            return
+
         if not passphrase:
             passphrase = _getpass.getpass("Passphrase: ")
         if not passphrase:

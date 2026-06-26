@@ -25,10 +25,12 @@ from bookmark_organizer_pro.logging_config import log
 
 MAGIC = b"BOPC"
 VERSION = 1
+VERSION_RECOVERY = 2
 SALT_LEN = 16
 NONCE_LEN = 12
 KEY_LEN = 32  # 256-bit
 PBKDF2_ITERS = 480_000
+RECOVERY_KEY_BYTES = 32
 
 
 def _try_import(name: str):
@@ -49,6 +51,20 @@ def _fd_closed(fd: int) -> bool:
 
 class CryptoUnavailable(RuntimeError):
     pass
+
+
+def generate_recovery_key() -> str:
+    """Generate a human-readable recovery key (base32-encoded, 256-bit)."""
+    import base64
+    raw = os.urandom(RECOVERY_KEY_BYTES)
+    return base64.b32encode(raw).decode("ascii").rstrip("=")
+
+
+def _recovery_key_to_bytes(key_str: str) -> bytes:
+    """Decode a base32 recovery key string back to raw bytes."""
+    import base64
+    padded = key_str + "=" * (-len(key_str) % 8)
+    return base64.b32decode(padded)
 
 
 class EncryptedStore:
@@ -106,7 +122,7 @@ class EncryptedStore:
         offset = len(MAGIC)
         (version,) = struct.unpack(">I", blob[offset:offset + 4])
         offset += 4
-        if version != VERSION:
+        if version not in (VERSION, VERSION_RECOVERY):
             raise ValueError(f"Unsupported encrypted file version {version}")
         salt = blob[offset:offset + SALT_LEN]; offset += SALT_LEN
         nonce = blob[offset:offset + NONCE_LEN]; offset += NONCE_LEN
@@ -117,6 +133,68 @@ class EncryptedStore:
         key = self._derive(salt)
         aes = ciphers.AESGCM(key)
         return aes.decrypt(nonce, ct, MAGIC)
+
+    def encrypt_with_recovery(self, plaintext: bytes, recovery_key: str) -> bytes:
+        """Encrypt with both passphrase and recovery key (version 2 format).
+
+        Format: MAGIC + version(2) + salt + nonce + ct_len + ct +
+                recovery_salt + recovery_nonce + recovery_ct_len + recovery_ct
+        Both the passphrase and recovery key independently encrypt the same plaintext.
+        """
+        ciphers = _try_import("cryptography.hazmat.primitives.ciphers.aead")
+        if ciphers is None:
+            raise CryptoUnavailable("Install `cryptography` to use encrypted storage")
+        salt = os.urandom(SALT_LEN)
+        nonce = os.urandom(NONCE_LEN)
+        key = self._derive(salt)
+        aes = ciphers.AESGCM(key)
+        ct = aes.encrypt(nonce, plaintext, MAGIC)
+
+        rk_bytes = _recovery_key_to_bytes(recovery_key)
+        rk_salt = os.urandom(SALT_LEN)
+        rk_nonce = os.urandom(NONCE_LEN)
+        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+        from cryptography.hazmat.primitives.hashes import SHA256
+        rk_kdf = PBKDF2HMAC(algorithm=SHA256(), length=KEY_LEN, salt=rk_salt, iterations=PBKDF2_ITERS)
+        rk_derived = rk_kdf.derive(rk_bytes)
+        rk_aes = ciphers.AESGCM(rk_derived)
+        rk_ct = rk_aes.encrypt(rk_nonce, plaintext, MAGIC)
+
+        header = MAGIC + struct.pack(">I", VERSION_RECOVERY)
+        primary = salt + nonce + struct.pack(">I", len(ct)) + ct
+        recovery = rk_salt + rk_nonce + struct.pack(">I", len(rk_ct)) + rk_ct
+        return header + primary + recovery
+
+    @staticmethod
+    def decrypt_with_recovery_key(blob: bytes, recovery_key: str) -> bytes:
+        """Decrypt using a recovery key (version 2 format only)."""
+        ciphers = _try_import("cryptography.hazmat.primitives.ciphers.aead")
+        if ciphers is None:
+            raise CryptoUnavailable("Install `cryptography` to use encrypted storage")
+        if not blob.startswith(MAGIC):
+            raise ValueError("Not an encrypted bookmark file")
+        offset = len(MAGIC)
+        (version,) = struct.unpack(">I", blob[offset:offset + 4])
+        offset += 4
+        if version != VERSION_RECOVERY:
+            raise ValueError("File does not contain a recovery key (version 1 format)")
+        salt = blob[offset:offset + SALT_LEN]; offset += SALT_LEN
+        nonce = blob[offset:offset + NONCE_LEN]; offset += NONCE_LEN
+        (ct_len,) = struct.unpack(">I", blob[offset:offset + 4]); offset += 4
+        offset += ct_len
+
+        rk_salt = blob[offset:offset + SALT_LEN]; offset += SALT_LEN
+        rk_nonce = blob[offset:offset + NONCE_LEN]; offset += NONCE_LEN
+        (rk_ct_len,) = struct.unpack(">I", blob[offset:offset + 4]); offset += 4
+        rk_ct = blob[offset:offset + rk_ct_len]
+
+        rk_bytes = _recovery_key_to_bytes(recovery_key)
+        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+        from cryptography.hazmat.primitives.hashes import SHA256
+        rk_kdf = PBKDF2HMAC(algorithm=SHA256(), length=KEY_LEN, salt=rk_salt, iterations=PBKDF2_ITERS)
+        rk_derived = rk_kdf.derive(rk_bytes)
+        rk_aes = ciphers.AESGCM(rk_derived)
+        return rk_aes.decrypt(rk_nonce, rk_ct, MAGIC)
 
     # ----- convenience file API -----
     def encrypt_file(self, src: Path, dst: Optional[Path] = None) -> Path:
