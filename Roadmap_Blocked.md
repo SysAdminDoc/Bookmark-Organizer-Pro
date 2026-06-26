@@ -66,3 +66,15 @@ Items moved here from ROADMAP.md because they have hard blockers preventing impl
 **Blocker:** MCP Apps (SEP-1865) is part of the 2026-07-28 Release Candidate spec. The spec finalizes July 28, 2026. Neither the Python MCP SDK (v1.28) nor FastMCP (v3.4) support MCP Apps declarations yet. Implementation requires waiting for SDK support.
 
 **Source:** [S-148]
+
+## SQLite-vec as alternative to LanceDB
+
+**Blocker:** Requires the `sqlite-vec` C extension (github.com/asg017/sqlite-vec) which needs compilation from source on most platforms. L-effort refactor of `services/vector_store.py` to add a third backend alongside LanceDB and in-memory JSON. Should be validated only when SQLite becomes the default storage backend.
+
+**Source:** [S-130]
+
+## Python 3.14 free-threaded mode for embedding generation
+
+**Blocker:** Requires a Python 3.14t (free-threaded) CPython build for testing. Current CI matrix covers 3.10-3.13. The feature can only be validated after 3.14t is available in the CI environment and dependency ecosystem (fastembed, lancedb, etc.) confirms compatibility.
+
+**Source:** [S-145][S-157]

@@ -837,17 +837,4 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P3 — Under Consideration
 
-- [ ] P3 — **SQLite-vec as alternative to LanceDB**
-  Why: LanceDB is a 200+ MB dependency. SQLite-vec enables vector search within SQLite itself — if BOP migrates to SQLite default, this collapses the vector store into the same DB.
-  Evidence: sqlite-vec project; LanceDB dependency footprint analysis [S-130]
-  Touches: `services/vector_store.py`, `core/sqlite_storage.py`
-  Acceptance: Vector search works via SQLite-vec with comparable recall to LanceDB
-  Complexity: L
-
-
-- [ ] P3 — **Python 3.14 free-threaded mode for embedding generation**
-  Why: Python 3.14 ships free-threaded mode (no GIL). Embedding generation and web scraping could use real threads instead of multiprocessing, simplifying `services/embeddings.py` and `services/ingest.py` parallelism.
-  Evidence: PEP 703/779 — free-threaded Python 3.14 [S-145]
-  Touches: `services/embeddings.py`, `services/ingest.py`, CI matrix (add 3.14t)
-  Acceptance: Embedding generation runs on 3.14t without GIL. Benchmark shows speedup vs GIL-bound 3.12.
-  Complexity: M
+All P3 items are blocked or moved to `Roadmap_Blocked.md`.
