@@ -804,24 +804,103 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 | S-141 | ContextBolt — social bookmark capture + MCP | https://contextbolt.com/bookmarks/ |
 | S-142 | Community: 83% bookmarks never revisited | https://www.burn451.cloud/blog/best-ai-bookmark-manager-2026 |
 | S-143 | HN: Tab hoarding + ADHD patterns | https://news.ycombinator.com/item?id=46529797 |
-| S-144 | tufup dormancy (no release since Oct 2021) | https://github.com/dennisvang/tufup/releases |
+| S-144 | tufup latest release Oct 2025 (v0.10.0) | https://github.com/dennisvang/tufup/releases |
+| S-145 | BOP internal audit (research pass 3, 2026-06-25) | `RESEARCH.md` (local) |
+| S-146 | CVE-2026-25645: requests path traversal in extract_zipped_paths | https://nvd.nist.gov/vuln/detail/CVE-2026-25645 |
+| S-147 | CVE-2026-45409: idna ReDoS bypass | https://github.com/advisories/GHSA-65pc-fj4g-8rjx |
+| S-148 | MCP 2026-07-28 RC: MCP Apps, Tasks, Extensions, stateless | https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/ |
+| S-149 | MCP adoption: 97M SDK downloads, 9.6K servers | https://www.digitalapplied.com/blog/mcp-adoption-statistics-2026-model-context-protocol |
+| S-150 | Nuitka 4.1.3 — lower AV false positives than PyInstaller | https://dev.to/weisshufer/from-pyinstaller-to-nuitka-convert-python-to-exe-without-false-positives-19jf |
+| S-151 | LanceDB 0.33 FTS Boolean operators | https://docs.lancedb.com/changelog/changelog |
+| S-152 | OPDS 2.0 official standard (May 2026) | https://specs.opds.io/ |
+| S-153 | Arcmark — macOS local-first bookmark manager | https://github.com/Geek-1001/arcmark |
+| S-154 | awesome-bookmarking — no AI/MCP entries | https://github.com/dogancelik/awesome-bookmarking |
+| S-155 | Raindrop.io MCP — 40+ tools (Pro beta) | https://developer.raindrop.io/mcp/mcp |
+| S-156 | Readwise official MCP server | https://readwise.io/mcp |
+| S-157 | Python 3.14 free-threaded mode | https://docs.python.org/3/whatsnew/3.14.html |
+| S-158 | Grimoire archived June 2026 — project dead | https://github.com/goniszewski/grimoire |
+| S-159 | Karakeep v0.32 — Safari ext, SingleFile in-extension, 26.3K stars | https://github.com/karakeep-app/karakeep |
 
 ---
 
 ## Research-Driven Additions
 
-> Added 2026-06-20 from `RESEARCH.md` research pass 2 (source S-128). Items verified against existing ROADMAP to avoid duplicates.
+> Added 2026-06-20 from `RESEARCH.md` research pass 2 (source S-128). Updated 2026-06-25 from research pass 3 (source S-145). Items verified against existing ROADMAP to avoid duplicates.
 
 ### P1 — Next (user-facing gaps)
 
+- [ ] P1 — **Bump `requests>=2.33.0` and pin `idna>=3.15.0`**
+  Why: CVE-2026-25645 (path traversal in `extract_zipped_paths`) affects requests <2.33.0. CVE-2026-45409 (ReDoS bypass) affects idna <3.15.0 (transitive dep). BOP doesn't call the affected function directly but pins should be current.
+  Evidence: CVE-2026-25645, CVE-2026-45409; security agent research [S-145]
+  Touches: `pyproject.toml`, `requirements.txt`
+  Acceptance: `pip install -e .` pulls requests>=2.33.0 and idna>=3.15.0; no test regressions
+  Complexity: S
 
+- [ ] P1 — **Search bar filter autocomplete and tooltip update**
+  Why: Search tooltip shows 5 of 15+ filters (is:pinned, is:broken, is:recent, is:untagged, domain:xyz). Missing: `content:`, `tag:`, `category:`, `title:`, `url:`, `before:`, `after:`, `has:notes`, `visits:>N`. Users can't discover these without opening Help > Search Syntax. A dropdown or inline hint on focus would surface them.
+  Evidence: Code inspection — `app_mixins/app_shell.py:191` tooltip is incomplete vs `search.py` filter list [S-145]
+  Touches: `app_mixins/app_shell.py`, potentially new `ui/search_hints.py`
+  Acceptance: Typing a filter prefix (e.g., `tag:`) shows matching filter syntax. Tooltip lists all filter categories.
+  Complexity: M
 
+- [ ] P1 — **NL query toggle in search bar**
+  Why: `nl_query.py` translates natural language to structured bookmark queries via AI but has no GUI surface (CLI/MCP only). A toggle or mode switch on the search bar ("Smart Search") would let desktop users ask questions like "python articles from last month" without learning filter syntax.
+  Evidence: `services/nl_query.py` exists, zero GUI references; community demand for semantic/AI search [S-129]
+  Touches: `app_mixins/app_shell.py`, `app_mixins/filters.py`, `services/nl_query.py`
+  Acceptance: Toggle in search bar activates NL mode. Query processed by `nl_query.py`, results displayed in bookmark list.
+  Complexity: M
+
+- [ ] P1 — **Benchmark CI gate with regression threshold**
+  Why: `bench_core.py` runs in CI on Python 3.12 but only prints results — no failure on regression. A 20% threshold on JSON load/save at 5K bookmarks would catch performance regressions before they ship.
+  Evidence: `.github/workflows/ci.yml:52-54` runs benchmarks but doesn't gate; `benchmarks/bench_core.py` exists [S-145]
+  Touches: `benchmarks/bench_core.py` (add exit code), `.github/workflows/ci.yml` (fail on non-zero)
+  Acceptance: CI fails if JSON save or load time at 5K bookmarks exceeds baseline by 20%
+  Complexity: S
+
+- [ ] P1 — **Digest and rediscovery in extension side panel**
+  Why: Daily digest (on-this-day, rediscovery picks) is in the GUI dashboard but not in the extension side panel. The side panel has recent bookmarks and search but no proactive resurfacing. 83% of bookmarks are never revisited — the extension is where casual users would encounter rediscovery most naturally.
+  Evidence: Community signal — "bookmark graveyard" is the #1 complaint [S-129][S-142]; `browser-extension/sidepanel.js` has no digest section
+  Touches: `browser-extension/sidepanel.js`, `browser-extension/sidepanel.html`, `services/api.py` (add `/digest` endpoint)
+  Acceptance: Side panel shows a "Rediscover" section with 3-5 forgotten bookmarks below the recent saves list. Refreshes daily.
+  Complexity: M
 
 
 ### P2 — Later (differentiation, polish)
 
+- [ ] P2 — **Nuitka as default binary distribution**
+  Why: Nuitka 4.1.3 produces significantly lower AV false-positive rates than PyInstaller 6.21. R-40 validated a smoke compile; a full GUI bundle should replace PyInstaller as the primary distribution path. PyInstaller can remain as a fallback.
+  Evidence: Nuitka vs PyInstaller AV comparison articles; R-40 smoke validated in v6.6.8 [S-87]
+  Touches: `packaging/nuitka_build.py`, `.github/workflows/build.yml`, `packaging/bookmark_organizer.spec` (demote)
+  Acceptance: CI release workflow produces a Nuitka onefile binary. Windows Defender does not flag it.
+  Complexity: L
 
+- [ ] P2 — **Wrap ~500 GUI strings with `_()` for i18n**
+  Why: i18n scaffolding (R-50) is complete but zero GUI strings use `_()`. No module imports `from bookmark_organizer_pro.i18n import _`. This blocks all translation work — the `.pot` file is empty. This is the prerequisite to unblocking "First community translation" in Roadmap_Blocked.md.
+  Evidence: `grep _\(\"` returns zero hits in `ui/`; `locale/bop.pot` contains only headers [S-145]
+  Touches: All files in `ui/`, `app_mixins/`, `app.py` — every user-facing string literal
+  Acceptance: `python -m bookmark_organizer_pro.i18n` generates a `.pot` file with 200+ translatable strings. A test verifies `.pot` generation.
+  Complexity: L
 
+- [ ] P2 — **Awesome-list and ecosystem submissions**
+  Why: BOP is not listed on awesome-bookmarking (no AI/MCP entries), awesome-mcp-servers (no local-first bookmark MCP), or awesome-selfhosted. Getting listed increases discoverability. 97M monthly MCP SDK downloads means the MCP ecosystem is the primary discovery channel.
+  Evidence: awesome-bookmarking has no AI entries; awesome-mcp-servers knowledge-management section lacks local-first [S-145]
+  Touches: External PRs to: `dogancelik/awesome-bookmarking`, `TensorBlock/awesome-mcp-servers`, `awesome-selfhosted/awesome-selfhosted`
+  Acceptance: BOP is listed on at least 2 of the 3 awesome-lists with accurate description
+  Complexity: S
+
+- [ ] P2 — **LanceDB FTS Boolean operators in hybrid search**
+  Why: LanceDB 0.33+ supports Boolean operators (SHOULD, MUST, MUST_NOT) and `slop` for typo-tolerant phrase matching. BOP's hybrid search uses LanceDB for vector similarity but doesn't leverage these FTS improvements, which could improve search precision.
+  Evidence: LanceDB 0.33.0 changelog — FTS Boolean operators [S-95]
+  Touches: `services/hybrid_search.py`, `services/vector_store.py`
+  Acceptance: `hybrid_search` passes Boolean operators through to LanceDB FTS. Search for `"python" MUST_NOT "java"` returns correct results.
+  Complexity: M
+
+- [ ] P2 — **MCP Apps exploration**
+  Why: MCP spec 2026-07-28 introduces MCP Apps — server-rendered HTML UIs in sandboxed iframes. A bookmark MCP server could render its own dashboard/search UI inside Claude Desktop, ChatGPT, or other MCP hosts. This is a leapfrog feature — no bookmark MCP server ships an app.
+  Evidence: MCP 2026-07-28 RC — MCP Apps (SEP-1865) [S-79]
+  Touches: `mcp_server.py` (new `mcp_app` declaration), new HTML templates
+  Acceptance: When hosted in a compatible MCP client, BOP renders a minimal bookmark search/browse UI. Prototype only.
+  Complexity: L
 
 
 
@@ -842,3 +921,24 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
   Touches: `services/reader_annotations.py`, new scheduling logic, GUI surface
   Acceptance: Daily digest includes spaced-repetition review of highlights with increasing intervals
   Complexity: L
+
+- [ ] P3 — **OPDS 2.0 catalog export**
+  Why: OPDS 2.0 (JSON-LD, Readium Web Publication model) became the official stable standard in May 2026, superseding OPDS 1.2 (Atom XML). BOP ships OPDS 1.2 via `opds-export` and `GET /opds`. A 2.0 path would future-proof interop with modern e-reader clients.
+  Evidence: OPDS 2.0 official status (May 2026); BOP ships 1.2 via `services/feed_export.py` [S-89]
+  Touches: `services/feed_export.py`, `services/api.py`, `cli.py`
+  Acceptance: `opds-export --version 2` produces valid OPDS 2.0 JSON-LD. Loopback serves at `GET /opds2`.
+  Complexity: M
+
+- [ ] P3 — **Encryption recovery key**
+  Why: Passphrase loss for the AES-256-GCM encrypted DB means permanent data loss. No recovery key, backup key, or key escrow. Users who enable encryption without understanding this risk can lose their entire library.
+  Evidence: `services/encryption.py` — single passphrase, no recovery mechanism [S-145]
+  Touches: `services/encryption.py`, `cli.py` (key generation/display), GUI settings
+  Acceptance: On first encryption, a one-time recovery key is generated and displayed for user to save. Recovery key can decrypt the DB independently of the passphrase.
+  Complexity: M
+
+- [ ] P3 — **Python 3.14 free-threaded mode for embedding generation**
+  Why: Python 3.14 ships free-threaded mode (no GIL). Embedding generation and web scraping could use real threads instead of multiprocessing, simplifying `services/embeddings.py` and `services/ingest.py` parallelism.
+  Evidence: PEP 703/779 — free-threaded Python 3.14 [S-145]
+  Touches: `services/embeddings.py`, `services/ingest.py`, CI matrix (add 3.14t)
+  Acceptance: Embedding generation runs on 3.14t without GIL. Benchmark shows speedup vs GIL-bound 3.12.
+  Complexity: M
