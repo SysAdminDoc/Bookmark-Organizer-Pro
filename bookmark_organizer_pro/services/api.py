@@ -370,6 +370,10 @@ class BookmarkAPI:
             
             def do_OPTIONS(self):
                 self.send_response(204)
+                self.send_header('Access-Control-Allow-Origin', 'null')
+                self.send_header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
+                self.send_header('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+                self.send_header('Access-Control-Max-Age', '86400')
                 self.send_header('X-Content-Type-Options', 'nosniff')
                 self.end_headers()
             

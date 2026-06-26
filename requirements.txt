@@ -1,6 +1,6 @@
 # Core (required)
 beautifulsoup4>=4.12
-requests>=2.33.0
+requests>=2.34.2
 idna>=3.15.0
 Pillow>=12.2.0
 pystray>=0.19
@@ -30,7 +30,7 @@ cryptography>=46.0.7
 
 # MCP server (MCP-compatible client integration)
 mcp>=1.28,<2; python_version >= "3.10"
-fastmcp>=3.4,<4; python_version >= "3.10"
+fastmcp>=3.4.1,<4; python_version >= "3.10"
 
 # RSS feed ingestor uses only stdlib xml.etree.
 # Snapshot archiver uses the `monolith` Rust binary if present, otherwise
