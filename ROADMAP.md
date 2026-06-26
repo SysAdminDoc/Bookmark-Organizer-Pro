@@ -888,6 +888,27 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
   Acceptance: A local/CI script captures main empty/list states, Assistant Settings, import/export, reader, graph, extension popup/options/sidepanel, and light/dark themes, then fails on blank output, clipped controls, or missing critical text.
   Complexity: M
 
+- [ ] P1 — Add automated accessibility contract checks
+  Why: Keyboard/focus and high-contrast support exist, but no test gate catches broken focus order, missing labels, or extension ARIA regressions.
+  Evidence: WCAG 2.2; WAI-ARIA APG; `browser-extension/sidepanel.html:200-202`; `browser-extension/popup.html`; `browser-extension/options.html`; `bookmark_organizer_pro/ui/tk_interactions.py`; `.github/workflows/ci.yml`
+  Touches: `tests/`, `.github/workflows/ci.yml`, `browser-extension/*.html`, `bookmark_organizer_pro/ui/tk_interactions.py`, key Tk dialog modules
+  Acceptance: CI runs extension accessibility checks with axe-core or equivalent and Tk focus-order smoke tests under xvfb; failures identify unlabeled controls, missing status semantics, broken focus rings, and tab/role regressions.
+  Complexity: M
+
+- [ ] P1 — Add recurring dependency vulnerability audit
+  Why: Recent work repeatedly patched dependency CVEs, but CI has no scheduled pip-audit/OSV-style guard to surface new vulnerable transitive packages early.
+  Evidence: `pyproject.toml`; `requirements.txt`; `.github/workflows/ci.yml`; Requests/FastMCP/cryptography changelogs; pip-audit
+  Touches: `.github/workflows/ci.yml`, `pyproject.toml`, `requirements.txt`, optional Dependabot/security workflow config
+  Acceptance: A scheduled and PR-triggered dependency audit checks installed core plus optional extras where practical, reports actionable CVEs, and documents suppressions with package/version/CVE rationale.
+  Complexity: S
+
+- [ ] P1 — Smoke-test release artifacts before upload
+  Why: The release workflow builds and uploads Windows/Linux/macOS binaries but does not execute the final renamed artifacts before publishing them.
+  Evidence: `.github/workflows/build.yml:71-109`; `packaging/nuitka_smoke.py`; `tests/test_packaging.py`
+  Touches: `.github/workflows/build.yml`, `packaging/nuitka_build.py`, `tests/test_packaging.py`
+  Acceptance: Each OS build runs the final `dist/BookmarkOrganizerPro-* --version` artifact before upload; Linux uses xvfb if a GUI path is required; upload is skipped on startup/version failure.
+  Complexity: S
+
 ### P2 — Quality and polish
 
 - [ ] P2 — Add extension pending-save queue and retry surface
@@ -916,6 +937,13 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
   Evidence: `bookmark_organizer_pro/app_mixins/tools.py:486-523,546-582`; `bookmark_organizer_pro/services/dup_hybrid.py`; `bookmark_organizer_pro/services/tag_linter.py`; Raindrop duplicate/broken-link utilities
   Touches: `bookmark_organizer_pro/app_mixins/tools.py`, `bookmark_organizer_pro/ui/`, `bookmark_organizer_pro/services/dup_hybrid.py`, `bookmark_organizer_pro/services/tag_linter.py`, tests
   Acceptance: Duplicate and tag-lint scans open grouped previews with selection, apply, skip, safepoint, and restore controls; no successful GUI path tells users to switch to the CLI for routine cleanup.
+  Complexity: M
+
+- [ ] P2 — Promote Read Later into a full desktop queue workflow
+  Why: Read Later is a first-class model/service field, but the GUI only exposes a checkbox and short dashboard/sidebar lists, not the ordered queue operations users expect from read-later tools.
+  Evidence: `bookmark_organizer_pro/services/read_later.py:15-65`; `bookmark_organizer_pro/cli.py:1173-1199`; `bookmark_organizer_pro/app_mixins/dashboard.py:409-425`; `bookmark_organizer_pro/app_mixins/app_shell.py:600-620`; Readwise Reader
+  Touches: `bookmark_organizer_pro/app_mixins/tools.py`, `bookmark_organizer_pro/app_mixins/dashboard.py`, `bookmark_organizer_pro/app_mixins/app_shell.py`, `bookmark_organizer_pro/services/read_later.py`, `bookmark_organizer_pro/ui/`, tests
+  Acceptance: Desktop users can open a dedicated Read Later queue, reorder items, open next, mark done, remove from queue, and see empty/success states; queue changes persist and refresh dashboard/sidebar counts.
   Complexity: M
 
 ### P3 — Under Consideration
