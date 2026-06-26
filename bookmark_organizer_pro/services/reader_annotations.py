@@ -88,6 +88,10 @@ class ReaderHighlight:
     note: str = ""
     created_at: str = ""
     modified_at: str = ""
+    sr_interval: int = 0
+    sr_repetitions: int = 0
+    sr_ease: float = 2.5
+    sr_next_review: str = ""
 
     @property
     def color_hex(self) -> str:
@@ -113,6 +117,10 @@ class ReaderHighlight:
             note=str(data.get("note") or ""),
             created_at=str(data.get("created_at") or now),
             modified_at=str(data.get("modified_at") or data.get("created_at") or now),
+            sr_interval=_clean_int(data.get("sr_interval")),
+            sr_repetitions=_clean_int(data.get("sr_repetitions")),
+            sr_ease=float(data.get("sr_ease", 2.5) or 2.5),
+            sr_next_review=str(data.get("sr_next_review") or ""),
         )
 
 
@@ -244,6 +252,45 @@ class ReaderAnnotationStore:
                 return False
             highlight.note = str(note or "")
             highlight.modified_at = _now()
+        self._save()
+        return True
+
+    def due_for_review(self, today: Optional[datetime] = None) -> List[ReaderHighlight]:
+        """Return highlights whose next review date is today or earlier."""
+        today = today or datetime.now()
+        today_iso = today.date().isoformat()
+        with self._lock:
+            due = []
+            for h in self._highlights.values():
+                if not h.sr_next_review:
+                    due.append(h)
+                elif h.sr_next_review <= today_iso:
+                    due.append(h)
+        return sorted(due, key=lambda h: (h.sr_next_review or "", h.created_at))
+
+    def record_review(self, highlight_id: str, quality: int) -> bool:
+        """Record a review using SM-2 algorithm. quality: 0-5 (0=fail, 5=perfect)."""
+        quality = max(0, min(5, int(quality)))
+        with self._lock:
+            h = self._highlights.get(str(highlight_id))
+            if h is None:
+                return False
+            if quality < 3:
+                h.sr_repetitions = 0
+                h.sr_interval = 1
+            else:
+                if h.sr_repetitions == 0:
+                    h.sr_interval = 1
+                elif h.sr_repetitions == 1:
+                    h.sr_interval = 6
+                else:
+                    h.sr_interval = max(1, round(h.sr_interval * h.sr_ease))
+                h.sr_repetitions += 1
+            h.sr_ease = max(1.3, h.sr_ease + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+            from datetime import timedelta
+            next_date = datetime.now() + timedelta(days=h.sr_interval)
+            h.sr_next_review = next_date.date().isoformat()
+            h.modified_at = _now()
         self._save()
         return True
 

@@ -1273,6 +1273,32 @@ Top Domains:
             print("ok" if store.delete(reader_args[0]) else "not found")
             return
 
+        if sub == "due":
+            due = store.due_for_review()
+            if not due:
+                print("No highlights due for review.")
+                return
+            print(f"{len(due)} highlight(s) due for review:")
+            for item in due[:20]:
+                preview = " ".join(item.text.split())[:60]
+                next_r = item.sr_next_review or "new"
+                print(f"  {item.id} [interval={item.sr_interval}d next={next_r}] {preview}")
+            return
+
+        if sub == "review" and len(reader_args) >= 2:
+            hid = reader_args[0]
+            try:
+                quality = int(reader_args[1])
+            except ValueError:
+                print("error: quality must be 0-5")
+                return
+            if store.record_review(hid, quality):
+                h = store.get(hid)
+                print(f"reviewed: interval={h.sr_interval}d ease={h.sr_ease:.2f} next={h.sr_next_review}")
+            else:
+                print("not found")
+            return
+
         if sub == "export" and reader_args:
             try:
                 bid = int(reader_args[0])

@@ -845,13 +845,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
   Complexity: L
 
 
-- [ ] P3 — **Spaced repetition for highlights**
-  Why: Readwise Reader's highest-value feature ($120/yr) is spaced repetition review of highlights. BOP already has reader annotations (`services/reader_annotations.py`) — adding SM-2 scheduling would be a free alternative to a $120/yr product.
-  Evidence: Readwise Reader pricing/features; BOP already has highlight storage [S-129]
-  Touches: `services/reader_annotations.py`, new scheduling logic, GUI surface
-  Acceptance: Daily digest includes spaced-repetition review of highlights with increasing intervals
-  Complexity: L
-
 - [ ] P3 — **Python 3.14 free-threaded mode for embedding generation**
   Why: Python 3.14 ships free-threaded mode (no GIL). Embedding generation and web scraping could use real threads instead of multiprocessing, simplifying `services/embeddings.py` and `services/ingest.py` parallelism.
   Evidence: PEP 703/779 — free-threaded Python 3.14 [S-145]
