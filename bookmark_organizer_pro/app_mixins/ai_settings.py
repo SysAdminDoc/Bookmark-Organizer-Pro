@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from bookmark_organizer_pro.ai import AI_PROVIDERS, create_ai_client
+from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.services.ollama_manager import (
     OLLAMA_DEFAULT_URL,
     OllamaManager,
@@ -24,7 +25,7 @@ class AiSettingsMixin:
         theme = get_theme()
 
         dialog = tk.Toplevel(self.root)
-        dialog.title("AI Settings")
+        dialog.title(_("AI Settings"))
         dialog.configure(bg=theme.bg_primary)
         dialog.geometry("620x720")
         dialog.minsize(580, 620)
@@ -42,13 +43,13 @@ class AiSettingsMixin:
         header.pack(fill=tk.X)
 
         tk.Label(
-            header, text="AI Settings", bg=theme.bg_secondary,
+            header, text=_("AI Settings"), bg=theme.bg_secondary,
             fg=theme.text_primary, font=FONTS.title(bold=True),
         ).pack(anchor="w")
 
         tk.Label(
             header,
-            text="Choose a provider for categorization, tags, summaries, and RAG chat.",
+            text=_("Choose a provider for categorization, tags, summaries, and RAG chat."),
             bg=theme.bg_secondary, fg=theme.text_secondary,
             font=FONTS.small(), wraplength=560, justify=tk.LEFT,
         ).pack(anchor="w", pady=(4, 0))
@@ -61,7 +62,7 @@ class AiSettingsMixin:
 
         # ── Provider selection ──
         tk.Label(
-            body, text="Provider", bg=theme.bg_primary,
+            body, text=_("Provider"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.body(bold=True),
         ).pack(anchor="w", pady=(8, 6))
 
@@ -94,7 +95,7 @@ class AiSettingsMixin:
 
         # ── Model selection ──
         tk.Label(
-            body, text="Model", bg=theme.bg_primary,
+            body, text=_("Model"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.body(bold=True),
         ).pack(anchor="w", pady=(0, 4))
 
@@ -106,7 +107,7 @@ class AiSettingsMixin:
         api_key_frame = tk.Frame(body, bg=theme.bg_primary)
 
         tk.Label(
-            api_key_frame, text="API Key", bg=theme.bg_primary,
+            api_key_frame, text=_("API Key"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.body(bold=True),
         ).pack(anchor="w", pady=(0, 4))
 
@@ -126,12 +127,12 @@ class AiSettingsMixin:
         def toggle_key():
             if api_entry.cget("show") == "•":
                 api_entry.configure(show="")
-                show_btn.set_text("Hide")
+                show_btn.set_text(_("Hide"))
             else:
                 api_entry.configure(show="•")
-                show_btn.set_text("Show")
+                show_btn.set_text(_("Show"))
 
-        show_btn = ModernButton(key_row, text="Show", command=toggle_key, padx=8, pady=3, font=FONTS.small())
+        show_btn = ModernButton(key_row, text=_("Show"), command=toggle_key, padx=8, pady=3, font=FONTS.small())
         show_btn.pack(side=tk.LEFT, padx=(0, 8))
 
         provider_info = AI_PROVIDERS.get(provider_var.get())
@@ -142,7 +143,7 @@ class AiSettingsMixin:
                 if info and info.api_key_url:
                     webbrowser.open(info.api_key_url)
 
-            get_key_btn = ModernButton(key_row, text="Get API key →", command=_open_key_url, padx=8, pady=3, font=FONTS.small())
+            get_key_btn = ModernButton(key_row, text=_("Get API key →"), command=_open_key_url, padx=8, pady=3, font=FONTS.small())
             get_key_btn.pack(side=tk.LEFT)
 
         # ── Ollama management panel ──
@@ -152,7 +153,7 @@ class AiSettingsMixin:
         ollama_mgr = OllamaManager(self.ai_config.get_ollama_url())
 
         # Status line
-        ollama_status_var = tk.StringVar(value="Checking Ollama…")
+        ollama_status_var = tk.StringVar(value=_("Checking Ollama…"))
         ollama_status_label = tk.Label(
             ollama_panel, textvariable=ollama_status_var,
             bg=theme.bg_secondary, fg=theme.text_secondary, font=FONTS.body(),
@@ -169,7 +170,7 @@ class AiSettingsMixin:
         ollama_header.pack(fill=tk.X, pady=(0, 8))
 
         tk.Label(
-            ollama_header, text="Ollama — Local AI", bg=theme.bg_secondary,
+            ollama_header, text=_("Ollama — Local AI"), bg=theme.bg_secondary,
             fg=theme.text_primary, font=FONTS.body(bold=True),
         ).pack(side=tk.LEFT)
 
@@ -181,7 +182,7 @@ class AiSettingsMixin:
         url_row.pack(fill=tk.X, pady=(0, 8))
 
         tk.Label(
-            url_row, text="Server", bg=theme.bg_secondary,
+            url_row, text=_("Server"), bg=theme.bg_secondary,
             fg=theme.text_secondary, font=FONTS.small(),
         ).pack(side=tk.LEFT, padx=(0, 6))
 
@@ -199,13 +200,13 @@ class AiSettingsMixin:
         action_row = tk.Frame(ollama_panel, bg=theme.bg_secondary)
         action_row.pack(fill=tk.X, pady=(0, 8))
 
-        install_btn = ModernButton(action_row, text="Install Ollama", style="primary", padx=10, pady=4, font=FONTS.small())
+        install_btn = ModernButton(action_row, text=_("Install Ollama"), style="primary", padx=10, pady=4, font=FONTS.small())
         install_btn.pack(side=tk.LEFT, padx=(0, 6))
 
-        start_btn = ModernButton(action_row, text="Start Server", padx=10, pady=4, font=FONTS.small())
+        start_btn = ModernButton(action_row, text=_("Start Server"), padx=10, pady=4, font=FONTS.small())
         start_btn.pack(side=tk.LEFT, padx=(0, 6))
 
-        refresh_btn = ModernButton(action_row, text="Refresh", padx=10, pady=4, font=FONTS.small())
+        refresh_btn = ModernButton(action_row, text=_("Refresh"), padx=10, pady=4, font=FONTS.small())
         refresh_btn.pack(side=tk.LEFT)
 
         # Model download section
@@ -213,7 +214,7 @@ class AiSettingsMixin:
         download_frame.pack(fill=tk.X, pady=(0, 4))
 
         tk.Label(
-            download_frame, text="Download model:", bg=theme.bg_secondary,
+            download_frame, text=_("Download model:"), bg=theme.bg_secondary,
             fg=theme.text_secondary, font=FONTS.small(),
         ).pack(side=tk.LEFT, padx=(0, 6))
 
@@ -243,18 +244,18 @@ class AiSettingsMixin:
             if not dialog.winfo_exists():
                 return
             if not status.installed:
-                ollama_status_var.set("Not installed")
+                ollama_status_var.set(_("Not installed"))
                 ollama_dot.configure(fg=theme.accent_error)
                 install_btn.set_state("normal")
                 start_btn.set_state("disabled")
             elif not status.running:
-                ollama_status_var.set(f"Installed (v{status.version}) — server stopped")
+                ollama_status_var.set(_("Installed (v{version}) — server stopped").format(version=status.version))
                 ollama_dot.configure(fg=theme.accent_warning)
                 install_btn.set_state("disabled")
                 start_btn.set_state("normal")
             else:
                 n = len(status.models)
-                ollama_status_var.set(f"Running — {pluralize(n, 'model')} available")
+                ollama_status_var.set(_("Running — {models} available").format(models=pluralize(n, 'model')))
                 ollama_dot.configure(fg=theme.accent_success)
                 install_btn.set_state("disabled")
                 start_btn.set_state("disabled")
@@ -270,7 +271,7 @@ class AiSettingsMixin:
 
                 # Show local models list
                 if status.models:
-                    lines = ["Installed models:"]
+                    lines = [_("Installed models:")]
                     for m in status.models:
                         lines.append(f"  • {m['name']}  ({m.get('size', '')})")
                     local_models_label.configure(text="\n".join(lines))
@@ -279,7 +280,7 @@ class AiSettingsMixin:
                     local_models_frame.pack_forget()
 
         def _refresh_ollama():
-            ollama_status_var.set("Checking…")
+            ollama_status_var.set(_("Checking…"))
             ollama_dot.configure(fg=theme.text_muted)
 
             def worker():
@@ -291,8 +292,8 @@ class AiSettingsMixin:
 
         def _install_ollama():
             install_btn.set_state("disabled")
-            install_btn.set_text("Installing…")
-            progress_var.set("Starting installation…")
+            install_btn.set_text(_("Installing…"))
+            progress_var.set(_("Starting installation…"))
             progress_label.pack(fill=tk.X, pady=(4, 0))
 
             def on_progress(msg):
@@ -302,9 +303,9 @@ class AiSettingsMixin:
                 def update():
                     if not dialog.winfo_exists():
                         return
-                    install_btn.set_text("Install Ollama")
+                    install_btn.set_text(_("Install Ollama"))
                     if ok:
-                        progress_var.set("Installed! Starting server…")
+                        progress_var.set(_("Installed! Starting server…"))
                         _start_ollama()
                     else:
                         progress_var.set(f"Install failed: {msg[:80]}")
@@ -315,17 +316,17 @@ class AiSettingsMixin:
 
         def _start_ollama():
             start_btn.set_state("disabled")
-            start_btn.set_text("Starting…")
-            progress_var.set("Starting Ollama server…")
+            start_btn.set_text(_("Starting…"))
+            progress_var.set(_("Starting Ollama server…"))
             progress_label.pack(fill=tk.X, pady=(4, 0))
 
             def on_done(ok, msg):
                 def update():
                     if not dialog.winfo_exists():
                         return
-                    start_btn.set_text("Start Server")
+                    start_btn.set_text(_("Start Server"))
                     if ok:
-                        progress_var.set("Server is running!")
+                        progress_var.set(_("Server is running!"))
                         _refresh_ollama()
                     else:
                         progress_var.set(f"Start failed: {msg[:80]}")
@@ -340,8 +341,8 @@ class AiSettingsMixin:
                 return
             model_name = selected.split("  (")[0].strip()
             pull_btn.set_state("disabled")
-            pull_btn.set_text("Downloading…")
-            progress_var.set(f"Pulling {model_name}…")
+            pull_btn.set_text(_("Downloading…"))
+            progress_var.set(_("Pulling {model}…").format(model=model_name))
             progress_label.pack(fill=tk.X, pady=(4, 0))
 
             def on_progress(msg):
@@ -351,10 +352,10 @@ class AiSettingsMixin:
                 def update():
                     if not dialog.winfo_exists():
                         return
-                    pull_btn.set_text("Download")
+                    pull_btn.set_text(_("Download"))
                     pull_btn.set_state("normal")
                     if ok:
-                        progress_var.set(f"{model_name} ready!")
+                        progress_var.set(_("{model} ready!").format(model=model_name))
                         _refresh_ollama()
                     else:
                         progress_var.set(f"Pull failed: {msg[:80]}")
@@ -364,7 +365,7 @@ class AiSettingsMixin:
                 model_name, on_progress=on_progress, on_done=on_done,
             )
 
-        pull_btn = ModernButton(download_frame, text="Download", style="primary", padx=10, pady=4, font=FONTS.small())
+        pull_btn = ModernButton(download_frame, text=_("Download"), style="primary", padx=10, pady=4, font=FONTS.small())
         pull_btn.pack(side=tk.LEFT)
 
         install_btn.command = _install_ollama
@@ -380,7 +381,7 @@ class AiSettingsMixin:
         failover_enabled_var = tk.BooleanVar(value=self.ai_config.get_failover_enabled())
         tk.Checkbutton(
             failover_frame,
-            text="Enable failover — retry uncertain results with a second provider",
+            text=_("Enable failover — retry uncertain results with a second provider"),
             variable=failover_enabled_var,
             bg=theme.bg_primary, fg=theme.text_primary,
             activebackground=theme.bg_primary, activeforeground=theme.text_primary,
@@ -391,7 +392,7 @@ class AiSettingsMixin:
         failover_detail.pack(fill=tk.X, pady=(4, 0))
 
         tk.Label(
-            failover_detail, text="Failover provider:", bg=theme.bg_primary,
+            failover_detail, text=_("Failover provider:"), bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.small(),
         ).grid(row=0, column=0, sticky="w", pady=2)
 
@@ -402,7 +403,7 @@ class AiSettingsMixin:
         fo_combo.grid(row=0, column=1, padx=8, pady=2)
 
         tk.Label(
-            failover_detail, text="Model:", bg=theme.bg_primary,
+            failover_detail, text=_("Model:"), bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.small(),
         ).grid(row=0, column=2, sticky="w", pady=2)
 
@@ -421,7 +422,7 @@ class AiSettingsMixin:
         _update_fo_models()
 
         tk.Label(
-            failover_detail, text="Threshold:", bg=theme.bg_primary,
+            failover_detail, text=_("Threshold:"), bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.small(),
         ).grid(row=1, column=0, sticky="w", pady=2)
 
@@ -430,7 +431,7 @@ class AiSettingsMixin:
                      textvariable=fo_thresh_var, width=6, format="%.1f").grid(row=1, column=1, padx=8, pady=2)
 
         tk.Label(
-            failover_detail, text="Results below this confidence retry with the failover provider",
+            failover_detail, text=_("Results below this confidence retry with the failover provider"),
             bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.small(),
         ).grid(row=1, column=2, columnspan=2, sticky="w", pady=2)
 
@@ -441,7 +442,7 @@ class AiSettingsMixin:
         settings_frame.pack(fill=tk.X, pady=(0, 8))
 
         tk.Label(
-            settings_frame, text="Batch size", bg=theme.bg_primary,
+            settings_frame, text=_("Batch size"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.small(),
         ).grid(row=0, column=0, sticky="w", pady=4)
 
@@ -449,7 +450,7 @@ class AiSettingsMixin:
         ttk.Spinbox(settings_frame, from_=5, to=50, textvariable=batch_var, width=8).grid(row=0, column=1, padx=10, pady=4)
 
         tk.Label(
-            settings_frame, text="Rate limit (req/min)", bg=theme.bg_primary,
+            settings_frame, text=_("Rate limit (req/min)"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.small(),
         ).grid(row=1, column=0, sticky="w", pady=4)
 
@@ -486,8 +487,8 @@ class AiSettingsMixin:
             if not key and provider not in ("ollama",):
                 pl = AI_PROVIDERS.get(provider)
                 messagebox.showwarning(
-                    "API Key Required",
-                    f"Enter an API key for {pl.display_name if pl else provider} before testing.",
+                    _("API Key Required"),
+                    _("Enter an API key for {provider} before testing.").format(provider=pl.display_name if pl else provider),
                     parent=dialog,
                 )
                 return
@@ -506,11 +507,11 @@ class AiSettingsMixin:
                 client = create_ai_client(self.ai_config)
                 success, message = client.test_connection()
                 if success:
-                    messagebox.showinfo("Connection Successful", message, parent=dialog)
+                    messagebox.showinfo(_("Connection Successful"), message, parent=dialog)
                 else:
-                    messagebox.showerror("Connection Failed", message, parent=dialog)
+                    messagebox.showerror(_("Connection Failed"), message, parent=dialog)
             except Exception as e:
-                messagebox.showerror("Connection Failed", str(e)[:300], parent=dialog)
+                messagebox.showerror(_("Connection Failed"), str(e)[:300], parent=dialog)
             finally:
                 self.ai_config._config["provider"] = old_provider
                 self.ai_config._config["model"] = old_model
@@ -520,7 +521,7 @@ class AiSettingsMixin:
                     del self.ai_config._config["api_keys"][provider]
 
         test_btn = ModernButton(
-            body, text="Test Connection", command=test_connection,
+            body, text=_("Test Connection"), command=test_connection,
             style="primary", padx=14, pady=6,
         )
         test_btn.pack(anchor="w", pady=(8, 4))
@@ -546,9 +547,9 @@ class AiSettingsMixin:
             self.ai_config._config["failover_confidence_threshold"] = fo_thresh_var.get()
             self.ai_config.save_config()
             dialog.destroy()
-            self._show_toast("AI settings saved", "success")
+            self._show_toast(_("AI settings saved"), "success")
 
-        ModernButton(footer, text="Save", command=save, style="success", padx=20, pady=7).pack(side=tk.RIGHT)
-        ModernButton(footer, text="Cancel", command=dialog.destroy, padx=16, pady=7).pack(side=tk.RIGHT, padx=(0, 8))
+        ModernButton(footer, text=_("Save"), command=save, style="success", padx=20, pady=7).pack(side=tk.RIGHT)
+        ModernButton(footer, text=_("Cancel"), command=dialog.destroy, padx=16, pady=7).pack(side=tk.RIGHT, padx=(0, 8))
         dialog.bind("<Escape>", lambda e: dialog.destroy())
         dialog.bind("<Control-Return>", lambda e: save())

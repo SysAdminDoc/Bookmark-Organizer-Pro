@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import List
 
 from bookmark_organizer_pro.constants import BACKUP_DIR
+from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.importers import (
     BrowserProfileImporter,
     NetscapeBookmarkImporter,
@@ -31,7 +32,7 @@ class ImportProgressModal(tk.Toplevel):
         super().__init__(parent)
         theme = get_theme()
 
-        self.title("Importing Bookmarks")
+        self.title(_("Importing Bookmarks"))
         self.configure(bg=theme.bg_primary)
         self.resizable(False, False)
         self.transient(parent)
@@ -58,7 +59,7 @@ class ImportProgressModal(tk.Toplevel):
 
         # --- Title ---
         self._title_label = tk.Label(
-            self, text=f"Importing from {source_label}…",
+            self, text=_("Importing from {source}…").format(source=source_label),
             bg=theme.bg_primary, fg=theme.text_primary,
             font=FONTS.subtitle(bold=True),
         )
@@ -66,7 +67,7 @@ class ImportProgressModal(tk.Toplevel):
 
         # --- Status ---
         self._status_label = tk.Label(
-            self, text="Preparing…",
+            self, text=_("Preparing…"),
             bg=theme.bg_primary, fg=theme.text_secondary,
             font=FONTS.body(),
         )
@@ -107,28 +108,28 @@ class ImportProgressModal(tk.Toplevel):
         self._animating = False
         pct = current / max(total, 1)
         self._bar_fill.place(relx=0, relwidth=pct)
-        self._status_label.configure(text=f"Processing bookmark {current:,} of {total:,}")
+        self._status_label.configure(text=_("Processing bookmark {current} of {total}").format(current=f"{current:,}", total=f"{total:,}"))
         parts = []
         if added:
-            parts.append(f"{added:,} added")
+            parts.append(_("{count} added").format(count=f"{added:,}"))
         if dupes:
-            parts.append(f"{dupes:,} skipped")
+            parts.append(_("{count} skipped").format(count=f"{dupes:,}"))
         self._count_label.configure(text=" · ".join(parts) if parts else "")
 
     def set_categorizing(self):
-        self._status_label.configure(text="Auto-categorizing bookmarks…")
+        self._status_label.configure(text=_("Auto-categorizing bookmarks…"))
 
     def set_saving(self):
-        self._status_label.configure(text="Saving to library…")
+        self._status_label.configure(text=_("Saving to library…"))
 
     def finish(self, added: int, dupes: int):
         theme = get_theme()
         self._animating = False
         self._bar_fill.place(relx=0, relwidth=1.0)
         self._bar_fill.configure(bg=theme.accent_success)
-        self._title_label.configure(text="Import Complete")
+        self._title_label.configure(text=_("Import Complete"))
         self._status_label.configure(
-            text=f"{added:,} bookmarks imported, {dupes:,} duplicates skipped",
+            text=_("{added} bookmarks imported, {dupes} duplicates skipped").format(added=f"{added:,}", dupes=f"{dupes:,}"),
             fg=theme.text_primary,
         )
         self._count_label.configure(text="")
@@ -136,7 +137,7 @@ class ImportProgressModal(tk.Toplevel):
         btn_frame = tk.Frame(self, bg=theme.bg_primary)
         btn_frame.pack(pady=(12, 0))
         ModernButton(
-            btn_frame, text="Done", style="primary",
+            btn_frame, text=_("Done"), style="primary",
             command=self._close, padx=24, pady=8,
         ).pack()
         self.protocol("WM_DELETE_WINDOW", self._close)
@@ -146,13 +147,13 @@ class ImportProgressModal(tk.Toplevel):
         self._animating = False
         self._bar_fill.place(relx=0, relwidth=1.0)
         self._bar_fill.configure(bg=theme.accent_error)
-        self._title_label.configure(text="Import Failed")
+        self._title_label.configure(text=_("Import Failed"))
         self._status_label.configure(text=message[:120], fg=theme.accent_error)
 
         btn_frame = tk.Frame(self, bg=theme.bg_primary)
         btn_frame.pack(pady=(12, 0))
         ModernButton(
-            btn_frame, text="Close", command=self._close, padx=24, pady=8,
+            btn_frame, text=_("Close"), command=self._close, padx=24, pady=8,
         ).pack()
         self.protocol("WM_DELETE_WINDOW", self._close)
 
@@ -264,7 +265,7 @@ class ImportExportMixin:
         theme = get_theme()
 
         dlg = tk.Toplevel(self.root)
-        dlg.title("Restore from Backup")
+        dlg.title(_("Restore from Backup"))
         dlg.configure(bg=theme.bg_primary)
         dlg.geometry("640x470")
         dlg.minsize(540, 380)
@@ -272,10 +273,10 @@ class ImportExportMixin:
         dlg.grab_set()
         apply_window_chrome(dlg)
 
-        tk.Label(dlg, text="Restore bookmarks from a backup or safepoint",
+        tk.Label(dlg, text=_("Restore bookmarks from a backup or safepoint"),
                  bg=theme.bg_primary, fg=theme.text_primary,
                  font=FONTS.subtitle(bold=True)).pack(anchor="w", padx=18, pady=(16, 4))
-        tk.Label(dlg, text=("A safepoint is captured automatically at startup and before each "
+        tk.Label(dlg, text=_("A safepoint is captured automatically at startup and before each "
                             "import. Restoring replaces your current bookmarks — a pre-restore "
                             "backup is saved first, so this is also reversible."),
                  bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.small(),
@@ -307,7 +308,7 @@ class ImportExportMixin:
         if names:
             lb.selection_set(0)
         else:
-            lb.insert(tk.END, "  (no backups yet — they appear after the first save/import)")
+            lb.insert(tk.END, "  " + _("(no backups yet — they appear after the first save/import)"))
 
         def do_restore():
             sel = lb.curselection()
@@ -316,13 +317,13 @@ class ImportExportMixin:
             if self.bookmark_manager.restore_backup(names[sel[0]]):
                 self._refresh_all()
                 if hasattr(self, "_show_toast"):
-                    self._show_toast("Bookmarks restored from backup", "success")
+                    self._show_toast(_("Bookmarks restored from backup"), "success")
                 dlg.destroy()
             elif hasattr(self, "_show_toast"):
-                self._show_toast("Restore failed — see logs", "error")
+                self._show_toast(_("Restore failed — see logs"), "error")
 
-        ModernButton(btns, text="Cancel", command=dlg.destroy).pack(side=tk.RIGHT, padx=(10, 0))
-        ModernButton(btns, text="Restore selected", command=do_restore,
+        ModernButton(btns, text=_("Cancel"), command=dlg.destroy).pack(side=tk.RIGHT, padx=(10, 0))
+        ModernButton(btns, text=_("Restore selected"), command=do_restore,
                      style="primary").pack(side=tk.RIGHT)
         lb.bind("<Double-Button-1>", lambda e: do_restore())
         dlg.bind("<Escape>", lambda e: dlg.destroy())
@@ -383,7 +384,7 @@ class ImportExportMixin:
         menu = tk.Menu(self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
                        activebackground=theme.bg_hover, activeforeground=theme.text_primary,
                        font=FONTS.body())
-        menu.add_command(label="  Import from File…", command=self.import_area._browse_files)
+        menu.add_command(label="  " + _("Import from File…"), command=self.import_area._browse_files)
         menu.add_separator()
 
         # Detect installed browsers
@@ -392,11 +393,11 @@ class ImportExportMixin:
         if browsers:
             for browser in browsers:
                 menu.add_command(
-                    label=f"  Import from {browser.title()}…",
+                    label="  " + _("Import from {source}…").format(source=browser.title()),
                     command=lambda b=browser: self._import_from_browser(b)
                 )
         else:
-            menu.add_command(label="  No browsers detected", state="disabled")
+            menu.add_command(label="  " + _("No browsers detected"), state="disabled")
 
         menu.add_separator()
         service_importers = [
@@ -411,7 +412,7 @@ class ImportExportMixin:
             ("Zotero (RDF)", "*.rdf", self._import_service_zotero),
         ]
         for label, _, callback in service_importers:
-            menu.add_command(label=f"  Import from {label}", command=callback)
+            menu.add_command(label="  " + _("Import from {source}").format(source=label), command=callback)
 
         menu.tk_popup(self.root.winfo_pointerx(), self.root.winfo_pointery())
 
@@ -421,7 +422,7 @@ class ImportExportMixin:
         profiles = importer.get_profiles(browser)
 
         if not profiles:
-            self._show_toast(f"No {browser.title()} profiles found", "warning")
+            self._show_toast(_("No {browser} profiles found").format(browser=browser.title()), "warning")
             return
 
         profile_name, profile_path = profiles[0]
@@ -476,7 +477,7 @@ class ImportExportMixin:
         from tkinter import filedialog
         from bookmark_organizer_pro.importers_extra import import_into
         path = filedialog.askopenfilename(
-            title=f"Import from {label}",
+            title=_("Import from {source}").format(source=label),
             filetypes=filetypes,
             parent=self.root,
         )
@@ -529,7 +530,7 @@ class ImportExportMixin:
         from tkinter import filedialog
         from bookmark_organizer_pro.services.zotero_interop import import_zotero_rdf
         path = filedialog.askopenfilename(
-            title="Import from Zotero",
+            title=_("Import from Zotero"),
             filetypes=[("RDF", "*.rdf"), ("All", "*.*")],
             parent=self.root,
         )

@@ -6,6 +6,8 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable
 
+from bookmark_organizer_pro.i18n import _
+
 from .foundation import FONTS, DesignTokens, readable_text_on
 from .widget_controls import ThemedWidget
 from .widget_runtime import get_theme
@@ -31,12 +33,12 @@ class ChatPanel(tk.Frame, ThemedWidget):
                     pady=(DesignTokens.PANEL_PAD, DesignTokens.SPACE_SM))
 
         tk.Label(
-            header, text="ASK YOUR LIBRARY", bg=theme.bg_dark,
+            header, text=_("ASK YOUR LIBRARY"), bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.tiny(bold=True),
         ).pack(side=tk.LEFT)
 
         self._clear_btn = tk.Label(
-            header, text="Clear", bg=theme.bg_dark, fg=theme.text_muted,
+            header, text=_("Clear"), bg=theme.bg_dark, fg=theme.text_muted,
             font=FONTS.tiny(), cursor="hand2",
         )
         self._clear_btn.pack(side=tk.RIGHT)
@@ -84,7 +86,7 @@ class ChatPanel(tk.Frame, ThemedWidget):
             highlightcolor=theme.accent_primary,
         )
         self._entry.pack(fill=tk.X, ipady=8, ipadx=8)
-        self._entry.insert(0, "Ask about your bookmarks...")
+        self._entry.insert(0, _("Ask about your bookmarks..."))
         self._entry.config(fg=theme.text_muted)
 
         self._entry.bind("<FocusIn>", self._on_focus_in)
@@ -119,7 +121,7 @@ class ChatPanel(tk.Frame, ThemedWidget):
     def _on_focus_out(self, event):
         if not self._entry.get().strip():
             theme = get_theme()
-            self._entry.insert(0, "Ask about your bookmarks...")
+            self._entry.insert(0, _("Ask about your bookmarks..."))
             self._entry.config(fg=theme.text_muted)
             self._placeholder_active = True
 
@@ -129,7 +131,7 @@ class ChatPanel(tk.Frame, ThemedWidget):
             return "break"
         self._entry.delete(0, tk.END)
         self._add_message("user", question)
-        self._status_label.config(text="Thinking…", fg=get_theme().accent_primary)
+        self._status_label.config(text=_("Thinking…"), fg=get_theme().accent_primary)
         self._entry.config(state=tk.DISABLED)
         if self._on_ask:
             self._on_ask(question)
@@ -151,7 +153,7 @@ class ChatPanel(tk.Frame, ThemedWidget):
 
         fg = readable_text_on(theme.accent_primary) if is_user else theme.text_primary
         tk.Label(
-            bubble, text="You" if is_user else "BOP",
+            bubble, text=_("You") if is_user else _("BOP"),
             bg=bubble["bg"], fg=fg, font=FONTS.tiny(bold=True),
             anchor="w",
         ).pack(fill=tk.X)

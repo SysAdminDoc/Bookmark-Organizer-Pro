@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import filedialog
 from typing import Callable, Dict, Iterable, Optional
 
+from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.bookmark_graph import (
     BookmarkGraph,
@@ -52,7 +53,7 @@ class GraphViewDialog(tk.Toplevel):
         self.node_lookup: Dict[str, GraphNode] = {node.id: node for node in self.graph.nodes}
         self.selected_node_id: str | None = None
 
-        self.title("Bookmark Graph")
+        self.title(_("Bookmark Graph"))
         self.geometry("1120x760")
         self.minsize(820, 560)
         self.configure(bg=theme.bg_primary)
@@ -68,7 +69,7 @@ class GraphViewDialog(tk.Toplevel):
         header.pack(fill=tk.X)
         tk.Label(
             header,
-            text="Bookmark Graph",
+            text=_("Bookmark Graph"),
             bg=theme.bg_secondary,
             fg=theme.text_primary,
             font=FONTS.header(bold=True),
@@ -77,7 +78,7 @@ class GraphViewDialog(tk.Toplevel):
         ).pack(side=tk.LEFT)
         tk.Button(
             header,
-            text="Export",
+            text=_("Export"),
             command=self._export_graph,
             bg=theme.accent_primary,
             fg=readable_text_on(theme.accent_primary),
@@ -112,7 +113,7 @@ class GraphViewDialog(tk.Toplevel):
         body.add(side, minsize=260)
         self.stats_label = tk.Label(
             side,
-            text=f"{len(self.graph.nodes)} nodes / {len(self.graph.edges)} edges",
+            text=_("{nodes} nodes / {edges} edges").format(nodes=len(self.graph.nodes), edges=len(self.graph.edges)),
             bg=theme.bg_secondary,
             fg=theme.text_secondary,
             font=FONTS.body(),
@@ -121,7 +122,7 @@ class GraphViewDialog(tk.Toplevel):
         self.stats_label.pack(fill=tk.X)
         self.detail_title = tk.Label(
             side,
-            text="Selected",
+            text=_("Selected"),
             bg=theme.bg_secondary,
             fg=theme.text_primary,
             font=FONTS.body(bold=True),
@@ -140,7 +141,7 @@ class GraphViewDialog(tk.Toplevel):
             font=FONTS.small(),
         )
         self.detail_text.pack(fill=tk.BOTH, expand=True)
-        self.detail_text.insert("1.0", "None")
+        self.detail_text.insert("1.0", _("None"))
         self.detail_text.configure(state=tk.DISABLED)
         self.status = tk.Label(
             side,
@@ -248,9 +249,9 @@ class GraphViewDialog(tk.Toplevel):
         lines = [
             node.label,
             "",
-            f"Type: {node.type}",
-            f"Weight: {node.weight}",
-            f"Connections: {len(connected)}",
+            _("Type: {type}").format(type=node.type),
+            _("Weight: {weight}").format(weight=node.weight),
+            _("Connections: {count}").format(count=len(connected)),
         ]
         if node_id.startswith("bookmark:"):
             bookmark = self.bookmarks_by_node.get(node_id)
@@ -265,11 +266,11 @@ class GraphViewDialog(tk.Toplevel):
     def _export_graph(self) -> None:
         output_path = filedialog.asksaveasfilename(
             parent=self,
-            title="Export Graph JSON",
+            title=_("Export Graph JSON"),
             defaultextension=".json",
             filetypes=[("JSON", "*.json"), ("All files", "*.*")],
         )
         if not output_path:
             return
         path = export_bookmark_graph_json(self.bookmarks, output_path=output_path, max_bookmarks=self.max_bookmarks)
-        self.status.configure(text=f"Exported {path.name}")
+        self.status.configure(text=_("Exported {name}").format(name=path.name))

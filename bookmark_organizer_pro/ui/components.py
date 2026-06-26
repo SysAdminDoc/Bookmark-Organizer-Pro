@@ -7,6 +7,8 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Callable, List
 
+from bookmark_organizer_pro.i18n import _
+
 from .foundation import FONTS, DesignTokens
 from .theme import ThemeManager
 from .tk_interactions import make_keyboard_activatable
@@ -132,13 +134,15 @@ class EnhancedProgressBar(tk.Frame, ThemedWidget):
         if self.show_label:
             self.label.configure(text="")
     
-    def complete(self, label: str = "Complete"):
+    def complete(self, label: str = None):
         """Mark as complete"""
+        if label is None:
+            label = _("Complete")
         theme = get_theme()
         self._animating = False
         self.bar_fill.place(relwidth=1.0)
         self.bar_fill.configure(bg=theme.accent_success)
-        
+
         if self.show_percentage:
             self.pct_label.configure(text="100%")
         if self.show_label:
@@ -193,13 +197,13 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
         
         # Main text
         self.main_label = tk.Label(
-            self, text="Bring bookmarks in", bg=theme.bg_secondary,
+            self, text=_("Bring bookmarks in"), bg=theme.bg_secondary,
             fg=theme.text_primary, font=FONTS.body(bold=True)
         )
         self.main_label.pack()
         
         # Supported formats
-        formats_text = "HTML, JSON, CSV, OPML, and text URL files"
+        formats_text = _("HTML, JSON, CSV, OPML, and text URL files")
         self.formats_label = tk.Label(
             self, text=formats_text, bg=theme.bg_secondary,
             fg=theme.text_secondary, font=FONTS.small()
@@ -208,7 +212,7 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
         
         # Browse button
         self.browse_btn = ModernButton(
-            self, text="Choose files",
+            self, text=_("Choose files"),
             command=self._browse_files
         )
         self.browse_btn.pack(pady=(14, 6))
@@ -262,7 +266,7 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
         ]
         
         files = filedialog.askopenfilenames(
-            title="Select Bookmark Files to Import",
+            title=_("Select Bookmark Files to Import"),
             filetypes=filetypes
         )
         
@@ -282,9 +286,9 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
             self.on_files_dropped(valid_files)
         elif not valid_files:
             messagebox.showwarning(
-                "No Supported Bookmark Files",
-                "Choose an HTML, JSON, CSV, OPML, or text file containing bookmark URLs.\n\n" +
-                "Supported extensions: " + ", ".join(sorted(self.SUPPORTED_FORMATS.keys()))
+                _("No Supported Bookmark Files"),
+                _("Choose an HTML, JSON, CSV, OPML, or text file containing bookmark URLs.") + "\n\n" +
+                _("Supported extensions:") + " " + ", ".join(sorted(self.SUPPORTED_FORMATS.keys()))
             )
     
     def set_importing(self, is_importing: bool):
@@ -293,27 +297,27 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
         
         if is_importing:
             self.icon_label.configure(text="⏳")
-            self.main_label.configure(text="Importing bookmarks…")
-            self.formats_label.configure(text="Please keep the app open while files are processed.")
+            self.main_label.configure(text=_("Importing bookmarks…"))
+            self.formats_label.configure(text=_("Please keep the app open while files are processed."))
             self.browse_btn.set_state("disabled")
             if self.compact_title_label:
-                self.compact_title_label.configure(text="Importing…")
+                self.compact_title_label.configure(text=_("Importing…"))
             if self.compact_detail_label:
-                self.compact_detail_label.configure(text="Processing selected files")
+                self.compact_detail_label.configure(text=_("Processing selected files"))
             if self.compact_action:
                 self.compact_action.set_state("disabled")
         else:
             self.icon_label.configure(text="↓")
             self.main_label.configure(
-                text="Import library" if self._compact else "Bring bookmarks in"
+                text=_("Import library") if self._compact else _("Bring bookmarks in")
             )
             if not self._compact:
-                self.formats_label.configure(text="HTML, JSON, CSV, OPML, and text URL files")
+                self.formats_label.configure(text=_("HTML, JSON, CSV, OPML, and text URL files"))
             self.browse_btn.set_state("normal")
             if self.compact_title_label:
-                self.compact_title_label.configure(text="Import")
+                self.compact_title_label.configure(text=_("Import"))
             if self.compact_detail_label:
-                self.compact_detail_label.configure(text="Files or browser export")
+                self.compact_detail_label.configure(text=_("Files or browser export"))
             if self.compact_action:
                 self.compact_action.set_state("normal")
 
@@ -338,19 +342,19 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
                 copy = tk.Frame(self.compact_row, bg=theme.bg_dark, cursor="hand2")
                 copy.pack(side=tk.LEFT, fill=tk.X, expand=True)
                 self.compact_title_label = tk.Label(
-                    copy, text="Import", bg=theme.bg_dark,
+                    copy, text=_("Import"), bg=theme.bg_dark,
                     fg=theme.text_primary, font=FONTS.body(bold=True),
                     cursor="hand2", anchor="w"
                 )
                 self.compact_title_label.pack(anchor="w")
                 self.compact_detail_label = tk.Label(
-                    copy, text="Files or browser export", bg=theme.bg_dark,
+                    copy, text=_("Files or browser export"), bg=theme.bg_dark,
                     fg=theme.text_muted, font=FONTS.tiny(),
                     cursor="hand2", anchor="w"
                 )
                 self.compact_detail_label.pack(anchor="w", pady=(2, 0))
                 self.compact_action = ModernButton(
-                    self.compact_row, text="Choose", command=self._browse_files,
+                    self.compact_row, text=_("Choose"), command=self._browse_files,
                     style="primary", padx=12, pady=6, font=FONTS.tiny(bold=True)
                 )
                 self.compact_action.pack(side=tk.RIGHT, padx=(8, 0))
@@ -371,8 +375,8 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
             self.main_label.pack()
             self.formats_label.pack(pady=(5, 0), padx=4, after=self.main_label)
             self.browse_btn.pack(pady=(14, 6))
-            self.main_label.configure(text="Bring bookmarks in")
-            self.formats_label.configure(text="HTML, JSON, CSV, OPML, and text URL files")
+            self.main_label.configure(text=_("Bring bookmarks in"))
+            self.formats_label.configure(text=_("HTML, JSON, CSV, OPML, and text URL files"))
             self.browse_btn.pack_configure(pady=(14, 6))
 
 
@@ -394,7 +398,7 @@ class FaviconStatusDisplay(tk.Frame, ThemedWidget):
         self.icon_label.pack(side=tk.LEFT, padx=(5, 3))
         
         self.status_label = tk.Label(
-            self, text="Icons ready", bg=theme.bg_dark,
+            self, text=_("Icons ready"), bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.small()
         )
         self.status_label.pack(side=tk.LEFT, padx=(0, 10))
@@ -422,11 +426,11 @@ class FaviconStatusDisplay(tk.Frame, ThemedWidget):
         
         pct = (completed / total) * 100 if total > 0 else 0
         
-        self.status_label.configure(text=f"Icons {completed}/{total}")
+        self.status_label.configure(text=_("Icons {completed}/{total}").format(completed=completed, total=total))
         self.progress_fill.place(relwidth=pct/100)
         
         if completed >= total:
-            self.status_label.configure(text=f"Icons ready ({completed})")
+            self.status_label.configure(text=_("Icons ready ({count})").format(count=completed))
             self.progress_fill.configure(bg=theme.accent_success)
             # Auto-hide after a delay
             self.after(3000, self.hide)
@@ -566,7 +570,7 @@ class ThemeDropdown(tk.Frame):
 
         # Create dropdown button — always reads "Themes" so new users know what it does
         self.btn = tk.Label(
-            self, text="Themes",
+            self, text=_("Themes"),
             bg=theme.bg_secondary, fg=theme.text_primary,
             font=FONTS.small(), padx=10, pady=6,
             cursor="hand2"

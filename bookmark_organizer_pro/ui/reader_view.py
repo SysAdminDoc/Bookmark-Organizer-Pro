@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import List
 
+from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.reader_annotations import (
     HIGHLIGHT_COLORS,
@@ -36,7 +37,7 @@ class ReaderViewDialog(tk.Toplevel):
         self.text_content = read_extracted_text(bookmark)
         self.highlight_ids: List[str] = []
 
-        self.title(f"Reader - {bookmark.title}")
+        self.title(_("Reader — {title}").format(title=bookmark.title))
         self.geometry("920x700")
         self.minsize(720, 520)
         self.configure(bg=theme.bg_primary)
@@ -64,7 +65,7 @@ class ReaderViewDialog(tk.Toplevel):
         ).pack(side=tk.LEFT, fill=tk.X, expand=True)
         tk.Button(
             header,
-            text="Export",
+            text=_("Export"),
             command=self._export_highlights,
             bg=theme.accent_primary,
             fg=readable_text_on(theme.accent_primary),
@@ -97,7 +98,7 @@ class ReaderViewDialog(tk.Toplevel):
         self.text.configure(yscrollcommand=scrollbar.set)
         self.text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.text.insert("1.0", self.text_content or "No extracted text available.")
+        self.text.insert("1.0", self.text_content or _("No extracted text available."))
         self.text.configure(state=tk.DISABLED)
         body.add(text_frame, minsize=420)
 
@@ -106,7 +107,7 @@ class ReaderViewDialog(tk.Toplevel):
 
         tk.Label(
             side,
-            text="Highlights",
+            text=_("Highlights"),
             bg=theme.bg_secondary,
             fg=theme.text_primary,
             font=FONTS.body(bold=True),
@@ -139,7 +140,7 @@ class ReaderViewDialog(tk.Toplevel):
         self.color_combo.pack(side=tk.LEFT, padx=(0, 8))
         tk.Button(
             controls,
-            text="Add",
+            text=_("Add"),
             command=self._add_highlight_from_selection,
             bg=theme.accent_success,
             fg=readable_text_on(theme.accent_success),
@@ -151,7 +152,7 @@ class ReaderViewDialog(tk.Toplevel):
 
         tk.Label(
             side,
-            text="Note",
+            text=_("Note"),
             bg=theme.bg_secondary,
             fg=theme.text_secondary,
             font=FONTS.small(),
@@ -174,7 +175,7 @@ class ReaderViewDialog(tk.Toplevel):
         note_actions.pack(fill=tk.X, pady=(8, 0))
         tk.Button(
             note_actions,
-            text="Save",
+            text=_("Save"),
             command=self._save_selected_note,
             bg=theme.accent_primary,
             fg=readable_text_on(theme.accent_primary),
@@ -185,7 +186,7 @@ class ReaderViewDialog(tk.Toplevel):
         ).pack(side=tk.LEFT, padx=(0, 8))
         tk.Button(
             note_actions,
-            text="Delete",
+            text=_("Delete"),
             command=self._delete_selected_highlight,
             bg=theme.accent_error,
             fg=readable_text_on(theme.accent_error),
@@ -214,7 +215,7 @@ class ReaderViewDialog(tk.Toplevel):
             preview = " ".join(highlight.text.split())[:64]
             self.highlight_list.insert(tk.END, f"{highlight.color} {highlight.char_start}-{highlight.char_end}: {preview}")
             self.highlight_ids.append(highlight.id)
-        self.status.configure(text=f"{len(self.highlight_ids)} saved")
+        self.status.configure(text=_("{count} saved").format(count=len(self.highlight_ids)))
 
     def _clear_highlight_tags(self) -> None:
         self.text.configure(state=tk.NORMAL)
@@ -261,10 +262,10 @@ class ReaderViewDialog(tk.Toplevel):
         try:
             start_index, end_index = self.text.tag_ranges(tk.SEL)
         except ValueError:
-            messagebox.showinfo("Reader", "Select text first.", parent=self)
+            messagebox.showinfo(_("Reader"), _("Select text first."), parent=self)
             return
         if not start_index or not end_index:
-            messagebox.showinfo("Reader", "Select text first.", parent=self)
+            messagebox.showinfo(_("Reader"), _("Select text first."), parent=self)
             return
         start = text_index_offset(self.text, str(start_index))
         end = text_index_offset(self.text, str(end_index))
@@ -287,7 +288,7 @@ class ReaderViewDialog(tk.Toplevel):
     def _save_selected_note(self) -> None:
         highlight_id = self._selected_highlight_id()
         if not highlight_id:
-            messagebox.showinfo("Reader", "Select a highlight first.", parent=self)
+            messagebox.showinfo(_("Reader"), _("Select a highlight first."), parent=self)
             return
         self.store.set_note(highlight_id, self.note_text.get("1.0", tk.END).strip())
         self._load_highlights()
@@ -295,14 +296,14 @@ class ReaderViewDialog(tk.Toplevel):
     def _delete_selected_highlight(self) -> None:
         highlight_id = self._selected_highlight_id()
         if not highlight_id:
-            messagebox.showinfo("Reader", "Select a highlight first.", parent=self)
+            messagebox.showinfo(_("Reader"), _("Select a highlight first."), parent=self)
             return
         self.store.delete(highlight_id)
         self.note_text.delete("1.0", tk.END)
         self._load_highlights()
 
     def _export_highlights(self) -> None:
-        output_dir = filedialog.askdirectory(parent=self, title="Export Reader Highlights")
+        output_dir = filedialog.askdirectory(parent=self, title=_("Export Reader Highlights"))
         if not output_dir:
             return
         path = export_bookmark_highlights(
@@ -310,4 +311,4 @@ class ReaderViewDialog(tk.Toplevel):
             self.store.list_for_bookmark(int(self.bookmark.id)),
             output_dir=output_dir,
         )
-        self.status.configure(text=f"Exported {path.name}")
+        self.status.configure(text=_("Exported {name}").format(name=path.name))

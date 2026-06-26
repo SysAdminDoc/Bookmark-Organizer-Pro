@@ -5,6 +5,7 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import messagebox
 
+from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.ui.foundation import FONTS, format_compact_count, pluralize, readable_text_on, truncate_middle
 from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable
 from bookmark_organizer_pro.ui.widgets import ModernButton, Tooltip, apply_window_chrome, get_theme
@@ -35,7 +36,7 @@ class CategoryActionsMixin:
         if total_bookmarks == 0:
             tk.Label(
                 self.categories_frame,
-                text="Categories appear after you import or add bookmarks.",
+                text=_("Categories appear after you import or add bookmarks."),
                 bg=theme.bg_dark, fg=theme.text_muted,
                 font=FONTS.small(), wraplength=250, justify=tk.LEFT
             ).pack(anchor="w", padx=10, pady=8)
@@ -45,7 +46,7 @@ class CategoryActionsMixin:
         if not categories:
             tk.Label(
                 self.categories_frame,
-                text="No active categories yet.",
+                text=_("No active categories yet."),
                 bg=theme.bg_dark, fg=theme.text_muted,
                 font=FONTS.small(), wraplength=260, justify=tk.LEFT
             ).pack(anchor="w", padx=10, pady=8)
@@ -123,10 +124,10 @@ class CategoryActionsMixin:
         
         menu = tk.Menu(self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
                       activebackground=theme.bg_hover, activeforeground=theme.text_primary)
-        menu.add_command(label="  ➕  Add New Category", command=self._add_new_category_dialog)
-        menu.add_command(label="  ✏️  Rename Category", command=lambda: self._rename_category_dialog(category))
+        menu.add_command(label="  ➕  " + _("Add New Category"), command=self._add_new_category_dialog)
+        menu.add_command(label="  ✏️  " + _("Rename Category"), command=lambda: self._rename_category_dialog(category))
         menu.add_separator()
-        menu.add_command(label="  🗑️  Delete Category", command=lambda: self._delete_category_confirm(category))
+        menu.add_command(label="  🗑️  " + _("Delete Category"), command=lambda: self._delete_category_confirm(category))
         
         menu.tk_popup(event.x_root, event.y_root)
     
@@ -136,16 +137,16 @@ class CategoryActionsMixin:
         
         menu = tk.Menu(self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
                       activebackground=theme.bg_hover, activeforeground=theme.text_primary)
-        menu.add_command(label="  ➕  Add New Category", command=self._add_new_category_dialog)
-        
+        menu.add_command(label="  ➕  " + _("Add New Category"), command=self._add_new_category_dialog)
+
         menu.tk_popup(event.x_root, event.y_root)
-    
+
     def _add_new_category_dialog(self):
         """Show dialog to add new category"""
         theme = get_theme()
         
         dialog = tk.Toplevel(self.root)
-        dialog.title("Add Category")
+        dialog.title(_("Add Category"))
         dialog.configure(bg=theme.bg_primary)
         dialog.geometry("380x170")
         dialog.transient(self.root)
@@ -158,12 +159,12 @@ class CategoryActionsMixin:
         dialog.geometry(f"+{x}+{y}")
         
         tk.Label(
-            dialog, text="Add category", bg=theme.bg_primary,
+            dialog, text=_("Add category"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.header(bold=True)
         ).pack(anchor="w", padx=24, pady=(20, 2))
 
         tk.Label(
-            dialog, text="Create a reusable destination for future bookmark organization.",
+            dialog, text=_("Create a reusable destination for future bookmark organization."),
             bg=theme.bg_primary, fg=theme.text_secondary,
             font=FONTS.small(), wraplength=320, justify=tk.LEFT
         ).pack(anchor="w", padx=24, pady=(0, 10))
@@ -184,11 +185,11 @@ class CategoryActionsMixin:
                 if self.category_manager.add_category(name):
                     dialog.destroy()
                     self._refresh_category_list()
-                    self._set_status(f"Added category: {name}")
+                    self._set_status(_("Added category: {name}").format(name=name))
                 else:
                     messagebox.showerror(
-                        "Category Not Added",
-                        "Use a unique category name with at least one visible character.",
+                        _("Category Not Added"),
+                        _("Use a unique category name with at least one visible character."),
                         parent=dialog
                     )
             else:
@@ -198,8 +199,8 @@ class CategoryActionsMixin:
 
         actions = tk.Frame(dialog, bg=theme.bg_primary)
         actions.pack(fill=tk.X, padx=24, pady=(14, 0))
-        ModernButton(actions, text="Add", command=add, style="success", padx=20, pady=7).pack(side=tk.RIGHT)
-        ModernButton(actions, text="Cancel", command=dialog.destroy, padx=16, pady=7).pack(side=tk.RIGHT, padx=(0, 8))
+        ModernButton(actions, text=_("Add"), command=add, style="success", padx=20, pady=7).pack(side=tk.RIGHT)
+        ModernButton(actions, text=_("Cancel"), command=dialog.destroy, padx=16, pady=7).pack(side=tk.RIGHT, padx=(0, 8))
         dialog.bind("<Escape>", lambda e: dialog.destroy())
     
     def _rename_category_dialog(self, old_name: str):
@@ -207,14 +208,14 @@ class CategoryActionsMixin:
         theme = get_theme()
         
         dialog = tk.Toplevel(self.root)
-        dialog.title("Rename Category")
+        dialog.title(_("Rename Category"))
         dialog.configure(bg=theme.bg_primary)
         dialog.geometry("350x120")
         dialog.transient(self.root)
         dialog.grab_set()
         
         tk.Label(
-            dialog, text="New Name:", bg=theme.bg_primary,
+            dialog, text=_("New Name:"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.body()
         ).pack(pady=(20, 5))
         
@@ -239,14 +240,14 @@ class CategoryActionsMixin:
                 dialog.destroy()
                 self._refresh_category_list()
                 self._refresh_bookmark_list()
-                self._set_status(f"Renamed category to: {new_name}")
+                self._set_status(_("Renamed category to: {name}").format(name=new_name))
             else:
                 dialog.destroy()
         
         entry.bind("<Return>", lambda e: rename())
         
         tk.Button(
-            dialog, text="Rename", bg=theme.accent_primary, fg=readable_text_on(theme.accent_primary),
+            dialog, text=_("Rename"), bg=theme.accent_primary, fg=readable_text_on(theme.accent_primary),
             font=FONTS.body(), relief=tk.FLAT, command=rename, padx=20
         ).pack(pady=10)
     
@@ -270,6 +271,6 @@ class CategoryActionsMixin:
         self._refresh_analytics()
         if hasattr(self, "_show_toast"):
             moved = f" ({pluralize(count, 'bookmark')} → Uncategorized)" if count else ""
-            self._show_toast(f"Deleted category '{category}'{moved}", "info")
-            self._set_status(f"Deleted category: {category}")
+            self._show_toast(_("Deleted category '{category}'{moved}").format(category=category, moved=moved), "info")
+            self._set_status(_("Deleted category: {category}").format(category=category))
 
