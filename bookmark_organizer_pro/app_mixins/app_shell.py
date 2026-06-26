@@ -188,7 +188,11 @@ class AppShellMixin:
             font=FONTS.body(), width=35
         )
         self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=7, padx=5)
-        Tooltip(self.search_entry, "Search bookmarks by title, URL, category, or tags.\nSpecial filters: is:pinned, is:broken, is:recent, is:untagged, domain:xyz")
+        Tooltip(self.search_entry,
+               "Search by title, URL, category, or tags.\n"
+               "Filters: tag: category: domain: title: url:\n"
+               "  content: before: after: is: has: visits:>N\n"
+               "Type a prefix (e.g. tag:) for suggestions.")
 
         # Placeholder text
         self._search_placeholder = "Search bookmarks…"

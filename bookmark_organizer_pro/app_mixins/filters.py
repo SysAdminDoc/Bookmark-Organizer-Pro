@@ -5,12 +5,31 @@ from __future__ import annotations
 import tkinter as tk
 
 from bookmark_organizer_pro.ui import build_filter_counts
-from bookmark_organizer_pro.ui.foundation import format_compact_count
+from bookmark_organizer_pro.ui.foundation import FONTS, format_compact_count
 from bookmark_organizer_pro.ui.widgets import get_theme
+
+SEARCH_FILTER_HINTS = [
+    ("tag:", "tag:python — bookmarks with tag"),
+    ("category:", "category:Dev — bookmarks in category"),
+    ("cat:", "cat:AI — category short form"),
+    ("domain:", "domain:github.com — by domain"),
+    ("title:", "title:react — search in title"),
+    ("url:", "url:docs — search in URL"),
+    ("content:", "content:keyword — search page text"),
+    ("before:", "before:2025-01-01 — created before date"),
+    ("after:", "after:2025-01-01 — created after date"),
+    ("is:", "is:pinned  is:broken  is:stale  is:archived  is:recent  is:untagged"),
+    ("has:", "has:notes  has:tags"),
+    ("visits:", "visits:>5 — visited more than N times"),
+    ("#", "#python — tag shorthand"),
+    ("/", "/regex/ — regex search"),
+]
 
 
 class FilterActionsMixin:
     """Search box, sidebar quick-filter, and category-selection behavior."""
+
+    _filter_hint_popup = None
 
     def _on_search_focus_in(self, e):
         """Clear placeholder when search entry gains focus"""
@@ -27,6 +46,7 @@ class FilterActionsMixin:
 
     def _on_search_focus_out(self, e):
         """Restore placeholder when search entry loses focus and is empty"""
+        self._dismiss_filter_hints()
         theme = get_theme()
         if hasattr(self, 'search_frame') and self.search_frame:
             self.search_frame.configure(highlightbackground=theme.border_muted)
@@ -39,6 +59,51 @@ class FilterActionsMixin:
             self.search_entry.configure(fg=theme.text_muted)
             if hasattr(self, 'clear_search_btn') and self.clear_search_btn:
                 self.clear_search_btn.pack_forget()
+
+    def _show_filter_hints(self, text: str):
+        """Show a filter-hint popup when the user types a recognized prefix."""
+        self._dismiss_filter_hints()
+        if not text or text == getattr(self, '_search_placeholder', ''):
+            return
+
+        last_token = text.rsplit(None, 1)[-1] if text else ""
+        if not last_token:
+            return
+
+        lower = last_token.lower()
+        matches = [desc for prefix, desc in SEARCH_FILTER_HINTS if prefix.startswith(lower)]
+        if not matches or lower in {p for p, _ in SEARCH_FILTER_HINTS}:
+            return
+
+        theme = get_theme()
+        popup = tk.Toplevel(self.root)
+        popup.overrideredirect(True)
+        popup.configure(bg=theme.border_muted)
+        popup.attributes("-topmost", True)
+
+        inner = tk.Frame(popup, bg=theme.bg_secondary, padx=1, pady=1)
+        inner.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+
+        for hint in matches[:6]:
+            tk.Label(
+                inner, text=hint, bg=theme.bg_secondary, fg=theme.text_secondary,
+                font=FONTS.small(), anchor="w", padx=8, pady=2,
+            ).pack(fill=tk.X)
+
+        self.search_entry.update_idletasks()
+        x = self.search_entry.winfo_rootx()
+        y = self.search_entry.winfo_rooty() + self.search_entry.winfo_height() + 2
+        popup.geometry(f"+{x}+{y}")
+        self.__class__._filter_hint_popup = popup
+
+    def _dismiss_filter_hints(self, event=None):
+        popup = self.__class__._filter_hint_popup
+        if popup is not None:
+            try:
+                popup.destroy()
+            except Exception:
+                pass
+            self.__class__._filter_hint_popup = None
 
     def _on_search_change(self, *args):
         """Handle search change with debounce"""
@@ -55,6 +120,7 @@ class FilterActionsMixin:
             if hasattr(self, 'clear_search_btn') and self.clear_search_btn:
                 self.clear_search_btn.pack_forget()
             return
+        self._show_filter_hints(val)
         self.search_query = val
         if hasattr(self, 'clear_search_btn') and self.clear_search_btn:
             if val:

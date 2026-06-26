@@ -829,13 +829,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P1 — Next (user-facing gaps)
 
-- [ ] P1 — **Search bar filter autocomplete and tooltip update**
-  Why: Search tooltip shows 5 of 15+ filters (is:pinned, is:broken, is:recent, is:untagged, domain:xyz). Missing: `content:`, `tag:`, `category:`, `title:`, `url:`, `before:`, `after:`, `has:notes`, `visits:>N`. Users can't discover these without opening Help > Search Syntax. A dropdown or inline hint on focus would surface them.
-  Evidence: Code inspection — `app_mixins/app_shell.py:191` tooltip is incomplete vs `search.py` filter list [S-145]
-  Touches: `app_mixins/app_shell.py`, potentially new `ui/search_hints.py`
-  Acceptance: Typing a filter prefix (e.g., `tag:`) shows matching filter syntax. Tooltip lists all filter categories.
-  Complexity: M
-
 - [ ] P1 — **NL query toggle in search bar**
   Why: `nl_query.py` translates natural language to structured bookmark queries via AI but has no GUI surface (CLI/MCP only). A toggle or mode switch on the search bar ("Smart Search") would let desktop users ask questions like "python articles from last month" without learning filter syntax.
   Evidence: `services/nl_query.py` exists, zero GUI references; community demand for semantic/AI search [S-129]
