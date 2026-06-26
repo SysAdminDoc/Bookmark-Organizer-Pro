@@ -11,7 +11,7 @@ from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.utils.dependencies import DependencyManager
 
 from .foundation import FONTS
-from .widgets import get_theme
+from .widgets import ModernButton, apply_window_chrome, get_theme
 
 
 class DependencyCheckDialog(tk.Toplevel):
@@ -25,10 +25,11 @@ class DependencyCheckDialog(tk.Toplevel):
 
         theme = get_theme()
 
-        self.title(f"{APP_NAME} - Dependency Check")
+        self.title(f"{APP_NAME} - Setup Check")
         self.geometry("500x400")
         self.resizable(False, False)
         self.configure(bg=theme.bg_primary)
+        apply_window_chrome(self)
 
         self.transient(parent)
         self.grab_set()
@@ -48,7 +49,7 @@ class DependencyCheckDialog(tk.Toplevel):
 
         tk.Label(
             header,
-            text="Dependency Check",
+            text="Setup Check",
             font=FONTS.subtitle(bold=True),
             bg=theme.bg_secondary,
             fg=theme.text_primary,
@@ -56,7 +57,7 @@ class DependencyCheckDialog(tk.Toplevel):
 
         tk.Label(
             header,
-            text="Some packages need to be installed for full functionality.",
+            text="Install required packages now, or continue with optional features disabled.",
             font=FONTS.small(),
             bg=theme.bg_secondary,
             fg=theme.text_secondary,
@@ -140,56 +141,39 @@ class DependencyCheckDialog(tk.Toplevel):
 
         self._theme = theme
 
-        self.install_btn = tk.Button(
+        self.install_btn = ModernButton(
             btn_frame,
             text="Install All",
             font=FONTS.small(),
-            bg=theme.accent_primary,
-            fg=theme.bg_primary,
-            activebackground=theme.accent_secondary,
-            activeforeground=theme.bg_primary,
-            relief=tk.FLAT,
+            style="primary",
             padx=20,
             pady=8,
-            cursor="hand2",
             command=self._on_install,
         )
         self.install_btn.pack(side=tk.RIGHT)
 
         if not self.dep_manager.missing_required:
-            self.skip_btn = tk.Button(
+            self.skip_btn = ModernButton(
                 btn_frame,
                 text="Continue Without Optional",
                 font=FONTS.small(),
-                bg=theme.bg_tertiary,
-                fg=theme.text_primary,
-                activebackground=theme.border,
-                activeforeground=theme.text_primary,
-                relief=tk.FLAT,
                 padx=15,
                 pady=8,
-                cursor="hand2",
                 command=self._on_skip,
             )
             self.skip_btn.pack(side=tk.RIGHT, padx=(0, 10))
 
-        tk.Button(
+        ModernButton(
             btn_frame,
             text="Cancel",
             font=FONTS.small(),
-            bg=theme.bg_tertiary,
-            fg=theme.text_primary,
-            activebackground=theme.border,
-            activeforeground=theme.text_primary,
-            relief=tk.FLAT,
             padx=15,
             pady=8,
-            cursor="hand2",
             command=self._on_cancel,
         ).pack(side=tk.LEFT)
 
     def _on_install(self) -> None:
-        self.install_btn.configure(state=tk.DISABLED)
+        self.install_btn.set_state("disabled")
         self.progress_bar.pack(fill=tk.X, pady=(5, 0))
         self.progress_bar.start(10)
 
@@ -219,7 +203,8 @@ class DependencyCheckDialog(tk.Toplevel):
             text="Some installations failed. Check your internet connection.",
             fg=theme.accent_error,
         )
-        self.install_btn.configure(state=tk.NORMAL, text="Retry")
+        self.install_btn.set_state("normal")
+        self.install_btn.set_text("Retry")
 
     def _on_skip(self) -> None:
         self.result = True

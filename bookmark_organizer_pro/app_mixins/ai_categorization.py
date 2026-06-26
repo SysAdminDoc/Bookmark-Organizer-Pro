@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 import time
-from tkinter import messagebox
 from typing import List
 
 from bookmark_organizer_pro.ai import create_failover_client
@@ -29,22 +28,11 @@ class AiCategorizationMixin:
         if not bookmarks:
             return
 
-        failover_note = ""
-        if self.ai_config.get_failover_enabled():
-            fp = self.ai_config.get_failover_provider()
-            fm = self.ai_config.get_failover_model()
-            failover_note = f"\nFailover: {fp} / {fm} (below {int(self.ai_config.get_failover_confidence_threshold() * 100)}% confidence)"
-
-        if not messagebox.askyesno(
-            "Categorize with AI",
-            f"Categorize {len(bookmarks)} bookmark(s) with AI?\n\n"
-            f"Provider: {self._ai_provider_name()}\n"
-            f"Model: {self.ai_config.get_model()}\n"
-            f"Confidence threshold: {int(self.ai_config.get_min_confidence() * 100)}%"
-            f"{failover_note}",
-            parent=self.root,
-        ):
-            return
+        self._set_status(
+            f"Categorizing {len(bookmarks)} bookmarks with {self._ai_provider_name()}"
+        )
+        if hasattr(self, "_show_toast"):
+            self._show_toast("Assistant categorization started", "info")
 
         self._run_ai_categorization_live(bookmarks)
 

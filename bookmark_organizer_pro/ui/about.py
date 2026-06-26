@@ -250,8 +250,8 @@ Tk Version:     {tk.TkVersion}
 
 OPTIONAL FEATURES
 ───────────────────────────────────
-PIL (Pillow):   {'✅ Available' if HAS_PIL else '❌ Not installed'}
-System Tray:    {'✅ Available' if HAS_TRAY else '❌ Not installed'}
+PIL (Pillow):   {'Available' if HAS_PIL else 'Not installed'}
+System Tray:    {'Available' if HAS_TRAY else 'Not installed'}
 
 DATA LOCATIONS
 ───────────────────────────────────
@@ -318,5 +318,5 @@ Data: {APP_DIR}"""
         
         # Feedback
         original_title = self.title()
-        self.title("✅ Copied to clipboard!")
+        self.title("Copied to clipboard")
         self.after(1500, lambda: self.title(original_title))

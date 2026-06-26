@@ -37,20 +37,14 @@ class AiSupportMixin:
         return info.display_name if info else provider.title()
 
     def _ensure_ai_ready(self, action_name: str) -> bool:
-        """Prompt for AI setup when a feature requires a configured provider."""
+        """Open Assistant Settings when a feature requires a configured provider."""
         if self.ai_config.is_configured():
             return True
 
-        open_settings = messagebox.askyesno(
-            "Set Up AI",
-            f"{action_name} needs an AI provider before it can run.\n\n"
-            "Open AI settings now to choose a provider, model, and credential?",
-            parent=self.root
-        )
-        if open_settings:
-            self._show_ai_settings()
-        else:
-            self._set_status("AI setup is required before using assistant features")
+        self._set_status(f"{action_name} needs Assistant Settings before it can run")
+        if hasattr(self, "_show_toast"):
+            self._show_toast("Choose an assistant provider to continue", "info")
+        self._show_ai_settings()
         return False
 
     def _get_selected_bookmarks_for_action(self, title: str, message: str) -> List[Bookmark]:
@@ -81,10 +75,10 @@ class AiSupportMixin:
         messagebox.showerror(
             "AI Connection Unavailable",
             f"{action_name} could not start because the configured AI client could not be created.\n\n"
-            "Open AI settings to confirm the provider, model, and credential.",
+            "Open Assistant Settings to confirm the provider, model, and credential.",
             parent=self.root
         )
-        self._set_status("AI settings need attention")
+        self._set_status("Assistant settings need attention")
 
     def _extract_json_object_text(self, text: str) -> Optional[str]:
         """Extract a JSON object from a provider response."""
@@ -102,4 +96,3 @@ class AiSupportMixin:
         if start != -1 and end != -1 and end > start:
             return text[start:end + 1]
         return None
-

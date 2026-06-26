@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import messagebox
 
 from bookmark_organizer_pro.i18n import _
-from bookmark_organizer_pro.ui.foundation import FONTS, format_compact_count, pluralize, readable_text_on, truncate_middle
+from bookmark_organizer_pro.ui.foundation import FONTS, format_compact_count, pluralize, truncate_middle
 from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable
 from bookmark_organizer_pro.ui.widgets import ModernButton, Tooltip, apply_window_chrome, get_theme
 
@@ -125,10 +125,10 @@ class CategoryActionsMixin:
         
         menu = tk.Menu(self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
                       activebackground=theme.bg_hover, activeforeground=theme.text_primary)
-        menu.add_command(label="  " + _("Add New Category"), command=self._add_new_category_dialog)
-        menu.add_command(label="  " + _("Rename Category"), command=lambda: self._rename_category_dialog(category))
+        menu.add_command(label=_("Add New Category"), command=self._add_new_category_dialog)
+        menu.add_command(label=_("Rename Category"), command=lambda: self._rename_category_dialog(category))
         menu.add_separator()
-        menu.add_command(label="  " + _("Delete Category"), command=lambda: self._delete_category_confirm(category))
+        menu.add_command(label=_("Delete Category"), command=lambda: self._delete_category_confirm(category))
         
         menu.tk_popup(event.x_root, event.y_root)
     
@@ -138,7 +138,7 @@ class CategoryActionsMixin:
         
         menu = tk.Menu(self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
                       activebackground=theme.bg_hover, activeforeground=theme.text_primary)
-        menu.add_command(label="  " + _("Add New Category"), command=self._add_new_category_dialog)
+        menu.add_command(label=_("Add New Category"), command=self._add_new_category_dialog)
 
         menu.tk_popup(event.x_root, event.y_root)
 
@@ -247,9 +247,9 @@ class CategoryActionsMixin:
         
         entry.bind("<Return>", lambda e: rename())
         
-        tk.Button(
-            dialog, text=_("Rename"), bg=theme.accent_primary, fg=readable_text_on(theme.accent_primary),
-            font=FONTS.body(), relief=tk.FLAT, command=rename, padx=20
+        ModernButton(
+            dialog, text=_("Rename"), style="primary",
+            font=FONTS.body(), command=rename, padx=20
         ).pack(pady=10)
     
     def _delete_category_confirm(self, category: str):

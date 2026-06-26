@@ -17,7 +17,8 @@ from bookmark_organizer_pro.services.reader_annotations import (
 )
 
 from .foundation import FONTS, readable_text_on
-from .widgets import get_theme
+from .widget_controls import ModernButton
+from .widgets import apply_window_chrome, get_theme
 
 
 def text_index_offset(text_widget: tk.Text, index: str) -> int:
@@ -42,6 +43,7 @@ class ReaderViewDialog(tk.Toplevel):
         self.minsize(720, 520)
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
+        apply_window_chrome(self)
 
         self._build()
         self._load_highlights()
@@ -51,31 +53,32 @@ class ReaderViewDialog(tk.Toplevel):
     def _build(self) -> None:
         theme = get_theme()
 
-        header = tk.Frame(self, bg=theme.bg_secondary)
+        header = tk.Frame(self, bg=theme.bg_secondary, padx=16, pady=12)
         header.pack(fill=tk.X)
+        title_stack = tk.Frame(header, bg=theme.bg_secondary)
+        title_stack.pack(side=tk.LEFT, fill=tk.X, expand=True)
         tk.Label(
-            header,
+            title_stack,
             text=self.bookmark.title or self.bookmark.url,
             bg=theme.bg_secondary,
             fg=theme.text_primary,
             font=FONTS.header(bold=True),
             anchor="w",
-            padx=16,
-            pady=12,
-        ).pack(side=tk.LEFT, fill=tk.X, expand=True)
-        tk.Button(
+        ).pack(fill=tk.X)
+        tk.Label(
+            title_stack,
+            text=_("Highlight important passages and save notes for later review."),
+            bg=theme.bg_secondary,
+            fg=theme.text_secondary,
+            font=FONTS.small(),
+            anchor="w",
+        ).pack(fill=tk.X, pady=(3, 0))
+        ModernButton(
             header,
             text=_("Export"),
             command=self._export_highlights,
-            bg=theme.accent_primary,
-            fg=readable_text_on(theme.accent_primary),
-            activebackground=theme.accent_primary,
-            activeforeground=readable_text_on(theme.accent_primary),
-            relief=tk.FLAT,
-            padx=12,
-            pady=6,
-            cursor="hand2",
-        ).pack(side=tk.RIGHT, padx=(0, 12), pady=8)
+            style="primary",
+        ).pack(side=tk.RIGHT, padx=(12, 0))
 
         body = tk.PanedWindow(self, orient=tk.HORIZONTAL, bg=theme.bg_primary, sashwidth=4)
         body.pack(fill=tk.BOTH, expand=True, padx=12, pady=12)
@@ -98,7 +101,13 @@ class ReaderViewDialog(tk.Toplevel):
         self.text.configure(yscrollcommand=scrollbar.set)
         self.text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.text.insert("1.0", self.text_content or _("No extracted text available."))
+        self.text.insert(
+            "1.0",
+            self.text_content or _(
+                "No extracted text is available yet.\n\n"
+                "Capture page text or an archive snapshot, then return here to highlight key passages."
+            ),
+        )
         self.text.configure(state=tk.DISABLED)
         body.add(text_frame, minsize=420)
 
@@ -113,6 +122,16 @@ class ReaderViewDialog(tk.Toplevel):
             font=FONTS.body(bold=True),
             anchor="w",
         ).pack(fill=tk.X)
+        tk.Label(
+            side,
+            text=_("Select text in the reader, choose a color, then add a highlight."),
+            bg=theme.bg_secondary,
+            fg=theme.text_muted,
+            font=FONTS.small(),
+            anchor="w",
+            wraplength=250,
+            justify=tk.LEFT,
+        ).pack(fill=tk.X, pady=(2, 8))
 
         self.highlight_list = tk.Listbox(
             side,
@@ -138,16 +157,14 @@ class ReaderViewDialog(tk.Toplevel):
             state="readonly",
         )
         self.color_combo.pack(side=tk.LEFT, padx=(0, 8))
-        tk.Button(
+        ModernButton(
             controls,
             text=_("Add"),
             command=self._add_highlight_from_selection,
-            bg=theme.accent_success,
-            fg=readable_text_on(theme.accent_success),
-            relief=tk.FLAT,
+            style="success",
             padx=10,
             pady=4,
-            cursor="hand2",
+            font=FONTS.small(),
         ).pack(side=tk.LEFT)
 
         tk.Label(
@@ -173,27 +190,23 @@ class ReaderViewDialog(tk.Toplevel):
 
         note_actions = tk.Frame(side, bg=theme.bg_secondary)
         note_actions.pack(fill=tk.X, pady=(8, 0))
-        tk.Button(
+        ModernButton(
             note_actions,
             text=_("Save"),
             command=self._save_selected_note,
-            bg=theme.accent_primary,
-            fg=readable_text_on(theme.accent_primary),
-            relief=tk.FLAT,
+            style="primary",
             padx=10,
             pady=4,
-            cursor="hand2",
+            font=FONTS.small(),
         ).pack(side=tk.LEFT, padx=(0, 8))
-        tk.Button(
+        ModernButton(
             note_actions,
             text=_("Delete"),
             command=self._delete_selected_highlight,
-            bg=theme.accent_error,
-            fg=readable_text_on(theme.accent_error),
-            relief=tk.FLAT,
+            style="danger",
             padx=10,
             pady=4,
-            cursor="hand2",
+            font=FONTS.small(),
         ).pack(side=tk.LEFT)
 
         self.status = tk.Label(
@@ -215,7 +228,10 @@ class ReaderViewDialog(tk.Toplevel):
             preview = " ".join(highlight.text.split())[:64]
             self.highlight_list.insert(tk.END, f"{highlight.color} {highlight.char_start}-{highlight.char_end}: {preview}")
             self.highlight_ids.append(highlight.id)
-        self.status.configure(text=_("{count} saved").format(count=len(self.highlight_ids)))
+        if self.highlight_ids:
+            self.status.configure(text=_("{count} saved").format(count=len(self.highlight_ids)))
+        else:
+            self.status.configure(text=_("No highlights yet"))
 
     def _clear_highlight_tags(self) -> None:
         self.text.configure(state=tk.NORMAL)
@@ -301,6 +317,7 @@ class ReaderViewDialog(tk.Toplevel):
         self.store.delete(highlight_id)
         self.note_text.delete("1.0", tk.END)
         self._load_highlights()
+        self.status.configure(text=_("Highlight deleted"))
 
     def _export_highlights(self) -> None:
         output_dir = filedialog.askdirectory(parent=self, title=_("Export Reader Highlights"))

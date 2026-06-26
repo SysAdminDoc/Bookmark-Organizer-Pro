@@ -25,16 +25,16 @@ class AiSettingsMixin:
         theme = get_theme()
 
         dialog = tk.Toplevel(self.root)
-        dialog.title(_("AI Settings"))
+        dialog.title(_("Assistant Settings"))
         dialog.configure(bg=theme.bg_primary)
-        dialog.geometry("620x720")
-        dialog.minsize(580, 620)
+        dialog.geometry("660x720")
+        dialog.minsize(600, 620)
         dialog.transient(self.root)
         dialog.grab_set()
         apply_window_chrome(dialog)
 
         dialog.update_idletasks()
-        x = self.root.winfo_x() + (self.root.winfo_width() - 620) // 2
+        x = self.root.winfo_x() + (self.root.winfo_width() - 660) // 2
         y = self.root.winfo_y() + (self.root.winfo_height() - 720) // 2
         dialog.geometry(f"+{max(0, x)}+{max(0, y)}")
 
@@ -43,15 +43,15 @@ class AiSettingsMixin:
         header.pack(fill=tk.X)
 
         tk.Label(
-            header, text=_("AI Settings"), bg=theme.bg_secondary,
+            header, text=_("Assistant Settings"), bg=theme.bg_secondary,
             fg=theme.text_primary, font=FONTS.title(bold=True),
         ).pack(anchor="w")
 
         tk.Label(
             header,
-            text=_("Choose a provider for categorization, tags, summaries, and RAG chat."),
+            text=_("Choose how bookmark categorization, tag suggestions, summaries, and library chat should run."),
             bg=theme.bg_secondary, fg=theme.text_secondary,
-            font=FONTS.small(), wraplength=560, justify=tk.LEFT,
+            font=FONTS.small(), wraplength=600, justify=tk.LEFT,
         ).pack(anchor="w", pady=(4, 0))
 
         # ── Scrollable content ──
@@ -88,7 +88,8 @@ class AiSettingsMixin:
             tk.Label(
                 row, text=f"  {info.description}{badge}",
                 bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.small(),
-            ).pack(side=tk.LEFT, padx=(4, 0))
+                wraplength=430, justify=tk.LEFT,
+            ).pack(side=tk.LEFT, padx=(4, 0), fill=tk.X, expand=True)
 
         # ── Separator ──
         tk.Frame(body, bg=theme.border_muted, height=1).pack(fill=tk.X, pady=10)
@@ -107,7 +108,7 @@ class AiSettingsMixin:
         api_key_frame = tk.Frame(body, bg=theme.bg_primary)
 
         tk.Label(
-            api_key_frame, text=_("API Key"), bg=theme.bg_primary,
+            api_key_frame, text=_("API key"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.body(bold=True),
         ).pack(anchor="w", pady=(0, 4))
 
@@ -143,7 +144,7 @@ class AiSettingsMixin:
                 if info and info.api_key_url:
                     webbrowser.open(info.api_key_url)
 
-            get_key_btn = ModernButton(key_row, text=_("Get API key →"), command=_open_key_url, padx=8, pady=3, font=FONTS.small())
+            get_key_btn = ModernButton(key_row, text=_("Get API key"), command=_open_key_url, padx=8, pady=3, font=FONTS.small())
             get_key_btn.pack(side=tk.LEFT)
 
         # ── Ollama management panel ──
@@ -170,7 +171,7 @@ class AiSettingsMixin:
         ollama_header.pack(fill=tk.X, pady=(0, 8))
 
         tk.Label(
-            ollama_header, text=_("Ollama — Local AI"), bg=theme.bg_secondary,
+            ollama_header, text=_("Ollama Local"), bg=theme.bg_secondary,
             fg=theme.text_primary, font=FONTS.body(bold=True),
         ).pack(side=tk.LEFT)
 
@@ -214,7 +215,7 @@ class AiSettingsMixin:
         download_frame.pack(fill=tk.X, pady=(0, 4))
 
         tk.Label(
-            download_frame, text=_("Download model:"), bg=theme.bg_secondary,
+            download_frame, text=_("Download model"), bg=theme.bg_secondary,
             fg=theme.text_secondary, font=FONTS.small(),
         ).pack(side=tk.LEFT, padx=(0, 6))
 
@@ -375,13 +376,24 @@ class AiSettingsMixin:
         # ── Failover settings ──
         tk.Frame(body, bg=theme.border_muted, height=1).pack(fill=tk.X, pady=10)
 
+        tk.Label(
+            body, text=_("Reliability"), bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.body(bold=True),
+        ).pack(anchor="w", pady=(0, 4))
+        tk.Label(
+            body,
+            text=_("Use a second provider only when the first result has low confidence."),
+            bg=theme.bg_primary, fg=theme.text_muted,
+            font=FONTS.small(), wraplength=590, justify=tk.LEFT,
+        ).pack(anchor="w", pady=(0, 6))
+
         failover_frame = tk.Frame(body, bg=theme.bg_primary)
         failover_frame.pack(fill=tk.X, pady=(0, 8))
 
         failover_enabled_var = tk.BooleanVar(value=self.ai_config.get_failover_enabled())
         tk.Checkbutton(
             failover_frame,
-            text=_("Enable failover — retry uncertain results with a second provider"),
+            text=_("Retry uncertain results with a second provider"),
             variable=failover_enabled_var,
             bg=theme.bg_primary, fg=theme.text_primary,
             activebackground=theme.bg_primary, activeforeground=theme.text_primary,
@@ -437,6 +449,17 @@ class AiSettingsMixin:
 
         # ── Pacing settings ──
         tk.Frame(body, bg=theme.border_muted, height=1).pack(fill=tk.X, pady=10)
+
+        tk.Label(
+            body, text=_("Processing Limits"), bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.body(bold=True),
+        ).pack(anchor="w", pady=(0, 4))
+        tk.Label(
+            body,
+            text=_("Keep batch size and request rate conservative for steadier long runs."),
+            bg=theme.bg_primary, fg=theme.text_muted,
+            font=FONTS.small(), wraplength=590, justify=tk.LEFT,
+        ).pack(anchor="w", pady=(0, 6))
 
         settings_frame = tk.Frame(body, bg=theme.bg_primary)
         settings_frame.pack(fill=tk.X, pady=(0, 8))
@@ -521,7 +544,7 @@ class AiSettingsMixin:
                     del self.ai_config._config["api_keys"][provider]
 
         test_btn = ModernButton(
-            body, text=_("Test Connection"), command=test_connection,
+            body, text=_("Test Provider"), command=test_connection,
             style="primary", padx=14, pady=6,
         )
         test_btn.pack(anchor="w", pady=(8, 4))
@@ -547,9 +570,9 @@ class AiSettingsMixin:
             self.ai_config._config["failover_confidence_threshold"] = fo_thresh_var.get()
             self.ai_config.save_config()
             dialog.destroy()
-            self._show_toast(_("AI settings saved"), "success")
+            self._show_toast(_("Assistant settings saved"), "success")
 
-        ModernButton(footer, text=_("Save"), command=save, style="success", padx=20, pady=7).pack(side=tk.RIGHT)
+        ModernButton(footer, text=_("Save Settings"), command=save, style="success", padx=20, pady=7).pack(side=tk.RIGHT)
         ModernButton(footer, text=_("Cancel"), command=dialog.destroy, padx=16, pady=7).pack(side=tk.RIGHT, padx=(0, 8))
         dialog.bind("<Escape>", lambda e: dialog.destroy())
         dialog.bind("<Control-Return>", lambda e: save())

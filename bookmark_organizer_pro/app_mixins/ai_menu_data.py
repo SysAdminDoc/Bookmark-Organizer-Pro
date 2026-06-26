@@ -17,7 +17,7 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 from bookmark_organizer_pro.core.category_manager import get_category_icon
 from bookmark_organizer_pro.models import Category
 from bookmark_organizer_pro.ui.foundation import FONTS
-from bookmark_organizer_pro.ui.widgets import get_theme
+from bookmark_organizer_pro.ui.widgets import ModernButton, get_theme
 
 
 class AiMenuDataMixin:
@@ -59,30 +59,19 @@ class AiMenuDataMixin:
         snapshots = list_snapshots()
         if not snapshots:
             messagebox.showinfo(
-                "No AI Snapshots",
-                "No AI operation snapshots are available to undo.",
+                "No Assistant Snapshots",
+                "No assistant action snapshots are available to undo.",
                 parent=self.root,
             )
             return
 
         latest = snapshots[0]
-        if not messagebox.askyesno(
-            "Undo AI Operation",
-            f"Restore bookmarks to state before:\n\n"
-            f"Operation: {latest['operation']}\n"
-            f"Date: {latest['created_at'][:19]}\n"
-            f"Bookmarks affected: {latest['bookmark_count']}\n\n"
-            f"This will revert categories, tags, and titles for those bookmarks.",
-            parent=self.root,
-        ):
-            return
-
         count = restore_snapshot(latest["snapshot_id"], self.bookmark_manager)
         if count:
             delete_snapshot(latest["snapshot_id"])
             self._refresh_all()
-            self._show_toast(f"Restored {count} bookmarks to pre-AI state", "success")
-            self._set_status(f"Undid AI {latest['operation']} — {count} bookmarks restored")
+            self._show_toast(f"Restored {count} bookmarks to the previous assistant state", "success")
+            self._set_status(f"Undid assistant {latest['operation']} — {count} bookmarks restored")
         else:
             self._show_toast("No bookmarks could be restored", "info")
 
@@ -109,21 +98,21 @@ class AiMenuDataMixin:
         if merged > 0:
             self.bookmark_manager.save_bookmarks()
             self._refresh_bookmark_list()
-            messagebox.showinfo("Tags Merged", 
-                f"Merged AI tags into user tags.\n\n"
+            messagebox.showinfo("Suggested Tags Accepted",
+                f"Suggested tags were added to user tags.\n\n"
                 f"Bookmarks updated: {merged}\n"
                 f"Tags added: {tags_added}")
         else:
-            messagebox.showinfo("No AI Tags", 
-                "No AI tags found to merge.\n\n"
-                "Use 'AI Suggest Tags' first to generate AI tags.")
+            messagebox.showinfo("No Suggested Tags",
+                "No suggested tags are available to accept.\n\n"
+                "Use Suggest Tags first to generate suggestions.")
         
-        self._set_status(f"Merged {tags_added} AI tags")
+        self._set_status(f"Accepted {tags_added} suggested tags")
     
     def _export_ai_data(self):
         """Export AI-enriched bookmark data to JSON"""
         filepath = filedialog.asksaveasfilename(
-            title="Export AI Data",
+            title="Export Assistant Data",
             defaultextension=".json",
             filetypes=[("JSON Files", "*.json"), ("All Files", "*.*")],
             initialfilename="bookmarks_ai_data.json"
@@ -169,12 +158,12 @@ class AiMenuDataMixin:
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(export_data, f, indent=2, ensure_ascii=False)
             
-            messagebox.showinfo("Export Complete", 
-                f"AI data exported successfully.\n\n"
+            messagebox.showinfo("Export Complete",
+                f"Assistant data exported successfully.\n\n"
                 f"File: {filepath}\n"
                 f"Bookmarks: {len(bookmarks)}\n"
                 f"Categories: {len(export_data['categories'])}")
-            self._set_status(f"Exported AI data to {Path(filepath).name}")
+            self._set_status(f"Exported assistant data to {Path(filepath).name}")
             
         except Exception as e:
             messagebox.showerror("Export Error", f"Failed to export: {str(e)}")
@@ -260,9 +249,10 @@ class AiMenuDataMixin:
                     wraplength=350).pack(padx=20)
         
         # Close button
-        tk.Button(dialog, text="Close", command=dialog.destroy,
-                 bg=theme.bg_secondary, fg=theme.text_primary,
-                 font=FONTS.body(), padx=20, pady=5).pack(pady=20)
+        ModernButton(
+            dialog, text="Close", command=dialog.destroy,
+            padx=20, pady=5,
+        ).pack(pady=20)
     
     def _generate_category_patterns(self):
         """Generate category patterns from AI-categorized bookmarks to enhance built-in rules"""
@@ -272,9 +262,9 @@ class AiMenuDataMixin:
         ai_categorized = [bm for bm in bookmarks if bm.ai_confidence >= 0.7]
         
         if not ai_categorized:
-            messagebox.showinfo("No AI Data", 
-                "No high-confidence AI categorizations found.\n\n"
-                "Run AI Categorize on your bookmarks first.")
+            messagebox.showinfo("No Learned Patterns",
+                "No high-confidence assistant categorizations are available yet.\n\n"
+                "Run Categorize Selected on your bookmarks first.")
             return
         
         # Group domains by category
@@ -303,7 +293,7 @@ class AiMenuDataMixin:
         export_data = {
             "_meta": {
                 "generated": datetime.now().isoformat(),
-                "source": "Bookmark Organizer Pro - AI Learning",
+                "source": "Bookmark Organizer Pro - Assistant Learning",
                 "total_bookmarks_analyzed": len(ai_categorized),
                 "min_confidence": 0.7,
                 "instructions": "Import this file using Tools > Import Categories File to add these patterns"
@@ -344,7 +334,7 @@ class AiMenuDataMixin:
     def _import_ai_learned_data(self):
         """Import AI-learned data from another user's export"""
         filepath = filedialog.askopenfilename(
-            title="Import AI Learned Data",
+            title="Import Learned Patterns",
             filetypes=[("JSON Files", "*.json"), ("All Files", "*.*")]
         )
         
@@ -357,7 +347,7 @@ class AiMenuDataMixin:
             
             # Check if it's our format
             if "categories" not in data:
-                messagebox.showerror("Invalid File", "This doesn't appear to be an AI learned data file.")
+                messagebox.showerror("Invalid File", "This does not appear to be a learned-pattern export.")
                 return
             
             imported = 0
@@ -388,8 +378,8 @@ class AiMenuDataMixin:
             self.category_manager.save_categories()
             self._refresh_category_list()
             
-            messagebox.showinfo("Import Complete", 
-                f"AI learned data imported!\n\n"
+            messagebox.showinfo("Import Complete",
+                f"Learned patterns imported.\n\n"
                 f"New categories: {imported}\n"
                 f"Patterns added: {updated}")
             self._set_status(f"Imported {imported} categories, {updated} patterns")

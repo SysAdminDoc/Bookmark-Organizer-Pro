@@ -38,7 +38,7 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         
         theme = get_theme()
         
-        self.title("Selective Export")
+        self.title("Export Bookmarks")
         # Fit within the screen so the bottom action buttons are never pushed
         # off-screen on smaller displays.
         _h = min(660, max(480, self.winfo_screenheight() - 96))
@@ -55,17 +55,20 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         header.pack(fill=tk.X)
         header.pack_propagate(False)
         
+        title_stack = tk.Frame(header, bg=theme.bg_dark)
+        title_stack.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=20, pady=10)
         tk.Label(
-            header, text="📤 Selective Export", bg=theme.bg_dark,
-            fg=theme.text_primary, font=FONTS.header()
-        ).pack(side=tk.LEFT, padx=20, pady=15)
+            title_stack, text="Export Bookmarks", bg=theme.bg_dark,
+            fg=theme.text_primary, font=FONTS.header(bold=True),
+            anchor="w"
+        ).pack(fill=tk.X)
 
         tk.Label(
-            header,
-            text="Choose the exact scope and format before writing a file.",
+            title_stack,
+            text="Choose the scope, format, and metadata before writing a file.",
             bg=theme.bg_dark, fg=theme.text_secondary,
-            font=FONTS.small()
-        ).pack(side=tk.LEFT, padx=(0, 20), pady=(18, 0))
+            font=FONTS.small(), anchor="w"
+        ).pack(fill=tk.X, pady=(3, 0))
         
         # Action buttons — packed BEFORE the content so they are pinned to the
         # bottom of the window and stay visible even when the dialog is short.
@@ -74,7 +77,7 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         ModernButton(btn_frame, text="Cancel", command=self.destroy).pack(side=tk.RIGHT, padx=(10, 0))
         self.export_button = ModernButton(
             btn_frame, text="Export Bookmarks", command=self._export,
-            style="primary", icon="📤"
+            style="primary"
         )
         self.export_button.pack(side=tk.RIGHT)
 
@@ -119,7 +122,10 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         self.export_summary_label.pack(fill=tk.X, pady=(0, 6))
         
         # Category checkboxes with scroll
-        cat_frame = tk.Frame(content, bg=theme.bg_secondary)
+        cat_frame = tk.Frame(
+            content, bg=theme.bg_secondary,
+            highlightbackground=theme.border_muted, highlightthickness=1,
+        )
         cat_frame.pack(fill=tk.BOTH, expand=True)
         
         canvas = tk.Canvas(cat_frame, bg=theme.bg_secondary, highlightthickness=0)
@@ -188,6 +194,11 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         # Options
         opts_frame = tk.Frame(content, bg=theme.bg_primary)
         opts_frame.pack(fill=tk.X, pady=(15, 0))
+
+        tk.Label(
+            opts_frame, text="Included Data", bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.small(bold=True)
+        ).pack(anchor="w", pady=(0, 4))
         
         self.include_tags_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(

@@ -45,7 +45,7 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         """Build dashboard UI"""
         # Title
         title = tk.Label(
-            self, text="📊 Dashboard", bg=self.theme.bg_primary,
+            self, text="Dashboard", bg=self.theme.bg_primary,
             fg=self.theme.text_primary, font=FONTS.title(bold=True)
         )
         title.pack(pady=(20, 15), padx=20, anchor="w")
@@ -58,14 +58,14 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         
         # Stat cards
         stat_cards = [
-            ("📚", "Total Bookmarks", stats["total_bookmarks"]),
-            ("📁", "Categories", stats["total_categories"]),
-            ("🏷️", "Tags Used", stats["total_tags"]),
-            ("📌", "Pinned", stats["pinned"]),
-            ("📥", "Uncategorized", stats["uncategorized"]),
-            ("🔗", "Duplicates", stats["duplicate_bookmarks"]),
-            ("⚠️", "Broken Links", stats["broken"]),
-            ("🕐", "Stale (90+ days)", stats["stale"]),
+            ("All", "Total Bookmarks", stats["total_bookmarks"]),
+            ("Cat", "Categories", stats["total_categories"]),
+            ("Tag", "Tags Used", stats["total_tags"]),
+            ("Pin", "Pinned", stats["pinned"]),
+            ("New", "Uncategorized", stats["uncategorized"]),
+            ("Dup", "Duplicates", stats["duplicate_bookmarks"]),
+            ("Fix", "Broken Links", stats["broken"]),
+            ("Old", "Stale (90+ days)", stats["stale"]),
         ]
         
         for i, (icon, label, value) in enumerate(stat_cards):
@@ -79,7 +79,7 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         
         # Category distribution
         cat_frame = tk.LabelFrame(
-            self, text="📊 Category Distribution", bg=self.theme.bg_primary,
+            self, text="Category Distribution", bg=self.theme.bg_primary,
             fg=self.theme.text_primary, font=FONTS.body(bold=True)
         )
         cat_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=15)
@@ -92,7 +92,7 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         
         # Top domains
         domain_frame = tk.LabelFrame(
-            self, text="🌐 Top Domains", bg=self.theme.bg_primary,
+            self, text="Top Domains", bg=self.theme.bg_primary,
             fg=self.theme.text_primary, font=FONTS.body(bold=True)
         )
         domain_frame.pack(fill=tk.X, padx=20, pady=(0, 20))

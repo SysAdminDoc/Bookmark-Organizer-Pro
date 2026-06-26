@@ -55,7 +55,7 @@ _STATUS_GLYPHS = {
     "warn": ("~", "accent_warning"),
     "skip": ("–", "text_muted"),
     "none": ("–", "text_muted"),
-    "error": ("⚠", "accent_warning"),
+    "error": ("!", "accent_warning"),
 }
 
 

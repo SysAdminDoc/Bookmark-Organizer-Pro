@@ -277,8 +277,8 @@ class ToastNotification(tk.Toplevel):
         styles = {
             "success": (theme.accent_success, readable_text_on(theme.accent_success), "✓"),
             "error": (theme.accent_error, readable_text_on(theme.accent_error), "✕"),
-            "warning": (theme.accent_warning, readable_text_on(theme.accent_warning), "⚠"),
-            "info": (theme.accent_primary, readable_text_on(theme.accent_primary), "ℹ"),
+            "warning": (theme.accent_warning, readable_text_on(theme.accent_warning), "!"),
+            "info": (theme.accent_primary, readable_text_on(theme.accent_primary), "i"),
         }
         bg, fg, icon = styles.get(style, styles["info"])
 

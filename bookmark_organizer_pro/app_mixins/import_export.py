@@ -384,7 +384,7 @@ class ImportExportMixin:
         menu = tk.Menu(self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
                        activebackground=theme.bg_hover, activeforeground=theme.text_primary,
                        font=FONTS.body())
-        menu.add_command(label="  " + _("Import from File…"), command=self.import_area._browse_files)
+        menu.add_command(label=_("Import from File…"), command=self.import_area._browse_files)
         menu.add_separator()
 
         # Detect installed browsers
@@ -393,11 +393,11 @@ class ImportExportMixin:
         if browsers:
             for browser in browsers:
                 menu.add_command(
-                    label="  " + _("Import from {source}…").format(source=browser.title()),
+                    label=_("Import from {source}…").format(source=browser.title()),
                     command=lambda b=browser: self._import_from_browser(b)
                 )
         else:
-            menu.add_command(label="  " + _("No browsers detected"), state="disabled")
+            menu.add_command(label=_("No browsers detected"), state="disabled")
 
         menu.add_separator()
         service_importers = [
@@ -412,7 +412,7 @@ class ImportExportMixin:
             ("Zotero (RDF)", "*.rdf", self._import_service_zotero),
         ]
         for label, _ext, callback in service_importers:
-            menu.add_command(label="  " + _("Import from {source}").format(source=label), command=callback)
+            menu.add_command(label=_("Import from {source}").format(source=label), command=callback)
 
         menu.tk_popup(self.root.winfo_pointerx(), self.root.winfo_pointery())
 
@@ -551,4 +551,3 @@ class ImportExportMixin:
     def _show_export_dialog(self):
         """Show export dialog"""
         SelectiveExportDialog(self.root, self.bookmark_manager)
-

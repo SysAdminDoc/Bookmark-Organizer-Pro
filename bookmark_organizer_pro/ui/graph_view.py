@@ -16,8 +16,9 @@ from bookmark_organizer_pro.services.bookmark_graph import (
     export_bookmark_graph_json,
 )
 
-from .foundation import FONTS, readable_text_on
-from .widgets import get_theme
+from .foundation import FONTS
+from .widget_controls import ModernButton
+from .widgets import apply_window_chrome, get_theme
 
 
 NODE_COLORS = {
@@ -58,6 +59,7 @@ class GraphViewDialog(tk.Toplevel):
         self.minsize(820, 560)
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
+        apply_window_chrome(self)
 
         self._build()
         self._draw_graph()
@@ -65,28 +67,32 @@ class GraphViewDialog(tk.Toplevel):
 
     def _build(self) -> None:
         theme = get_theme()
-        header = tk.Frame(self, bg=theme.bg_secondary)
+        header = tk.Frame(self, bg=theme.bg_secondary, padx=16, pady=12)
         header.pack(fill=tk.X)
+        title_stack = tk.Frame(header, bg=theme.bg_secondary)
+        title_stack.pack(side=tk.LEFT, fill=tk.X, expand=True)
         tk.Label(
-            header,
+            title_stack,
             text=_("Bookmark Graph"),
             bg=theme.bg_secondary,
             fg=theme.text_primary,
             font=FONTS.header(bold=True),
-            padx=16,
-            pady=12,
-        ).pack(side=tk.LEFT)
-        tk.Button(
+            anchor="w",
+        ).pack(fill=tk.X)
+        tk.Label(
+            title_stack,
+            text=_("Explore relationships between bookmarks, tags, categories, and domains."),
+            bg=theme.bg_secondary,
+            fg=theme.text_secondary,
+            font=FONTS.small(),
+            anchor="w",
+        ).pack(fill=tk.X, pady=(3, 0))
+        ModernButton(
             header,
             text=_("Export"),
             command=self._export_graph,
-            bg=theme.accent_primary,
-            fg=readable_text_on(theme.accent_primary),
-            relief=tk.FLAT,
-            padx=12,
-            pady=6,
-            cursor="hand2",
-        ).pack(side=tk.RIGHT, padx=(0, 12), pady=8)
+            style="primary",
+        ).pack(side=tk.RIGHT, padx=(12, 0))
 
         body = tk.PanedWindow(self, orient=tk.HORIZONTAL, bg=theme.bg_primary, sashwidth=4)
         body.pack(fill=tk.BOTH, expand=True, padx=12, pady=12)
@@ -141,11 +147,28 @@ class GraphViewDialog(tk.Toplevel):
             font=FONTS.small(),
         )
         self.detail_text.pack(fill=tk.BOTH, expand=True)
-        self.detail_text.insert("1.0", _("None"))
+        self.detail_text.insert("1.0", _("Select a node to inspect its relationship details."))
         self.detail_text.configure(state=tk.DISABLED)
+
+        legend = tk.Frame(side, bg=theme.bg_secondary)
+        legend.pack(fill=tk.X, pady=(10, 0))
+        tk.Label(
+            legend, text=_("Legend"), bg=theme.bg_secondary,
+            fg=theme.text_secondary, font=FONTS.small(bold=True),
+            anchor="w",
+        ).pack(fill=tk.X, pady=(0, 4))
+        for node_type in ("bookmark", "tag", "category", "domain"):
+            row = tk.Frame(legend, bg=theme.bg_secondary)
+            row.pack(fill=tk.X, pady=1)
+            tk.Frame(row, bg=NODE_COLORS[node_type], width=10, height=10).pack(side=tk.LEFT, padx=(0, 6))
+            tk.Label(
+                row, text=node_type.title(), bg=theme.bg_secondary,
+                fg=theme.text_muted, font=FONTS.small(), anchor="w",
+            ).pack(side=tk.LEFT)
+
         self.status = tk.Label(
             side,
-            text="",
+            text=_("Select a node. Double-click bookmark nodes to open them."),
             bg=theme.bg_secondary,
             fg=theme.text_muted,
             font=FONTS.small(),
@@ -161,6 +184,20 @@ class GraphViewDialog(tk.Toplevel):
     def _draw_graph(self) -> None:
         theme = get_theme()
         self.canvas.delete("all")
+        if not self.graph.nodes:
+            self.canvas.create_text(
+                520, 320,
+                text=_("No graph data yet"),
+                fill=theme.text_secondary,
+                font=FONTS.subtitle(bold=True),
+            )
+            self.canvas.create_text(
+                520, 348,
+                text=_("Add bookmarks with tags, categories, or shared domains to build relationships."),
+                fill=theme.text_muted,
+                font=FONTS.small(),
+            )
+            return
         for edge in self.graph.edges:
             source = self.node_lookup.get(edge.source)
             target = self.node_lookup.get(edge.target)

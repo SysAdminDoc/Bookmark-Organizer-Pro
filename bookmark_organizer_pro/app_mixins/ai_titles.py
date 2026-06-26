@@ -35,14 +35,8 @@ class AiTitleImprovementMixin:
         if not bookmarks:
             return
         
-        if len(bookmarks) > 20:
-            if not messagebox.askyesno(
-                "Improve Titles",
-                f"Suggest title improvements for {len(bookmarks)} bookmarks?\n\n"
-                "You will preview the suggestions before anything is changed.",
-                parent=self.root
-            ):
-                return
+        if len(bookmarks) > 20 and hasattr(self, "_show_toast"):
+            self._show_toast("Title suggestions started; you will preview changes before applying", "info")
         
         self._set_status("Improving bookmark titles with AI…")
 

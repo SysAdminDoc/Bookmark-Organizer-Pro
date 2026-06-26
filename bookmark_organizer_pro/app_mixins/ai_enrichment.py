@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 import json
 import time
-from tkinter import messagebox
 from typing import List
 
 from bookmark_organizer_pro.ai import create_failover_client
@@ -211,14 +210,8 @@ class AiEnrichmentMixin:
         if not bookmarks:
             return
 
-        if len(bookmarks) > 10:
-            if not messagebox.askyesno(
-                "Summarize Selection",
-                f"Generate descriptions for {len(bookmarks)} bookmarks?\n\n"
-                "Large selections can take longer depending on your provider and rate limit.",
-                parent=self.root,
-            ):
-                return
+        if len(bookmarks) > 10 and hasattr(self, "_show_toast"):
+            self._show_toast("Summary generation started; larger selections can take longer", "info")
 
         self._run_ai_summaries_live(bookmarks)
 

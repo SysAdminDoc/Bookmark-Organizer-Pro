@@ -77,15 +77,15 @@ class SelectionActionsMixin:
         
         menu = tk.Menu(self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
                       activebackground=theme.bg_hover, activeforeground=theme.text_primary)
-        menu.add_command(label="  Open in Browser", command=self._open_selected)
-        menu.add_command(label="  Reader View", command=self._open_reader_view)
-        menu.add_command(label="  Edit Bookmark", command=self._edit_selected)
+        menu.add_command(label="Open in Browser", command=self._open_selected)
+        menu.add_command(label="Reader View", command=self._open_reader_view)
+        menu.add_command(label="Edit Bookmark", command=self._edit_selected)
         menu.add_separator()
         
         # Search Domain option
         if first_bookmark and first_bookmark.domain:
             menu.add_command(
-                label=f"  Filter by Domain ({first_bookmark.domain})",
+                label=f"Filter by Domain ({first_bookmark.domain})",
                 command=lambda: self._filter_by_domain(first_bookmark.domain)
             )
         
