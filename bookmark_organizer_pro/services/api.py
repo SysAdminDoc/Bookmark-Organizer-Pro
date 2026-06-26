@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION, DATA_DIR
 from bookmark_organizer_pro.logging_config import log
-from bookmark_organizer_pro.services.feed_export import render_opds
+from bookmark_organizer_pro.services.feed_export import render_opds, render_opds2
 from bookmark_organizer_pro.utils import validate_url
 
 if TYPE_CHECKING:
@@ -156,7 +156,8 @@ class BookmarkAPI:
                             "GET /stats",
                             "GET /search?q=query",
                             "GET /digest",
-                            "GET /opds"
+                            "GET /opds",
+                            "GET /opds2"
                         ]
                     })
                     return
@@ -177,6 +178,22 @@ class BookmarkAPI:
                         bookmarks = [bm for bm in bookmarks if any(t.lower() == tag_l for t in bm.tags)]
                     catalog_url = f"http://127.0.0.1:{self.server.server_port}{self.path}"
                     self._send_xml(render_opds(bookmarks[:limit], title=title, catalog_url=catalog_url))
+                    return
+
+                if path_parts[0] == 'opds2':
+                    bookmarks = bookmark_manager.get_all_bookmarks()
+                    tag = params.get('tag', [''])[0]
+                    title = params.get('title', ['Bookmarks'])[0] or "Bookmarks"
+                    try:
+                        limit = max(1, min(1000, int(params.get('limit', [200])[0])))
+                    except (TypeError, ValueError):
+                        limit = 200
+                    if tag:
+                        tag_l = tag.lower()
+                        bookmarks = [bm for bm in bookmarks if any(t.lower() == tag_l for t in bm.tags)]
+                    catalog_url = f"http://127.0.0.1:{self.server.server_port}{self.path}"
+                    body = render_opds2(bookmarks[:limit], title=title, catalog_url=catalog_url)
+                    self._send_json(json.loads(body))
                     return
 
                 if not self._check_auth():

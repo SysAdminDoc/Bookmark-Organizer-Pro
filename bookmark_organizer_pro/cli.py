@@ -274,6 +274,13 @@ class BookmarkCLI:
         p.add_argument("--catalog-url", default="", help="Catalog URL")
         p.set_defaults(func=self._cmd_opds_export)
 
+        p = sub.add_parser("opds2-export", help="Export OPDS 2.0 JSON-LD acquisition feed")
+        p.add_argument("--title", default="Bookmarks", help="Feed title")
+        p.add_argument("--output", help="Output path")
+        p.add_argument("--tag", help="Filter by tag")
+        p.add_argument("--catalog-url", default="", help="Catalog URL")
+        p.set_defaults(func=self._cmd_opds2_export)
+
         p = sub.add_parser("graph-export", help="Export bookmark relationship graph JSON")
         p.add_argument("--output", help="Output path")
         p.add_argument("--limit", type=int, default=300, help="Max bookmarks (default 300)")
@@ -1588,6 +1595,17 @@ Top Domains:
         path = export_opds(bms, title=ns.title, output_path=output,
                            catalog_url=ns.catalog_url)
         print(f"OPDS feed exported: {path} ({len(bms)} entries)")
+
+    def _cmd_opds2_export(self, ns: argparse.Namespace):
+        from bookmark_organizer_pro.services.feed_export import export_opds2
+        bms = self.bookmark_manager.get_all_bookmarks()
+        if ns.tag:
+            tag_l = ns.tag.lower()
+            bms = [b for b in bms if any(t.lower() == tag_l for t in b.tags)]
+        output = Path(ns.output) if ns.output else None
+        path = export_opds2(bms, title=ns.title, output_path=output,
+                            catalog_url=ns.catalog_url)
+        print(f"OPDS 2.0 feed exported: {path} ({len(bms)} entries)")
 
     def _cmd_graph_export(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.services.bookmark_graph import export_bookmark_graph_json

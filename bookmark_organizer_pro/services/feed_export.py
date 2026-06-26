@@ -191,3 +191,63 @@ def export_opds(bookmarks: List[Bookmark], title: str = "Bookmarks",
     output_path.write_text(feed_xml, encoding="utf-8")
     log.info(f"OPDS feed exported: {output_path} ({len(bookmarks)} entries)")
     return output_path
+
+
+def _opds2_media_type(bookmark: Bookmark) -> str:
+    mt = _media_type(bookmark)
+    if mt == "text/html":
+        return "text/html"
+    return mt
+
+
+def render_opds2(bookmarks: List[Bookmark], title: str = "Bookmarks",
+                 catalog_url: str = "") -> str:
+    """Render bookmarks as an OPDS 2.0 JSON-LD publication feed."""
+    now = datetime.now().isoformat()
+    publications = []
+    for bm in bookmarks:
+        entry = {
+            "metadata": {
+                "@type": "http://schema.org/Book",
+                "title": bm.title or bm.url,
+                "identifier": bm.url,
+                "modified": _iso(bm.modified_at or bm.created_at),
+            },
+            "links": [{"rel": "http://opds-spec.org/acquisition/open-access",
+                        "href": bm.url, "type": _opds2_media_type(bm)}],
+        }
+        if bm.description:
+            entry["metadata"]["description"] = bm.description
+        if bm.tags:
+            entry["metadata"]["subject"] = [{"name": t} for t in bm.tags]
+        if bm.category:
+            entry["metadata"]["belongsTo"] = {"collection": bm.category}
+        publications.append(entry)
+
+    feed = {
+        "metadata": {
+            "title": title,
+            "modified": now,
+        },
+        "links": [],
+        "publications": publications,
+    }
+    if catalog_url:
+        feed["links"].append({"rel": "self", "href": catalog_url,
+                              "type": "application/opds+json"})
+    return json.dumps(feed, indent=2, ensure_ascii=False)
+
+
+def export_opds2(bookmarks: List[Bookmark], title: str = "Bookmarks",
+                 output_path: Optional[Path] = None,
+                 catalog_url: str = "") -> Path:
+    """Export bookmarks as an OPDS 2.0 JSON-LD feed."""
+    if output_path is None:
+        EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+        output_path = EXPORTS_DIR / _safe_feed_filename(title, ".opds2.json")
+
+    feed_json = render_opds2(bookmarks, title=title, catalog_url=catalog_url)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(feed_json, encoding="utf-8")
+    log.info(f"OPDS 2.0 feed exported: {output_path} ({len(bookmarks)} entries)")
+    return output_path

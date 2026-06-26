@@ -852,13 +852,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
   Acceptance: Daily digest includes spaced-repetition review of highlights with increasing intervals
   Complexity: L
 
-- [ ] P3 — **OPDS 2.0 catalog export**
-  Why: OPDS 2.0 (JSON-LD, Readium Web Publication model) became the official stable standard in May 2026, superseding OPDS 1.2 (Atom XML). BOP ships OPDS 1.2 via `opds-export` and `GET /opds`. A 2.0 path would future-proof interop with modern e-reader clients.
-  Evidence: OPDS 2.0 official status (May 2026); BOP ships 1.2 via `services/feed_export.py` [S-89]
-  Touches: `services/feed_export.py`, `services/api.py`, `cli.py`
-  Acceptance: `opds-export --version 2` produces valid OPDS 2.0 JSON-LD. Loopback serves at `GET /opds2`.
-  Complexity: M
-
 - [ ] P3 — **Python 3.14 free-threaded mode for embedding generation**
   Why: Python 3.14 ships free-threaded mode (no GIL). Embedding generation and web scraping could use real threads instead of multiprocessing, simplifying `services/embeddings.py` and `services/ingest.py` parallelism.
   Evidence: PEP 703/779 — free-threaded Python 3.14 [S-145]
