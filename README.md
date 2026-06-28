@@ -342,7 +342,11 @@ Log file location: `~/.bookmark_organizer/logs/bookmark_organizer.log`
 **Restore from backup:**
 - **Tools > Restore from Backup**
 - Select a backup file from the list
-- Confirm restoration
+
+**Restore recent maintenance changes:**
+- Bulk cleanup tools create a safepoint before changing bookmark data
+- **Tools > Restore Last Maintenance Safepoint** reverses the latest bulk cleanup action
+- Category deletion can be restored immediately from **Manage Categories > Restore Last Delete**
 
 **Automatic backups:**
 - Created on every save (if enabled)

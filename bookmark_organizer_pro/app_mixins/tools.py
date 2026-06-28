@@ -18,7 +18,7 @@ from bookmark_organizer_pro.core.category_manager import get_category_icon
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Category
 from bookmark_organizer_pro.ui.foundation import FONTS, readable_text_on
-from bookmark_organizer_pro.ui.widgets import ThemeSelectorDialog
+from bookmark_organizer_pro.ui.widgets import ModernButton, ThemeSelectorDialog, apply_window_chrome
 from bookmark_organizer_pro.ui.graph_view import GraphViewDialog
 from bookmark_organizer_pro.ui.management_dialogs import CategoryManagementDialog, CustomFaviconDialog
 from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog
@@ -44,6 +44,7 @@ class ToolsActionsMixin:
         menu.add_command(label=_("Clear All Tags"), command=self._clear_all_tags)
         menu.add_separator()
         menu.add_command(label=_("Backup Now"), command=self._backup_now)
+        menu.add_command(label=_("Restore Last Maintenance Safepoint"), command=self._restore_last_maintenance_safepoint)
 
         x = self.settings_btn.winfo_rootx()
         y = self.settings_btn.winfo_rooty() + self.settings_btn.winfo_height()
@@ -81,6 +82,7 @@ class ToolsActionsMixin:
         menu.add_command(label=_("Full Analytics"), command=self._show_analytics)
         menu.add_command(label=_("Migrate to SQLite"), command=self._migrate_to_sqlite)
         menu.add_command(label=_("Backup Now"), command=self._backup_now)
+        menu.add_command(label=_("Restore Last Maintenance Safepoint"), command=self._restore_last_maintenance_safepoint)
         menu.add_separator()
         menu.add_command(label=_("Redownload All Favicons"), command=self._redownload_all_favicons)
         menu.add_command(label=_("Redownload Missing Favicons"), command=self._redownload_missing_favicons)
@@ -90,6 +92,97 @@ class ToolsActionsMixin:
         x = self.tools_btn.winfo_rootx()
         y = self.tools_btn.winfo_rooty() + self.tools_btn.winfo_height()
         menu.tk_popup(x, y)
+
+    def _toast(self, message: str, style: str = "info") -> None:
+        if hasattr(self, "_show_toast"):
+            self._show_toast(message, style)
+
+    def _create_maintenance_safepoint(self, label: str) -> str | None:
+        try:
+            create_safepoint = getattr(self.bookmark_manager, "create_safepoint", None)
+            if not create_safepoint:
+                raise RuntimeError("bookmark storage does not support safepoints")
+            safepoint = create_safepoint(label)
+            if not safepoint:
+                raise RuntimeError("safepoint was not created")
+            self._last_maintenance_safepoint = safepoint
+            return safepoint
+        except Exception as exc:
+            log.warning("Maintenance safepoint failed before %s: %s", label, exc)
+            self._set_status(f"{label.replace('-', ' ').title()} skipped: recovery safepoint unavailable")
+            self._toast("Could not create a recovery safepoint; no changes were made", "error")
+            return None
+
+    def _restore_last_maintenance_safepoint(self) -> bool:
+        safepoint = getattr(self, "_last_maintenance_safepoint", "")
+        if not safepoint:
+            self._set_status("No maintenance safepoint is available yet")
+            self._toast("No maintenance safepoint is available yet", "info")
+            return False
+
+        try:
+            if self.bookmark_manager.restore_backup(safepoint):
+                self._refresh_all()
+                self._set_status("Restored the last maintenance safepoint")
+                self._toast("Restored the last maintenance safepoint", "success")
+                return True
+        except Exception as exc:
+            log.exception("Failed to restore maintenance safepoint %s", safepoint)
+            self._set_status(f"Maintenance safepoint restore failed: {exc}")
+            self._toast("Maintenance safepoint restore failed; see logs", "error")
+            return False
+
+        self._set_status("Maintenance safepoint restore failed")
+        self._toast("Maintenance safepoint restore failed; see logs", "error")
+        return False
+
+    def _show_nonblocking_report(self, title: str, lines, status: str, toast: str | None = None) -> None:
+        text = "\n".join(lines) if isinstance(lines, list) else str(lines)
+        self._set_status(status)
+        if toast:
+            self._toast(toast, "info")
+
+        root = getattr(self, "root", None)
+        if root is None or not hasattr(root, "winfo_exists"):
+            return
+
+        try:
+            theme = get_theme()
+            win = tk.Toplevel(root)
+            win.title(title)
+            win.configure(bg=theme.bg_primary)
+            win.geometry("680x430")
+            win.minsize(520, 320)
+            win.transient(root)
+            apply_window_chrome(win)
+
+            tk.Label(
+                win, text=title, bg=theme.bg_primary, fg=theme.text_primary,
+                font=FONTS.subtitle(bold=True)
+            ).pack(anchor="w", padx=18, pady=(16, 6))
+
+            body_frame = tk.Frame(win, bg=theme.bg_primary)
+            body_frame.pack(fill=tk.BOTH, expand=True, padx=18, pady=(0, 12))
+            scroll = tk.Scrollbar(body_frame)
+            body = tk.Text(
+                body_frame, bg=theme.bg_secondary, fg=theme.text_primary,
+                insertbackground=theme.text_primary, font=FONTS.mono(),
+                relief=tk.FLAT, wrap=tk.WORD, yscrollcommand=scroll.set,
+                padx=12, pady=10, borderwidth=0, highlightthickness=1,
+                highlightbackground=theme.border_muted,
+            )
+            scroll.configure(command=body.yview)
+            scroll.pack(side=tk.RIGHT, fill=tk.Y)
+            body.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            body.insert("1.0", text)
+            body.configure(state=tk.DISABLED)
+
+            footer = tk.Frame(win, bg=theme.bg_primary)
+            footer.pack(fill=tk.X, padx=18, pady=(0, 16))
+            ModernButton(footer, text="Close", command=win.destroy, padx=22, pady=8).pack(side=tk.RIGHT)
+            win.bind("<Escape>", lambda _event: win.destroy())
+        except Exception as exc:
+            log.warning("Could not show non-blocking report '%s': %s", title, exc)
 
     # ── Bulk cleanup ─────────────────────────────────────────────────
 
@@ -105,14 +198,7 @@ class ToolsActionsMixin:
             self._show_toast("All bookmarks are already uncategorized", "info")
             return
 
-        if not messagebox.askyesno(
-            "Flatten All Folders",
-            f"This will remove category assignments from {len(categorized)} bookmark(s) "
-            "and set them all to 'Uncategorized / Needs Review'.\n\n"
-            "You can re-categorize them afterwards with the pattern engine or AI.\n\n"
-            "Continue?",
-            parent=self.root,
-        ):
+        if not self._create_maintenance_safepoint("flatten-folders"):
             return
 
         for bm in categorized:
@@ -120,8 +206,10 @@ class ToolsActionsMixin:
             bm.parent_category = ""
         self.bookmark_manager.save_bookmarks()
         self._refresh_all()
-        self._set_status(f"Flattened {len(categorized)} bookmarks out of folders")
-        self._show_toast(f"Moved {len(categorized)} bookmarks out of folders", "success")
+        self._set_status(
+            f"Flattened {len(categorized)} bookmarks out of folders; restore available from Tools"
+        )
+        self._toast(f"Moved {len(categorized)} bookmarks out of folders; safepoint ready", "success")
 
     def _clear_all_categories(self):
         """Reset every bookmark's category to 'Uncategorized / Needs Review'."""
@@ -132,10 +220,8 @@ class ToolsActionsMixin:
         if self.selected_bookmarks:
             targets = [self.bookmark_manager.get_bookmark(bid) for bid in self.selected_bookmarks]
             targets = [bm for bm in targets if bm]
-            scope = f"{len(targets)} selected bookmark(s)"
         else:
             targets = self.bookmark_manager.get_all_bookmarks()
-            scope = f"all {len(targets)} bookmark(s)"
 
         if not targets:
             self._show_toast("No bookmarks to clear tags from", "info")
@@ -146,13 +232,7 @@ class ToolsActionsMixin:
             self._show_toast("No tags to clear", "info")
             return
 
-        if not messagebox.askyesno(
-            "Clear Tags",
-            f"Remove all tags from {scope}?\n\n"
-            f"{len(tagged)} bookmark(s) currently have tags.\n"
-            "This cannot be undone.",
-            parent=self.root,
-        ):
+        if not self._create_maintenance_safepoint("clear-tags"):
             return
 
         for bm in tagged:
@@ -160,8 +240,8 @@ class ToolsActionsMixin:
             bm.ai_tags = []
         self.bookmark_manager.save_bookmarks()
         self._refresh_all()
-        self._set_status(f"Cleared tags from {len(tagged)} bookmarks")
-        self._show_toast(f"Cleared tags from {len(tagged)} bookmarks", "success")
+        self._set_status(f"Cleared tags from {len(tagged)} bookmarks; restore available from Tools")
+        self._toast(f"Cleared tags from {len(tagged)} bookmarks; safepoint ready", "success")
 
     def _organize_selected(self):
         """Auto-categorize + tag selected bookmarks using the pattern engine."""
@@ -188,22 +268,11 @@ class ToolsActionsMixin:
         bookmarks = self.bookmark_manager.get_all_bookmarks()
         
         if not bookmarks:
-            messagebox.showinfo(
-                "Nothing to Categorize",
-                "Import or add bookmarks before running automatic categorization.",
-                parent=self.root
-            )
             self._set_status("Add bookmarks before categorizing")
+            self._toast("Import or add bookmarks before running categorization", "info")
             return
-        
-        result = messagebox.askyesno(
-            "Categorize All Bookmarks",
-            f"Re-categorize {len(bookmarks)} bookmark(s) using your saved category patterns?\n\n"
-            "This updates categories based on URL and title matches.",
-            parent=self.root
-        )
-        
-        if not result:
+
+        if not self._create_maintenance_safepoint("categorize-all"):
             return
         
         # Create progress display
@@ -249,12 +318,12 @@ class ToolsActionsMixin:
                 
                 if self._cat_cancelled:
                     self._set_status(f"Cancelled. Changed {self._cat_changed} bookmarks.")
+                    self._toast(f"Categorization cancelled after {self._cat_changed} changes", "warning")
                 else:
                     self._set_status(f"Categorized {self._cat_changed} bookmarks")
-                    messagebox.showinfo(
-                        "Categorization Complete",
-                        f"Categorized: {self._cat_changed} bookmarks\n"
-                        f"Unchanged: {self._cat_unchanged} bookmarks"
+                    self._toast(
+                        f"Categorized {self._cat_changed} bookmarks; {self._cat_unchanged} unchanged",
+                        "success",
                     )
                 return
             
@@ -336,14 +405,11 @@ class ToolsActionsMixin:
             self._refresh_category_list()
             self._refresh_analytics()
             
-            messagebox.showinfo(
-                "Import Complete",
-                f"Imported {imported} new categories.\n"
-                f"Updated {updated} existing categories.\n"
-                f"Total categories: {len(self.category_manager.categories)}",
-                parent=self.root
-            )
             self._set_status(f"Imported {imported} categories, updated {updated}")
+            self._toast(
+                f"Imported {imported} categories; updated {updated}; total {len(self.category_manager.categories)}",
+                "success",
+            )
             
         except json.JSONDecodeError as e:
             messagebox.showerror(
@@ -373,12 +439,8 @@ class ToolsActionsMixin:
         bookmarks = self.bookmark_manager.get_all_bookmarks()
         
         if not bookmarks:
-            messagebox.showinfo(
-                "Nothing to Check",
-                "Import or add bookmarks before running a link check.",
-                parent=self.root
-            )
             self._set_status("Add bookmarks before checking links")
+            self._toast("Import or add bookmarks before running a link check", "info")
             return
         
         # Create progress frame with cancel button
@@ -483,12 +545,16 @@ class ToolsActionsMixin:
         # dupes is Dict[str, List[Bookmark]] - use values()
         total = sum(len(g) - 1 for g in dupes.values())
         
-        if messagebox.askyesno("Duplicates", f"Found {total} duplicates. Remove?"):
-            for group in dupes.values():
-                for bm in group[1:]:
-                    self.bookmark_manager.delete_bookmark(bm.id)
-            self._refresh_all()
-            self._set_status(f"Removed {total} duplicates")
+        if not self._create_maintenance_safepoint("remove-duplicates"):
+            return
+
+        for group in dupes.values():
+            for bm in group[1:]:
+                self.bookmark_manager.delete_bookmark(bm.id)
+        self.bookmark_manager.save_bookmarks()
+        self._refresh_all()
+        self._set_status(f"Removed {total} duplicates; restore available from Tools")
+        self._toast(f"Removed {total} duplicate bookmarks; safepoint ready", "success")
 
     def _smart_duplicate_scan(self):
         """Run the 3-pass hybrid duplicate detector and show grouped results."""
@@ -520,8 +586,12 @@ class ToolsActionsMixin:
         if len(groups) > 20:
             lines.append(f"  ... and {len(groups) - 20} more groups")
         lines.append("\nUse 'bop dups --merge' from the CLI to merge duplicates.")
-        messagebox.showinfo("Smart Duplicate Scan", "\n".join(lines))
-        self._set_status(f"Smart duplicate scan: {len(groups)} groups, {total} duplicates")
+        self._show_nonblocking_report(
+            "Smart Duplicate Scan",
+            lines,
+            f"Smart duplicate scan: {len(groups)} groups, {total} duplicates",
+            f"Smart duplicate scan found {len(groups)} group(s)",
+        )
 
     def _lint_tags_gui(self):
         """Run the tag linter and show suggested merges."""
@@ -552,22 +622,26 @@ class ToolsActionsMixin:
                          f"{', '.join(s.get('tags', []))} -> {s.get('canonical', '?')}")
         if len(suggestions) > 30:
             lines.append(f"  ... and {len(suggestions) - 30} more")
-        lines.append("\nApply fixes with: bop lint-tags --apply")
-        if messagebox.askyesno("Tag Lint Results", "\n".join(lines) + "\n\nApply suggested merges now?"):
-            try:
-                from bookmark_organizer_pro.services.tag_linter import TagLinter
-                bms = self.bookmark_manager.get_all_bookmarks()
-                linter = TagLinter()
-                applied = linter.apply(bms)
-                if applied:
-                    self.bookmark_manager.save_bookmarks()
-                    self._refresh_all()
-                self._show_toast(f"Applied {applied} tag merge(s)", "success")
-                self._set_status(f"Tag lint: applied {applied} merges")
-            except Exception as exc:
-                self._set_status(f"Tag lint apply failed: {exc}")
-        else:
-            self._set_status(f"Tag lint: {len(suggestions)} issues (not applied)")
+        lines.append("\nSuggested merges apply immediately from this tool. Restore is available from Tools.")
+        if not self._create_maintenance_safepoint("lint-tags"):
+            return
+
+        try:
+            from bookmark_organizer_pro.services.tag_linter import TagLinter
+            bms = self.bookmark_manager.get_all_bookmarks()
+            linter = TagLinter()
+            applied = linter.apply(bms)
+            if applied:
+                self.bookmark_manager.save_bookmarks()
+                self._refresh_all()
+            self._show_nonblocking_report(
+                "Tag Lint Results",
+                lines,
+                f"Tag lint: applied {applied} merges",
+                f"Applied {applied} tag merge(s); safepoint ready",
+            )
+        except Exception as exc:
+            self._set_status(f"Tag lint apply failed: {exc}")
 
     def _show_smart_collections(self):
         """Show smart collections in a dialog."""
@@ -579,13 +653,18 @@ class ToolsActionsMixin:
             collections = []
 
         if not collections:
-            messagebox.showinfo(
+            self._show_nonblocking_report(
                 "Smart Collections",
-                "No smart collections defined.\n\n"
-                "Create one with: bop smart-collections create <name>\n"
-                "  --tags python,tutorial\n"
-                "  --domains github.com\n"
-                "  --keywords async"
+                [
+                    "No smart collections defined.",
+                    "",
+                    "Create one with: bop smart-collections create <name>",
+                    "  --tags python,tutorial",
+                    "  --domains github.com",
+                    "  --keywords async",
+                ],
+                "No smart collections defined",
+                "No smart collections defined",
             )
             return
 
@@ -605,7 +684,12 @@ class ToolsActionsMixin:
                 filters.append(f"categories={','.join(sc.filters.categories)}")
             if filters:
                 lines.append(f"    Filters: {'; '.join(filters)}")
-        messagebox.showinfo("Smart Collections", "\n".join(lines))
+        self._show_nonblocking_report(
+            "Smart Collections",
+            lines,
+            f"Smart collections: {len(collections)} defined",
+            f"Listed {len(collections)} smart collection(s)",
+        )
 
     def _view_dead_links(self):
         """Show dead-link scan results from the persistent queue."""
@@ -639,13 +723,21 @@ class ToolsActionsMixin:
             if len(redirected) > 10:
                 lines.append(f"    ... and {len(redirected) - 10} more")
         lines.append("\nUse 'bop scan' from the CLI to refresh.")
-        messagebox.showinfo("Dead Link Scan Results", "\n".join(lines))
+        self._show_nonblocking_report(
+            "Dead Link Scan Results",
+            lines,
+            f"Dead link results: {len(records)} saved records",
+            f"Loaded {len(records)} saved dead-link result(s)",
+        )
 
     def _clean_urls(self):
         """Clean tracking params"""
+        if not self._create_maintenance_safepoint("clean-tracking-params"):
+            return
         count = self.bookmark_manager.clean_tracking_params()
         self._refresh_all()
-        self._set_status(f"Cleaned {count} URLs")
+        self._set_status(f"Cleaned {count} URLs; restore available from Tools")
+        self._toast(f"Cleaned {count} URLs; safepoint ready", "success")
 
     def _show_analytics(self):
         """Show full analytics"""
@@ -664,75 +756,44 @@ class ToolsActionsMixin:
 
     def _clear_favicon_cache(self):
         """Clear favicon cache"""
-        if messagebox.askyesno(
-            "Clear Favicon Cache",
-            "Clear all cached favicons?\n\n"
-            "Bookmarks are kept. Icons will be downloaded again when needed.",
-            parent=self.root
-        ):
-            self.favicon_manager.clear_cache()
-            self._refresh_all()
-            self._set_status("Favicon cache cleared")
+        self.favicon_manager.clear_cache()
+        self._refresh_all()
+        self._set_status("Favicon cache cleared")
+        self._toast("Favicon cache cleared; icons will refresh as needed", "success")
 
     def _redownload_all_favicons(self):
         """Redownload all favicons"""
         bookmarks = self.bookmark_manager.get_all_bookmarks()
         if not bookmarks:
-            messagebox.showinfo(
-                "No Favicons to Fetch",
-                "Import or add bookmarks before downloading favicons.",
-                parent=self.root
-            )
             self._set_status("Add bookmarks before fetching favicons")
+            self._toast("Import or add bookmarks before downloading favicons", "info")
             return
-        
-        result = messagebox.askyesno(
-            "Redownload Favicons",
-            f"Redownload favicons for all {len(bookmarks)} bookmark(s)?\n\n"
-            "This clears cached icons first and may take a little while.",
-            parent=self.root
-        )
-        if not result:
-            return
-        
-        self._set_status("Redownloading all favicons…")
+
+        self._set_status("Redownloading all favicons...")
+        self._toast(f"Redownloading favicons for {len(bookmarks)} bookmarks", "info")
         self.favicon_manager.redownload_all_favicons(bookmarks)
 
     def _redownload_missing_favicons(self):
         """Redownload only missing favicons"""
         bookmarks = self.bookmark_manager.get_all_bookmarks()
         if not bookmarks:
-            messagebox.showinfo(
-                "No Favicons to Fetch",
-                "Import or add bookmarks before downloading favicons.",
-                parent=self.root
-            )
             self._set_status("Add bookmarks before fetching favicons")
+            self._toast("Import or add bookmarks before downloading favicons", "info")
             return
         
         # Count missing
         missing_count = sum(1 for bm in bookmarks if not self.favicon_manager.get_cached(bm.domain))
         failed_count = len(self.favicon_manager.get_failed_domains())
         if missing_count == 0 and failed_count == 0:
-            messagebox.showinfo(
-                "Favicons Up to Date",
-                "Every bookmark already has a cached favicon.",
-                parent=self.root
-            )
             self._set_status("Favicons are up to date")
+            self._toast("Every bookmark already has a cached favicon", "success")
             return
-        
-        result = messagebox.askyesno(
-            "Redownload Missing Favicons",
-            f"Found approximately {missing_count} bookmark(s) without cached favicons.\n"
-            f"Previously failed domains: {failed_count}\n\n"
-            "Retry missing and previously failed favicon downloads?",
-            parent=self.root
+
+        self._set_status("Redownloading missing favicons...")
+        self._toast(
+            f"Retrying {missing_count} missing favicon(s) and {failed_count} failed domain(s)",
+            "info",
         )
-        if not result:
-            return
-        
-        self._set_status("Redownloading missing favicons…")
         self.favicon_manager.redownload_missing_favicons(bookmarks)
 
     def _show_category_manager(self):
@@ -745,12 +806,8 @@ class ToolsActionsMixin:
     def _show_custom_favicon_dialog(self):
         """Show custom favicon dialog for selected bookmark"""
         if not self.selected_bookmarks:
-            messagebox.showinfo(
-                "Select a Bookmark",
-                "Select one bookmark before choosing a custom favicon.",
-                parent=self.root
-            )
             self._set_status("Select one bookmark to customize its favicon")
+            self._toast("Select one bookmark before choosing a custom favicon", "info")
             return
         
         bm_id = list(self.selected_bookmarks)[0]
@@ -768,35 +825,18 @@ class ToolsActionsMixin:
 
         sqlite_path = MASTER_BOOKMARKS_FILE.with_suffix(".sqlite")
         if sqlite_path.exists():
-            messagebox.showinfo(
-                "SQLite Already Exists",
-                f"A SQLite database already exists at:\n{sqlite_path}\n\n"
-                "Delete or rename it before migrating again.",
-                parent=self.root,
-            )
+            self._set_status(f"SQLite already exists at {sqlite_path}")
+            self._toast("SQLite database already exists; rename it before migrating again", "info")
             return
 
         bookmarks = self.bookmark_manager.get_all_bookmarks()
         if not bookmarks:
-            messagebox.showinfo(
-                "Nothing to Migrate",
-                "Add bookmarks before migrating to SQLite.",
-                parent=self.root,
-            )
-            return
-
-        if not messagebox.askyesno(
-            "Migrate to SQLite",
-            f"Copy {len(bookmarks)} bookmark(s) into a SQLite database?\n\n"
-            f"Source: {MASTER_BOOKMARKS_FILE.name}\n"
-            f"Destination: {sqlite_path.name}\n\n"
-            "The original JSON file is preserved as a backup.\n"
-            "After migration, set BOOKMARK_STORAGE_BACKEND=sqlite to use it.",
-            parent=self.root,
-        ):
+            self._set_status("Add bookmarks before migrating to SQLite")
+            self._toast("Add bookmarks before migrating to SQLite", "info")
             return
 
         self._set_status("Migrating to SQLite...")
+        self._toast(f"Migrating {len(bookmarks)} bookmark(s) to SQLite", "info")
 
         def _worker():
             try:
@@ -812,13 +852,17 @@ class ToolsActionsMixin:
     def _on_sqlite_migrate_done(self, count, path):
         self._set_status(f"Migrated {count} bookmarks to SQLite")
         self._show_toast(f"SQLite migration complete: {count} bookmarks", "success")
-        messagebox.showinfo(
+        self._show_nonblocking_report(
             "Migration Complete",
-            f"Migrated {count} bookmark(s) to:\n{path}\n\n"
-            "To use SQLite as the runtime backend, set the environment variable:\n"
-            "  BOOKMARK_STORAGE_BACKEND=sqlite\n"
-            "or pass --backend sqlite to the CLI.",
-            parent=self.root,
+            [
+                f"Migrated {count} bookmark(s) to:",
+                str(path),
+                "",
+                "To use SQLite as the runtime backend, set the environment variable:",
+                "  BOOKMARK_STORAGE_BACKEND=sqlite",
+                "or pass --backend sqlite to the CLI.",
+            ],
+            f"Migrated {count} bookmarks to SQLite",
         )
 
     def _on_sqlite_migrate_error(self, exc):
@@ -832,12 +876,8 @@ class ToolsActionsMixin:
     def _open_reader_view(self):
         """Open the extracted-text reader for the first selected bookmark."""
         if not self.selected_bookmarks:
-            messagebox.showinfo(
-                "Select a Bookmark",
-                "Select one bookmark before opening reader view.",
-                parent=self.root,
-            )
             self._set_status("Select one bookmark to open reader view")
+            self._toast("Select one bookmark before opening reader view", "info")
             return
         bm_id = list(self.selected_bookmarks)[0]
         bookmark = self.bookmark_manager.get_bookmark(bm_id)

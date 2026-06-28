@@ -29,6 +29,7 @@ class CategoryManagementDialog(tk.Toplevel):
         self.on_change = on_change
         self._category_placeholder = "New category name…"
         self._category_placeholder_active = True
+        self._last_deleted_category = None
         
         self.title("Manage Categories")
         self.configure(bg=theme.bg_primary)
@@ -114,10 +115,22 @@ class CategoryManagementDialog(tk.Toplevel):
         footer = tk.Frame(self, bg=theme.bg_primary)
         footer.pack(fill=tk.X, padx=20, pady=(0, 18))
 
+        self.status_var = tk.StringVar(value="")
+        tk.Label(
+            footer, textvariable=self.status_var, bg=theme.bg_primary,
+            fg=theme.text_secondary, font=FONTS.small(), anchor="w",
+            justify=tk.LEFT, wraplength=260
+        ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+
         ModernButton(
             footer, text="Close", command=self.destroy,
             padx=22, pady=9
         ).pack(side=tk.RIGHT)
+
+        ModernButton(
+            footer, text="Restore Last Delete", command=self._restore_last_deleted_category,
+            padx=16, pady=9
+        ).pack(side=tk.RIGHT, padx=(10, 0))
 
         self.bind("<Escape>", lambda e: self.destroy())
         self.center_window()
@@ -137,6 +150,10 @@ class CategoryManagementDialog(tk.Toplevel):
     def _restore_placeholder(self):
         if not self.new_cat_entry.get().strip():
             self._show_category_placeholder()
+
+    def _set_status(self, message: str):
+        if hasattr(self, "status_var"):
+            self.status_var.set(message)
     
     def _populate_categories(self):
         """Populate the category list"""
@@ -214,11 +231,7 @@ class CategoryManagementDialog(tk.Toplevel):
         """Add new category"""
         name = self.new_cat_entry.get().strip()
         if self._category_placeholder_active or not name:
-            messagebox.showinfo(
-                "Category name required",
-                "Enter a category name before adding it.",
-                parent=self
-            )
+            self._set_status("Enter a category name before adding it.")
             self.new_cat_entry.focus_set()
             return
 
@@ -287,33 +300,58 @@ class CategoryManagementDialog(tk.Toplevel):
     def _delete_category(self, name: str):
         """Delete category and move bookmarks to Uncategorized"""
         if name == "Uncategorized / Needs Review":
-            messagebox.showwarning(
-                "Category required",
-                "The default review category keeps uncategorized bookmarks recoverable and cannot be deleted.",
-                parent=self
-            )
+            self._set_status("The default review category cannot be deleted.")
             return
 
-        count = len(self.bookmark_manager.get_bookmarks_by_category(name))
-        
-        msg = f"Delete category '{name}'?"
-        if count > 0:
-            msg += f"\n\n{pluralize(count, 'bookmark')} will be moved to 'Uncategorized / Needs Review'."
-        
-        if messagebox.askyesno("Delete Category", msg, parent=self):
-            # Move bookmarks to Uncategorized
-            for bm in self.bookmark_manager.get_bookmarks_by_category(name):
-                bm.category = "Uncategorized / Needs Review"
-                self.bookmark_manager.update_bookmark(bm)
-            
-            # Delete the category
-            if name in self.category_manager.categories:
-                del self.category_manager.categories[name]
-                self.category_manager.save_categories()
-            
-            self._populate_categories()
-            if self.on_change:
-                self.on_change()
+        bookmarks = list(self.bookmark_manager.get_bookmarks_by_category(name))
+        count = len(bookmarks)
+        self._last_deleted_category = {
+            "name": name,
+            "category": self.category_manager.categories.get(name),
+            "bookmark_ids": [bm.id for bm in bookmarks],
+        }
+
+        for bm in bookmarks:
+            bm.category = "Uncategorized / Needs Review"
+            self.bookmark_manager.update_bookmark(bm)
+
+        if name in self.category_manager.categories:
+            del self.category_manager.categories[name]
+            self.category_manager.save_categories()
+
+        self._populate_categories()
+        if self.on_change:
+            self.on_change()
+        moved = f"; moved {pluralize(count, 'bookmark')}" if count else ""
+        self._set_status(f"Deleted '{name}'{moved}. Restore Last Delete is available.")
+
+    def _restore_last_deleted_category(self):
+        record = self._last_deleted_category
+        if not record:
+            self._set_status("No deleted category is available to restore.")
+            return False
+
+        name = record["name"]
+        category = record["category"]
+        if category is not None:
+            self.category_manager.categories[name] = category
+            self.category_manager.save_categories()
+
+        restored = 0
+        for bookmark_id in record["bookmark_ids"]:
+            bm = self.bookmark_manager.get_bookmark(bookmark_id)
+            if not bm:
+                continue
+            bm.category = name
+            self.bookmark_manager.update_bookmark(bm)
+            restored += 1
+
+        self._last_deleted_category = None
+        self._populate_categories()
+        if self.on_change:
+            self.on_change()
+        self._set_status(f"Restored '{name}' and {pluralize(restored, 'bookmark')}.")
+        return True
 
     def center_window(self):
         """Center the dialog on screen."""
@@ -403,6 +441,13 @@ class CustomFaviconDialog(tk.Toplevel):
             bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.small(),
             justify=tk.CENTER
         ).pack(pady=10)
+
+        self.status_var = tk.StringVar(value="")
+        tk.Label(
+            self, textvariable=self.status_var, bg=theme.bg_primary,
+            fg=theme.text_secondary, font=FONTS.small(), justify=tk.CENTER,
+            wraplength=360
+        ).pack(pady=(0, 6))
         
         # Buttons
         btn_frame = tk.Frame(self, bg=theme.bg_primary)
@@ -444,29 +489,26 @@ class CustomFaviconDialog(tk.Toplevel):
                 self.new_preview.configure(image=self._preview_img, text="")
             except Exception:
                 self.new_preview.configure(text="✓", fg=get_theme().accent_success)
+            self._set_status("Favicon image selected.")
+
+    def _set_status(self, message: str):
+        if hasattr(self, "status_var"):
+            self.status_var.set(message)
     
     def _apply(self):
         """Apply custom favicon"""
         if not self.selected_favicon:
-            messagebox.showwarning(
-                "Favicon required",
-                "Select an image before applying a custom favicon.",
-                parent=self
-            )
+            self._set_status("Select an image before applying a custom favicon.")
             return
         
         if FaviconWrapperGenerator.update_bookmark_with_wrapper(
             self.bookmark, self.selected_favicon
         ):
             self.bookmark_manager.update_bookmark(self.bookmark)
-            messagebox.showinfo(
-                "Custom favicon applied",
-                "The bookmark now uses a wrapper page with your selected icon.",
-                parent=self
-            )
+            self._set_status("Custom favicon applied.")
             if self.on_update:
                 self.on_update()
-            self.destroy()
+            self.after(750, self.destroy)
         else:
             messagebox.showerror(
                 "Favicon not applied",
