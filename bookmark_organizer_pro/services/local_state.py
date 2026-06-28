@@ -3,19 +3,189 @@
 from __future__ import annotations
 
 import json
+import platform
 import re
+import sys
 import threading
+import zipfile
 from datetime import datetime
+from importlib import metadata, util
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
-from bookmark_organizer_pro.constants import DATA_DIR
+from bookmark_organizer_pro.constants import (
+    APP_NAME,
+    APP_VERSION,
+    DATA_DIR,
+    LOG_FILE,
+    MASTER_BOOKMARKS_FILE,
+    SETTINGS_FILE,
+    SUPPORT_BUNDLES_DIR,
+)
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.utils import clamp, safe_int
 from bookmark_organizer_pro.utils.runtime import atomic_json_write as _atomic_json_write
 
 if TYPE_CHECKING:
     from bookmark_organizer_pro.managers import BookmarkManager
+
+
+_DEPENDENCY_MODULES = {
+    "Pillow": ("Pillow", "PIL"),
+    "pystray": ("pystray", "pystray"),
+    "darkdetect": ("darkdetect", "darkdetect"),
+    "sv-ttk": ("sv-ttk", "sv_ttk"),
+    "FastEmbed": ("fastembed", "fastembed"),
+    "LanceDB": ("lancedb", "lancedb"),
+    "FastMCP": ("fastmcp", "fastmcp"),
+    "OpenAI": ("openai", "openai"),
+}
+
+
+def redact_text(text: str) -> str:
+    """Remove credentials and token-like values from diagnostic text."""
+    if not text:
+        return ""
+    redacted = str(text)
+    redacted = re.sub(r"(?i)(Bearer\s+)[A-Za-z0-9._~+/\-=]+", r"\1[REDACTED]", redacted)
+    redacted = re.sub(r"(?i)(Authorization\s*[:=]\s*)[^\r\n]+", r"\1[REDACTED]", redacted)
+    redacted = re.sub(
+        r"(?i)((?:api[_-]?key|apiToken|token|secret|password)\s*[\"']?\s*[:=]\s*[\"']?)[^\"'\s,}]+",
+        r"\1[REDACTED]",
+        redacted,
+    )
+    redacted = re.sub(
+        r"(?i)((?:api[_-]?key|token|secret|password)=)[^&\s]+",
+        r"\1[REDACTED]",
+        redacted,
+    )
+    return redacted
+
+
+def _file_metadata(path: Path) -> Dict[str, Any]:
+    try:
+        stat = path.stat()
+        return {
+            "name": path.name,
+            "exists": True,
+            "size_bytes": stat.st_size,
+            "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
+        }
+    except OSError:
+        return {"name": path.name, "exists": False, "size_bytes": 0, "modified": ""}
+
+
+def _dependency_status() -> Dict[str, Dict[str, Any]]:
+    status: Dict[str, Dict[str, Any]] = {}
+    for label, (distribution, module_name) in _DEPENDENCY_MODULES.items():
+        available = util.find_spec(module_name) is not None
+        version = ""
+        if available:
+            try:
+                version = metadata.version(distribution)
+            except metadata.PackageNotFoundError:
+                version = "available"
+        status[label] = {"available": available, "version": version}
+    return status
+
+
+def _recent_log_lines(limit: int = 250) -> List[str]:
+    if not LOG_FILE.exists():
+        return []
+    try:
+        return [redact_text(line) for line in LOG_FILE.read_text(encoding="utf-8", errors="replace").splitlines()[-limit:]]
+    except OSError as exc:
+        return [f"Could not read log file: {exc}"]
+
+
+def build_diagnostics_snapshot() -> Dict[str, Any]:
+    """Build a redacted diagnostics snapshot without bookmark contents."""
+    recent_log = _recent_log_lines()
+    recent_errors = [
+        line for line in recent_log
+        if any(marker in line.upper() for marker in ("ERROR", "CRITICAL", "TRACEBACK", "EXCEPTION"))
+    ][-50:]
+
+    return {
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "application": {
+            "name": APP_NAME,
+            "version": APP_VERSION,
+            "python": sys.version.split()[0],
+            "platform": f"{platform.system()} {platform.release()}",
+            "architecture": platform.machine(),
+        },
+        "dependencies": _dependency_status(),
+        "data_files": {
+            "bookmarks": _file_metadata(MASTER_BOOKMARKS_FILE),
+            "settings": _file_metadata(SETTINGS_FILE),
+            "log": _file_metadata(LOG_FILE),
+        },
+        "recent_errors": recent_errors,
+        "privacy": {
+            "bookmark_contents_included": False,
+            "secrets_redacted": True,
+            "recent_log_lines": len(recent_log),
+        },
+    }
+
+
+def format_diagnostics(snapshot: Dict[str, Any] | None = None) -> str:
+    """Return a clipboard-friendly diagnostics summary."""
+    snapshot = snapshot or build_diagnostics_snapshot()
+    app = snapshot["application"]
+    lines = [
+        f"{app['name']} v{app['version']}",
+        f"Generated: {snapshot['generated_at']}",
+        f"Python: {app['python']}",
+        f"Platform: {app['platform']} ({app['architecture']})",
+        "",
+        "Optional Dependencies:",
+    ]
+    for name, info in snapshot["dependencies"].items():
+        version = f" {info['version']}" if info.get("version") else ""
+        lines.append(f"- {name}: {'available' if info['available'] else 'missing'}{version}")
+
+    lines.extend(["", "Data Files:"])
+    for name, info in snapshot["data_files"].items():
+        state = "present" if info["exists"] else "missing"
+        lines.append(f"- {name}: {state}, {info['size_bytes']} bytes, modified {info['modified'] or 'n/a'}")
+
+    lines.append("")
+    lines.append(f"Recent Errors: {len(snapshot['recent_errors'])}")
+    for line in snapshot["recent_errors"][-8:]:
+        lines.append(f"- {line}")
+    lines.append("")
+    lines.append("Privacy: bookmark contents excluded; secrets redacted.")
+    return "\n".join(lines)
+
+
+def export_redacted_support_bundle(destination: str | Path | None = None) -> Path:
+    """Write a support ZIP with diagnostics and redacted recent logs."""
+    snapshot = build_diagnostics_snapshot()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if destination is None:
+        SUPPORT_BUNDLES_DIR.mkdir(parents=True, exist_ok=True)
+        bundle_path = SUPPORT_BUNDLES_DIR / f"support_bundle_{timestamp}.zip"
+    else:
+        target = Path(destination).expanduser()
+        if target.suffix.lower() == ".zip":
+            target.parent.mkdir(parents=True, exist_ok=True)
+            bundle_path = target
+        else:
+            target.mkdir(parents=True, exist_ok=True)
+            bundle_path = target / f"support_bundle_{timestamp}.zip"
+
+    recent_log = "\n".join(_recent_log_lines())
+    with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+        bundle.writestr("diagnostics.json", json.dumps(snapshot, indent=2))
+        bundle.writestr("diagnostics.txt", format_diagnostics(snapshot))
+        bundle.writestr("recent_log_redacted.txt", recent_log or "No log file was available.")
+        bundle.writestr(
+            "README.txt",
+            "Redacted support bundle. Bookmark contents, API keys, tokens, passwords, and secrets are excluded or redacted.\n",
+        )
+    return bundle_path
 
 
 # =============================================================================

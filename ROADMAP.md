@@ -32,7 +32,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 - **Security:** AES-256-GCM encrypted DB, SSRF guards, prompt sanitization, API auth tokens, keyring storage
 - **Import/Export:** 14 importers (incl. Pocket, Readwise, Pinboard, Instapaper, Reddit, Matter, Zotero), 13 export formats (HTML/JSON/CSV/OPML/XBEL/Markdown/ZIP/Obsidian/EPUB/Atom/JSON Feed/Zotero RDF/Graph JSON)
 - **UI:** 11 themes (incl. WCAG AA high-contrast), optional sv-ttk Sun Valley base theme, command palette, toast notifications, zoom, high-DPI, dashboard analytics, tksheet-backed virtualized bookmark list, desktop reader pane with highlights/notes/export, desktop graph view
-- **CLI:** 56 subcommands, 448 collected tests in the current suite
+- **CLI:** 56 subcommands, 450 collected tests in the current suite
 - **Desktop:** Python ≥3.10, Tkinter, PyInstaller binary, cross-platform (Windows primary, macOS/Linux)
 
 ### Competitive Position (June 2026)
@@ -836,13 +836,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 > Added 2026-06-20 from `RESEARCH.md` research pass 2 (source S-128). Updated 2026-06-25 from research pass 3 (source S-145). Updated 2026-06-26 from research pass 4 (source S-160). Items verified against existing ROADMAP to avoid duplicates.
 
 ### P1 — Reliability, feedback, and verification
-
-- [ ] P1 — Add a diagnostics center and redacted support bundle
-  Why: Logs and AI audit data exist, but users currently have to find paths manually instead of exporting a safe, complete diagnostic snapshot.
-  Evidence: `bookmark_organizer_pro/logging_config.py`; `bookmark_organizer_pro/services/ai_audit_log.py`; `bookmark_organizer_pro/ui/about.py:136-140`; `README.md:319-333`
-  Touches: `bookmark_organizer_pro/ui/about.py`, `bookmark_organizer_pro/logging_config.py`, `bookmark_organizer_pro/constants.py`, `bookmark_organizer_pro/services/local_state.py`, `README.md`
-  Acceptance: About/System offers Open Logs, Copy Diagnostics, and Export Redacted Bundle; exported data includes app/version/platform/dependency status and recent errors while excluding API keys, tokens, and bookmark content unless explicitly included.
-  Complexity: M
 
 - [ ] P1 — Regenerate and gate gettext template freshness
   Why: The gettext template is stale after Assistant copy changes, so future translations will miss or mistranslate current UI labels.

@@ -39,6 +39,7 @@ SNAPSHOTS_DIR = APP_DIR / "snapshots"
 EXTRACTED_DIR = APP_DIR / "extracted"
 EMBEDDINGS_DIR = APP_DIR / "embeddings"
 EXPORTS_DIR = APP_DIR / "exports"
+SUPPORT_BUNDLES_DIR = EXPORTS_DIR / "support_bundles"
 FLOWS_FILE = DATA_DIR / "flows.json"
 FEEDS_FILE = DATA_DIR / "feeds.json"
 DEAD_LINKS_FILE = DATA_DIR / "dead_links.json"
@@ -46,7 +47,7 @@ READER_ANNOTATIONS_FILE = DATA_DIR / "reader_annotations.json"
 
 _ALL_DIRS = [APP_DIR, FAVICON_DIR, CACHE_DIR, BACKUP_DIR, THEMES_DIR,
              SCREENSHOTS_DIR, LOGS_DIR, SNAPSHOTS_DIR, EXTRACTED_DIR,
-             EMBEDDINGS_DIR, EXPORTS_DIR]
+             EMBEDDINGS_DIR, EXPORTS_DIR, SUPPORT_BUNDLES_DIR]
 
 
 def ensure_directories():

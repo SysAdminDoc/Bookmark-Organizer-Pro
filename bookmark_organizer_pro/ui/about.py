@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import platform
+import subprocess
 import sys
 import tkinter as tk
 from tkinter import ttk
@@ -27,6 +29,11 @@ from bookmark_organizer_pro.constants import (
     LOG_FILE,
     MASTER_BOOKMARKS_FILE,
     SETTINGS_FILE,
+)
+from bookmark_organizer_pro.services.local_state import (
+    build_diagnostics_snapshot,
+    export_redacted_support_bundle,
+    format_diagnostics,
 )
 
 from .foundation import FONTS, readable_text_on
@@ -57,9 +64,10 @@ class AboutDialog(tk.Toplevel):
         super().__init__(parent)
         self.parent = parent
         theme = get_theme()
+        self.status_var = tk.StringVar(value="")
         
         self.title(f"About {APP_NAME}")
-        self.geometry("520x580")
+        self.geometry("700x640")
         self.resizable(False, False)
         self.configure(bg=theme.bg_primary)
         
@@ -69,8 +77,8 @@ class AboutDialog(tk.Toplevel):
         
         # Center on parent
         self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - 520) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - 580) // 2
+        x = parent.winfo_rootx() + (parent.winfo_width() - 700) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - 640) // 2
         self.geometry(f"+{max(0, x)}+{max(0, y)}")
         
         self._create_ui(theme)
@@ -133,19 +141,42 @@ class AboutDialog(tk.Toplevel):
         footer_content = tk.Frame(footer, bg=theme.bg_secondary)
         footer_content.pack(pady=12, padx=15, fill=tk.X)
         
+        actions = tk.Frame(footer_content, bg=theme.bg_secondary)
+        actions.pack(fill=tk.X)
+
+        logs_btn = ModernButton(
+            actions, text="Open Logs",
+            font=FONTS.small(), command=self._open_logs,
+            padx=12, pady=6
+        )
+        logs_btn.pack(side=tk.LEFT, padx=(0, 8))
+
         copy_btn = ModernButton(
-            footer_content, text="Copy diagnostics",
+            actions, text="Copy Diagnostics",
             font=FONTS.small(), command=self._copy_system_info,
             padx=12, pady=6
         )
-        copy_btn.pack(side=tk.LEFT)
+        copy_btn.pack(side=tk.LEFT, padx=(0, 8))
+
+        bundle_btn = ModernButton(
+            actions, text="Export Redacted Bundle",
+            font=FONTS.small(), command=self._export_support_bundle,
+            padx=12, pady=6
+        )
+        bundle_btn.pack(side=tk.LEFT)
 
         close_btn = ModernButton(
-            footer_content, text="Close", style="primary",
+            actions, text="Close", style="primary",
             font=FONTS.body(), command=self.destroy,
             padx=20, pady=6
         )
         close_btn.pack(side=tk.RIGHT)
+
+        tk.Label(
+            footer_content, textvariable=self.status_var, bg=theme.bg_secondary,
+            fg=theme.text_secondary, font=FONTS.small(), anchor="w",
+            wraplength=650, justify=tk.LEFT
+        ).pack(fill=tk.X, pady=(8, 0))
     
     def _create_about_tab(self, notebook, theme):
         """Create About tab"""
@@ -304,19 +335,33 @@ to deal in the Software without restriction.
     
     def _copy_system_info(self):
         """Copy system info to clipboard"""
-        info = f"""{APP_NAME} v{APP_VERSION}
-Build: {BUILD_TYPE} ({BUILD_DATE})
-Python: {sys.version.split()[0]}
-Platform: {platform.system()} {platform.release()} ({platform.machine()})
-Tk: {tk.TkVersion}
-PIL: {'Yes' if HAS_PIL else 'No'}
-Tray: {'Yes' if HAS_TRAY else 'No'}
-Data: {APP_DIR}"""
+        info = format_diagnostics(build_diagnostics_snapshot())
         
         self.clipboard_clear()
         self.clipboard_append(info)
-        
-        # Feedback
-        original_title = self.title()
-        self.title("Copied to clipboard")
-        self.after(1500, lambda: self.title(original_title))
+        self._set_status("Diagnostics copied to clipboard.")
+
+    def _open_logs(self):
+        """Open the logs directory in the OS file manager."""
+        LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            if sys.platform.startswith("win"):
+                os.startfile(LOG_FILE.parent)  # type: ignore[attr-defined]
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", str(LOG_FILE.parent)])
+            else:
+                subprocess.Popen(["xdg-open", str(LOG_FILE.parent)])
+            self._set_status(f"Opened logs: {LOG_FILE.parent}")
+        except Exception as exc:
+            self._set_status(f"Could not open logs: {exc}")
+
+    def _export_support_bundle(self):
+        """Export a redacted support bundle."""
+        try:
+            bundle_path = export_redacted_support_bundle()
+            self._set_status(f"Redacted support bundle exported: {bundle_path}")
+        except Exception as exc:
+            self._set_status(f"Support bundle export failed: {exc}")
+
+    def _set_status(self, message: str):
+        self.status_var.set(message)

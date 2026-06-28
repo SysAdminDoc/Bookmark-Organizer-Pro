@@ -334,6 +334,13 @@ BOOKMARK_DEBUG=1 python main.py
 
 Log file location: `~/.bookmark_organizer/logs/bookmark_organizer.log`
 
+### Diagnostics and Support Bundle
+
+- **Help > About > Open Logs** opens the log directory.
+- **Copy Diagnostics** copies app/version/platform/dependency status and recent redacted errors.
+- **Export Redacted Bundle** writes a ZIP under `~/.bookmark_organizer/exports/support_bundles/` with diagnostics and redacted recent logs.
+- Support bundles exclude bookmark contents and redact API keys, bearer tokens, passwords, and secret-like values.
+
 ### Backup and Recovery
 
 **Create manual backup:**
