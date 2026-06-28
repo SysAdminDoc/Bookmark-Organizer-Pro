@@ -10,10 +10,11 @@ Trust and metadata repair pass.
 
 - Preserved `read_later` from extension and local API saves, including ordered queue positions for new read-later bookmarks.
 - Added API and extension contract coverage for popup saves, side-panel saves, Chrome Reading List imports, context-menu quick saves, auth failures, duplicate handling, and field preservation.
-- Refreshed README, working notes, and MCP tool metadata to match the live 56 CLI commands, 450 collected tests, 48 categories, 7,550 rules, keyring-first secret storage, and optional tray availability.
+- Refreshed README, working notes, and MCP tool metadata to match the live 56 CLI commands, 452 collected tests, 48 categories, 7,550 rules, keyring-first secret storage, and optional tray availability.
 - Replaced blocking maintenance confirmations/results with immediate toast/status/report flows, automatic safepoints, and a Tools-menu restore command for bulk cleanup changes.
 - Added in-dialog restore for category deletion so the category manager can delete immediately without a confirmation modal.
 - Added About/System diagnostics actions for opening logs, copying a redacted diagnostics summary, and exporting a redacted support bundle without bookmark contents or secrets.
+- Regenerated the gettext template and added a local `python -m bookmark_organizer_pro.i18n --check` plus pytest freshness gate so source-string drift fails locally.
 - Added an early `main.py --version` exit path and entry-point `freeze_support()` so packaged artifact smoke checks do not start the GUI.
 - Documented and collected the `jaraco.text` packaging helper required by PyInstaller's `pkg_resources` runtime hook.
 - Stopped `run_with_timeout()` from retaining executor resources after timeout and hardened its regression test against scheduler noise.

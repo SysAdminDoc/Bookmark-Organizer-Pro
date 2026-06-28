@@ -32,7 +32,7 @@ Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter book
 - **Security:** AES-256-GCM encrypted DB, SSRF guards, prompt sanitization, API auth tokens, keyring storage
 - **Import/Export:** 14 importers (incl. Pocket, Readwise, Pinboard, Instapaper, Reddit, Matter, Zotero), 13 export formats (HTML/JSON/CSV/OPML/XBEL/Markdown/ZIP/Obsidian/EPUB/Atom/JSON Feed/Zotero RDF/Graph JSON)
 - **UI:** 11 themes (incl. WCAG AA high-contrast), optional sv-ttk Sun Valley base theme, command palette, toast notifications, zoom, high-DPI, dashboard analytics, tksheet-backed virtualized bookmark list, desktop reader pane with highlights/notes/export, desktop graph view
-- **CLI:** 56 subcommands, 450 collected tests in the current suite
+- **CLI:** 56 subcommands, 452 collected tests in the current suite
 - **Desktop:** Python ≥3.10, Tkinter, PyInstaller binary, cross-platform (Windows primary, macOS/Linux)
 
 ### Competitive Position (June 2026)
@@ -511,7 +511,7 @@ without blocking clients that only send JSON-RPC bodies. Details:
 |---|------|------|--------|--------|
 | ✅ R-48 | **Keyboard accessibility** — F6 cycles focus between search/sidebar/tree/chat. make_keyboard_activatable now uses theme accent for focus ring. Tab order across sidebar filter buttons via takefocus. | Done | L | [S-29][S-63] |
 | ✅ R-49 | High-contrast WCAG AA theme | Done | S | [S-29][S-63] |
-| ✅ R-50 | **gettext i18n scaffolding** — i18n.py with _(), ngettext(), setup_locale(), and _generate_pot() for template extraction. locale/ directory with README for translators. | Done | M | [S-30][S-68] |
+| ✅ R-50 | **gettext i18n scaffolding** — i18n.py with _(), ngettext(), setup_locale(), template extraction, and freshness checking. locale/ directory with README for translators. | Done | M | [S-30][S-68] |
 
 ---
 
@@ -836,13 +836,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 > Added 2026-06-20 from `RESEARCH.md` research pass 2 (source S-128). Updated 2026-06-25 from research pass 3 (source S-145). Updated 2026-06-26 from research pass 4 (source S-160). Items verified against existing ROADMAP to avoid duplicates.
 
 ### P1 — Reliability, feedback, and verification
-
-- [ ] P1 — Regenerate and gate gettext template freshness
-  Why: The gettext template is stale after Assistant copy changes, so future translations will miss or mistranslate current UI labels.
-  Evidence: `locale/bop.pot:30`; `bookmark_organizer_pro/app_mixins/tools.py:39`; `locale/README.md`
-  Touches: `bookmark_organizer_pro/i18n.py`, `locale/bop.pot`, `tests/`, `.github/workflows/ci.yml`
-  Acceptance: `python -m bookmark_organizer_pro.i18n` produces a fresh POT; CI or tests fail when source strings drift from `locale/bop.pot`.
-  Complexity: S
 
 - [ ] P1 — Add visual regression screenshots for core desktop and extension surfaces
   Why: Repeated premium UI passes changed many Tk and extension surfaces without automated protection against blank, clipped, low-contrast, or broken states.

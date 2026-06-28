@@ -16,11 +16,20 @@ python -m bookmark_organizer_pro.i18n
 
 This scans all `.py` files for `_("...")` calls and overwrites `locale/bop.pot`.
 
+## Checking template freshness
+
+```bash
+python -m bookmark_organizer_pro.i18n --check
+```
+
+This exits non-zero when source strings have drifted from `locale/bop.pot`.
+The pytest suite also checks the committed template against the generator.
+
 ## Directory structure
 
 ```
 locale/
-├── bop.pot              # Template (auto-generated)
+├── bop.pot              # Template (auto-generated and test-gated)
 ├── README.md            # This file
 └── <lang>/
     └── LC_MESSAGES/
