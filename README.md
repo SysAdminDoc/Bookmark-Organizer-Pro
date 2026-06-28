@@ -41,6 +41,7 @@ shipping UI or extension changes:
 ```bash
 python scripts/visual_regression_smoke.py
 python scripts/accessibility_contract_smoke.py
+python scripts/dependency_vulnerability_audit.py
 ```
 
 The smoke writes screenshots to a temporary directory, exercises dark/light
@@ -50,6 +51,10 @@ Playwright browsers once with `python -m playwright install chromium` if the
 extension smoke reports a missing Chromium runtime.
 The accessibility smoke verifies extension labels, status regions, tab roles,
 and Tk keyboard-focus activation contracts.
+The dependency audit resolves `requirements.txt` with `pip-audit`, reports
+actionable vulnerability IDs and fix versions, and requires every suppression in
+`security/pip_audit_suppressions.json` to include package, version, ID, and
+rationale.
 
 ### v6 CLI quickstart
 

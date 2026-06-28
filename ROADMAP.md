@@ -837,13 +837,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P1 — Reliability, feedback, and verification
 
-- [ ] P1 — Add recurring dependency vulnerability audit
-  Why: Recent work repeatedly patched dependency CVEs, but CI has no scheduled pip-audit/OSV-style guard to surface new vulnerable transitive packages early.
-  Evidence: `pyproject.toml`; `requirements.txt`; `.github/workflows/ci.yml`; Requests/FastMCP/cryptography changelogs; pip-audit
-  Touches: `.github/workflows/ci.yml`, `pyproject.toml`, `requirements.txt`, optional Dependabot/security workflow config
-  Acceptance: A scheduled and PR-triggered dependency audit checks installed core plus optional extras where practical, reports actionable CVEs, and documents suppressions with package/version/CVE rationale.
-  Complexity: S
-
 - [ ] P1 — Smoke-test release artifacts before upload
   Why: The release workflow builds and uploads Windows/Linux/macOS binaries but does not execute the final renamed artifacts before publishing them.
   Evidence: `.github/workflows/build.yml:71-109`; `packaging/nuitka_smoke.py`; `tests/test_packaging.py`
