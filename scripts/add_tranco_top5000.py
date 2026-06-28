@@ -71,8 +71,7 @@ KNOWN_SITES = {
     # Major platforms
     "facebook.com": "Social Media", "instagram.com": "Social Media",
     "twitter.com": "Social Media", "x.com": "Social Media",
-    "linkedin.com": "Social Media", "pinterest.com": "Social Media",
-    "tiktok.com": "Social Media", "snapchat.com": "Social Media",
+    "pinterest.com": "Social Media", "snapchat.com": "Social Media",
     "reddit.com": "Forums", "quora.com": "Forums",
     "discord.com": "Forums", "telegram.org": "Social Media",
     "whatsapp.com": "Social Media", "messenger.com": "Social Media",
@@ -314,8 +313,7 @@ KNOWN_SITES = {
     "myfreecams.com": "Adult Content", "camsoda.com": "Adult Content",
 
     # Software
-    "microsoft.com": "Technology", "apple.com": "Technology",
-    "google.com": "Technology", "mozilla.org": "Software",
+    "microsoft.com": "Technology", "mozilla.org": "Software",
     "opera.com": "Software", "brave.com": "Software",
     "adobe.com": "Software", "jetbrains.com": "Software Development",
     "atlassian.com": "Software Development",
@@ -428,7 +426,7 @@ def main():
             uncategorized.append(domain)
 
     total_added = sum(len(v) for v in additions.values())
-    print(f"Tranco top 5000 analysis:")
+    print("Tranco top 5000 analysis:")
     print(f"  Skipped (infrastructure): {skipped_infra}")
     print(f"  Already in patterns: {skipped_existing}")
     print(f"  Categorized: {total_added}")
@@ -469,7 +467,7 @@ def main():
 
     print(f"\nDone. Added {total_added} Tranco top-5000 domains.")
     if uncategorized:
-        print(f"\nUncategorized domains (not added, first 50):")
+        print("\nUncategorized domains (not added, first 50):")
         for d in uncategorized[:50]:
             print(f"  {d}")
 

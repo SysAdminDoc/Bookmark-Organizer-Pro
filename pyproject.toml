@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bookmark-organizer-pro"
-version = "6.8.3"
+version = "6.8.4"
 description = "Professional bookmark manager with AI categorization, semantic search, MCP server, and HTML snapshots"
 readme = "README.md"
 license = {text = "MIT"}
@@ -37,6 +37,8 @@ themedetect = ["darkdetect>=0.8"]
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
+    "pyinstaller>=6.20",
+    "jaraco.text>=4.0",
 ]
 all = [
     "bookmark-organizer-pro[tray,ai,encryption,mcp,updates,sunvalley]",

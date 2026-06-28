@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import tempfile
+import threading
 import time
 import tokenize
 import unittest
@@ -954,8 +955,9 @@ class TestRuntimeHelpers(unittest.TestCase):
     """Test generic utility helpers used by the GUI and managers."""
 
     def test_run_with_timeout_returns_without_waiting_for_slow_function(self):
+        blocker = threading.Event()
         started = time.perf_counter()
-        result = run_with_timeout(lambda: (time.sleep(0.5), "done")[1], 0.05, default="timeout")
+        result = run_with_timeout(lambda: (blocker.wait(2.0), "done")[1], 0.05, default="timeout")
         elapsed = time.perf_counter() - started
 
         self.assertEqual(result, "timeout")
@@ -1590,11 +1592,21 @@ class TestMainAppManagers(unittest.TestCase):
                 status, body = post_json(base_url, {
                     "url": "https://example.com/path?utm_source=x",
                     "title": "Example",
+                    "category": "Research",
                     "tags": "AI, ai, tools",
+                    "notes": "Captured from extension",
+                    "read_later": True,
                 }, token=token)
                 self.assertEqual(status, 201)
+                self.assertEqual(body["category"], "Research")
                 self.assertEqual(body["tags"], ["AI", "tools"])
+                self.assertEqual(body["notes"], "Captured from extension")
+                self.assertTrue(body["read_later"])
+                self.assertEqual(body["read_later_position"], 0)
                 self.assertEqual(len(manager.bookmarks), 1)
+                created = next(iter(manager.bookmarks.values()))
+                self.assertTrue(created.read_later)
+                self.assertEqual(created.read_later_position, 0)
 
                 status, body = post_json(base_url, {"url": "https://example.com/path"}, token=token)
                 self.assertEqual(status, 409)

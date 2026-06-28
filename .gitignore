@@ -59,6 +59,7 @@ default_improvements*.json
 # Markdown files local-only (except README, ROADMAP, and Roadmap_Blocked)
 *.md
 !README.md
+!CHANGELOG.md
 !ROADMAP.md
 !Roadmap_Blocked.md
 !RESEARCH.md

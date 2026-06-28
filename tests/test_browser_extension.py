@@ -60,6 +60,14 @@ class TestBrowserExtensionManifest(unittest.TestCase):
         self.assertIn("/search?q=", sp_js)
         self.assertIn("Bearer", shared_js)
 
+    def test_extension_save_payloads_include_read_later_state(self):
+        popup_js = (EXT_DIR / "popup.js").read_text(encoding="utf-8")
+        sidepanel_js = (EXT_DIR / "sidepanel.js").read_text(encoding="utf-8")
+
+        self.assertIn('read_later: document.getElementById("readLater").checked', popup_js)
+        self.assertIn('read_later: document.getElementById("addReadLater").checked', sidepanel_js)
+        self.assertIn("read_later: !item.hasBeenRead", sidepanel_js)
+
     def test_extension_assets_exist(self):
         for name in [
             "manifest.json",
@@ -77,11 +85,13 @@ class TestBrowserExtensionManifest(unittest.TestCase):
     def test_release_metadata_versions_match_app_version(self):
         pyproject_text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         manifest = json.loads((EXT_DIR / "manifest.json").read_text(encoding="utf-8"))
+        main_text = (ROOT / "main.py").read_text(encoding="utf-8")
         spec_text = (ROOT / "packaging" / "bookmark_organizer.spec").read_text(encoding="utf-8")
         version_info = (ROOT / "packaging" / "version_info.txt").read_text(encoding="utf-8")
 
         self.assertRegex(pyproject_text, re.compile(rf'^version = "{re.escape(APP_VERSION)}"$', re.MULTILINE))
         self.assertEqual(manifest["version"], APP_VERSION)
+        self.assertIn(f'BOOTSTRAP_APP_VERSION = "{APP_VERSION}"', main_text)
         self.assertIn(f'APP_VERSION = "{APP_VERSION}"', spec_text)
 
         file_version = ".".join((*APP_VERSION.split("."), "0"))

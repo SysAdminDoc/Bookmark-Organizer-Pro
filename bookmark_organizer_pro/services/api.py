@@ -29,6 +29,20 @@ _KEYRING_SERVICE = "bookmark-organizer-pro"
 _KEYRING_KEY = "api_token"
 
 
+def _coerce_bool(value, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "y", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "n", "off"}:
+            return False
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return default
+
+
 def _load_or_create_token() -> str:
     # 1. Try keyring first
     try:
@@ -337,6 +351,7 @@ class BookmarkAPI:
                             category=str(data.get('category') or 'Uncategorized / Needs Review').strip(),
                             tags=[str(t).strip() for t in tags if str(t).strip()],
                             notes=str(data.get('notes') or '')[:5000],
+                            read_later=_coerce_bool(data.get('read_later', False)),
                         )
                         if bookmark is None:
                             status = 409 if bookmark_manager.url_exists(raw_url) else 400

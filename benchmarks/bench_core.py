@@ -12,7 +12,6 @@ import os
 import shutil
 import tempfile
 import time
-from pathlib import Path
 
 
 def _setup_env():
@@ -52,7 +51,7 @@ def bench_json_save_load(sizes=(100, 500, 1000, 5000)):
         save_ms = (time.perf_counter() - t0) * 1000
 
         t0 = time.perf_counter()
-        loaded = json.loads(MASTER_BOOKMARKS_FILE.read_text(encoding="utf-8"))
+        json.loads(MASTER_BOOKMARKS_FILE.read_text(encoding="utf-8"))
         load_ms = (time.perf_counter() - t0) * 1000
 
         size_kb = MASTER_BOOKMARKS_FILE.stat().st_size / 1024

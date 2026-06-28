@@ -3,7 +3,7 @@
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **single-file HTML snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
-![Version](https://img.shields.io/badge/Version-v6.8.3-2dd4bf.svg)
+![Version](https://img.shields.io/badge/Version-v6.8.4-2dd4bf.svg)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
@@ -61,12 +61,14 @@ saves the active HTTP/HTTPS tab through the local BOP API.
 # Terminal 1: keep the local API available
 bop api-server --port 8765
 
-# Terminal 2: optional token lookup for extension Options
+# Terminal 2: fallback token lookup if OS keyring storage is unavailable
 Get-Content "$env:USERPROFILE\.bookmark_organizer\api_token.txt"
 ```
 
 Load `browser-extension/` as an unpacked extension, open its Options page, enter
-the API token and port, then use the toolbar popup to save the current tab.
+the API token and port, then use the toolbar popup to save the current tab. The
+API stores tokens in the OS keyring when available and only writes the fallback
+file above when keyring storage is unavailable.
 Native messaging and offline category/tag suggestions remain on the roadmap.
 
 ## Features
@@ -90,7 +92,7 @@ Native messaging and offline category/tag suggestions remain on the roadmap.
 - **10+ Built-in Themes**: GitHub Dark/Light, Dracula, Nord, Monokai, Tokyo Night, and more
 - **Custom Themes**: Create, import, and export custom color schemes
 - **High DPI Support**: Crisp rendering on high-resolution displays
-- **System Tray**: Quick access without opening full window
+- **System Tray**: Optional quick access when `pystray` is installed
 - **Keyboard Shortcuts**: Complete keyboard navigation
 - **Command Palette**: Quick access to all commands (Ctrl+P)
 
@@ -108,7 +110,7 @@ Native messaging and offline category/tag suggestions remain on the roadmap.
 - **Page Metadata Fetch**: Auto-fetch title, description, and favicon from live URLs
 - **Wayback Machine Integration**: Check archive.org for snapshots, submit pages for archival
 - **URL Normalization**: RFC 3986 canonicalization for precise deduplication
-- **4,200+ Categorization Patterns**: 32 categories covering 3,400+ domains with 768 keyword fallbacks
+- **7,550 Categorization Patterns**: 48 categories with curated domain, keyword, and regex rules
 - **Redirect Detection**: Link checker detects and offers to fix redirected URLs
 - **Batch Metadata Refresh**: Multi-threaded re-fetch of all bookmark titles/descriptions
 - **Random Bookmark**: Rediscover forgotten bookmarks
@@ -228,7 +230,7 @@ react OR vue                       # Boolean OR
 ### Safety Notes
 
 - Network tools skip private, localhost, and unsupported URL schemes to avoid leaking or fetching internal resources.
-- AI API keys are stored locally in `~/.bookmark_organizer/ai_config.json`; use environment variables if you prefer not to write keys into the app config file.
+- AI API keys are stored in the OS keyring when available; `~/.bookmark_organizer/ai_config.json` stores provider settings and is used as a locked-down fallback if keyring storage is unavailable.
 - Imports, exports, settings, and category files are written defensively with atomic writes where supported.
 
 ### Theme Customization
@@ -252,7 +254,7 @@ react OR vue                       # Boolean OR
 | Categories | `~/.bookmark_organizer/categories.json` | Category definitions |
 | Tags | `~/.bookmark_organizer/tags.json` | Tag definitions |
 | Settings | `~/.bookmark_organizer/settings.json` | App preferences |
-| AI Config | `~/.bookmark_organizer/ai_config.json` | AI provider settings |
+| AI Config | `~/.bookmark_organizer/ai_config.json` | AI provider settings and keyring-unavailable fallback |
 | Themes | `~/.bookmark_organizer/themes/` | Custom themes |
 | Backups | `~/.bookmark_organizer/backups/` | Automatic backups |
 | Favicons | `~/.bookmark_organizer/favicons/` | Cached favicons |

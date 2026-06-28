@@ -21,18 +21,18 @@
 
 ---
 
-## State of the Project (v6.6.30)
+## State of the Project (v6.8.4)
 
-Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.6.30:
+Bookmark Organizer Pro is a **local-first, privacy-centric** Python/Tkinter bookmark manager. At v6.8.4:
 
-- **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,500+ patterns across 43 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
+- **AI:** 6 providers (OpenAI, Anthropic, Gemini, Groq, Ollama, DeepSeek), auto-categorization with 7,550 patterns across 48 categories, tag suggestions, title improvement, citation-aware summaries, conversational RAG, NL-to-structured-query
 - **Search:** Full-text boolean (15+ filter types) + semantic vector (LanceDB + FastEmbed) + hybrid RRF + optional cross-encoder re-rank
 - **MCP server:** 27 typed tools — one of ~4 bookmark managers with MCP (alongside Raindrop.io, Karakeep, Burn 451) [S-60][S-74][S-78]
 - **Preservation:** Single-file HTML snapshots (4-backend chain: monolith → singlefile → playwright → python), dead-link scanner, Wayback Machine, auto-snapshot scheduler
 - **Security:** AES-256-GCM encrypted DB, SSRF guards, prompt sanitization, API auth tokens, keyring storage
 - **Import/Export:** 14 importers (incl. Pocket, Readwise, Pinboard, Instapaper, Reddit, Matter, Zotero), 13 export formats (HTML/JSON/CSV/OPML/XBEL/Markdown/ZIP/Obsidian/EPUB/Atom/JSON Feed/Zotero RDF/Graph JSON)
 - **UI:** 11 themes (incl. WCAG AA high-contrast), optional sv-ttk Sun Valley base theme, command palette, toast notifications, zoom, high-DPI, dashboard analytics, tksheet-backed virtualized bookmark list, desktop reader pane with highlights/notes/export, desktop graph view
-- **CLI:** 39 subcommands, 361 tests in the current suite
+- **CLI:** 56 subcommands, 440 collected tests in the current suite
 - **Desktop:** Python ≥3.10, Tkinter, PyInstaller binary, cross-platform (Windows primary, macOS/Linux)
 
 ### Competitive Position (June 2026)
@@ -834,22 +834,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 ## Research-Driven Additions
 
 > Added 2026-06-20 from `RESEARCH.md` research pass 2 (source S-128). Updated 2026-06-25 from research pass 3 (source S-145). Updated 2026-06-26 from research pass 4 (source S-160). Items verified against existing ROADMAP to avoid duplicates.
-
-### P0 — Trust and data fidelity
-
-- [ ] P0 — Preserve Read Later state from extension and API saves
-  Why: The extension exposes Read Later and imports Chrome Reading List unread state, but the local API drops the field before creating the bookmark.
-  Evidence: `browser-extension/popup.js:84`; `browser-extension/sidepanel.js:175,238`; `bookmark_organizer_pro/services/api.py:334-340`; Chrome Reading List API
-  Touches: `bookmark_organizer_pro/services/api.py`, `bookmark_organizer_pro/managers/bookmarks.py`, `tests/test_core.py`, `tests/test_browser_extension.py`
-  Acceptance: POST `/bookmarks` with `read_later: true` creates a bookmark with `read_later=True` and queue position; Reading List import preserves unread/read state; duplicate and invalid payload behavior still passes tests.
-  Complexity: S
-
-- [ ] P0 — Repair user-facing and AI-facing capability metadata
-  Why: README, roadmap, and MCP copy advertise stale pattern counts, CLI/test counts, tray behavior, and secret-storage behavior, which erodes user and agent trust.
-  Evidence: `README.md:65,93,111,231,318`; `ROADMAP.md:35`; `bookmark_organizer_pro/mcp_server.py:876`; `bookmark_organizer_pro/core/default_categories.py`; `bookmark_organizer_pro/ai.py:359-395`; `bookmark_organizer_pro/services/api.py:27-67`
-  Touches: `README.md`, `ROADMAP.md`, `bookmark_organizer_pro/mcp_server.py`, `bookmark_organizer_pro/ui/about.py`, `CLAUDE.md`
-  Acceptance: Public docs and MCP tool descriptions match actual 56 CLI subcommands, 439 collected tests, 48 categories, 7,550 patterns, keyring-first token/key storage, current Assistant Settings path, and actual tray availability.
-  Complexity: S
 
 ### P1 — Reliability, feedback, and verification
 

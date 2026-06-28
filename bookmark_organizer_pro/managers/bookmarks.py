@@ -817,6 +817,9 @@ class BookmarkManager:
                 id=None, url=clean, title=title or clean,
                 category=category, tags=tags or [], **kwargs
             )
+            if bm.read_later and bm.read_later_position == 0:
+                from bookmark_organizer_pro.services.read_later import ReadLaterQueue
+                ReadLaterQueue.enqueue(bm, all_bookmarks=self.bookmarks.values())
             return self.add_bookmark(bm)
 
     def find_broken_links(self) -> List[Bookmark]:

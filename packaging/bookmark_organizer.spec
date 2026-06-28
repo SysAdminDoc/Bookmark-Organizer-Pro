@@ -23,7 +23,7 @@ import sys
 # =============================================================================
 
 APP_NAME = "Bookmark Organizer Pro"
-APP_VERSION = "6.8.3"
+APP_VERSION = "6.8.4"
 SCRIPT_NAME = "main.py"
 ICON_FILE = "bookmark_organizer.ico"
 PNG_ICON_FILE = "bookmark_organizer.png"
@@ -68,6 +68,12 @@ hidden_imports = [
     'io',
     're',
     'collections',
+    # Setuptools/pkg_resources runtime hook helpers
+    'jaraco.text',
+    'jaraco.context',
+    'jaraco.functools',
+    'more_itertools',
+    'backports.tarfile',
     # Optional dependencies (won't fail if not installed)
     'PIL',
     'PIL.Image',

@@ -15,7 +15,30 @@ A powerful, modern bookmark manager with:
 - Professional UI with DPI awareness
 """
 
+import multiprocessing
+import sys
+
+multiprocessing.freeze_support()
+
+BOOTSTRAP_APP_NAME = "Bookmark Organizer Pro"
+BOOTSTRAP_APP_VERSION = "6.8.4"
+
+if __name__ == "__main__" and any(arg in {"--version", "-V"} for arg in sys.argv[1:]):
+    stdout = getattr(sys, "stdout", None)
+    if stdout is not None:
+        try:
+            stdout.write(f"{BOOTSTRAP_APP_NAME} v{BOOTSTRAP_APP_VERSION}\n")
+            stdout.flush()
+        except Exception:
+            pass
+    raise SystemExit(0)
+
 import webbrowser
+
+from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION
+from bookmark_organizer_pro.logging_config import log
+from bookmark_organizer_pro.ui.widget_runtime import set_widget_window_chrome_provider
+from bookmark_organizer_pro.utils.runtime import csv_safe_cell, open_external_url
 
 # =============================================================================
 # Public compatibility imports
@@ -23,7 +46,7 @@ import webbrowser
 # =============================================================================
 from bookmark_organizer_pro import *  # noqa: F403 - legacy main.py export surface
 from bookmark_organizer_pro.ui import *  # noqa: F403 - legacy UI export surface
-from bookmark_organizer_pro.theme_runtime import BUILT_IN_THEMES, get_theme, get_theme_manager
+from bookmark_organizer_pro.theme_runtime import BUILT_IN_THEMES, get_theme, get_theme_manager  # noqa: F401
 
 log.info(f"Starting {APP_NAME} v{APP_VERSION}")
 
@@ -38,14 +61,14 @@ def _open_external_url(url: str) -> bool:
 
 from bookmark_organizer_pro import desktop_bootstrap as _desktop_bootstrap
 from bookmark_organizer_pro.desktop_bootstrap import (
-    APP_ICON_BASE64,
-    ASSETS_DIR,
-    BUNDLE_ROOT,
-    SOURCE_ROOT,
-    get_embedded_icon,
+    APP_ICON_BASE64,  # noqa: F401
+    ASSETS_DIR,  # noqa: F401
+    BUNDLE_ROOT,  # noqa: F401
+    SOURCE_ROOT,  # noqa: F401
+    get_embedded_icon,  # noqa: F401
     set_dark_title_bar,
-    set_window_icon,
-    setup_dpi_awareness,
+    set_window_icon,  # noqa: F401
+    setup_dpi_awareness,  # noqa: F401
 )
 
 
@@ -74,7 +97,7 @@ _sync_dependency_globals()
 set_widget_window_chrome_provider(set_dark_title_bar)
 
 
-from bookmark_organizer_pro.app import FinalBookmarkOrganizerApp
+from bookmark_organizer_pro.app import FinalBookmarkOrganizerApp  # noqa: F401
 from bookmark_organizer_pro.launcher import main as _launcher_main
 
 

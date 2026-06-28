@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Add categorized domains from user's bookmark file to default_categories.py."""
 
-import re
 import sys
 sys.path.insert(0, ".")
 
