@@ -2020,6 +2020,79 @@ class TestRESTAPIEndpoints(unittest.TestCase):
             finally:
                 api.stop()
 
+    def test_api_bookmarks_supports_pagination_and_filter_parity(self):
+        import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            fixtures = [
+                Bookmark(
+                    id=1,
+                    url="https://example.com/old",
+                    title="Old",
+                    category="Research",
+                    tags=["python"],
+                    created_at="2024-01-01T00:00:00",
+                    read_later=True,
+                    read_later_position=2,
+                ),
+                Bookmark(
+                    id=2,
+                    url="https://example.com/new-pinned",
+                    title="New Pinned",
+                    category="Research",
+                    tags=["python", "api"],
+                    created_at="2024-01-03T00:00:00",
+                    read_later=True,
+                    read_later_position=1,
+                    is_pinned=True,
+                ),
+                Bookmark(
+                    id=3,
+                    url="https://example.com/other",
+                    title="Other",
+                    category="Development",
+                    tags=["api"],
+                    created_at="2024-01-02T00:00:00",
+                ),
+            ]
+            for bookmark in fixtures:
+                manager.add_bookmark(bookmark, save=False)
+
+            api = main.BookmarkAPI(manager, port=0)
+            try:
+                api.start()
+                token = self._get_token()
+                base = f"http://127.0.0.1:{api.port}"
+
+                status, body = self._get_json(base, "/bookmarks?limit=1&offset=0", token)
+                self.assertEqual(status, 200)
+                self.assertEqual(body["count"], 3)
+                self.assertEqual(body["returned"], 1)
+                self.assertEqual(body["next_offset"], 1)
+                self.assertTrue(body["has_more"])
+                self.assertEqual(body["bookmarks"][0]["title"], "New Pinned")
+
+                status, body = self._get_json(base, "/bookmarks?limit=1&offset=1", token)
+                self.assertEqual(status, 200)
+                self.assertEqual(body["returned"], 1)
+                self.assertEqual(body["next_offset"], 2)
+                self.assertEqual(body["bookmarks"][0]["title"], "Other")
+
+                status, body = self._get_json(base, "/bookmarks?tag=python&read_later_only=true", token)
+                self.assertEqual(status, 200)
+                self.assertEqual(body["count"], 2)
+                self.assertEqual([bm["title"] for bm in body["bookmarks"]], ["New Pinned", "Old"])
+
+                status, body = self._get_json(base, "/bookmarks?pinned_only=true", token)
+                self.assertEqual(status, 200)
+                self.assertEqual(body["count"], 1)
+                self.assertFalse(body["has_more"])
+                self.assertIsNone(body["next_offset"])
+                self.assertEqual(body["bookmarks"][0]["title"], "New Pinned")
+            finally:
+                api.stop()
+
     def test_api_digest_endpoint(self):
         import main
 

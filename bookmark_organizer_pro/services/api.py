@@ -43,6 +43,13 @@ def _coerce_bool(value, default: bool = False) -> bool:
     return default
 
 
+def _clamp_int(value, default: int, *, minimum: int = 0, maximum: int = 100_000) -> int:
+    try:
+        return max(minimum, min(maximum, int(value)))
+    except (TypeError, ValueError):
+        return default
+
+
 def _load_or_create_token() -> str:
     # 1. Try keyring first
     try:
@@ -239,19 +246,36 @@ class BookmarkAPI:
                     else:
                         # List bookmarks
                         category = params.get('category', [None])[0]
-                        try:
-                            limit = max(1, min(500, int(params.get('limit', [100])[0])))
-                        except (TypeError, ValueError):
-                            limit = 100
-                        
+                        tag = params.get('tag', [None])[0]
+                        limit = _clamp_int(params.get('limit', [100])[0], 100, minimum=1, maximum=500)
+                        offset = _clamp_int(params.get('offset', [0])[0], 0, minimum=0, maximum=100_000)
+                        read_later_only = _coerce_bool(params.get('read_later_only', [False])[0])
+                        pinned_only = _coerce_bool(params.get('pinned_only', [False])[0])
+
                         if category:
-                            bookmarks = bookmark_manager.get_bookmarks_by_category(category)
+                            bookmarks = [
+                                bm for bm in bookmark_manager.get_all_bookmarks()
+                                if bm.category == category or bm.parent_category == category
+                            ]
                         else:
                             bookmarks = bookmark_manager.get_all_bookmarks()
-                        
+                        if tag:
+                            tag_l = tag.lower()
+                            bookmarks = [bm for bm in bookmarks if any(t.lower() == tag_l for t in bm.tags)]
+                        if read_later_only:
+                            bookmarks = [bm for bm in bookmarks if bm.read_later]
+                        if pinned_only:
+                            bookmarks = [bm for bm in bookmarks if bm.is_pinned]
+                        bookmarks.sort(key=lambda bm: (bm.created_at, bm.id or 0), reverse=True)
+                        page = bookmarks[offset: offset + limit]
+                        next_offset = offset + len(page)
+
                         self._send_json({
                             "count": len(bookmarks),
-                            "bookmarks": [asdict(bm) for bm in bookmarks[:limit]]
+                            "returned": len(page),
+                            "next_offset": next_offset if next_offset < len(bookmarks) else None,
+                            "has_more": next_offset < len(bookmarks),
+                            "bookmarks": [asdict(bm) for bm in page]
                         })
                 
                 elif path_parts[0] == 'categories':

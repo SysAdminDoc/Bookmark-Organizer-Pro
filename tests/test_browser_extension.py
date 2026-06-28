@@ -91,6 +91,17 @@ class TestBrowserExtensionManifest(unittest.TestCase):
         self.assertIn("/search?q=", sp_js)
         self.assertIn("Bearer", shared_js)
 
+    def test_sidepanel_uses_paginated_recent_load_more(self):
+        sidepanel_html = (EXT_DIR / "sidepanel.html").read_text(encoding="utf-8")
+        sidepanel_js = (EXT_DIR / "sidepanel.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="loadMoreRecent"', sidepanel_html)
+        self.assertIn("RECENT_PAGE_SIZE", sidepanel_js)
+        self.assertIn("offset=${recentOffset}", sidepanel_js)
+        self.assertIn("data.next_offset", sidepanel_js)
+        self.assertIn("data.has_more", sidepanel_js)
+        self.assertIn("append: true", sidepanel_js)
+
     def test_extension_save_payloads_include_read_later_state(self):
         popup_js = (EXT_DIR / "popup.js").read_text(encoding="utf-8")
         sidepanel_js = (EXT_DIR / "sidepanel.js").read_text(encoding="utf-8")

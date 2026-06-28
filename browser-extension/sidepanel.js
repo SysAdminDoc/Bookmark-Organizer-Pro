@@ -1,6 +1,11 @@
 /* global DEFAULTS, api, storageGet, queryTabs, executeScript, getConfig,
           baseUrl, authHeaders, isSaveableUrl, loadCategories */
 
+const RECENT_PAGE_SIZE = 30;
+let recentOffset = 0;
+let recentHasMore = false;
+let recentLoading = false;
+
 async function apiFetch(path, config) {
   const response = await fetch(`${baseUrl(config)}${path}`, {
     headers: authHeaders(config)
@@ -52,26 +57,54 @@ function showEmpty(container, message) {
   container.appendChild(p);
 }
 
-async function loadRecent() {
+function setRecentLoadMore(hasMore, label = "Load More") {
+  const button = document.getElementById("loadMoreRecent");
+  if (!button) return;
+  recentHasMore = Boolean(hasMore);
+  button.hidden = !recentHasMore;
+  button.disabled = false;
+  button.textContent = label;
+}
+
+async function loadRecent({ append = false } = {}) {
+  if (recentLoading) return;
+  recentLoading = true;
   const list = document.getElementById("recentList");
+  const loadMore = document.getElementById("loadMoreRecent");
+  if (loadMore) {
+    loadMore.disabled = true;
+    loadMore.textContent = append ? "Loading..." : "Load More";
+  }
   try {
     const config = await getConfig();
     if (!config.apiToken) {
       showEmpty(list, "Add the API token in Options to connect.");
+      setRecentLoadMore(false);
       return;
     }
-    const data = await apiFetch("/bookmarks?limit=30", config);
+    if (!append) recentOffset = 0;
+    const data = await apiFetch(`/bookmarks?limit=${RECENT_PAGE_SIZE}&offset=${recentOffset}`, config);
     const bookmarks = data.bookmarks || [];
-    if (!bookmarks.length) {
+    if (!bookmarks.length && !append) {
       showEmpty(list, "No bookmarks yet. Save the current page from the Add tab.");
+      setRecentLoadMore(false);
       return;
     }
-    list.innerHTML = "";
-    for (const bm of bookmarks.slice(0, 30)) {
+    if (!append) list.innerHTML = "";
+    for (const bm of bookmarks) {
       list.appendChild(renderBookmark(bm));
     }
+    recentOffset = Number.isInteger(data.next_offset) ? data.next_offset : recentOffset + bookmarks.length;
+    setRecentLoadMore(Boolean(data.has_more));
   } catch {
-    showEmpty(list, "Cannot reach the local API. Start the app or run: bop api-server");
+    if (append) {
+      setRecentLoadMore(recentHasMore, "Retry");
+    } else {
+      showEmpty(list, "Cannot reach the local API. Start the app or run: bop api-server");
+      setRecentLoadMore(false);
+    }
+  } finally {
+    recentLoading = false;
   }
 }
 
@@ -290,6 +323,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("addSaveBtn").addEventListener("click", saveBookmark);
   document.getElementById("importReadingListBtn").addEventListener("click", importReadingList);
+  document.getElementById("loadMoreRecent").addEventListener("click", () => {
+    loadRecent({ append: true });
+  });
 
   checkConnection();
   loadRecent();

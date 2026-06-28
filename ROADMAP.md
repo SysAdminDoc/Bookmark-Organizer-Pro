@@ -878,13 +878,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P1 - Contracts, docs, and scale
 
-- [ ] P1 - Add REST bookmark pagination and filter parity
-  Why: Large libraries need stable paging in the browser extension and REST API, while MCP already exposes offset and read-later filtering.
-  Evidence: `bookmark_organizer_pro/services/api.py:232-243`; `bookmark_organizer_pro/mcp_server.py:358-376`; `browser-extension/sidepanel.js:50-67`; linkding/Raindrop large-library UX
-  Touches: `bookmark_organizer_pro/services/api.py`, `browser-extension/sidepanel.js`, `browser-extension/shared.js`, `tests/test_core.py`, `tests/test_browser_extension.py`
-  Acceptance: `/bookmarks` supports `limit`, `offset`, `tag`, `read_later_only`, `pinned_only`, and deterministic sort; responses include `count`, `returned`, `next_offset`, and `has_more`; side panel can load more without replacing prior results.
-  Complexity: M
-
 ### P2 - Preservation, migration, and MCP coverage
 
 - [ ] P2 - Persist snapshot backend failure reports and retry actions

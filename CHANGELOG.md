@@ -12,6 +12,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Added a local release artifact smoke helper that executes the built distributable and verifies version output before publishing.
 - Added behavioral extension-to-local-API round-trip tests for popup, side-panel, Reading List, and context-menu save payloads.
 - Synced distribution documentation to local-only build/release commands and added a drift test for removed workflow references.
+- Added `/bookmarks` REST pagination and filter parity for tag, read-later, pinned, offset, and deterministic list responses, plus side-panel load-more behavior.
 
 ### Fixed
 
