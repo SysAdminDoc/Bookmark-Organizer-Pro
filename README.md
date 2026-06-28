@@ -42,6 +42,7 @@ shipping UI or extension changes:
 python scripts/visual_regression_smoke.py
 python scripts/accessibility_contract_smoke.py
 python scripts/dependency_vulnerability_audit.py
+python scripts/release_artifact_smoke.py --artifact dist/BookmarkOrganizerPro.exe
 ```
 
 The smoke writes screenshots to a temporary directory, exercises dark/light
@@ -55,6 +56,9 @@ The dependency audit resolves `requirements.txt` with `pip-audit`, reports
 actionable vulnerability IDs and fix versions, and requires every suppression in
 `security/pip_audit_suppressions.json` to include package, version, ID, and
 rationale.
+The release artifact smoke runs the built executable with `--version` and fails
+if the artifact is missing, unexpectedly small, reports the wrong version, or
+leaves a process running.
 
 ### v6 CLI quickstart
 

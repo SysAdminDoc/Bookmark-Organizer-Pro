@@ -837,13 +837,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P1 — Reliability, feedback, and verification
 
-- [ ] P1 — Smoke-test release artifacts before upload
-  Why: The release workflow builds and uploads Windows/Linux/macOS binaries but does not execute the final renamed artifacts before publishing them.
-  Evidence: `.github/workflows/build.yml:71-109`; `packaging/nuitka_smoke.py`; `tests/test_packaging.py`
-  Touches: `.github/workflows/build.yml`, `packaging/nuitka_build.py`, `tests/test_packaging.py`
-  Acceptance: Each OS build runs the final `dist/BookmarkOrganizerPro-* --version` artifact before upload; Linux uses xvfb if a GUI path is required; upload is skipped on startup/version failure.
-  Complexity: S
-
 ### P2 — Quality and polish
 
 - [ ] P2 — Add extension pending-save queue and retry surface
