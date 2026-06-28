@@ -63,3 +63,9 @@ default_improvements*.json
 !ROADMAP.md
 !Roadmap_Blocked.md
 !RESEARCH.md
+
+# AI config
+CODEX_CHANGELOG.md
+.ai/
+PROJECT_CONTEXT.md
+CONTINUATION_PROMPT.md
