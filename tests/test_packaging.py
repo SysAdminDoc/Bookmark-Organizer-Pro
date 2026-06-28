@@ -111,6 +111,23 @@ class TestNuitkaBuildHelper(unittest.TestCase):
         self.assertIn("updates download", doc)
         self.assertIn("updates apply", doc)
 
+    def test_distribution_docs_are_local_only(self):
+        durable_docs = [
+            ROOT / "README.md",
+            ROOT / "ROADMAP.md",
+        ]
+        structure_doc = ROOT / "docs" / "REPOSITORY_STRUCTURE.md"
+        if structure_doc.exists():
+            durable_docs.append(structure_doc)
+        for path in durable_docs:
+            text = path.read_text(encoding="utf-8")
+            self.assertNotIn(".github/workflows", text, path)
+            self.assertNotIn("GitHub Actions", text, path)
+        if structure_doc.exists():
+            structure = structure_doc.read_text(encoding="utf-8")
+            self.assertIn("python -m pytest -q", structure)
+            self.assertIn("scripts/release_artifact_smoke.py", structure)
+
 
 if __name__ == "__main__":
     unittest.main()

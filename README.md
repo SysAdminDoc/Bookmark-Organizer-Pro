@@ -487,6 +487,10 @@ MIT License - see LICENSE file for details.
 
 ## Building Standalone Executable
 
+Builds, tests, vulnerability audits, visual/accessibility checks, and release
+artifact smokes are run locally from this repository. The repo does not use
+GitHub-hosted build or release workflows.
+
 ### Prerequisites
 
 ```bash

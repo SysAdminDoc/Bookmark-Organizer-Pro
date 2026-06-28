@@ -878,13 +878,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P1 - Contracts, docs, and scale
 
-- [ ] P1 - Sync local-only distribution documentation
-  Why: The repo no longer has `.github/`, but durable docs and existing roadmap evidence still point at workflow files, which misdirects release and verification work.
-  Evidence: `docs/REPOSITORY_STRUCTURE.md:16`; `git log` commit `4d0b881`; absence of `.github/`; `packaging/nuitka_build.py`; `packaging/bookmark_organizer.spec`
-  Touches: `docs/REPOSITORY_STRUCTURE.md`, `README.md`, `ROADMAP.md`, `tests/test_packaging.py`
-  Acceptance: Public docs describe local test/build/release commands only; no durable docs cite removed workflow paths; packaging tests or a docs check catch future workflow-reference drift.
-  Complexity: S
-
 - [ ] P1 - Add REST bookmark pagination and filter parity
   Why: Large libraries need stable paging in the browser extension and REST API, while MCP already exposes offset and read-later filtering.
   Evidence: `bookmark_organizer_pro/services/api.py:232-243`; `bookmark_organizer_pro/mcp_server.py:358-376`; `browser-extension/sidepanel.js:50-67`; linkding/Raindrop large-library UX
