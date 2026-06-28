@@ -1581,6 +1581,10 @@ class TestMainAppManagers(unittest.TestCase):
                     except Exception:
                         pass
 
+                status, body = post_json(base_url, {"url": "https://unauthorized.example"})
+                self.assertEqual(status, 401)
+                self.assertIn("Unauthorized", body["error"])
+
                 status, body = post_json(base_url, "not an object", token=token)
                 self.assertEqual(status, 400)
                 self.assertIn("object", body["error"])
@@ -1598,6 +1602,7 @@ class TestMainAppManagers(unittest.TestCase):
                     "read_later": True,
                 }, token=token)
                 self.assertEqual(status, 201)
+                self.assertEqual(body["title"], "Example")
                 self.assertEqual(body["category"], "Research")
                 self.assertEqual(body["tags"], ["AI", "tools"])
                 self.assertEqual(body["notes"], "Captured from extension")

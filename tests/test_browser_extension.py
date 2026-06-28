@@ -12,6 +12,34 @@ ROOT = Path(__file__).resolve().parents[1]
 EXT_DIR = ROOT / "browser-extension"
 
 
+def extract_js_object_literal(source: str, marker: str) -> str:
+    """Return the object literal that starts after marker."""
+    marker_index = source.index(marker)
+    start = source.index("{", marker_index)
+    depth = 0
+    quote = ""
+    escaped = False
+    for index in range(start, len(source)):
+        char = source[index]
+        if quote:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = ""
+            continue
+        if char in {"'", '"', "`"}:
+            quote = char
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start:index + 1]
+    raise AssertionError(f"Object literal not found after marker: {marker}")
+
+
 class TestBrowserExtensionManifest(unittest.TestCase):
     def test_manifest_declares_mv3_popup_and_permissions(self):
         manifest = json.loads((EXT_DIR / "manifest.json").read_text(encoding="utf-8"))
@@ -67,6 +95,47 @@ class TestBrowserExtensionManifest(unittest.TestCase):
         self.assertIn('read_later: document.getElementById("readLater").checked', popup_js)
         self.assertIn('read_later: document.getElementById("addReadLater").checked', sidepanel_js)
         self.assertIn("read_later: !item.hasBeenRead", sidepanel_js)
+
+    def test_popup_save_payload_contract_maps_form_fields(self):
+        popup_js = (EXT_DIR / "popup.js").read_text(encoding="utf-8")
+        payload = extract_js_object_literal(popup_js, "const payload =")
+
+        self.assertIn("url: activeTab.url", payload)
+        self.assertIn("title: activeTab.title || activeTab.url", payload)
+        self.assertIn('category: document.getElementById("category").value.trim() || values.defaultCategory', payload)
+        self.assertIn('tags: document.getElementById("tags").value', payload)
+        self.assertIn('notes: document.getElementById("notes").value', payload)
+        self.assertIn('read_later: document.getElementById("readLater").checked', payload)
+
+    def test_sidepanel_save_payload_contract_maps_form_fields(self):
+        sidepanel_js = (EXT_DIR / "sidepanel.js").read_text(encoding="utf-8")
+        payload = extract_js_object_literal(sidepanel_js, "const payload =")
+
+        self.assertIn("url,", payload)
+        self.assertIn("title: titleEl.dataset.tabTitle || url", payload)
+        self.assertIn('category: document.getElementById("addCategory").value.trim() || config.defaultCategory', payload)
+        self.assertIn('tags: document.getElementById("addTags").value', payload)
+        self.assertIn('notes: document.getElementById("addNotes").value', payload)
+        self.assertIn('read_later: document.getElementById("addReadLater").checked', payload)
+
+    def test_reading_list_import_payload_contract_maps_read_state(self):
+        sidepanel_js = (EXT_DIR / "sidepanel.js").read_text(encoding="utf-8")
+        payload = extract_js_object_literal(sidepanel_js, "body: JSON.stringify({")
+
+        self.assertIn("url: item.url", payload)
+        self.assertIn("title: item.title || item.url", payload)
+        self.assertIn("category: config.defaultCategory", payload)
+        self.assertIn("read_later: !item.hasBeenRead", payload)
+
+    def test_background_quick_save_payload_contract_maps_context_fields(self):
+        background_js = (EXT_DIR / "background.js").read_text(encoding="utf-8")
+        payload = extract_js_object_literal(background_js, "body: JSON.stringify({")
+
+        self.assertIn("url,", payload)
+        self.assertIn("title: title || url", payload)
+        self.assertIn("category: values.defaultCategory", payload)
+        self.assertIn("tags: []", payload)
+        self.assertIn('notes: notes || ""', payload)
 
     def test_extension_assets_exist(self):
         for name in [
