@@ -1,48 +1,58 @@
-# Research — Bookmark Organizer Pro
+# Research - Bookmark Organizer Pro
 
 ## Executive Summary
-Bookmark Organizer Pro is a Python 3.10+ local-first desktop bookmark manager with a Tk workspace, 56-command CLI, optional AI/search/MCP extras, and an MV3 browser extension. Its strongest current shape is an unusually complete private desktop workflow: broad import/export coverage, local semantic search, MCP/RAG access, snapshots, reader annotations, read-later data, and mature hardening tests. The highest-value direction is still trust and continuity: make every surface preserve the same bookmark state, keep public metadata truthful, make recovery obvious, and add automation around accessibility, security, and release quality. Priority opportunities: preserve extension `read_later` state through the API; repair stale docs/MCP capability metadata; replace blocking maintenance dialogs with reversible toast/report flows; add API/extension contract tests; add automated accessibility checks; add dependency vulnerability monitoring; smoke-test built artifacts before upload; expose diagnostics bundles; gate gettext freshness; add visual regression coverage; add extension retry; promote Read Later into a full desktop queue workflow.
+Bookmark Organizer Pro is a local-first Python/Tk desktop bookmark manager with a broad CLI, optional semantic search and MCP surfaces, a loopback REST API, a Manifest V3 browser extension, HTML snapshots, reader highlights, OPDS export, and extensive importer/exporter coverage. Its strongest current shape is not raw feature count but private desktop continuity: a user can capture, classify, search, preserve, read, review, and export a large bookmark library without adopting a hosted service. The highest-value direction is trust under scale: close unauthenticated read surfaces, make browser/API behavior executable rather than statically asserted, keep local-only distribution docs accurate, page large libraries consistently, expose preservation failures as recoverable work, add high-fidelity migration paths, and let MCP clients operate on reader/review data.
+
+Top opportunities in priority order:
+- Require authentication or an explicit read-only catalog token for `/opds` and `/opds2`.
+- Add behavioral extension-to-API round-trip tests for save payloads, duplicates, and `read_later`.
+- Remove stale workflow/distribution documentation now that `.github/` is absent and releases are local-only.
+- Bring REST `/bookmarks` pagination/filter parity up to the MCP `list_bookmarks` contract.
+- Add archive/snapshot failure records with retry/report UI.
+- Add Firefox bookmark-backup JSON import to preserve tags/folders lost by HTML export.
+- Expose reader highlights, due reviews, and review recording through MCP.
 
 ## Product Map
-- Core workflows: import bookmarks from browser exports and service exports; organize with categories, tags, smart collections, duplicate cleanup, and 7,550 pattern rules; search with keyword, semantic, hybrid, natural-language, graph, and filter syntax; preserve and read via snapshots, dead-link scans, reader highlights, SM-2 review, OPDS/feeds, and local archives.
-- User personas: local-first power organizer; privacy-sensitive archivist; researcher/reader migrating from Pocket/Arc/Readwise/browser tools; AI/MCP operator; casual browser user saving tabs through the extension.
-- Platforms and distribution: Python/Tk desktop on Windows/macOS/Linux, CLI entry point `bop`, optional local API, optional MV3 extension, GitHub Actions CI/build, Nuitka for Windows release artifacts, PyInstaller for Linux/macOS, disabled-by-default TUF/tufup update staging.
-- Key integrations and data flows: browser extension -> loopback HTTP API -> `BookmarkManager`; CLI/MCP -> manager/services; imports from Chrome/Firefox/Safari/Edge/Pocket/Raindrop/OneTab/Arc/Matter/Wallabag/OPML/XBEL/Zotero; exports to HTML/JSON/CSV/Markdown/PDF/EPUB/OPDS/JSON Feed/Atom/Obsidian/ZIP; secrets are keyring-first with file fallback.
+- Core workflows: browser/profile/service import; local categorization with 7,550 patterns across 48 categories; tag, duplicate, smart-collection, and health cleanup; keyword, semantic, hybrid, and natural-language search; snapshots, extracted text, reader highlights, SM-2 review, OPDS/Atom/JSON Feed/EPUB/Obsidian/ZIP export.
+- User personas: local-first power organizer; researcher migrating from Pocket, Arc, Readwise, browser reading lists, or Wallabag; privacy-sensitive archivist; CLI/MCP user; browser-extension user who wants one-click capture into the desktop library.
+- Platforms and distribution: Python 3.10+ Tk desktop on Windows/macOS/Linux, `bop` CLI, loopback API, optional MCP stdio/HTTP server, unpacked MV3 extension, PyInstaller/Nuitka packaging helpers, disabled-by-default TUF/tufup staging.
+- Key integrations and data flows: extension and local tools call `BookmarkAPI`; CLI/MCP call manager/service modules; storage is JSON by default with optional SQLite; keyring-first token storage falls back to locked-down files; archives and support bundles stay under the app data directory.
 
 ## Competitive Landscape
-- Karakeep: OSS read-it-later/bookmark app with browser capture, archiving, AI tagging, full-text search, and active extension/mobile expectations. Learn from capture reliability and AI-assisted triage; avoid server/Docker as the default requirement.
-- Linkwarden: OSS/web bookmark manager emphasizing collections, extension capture, page preservation, imports/exports, and collaboration. Learn from preservation confidence and polished cleanup flows; avoid making team/SaaS concepts central to a local desktop app.
-- Raindrop.io: commercial benchmark for calm bookmark UX, nested collections, duplicate/broken-link utilities, and AI/MCP positioning. Learn from consistent metadata, recovery affordances, and polished settings; avoid cloud lock-in or paywalled essentials.
-- Readwise Reader: commercial benchmark for read-later queues, highlights, review, and guided migration. Learn from queue ergonomics and review loops; avoid turning Bookmark Organizer Pro into a paid all-content inbox.
-- ArchiveBox and Readeck: preservation-focused tools with strong archival/source-retention models. Learn from portable snapshots and clear failure reporting; avoid heavy archival complexity that slows ordinary bookmark organization.
-- linkding, Shiori, buku, Shaarli, and Floccus: smaller OSS tools that value speed, minimalism, CLI/browser workflows, and sync/export interoperability. Learn from low-friction capture and XBEL/WebDAV ecosystem fit; avoid feature sprawl that hides core list/search actions.
+- Karakeep: strong capture inbox, browser workflow, archiving, full-text search, and local/cloud model-assisted tagging. Learn from resilient capture and triage queues; avoid server/Docker as the default user journey.
+- Linkwarden: strong preservation posture with web capture, collections, reader/highlight flows, and team-ready UI. Learn from explicit archive state and polished collection workflows; avoid making collaboration central to a single-user desktop app.
+- Raindrop.io: commercial benchmark for calm UX, nested collections, duplicate/broken-link utilities, reminders, and broad platform coverage. Learn from consistent metadata and recovery affordances; avoid cloud lock-in and paywalled essentials.
+- Readwise Reader: commercial benchmark for read-later queues, highlights, review loops, feed ingestion, and migration. Learn from queue ergonomics and review states; avoid turning the app into a hosted content inbox.
+- Readeck and ArchiveBox: preservation-focused tools with clear capture artifacts, archive status, and portable exports. Learn from visible preservation failures and retryability; avoid heavy archival requirements that slow normal saves.
+- linkding, Shiori, buku, Shaarli, and Floccus: smaller OSS tools that value speed, simple deployment, CLI/browser capture, XBEL/WebDAV/Git sync, and durable export. Learn from low-friction interop; avoid hiding core list/search actions behind feature density.
+- Obsidian Web Clipper and adjacent note tools: strong site-specific extraction and template patterns. Learn from domain templates for richer metadata; avoid unbounded scraping rules that become hard to test.
 
 ## Security, Privacy, and Reliability
-- Verified: extension/API state loss remains the highest-confidence bug. `browser-extension/popup.js:84`, `browser-extension/sidepanel.js:175`, and `browser-extension/sidepanel.js:238` send `read_later`, while `bookmark_organizer_pro/services/api.py:334-340` drops it before calling `add_bookmark_clean`; the model persists it at `bookmark_organizer_pro/models/bookmark.py:84,216-217,309-310`.
-- Verified: public and agent-facing metadata is stale. `README.md:65` still points extension users to plaintext `api_token.txt`; `README.md:111` advertises 4,200 patterns/32 categories; `README.md:231` says AI keys live in `ai_config.json`; `CLAUDE.md:8,22,33,44,49,66` reports stale pattern/CLI/test counts. Current code reports 48 categories, 7,550 patterns, 56 CLI subcommands, and 439 collected tests.
-- Verified: residual blocking dialogs remain in maintenance flows, especially `bookmark_organizer_pro/app_mixins/tools.py:108,149,199,486,556,667,689,725,788` and `bookmark_organizer_pro/ui/management_dialogs.py:303`, despite repo rules and recent UI work favoring immediate action plus toast/status/report feedback.
-- Verified: extension context-menu quick-save catches API failures and returns `false` without a visible retry queue (`browser-extension/background.js:39-63`). Popup/side panel status is stronger, but background capture can still fail silently.
-- Verified: dependency pins were recently hardened, but there is no recurring vulnerability audit in `.github/workflows/ci.yml`; recent commits repeatedly responded to Requests, FastMCP/Starlette, cryptography, urllib3, idna, lxml, and Pillow advisories.
-- Verified: release build artifacts are uploaded without an artifact startup smoke in `.github/workflows/build.yml:71-109`. Packaging tests validate helper command generation and a small Nuitka smoke target, but the final Windows/Linux/macOS release binaries are not executed before upload.
-- Verified: existing guardrails worth preserving include bounded API request bodies, URL validation, local loopback defaults, SSRF/private-network restrictions, `defusedxml`, keyring-first secrets, rotating logs, safepoints, and TUF/tufup update staging that does not apply updates.
+- Verified risk: `bookmark_organizer_pro/services/api.py:176` handles `/opds` and `/opds2` before `_check_auth()` at `bookmark_organizer_pro/services/api.py:214`, so local HTTP clients can read catalog data without the bearer token required for `/bookmarks`, `/search`, `/stats`, `/categories`, `/tags`, and `/digest`.
+- Verified gap: `tests/test_browser_extension.py` mostly asserts source strings, while the important boundary is behavioral: `browser-extension/popup.js`, `browser-extension/sidepanel.js`, and `browser-extension/background.js` payloads must round-trip through `BookmarkAPI.do_POST()` into persisted `Bookmark` fields.
+- Verified gap: `browser-extension/background.js:39` through `browser-extension/background.js:63` returns `false` on failed context-menu quick-save without a user-visible retry path. This is already represented by the existing roadmap item for extension pending-save queue and retry surface; do not duplicate it.
+- Verified drift: `.github/` is absent, but `docs/REPOSITORY_STRUCTURE.md:16` still documents `.github/workflows/` as durable release automation. Existing roadmap items also reference workflow paths that no longer exist; future implementation should update or close those items when touched.
+- Verified partial implementation: `scripts/visual_regression_smoke.py` and `tests/test_visual_regression_smoke.py` now exist, so the existing roadmap item for visual regression screenshots should be revalidated before further work.
+- Verified reliability gap: `bookmark_organizer_pro/services/snapshot.py:51` through `bookmark_organizer_pro/services/snapshot.py:70` tries multiple backends but collapses user-facing failure into `"All snapshot backends failed"`, losing backend-level diagnostics that preservation tools usually surface.
+- Existing guardrails to preserve: SSRF/private URL checks, request body caps, keyring-first secrets, locked-down token fallback files, `defusedxml`, safepoints, redacted support bundles, local-only MCP HTTP bind protection, and optional dependency degradation.
 
 ## Architecture Assessment
-- API contract boundary: `tests/test_browser_extension.py` performs static extension checks and `tests/test_core.py` covers API basics, but no behavioral test asserts every extension payload field round-trips into `Bookmark`.
-- Feedback boundary: `bookmark_organizer_pro/ui/feedback.py`, report helpers, and live workflow dialogs coexist with many direct `messagebox.*` calls, so success/error/destructive feedback is inconsistent.
-- Accessibility boundary: the app has keyboard activators, focus rings, high-contrast theme, and extension `aria-live` statuses, but no automated accessibility contract test. Extension side-panel tabs are buttons without tablist/aria-selected semantics (`browser-extension/sidepanel.html:200-202`), and Tk focus behavior is only indirectly covered.
-- i18n boundary: `locale/bop.pot:30` still contains `AI Provider Settings` while `bookmark_organizer_pro/app_mixins/tools.py:39` uses `Assistant Provider Settings`; freshness is documented in `locale/README.md` but not gated.
-- Observability boundary: `bookmark_organizer_pro/logging_config.py` and `bookmark_organizer_pro/services/ai_audit_log.py` exist, while `bookmark_organizer_pro/ui/about.py:136-140` only copies system info and README sends users to log paths manually.
-- Read-later boundary: `ReadLaterQueue` supports enqueue, dequeue, reorder, peek, and complete (`bookmark_organizer_pro/services/read_later.py:15-65`); CLI and dashboard expose partial views, but the desktop GUI lacks a full ordered queue with Done/Reorder/Remove controls.
+- API boundary: `BookmarkAPI` should share request filtering/pagination semantics with MCP `t_list_bookmarks()` instead of maintaining a narrower `/bookmarks?limit=` contract. Touch `bookmark_organizer_pro/services/api.py`, extension list views, and API tests.
+- Extension boundary: static source checks should be backed by fixtures that exercise real POSTs and duplicate handling. Touch `tests/test_browser_extension.py`, `tests/test_core.py`, and possibly a small test helper for `BookmarkAPI`.
+- Preservation boundary: `SnapshotArchiver` should return structured backend attempts and persist last failure state on the bookmark or sidecar report. Touch `bookmark_organizer_pro/services/snapshot.py`, `bookmark_organizer_pro/services/auto_snapshot.py`, dashboard/tools UI, and service tests.
+- Reader/MCP boundary: `ReaderAnnotationStore` and SM-2 review state are mature in services/tests, but MCP lacks list/export/review operations for highlights. Touch `bookmark_organizer_pro/mcp_server.py`, `bookmark_organizer_pro/services/mcp_auth.py`, and `tests/test_mcp_tools.py`.
+- Migration boundary: import breadth is strong, but Firefox bookmark-backup JSON can preserve tags and folder metadata that Netscape HTML loses. Touch `bookmark_organizer_pro/importers.py`, import/export UI, CLI import routing, and importer tests.
+- Documentation boundary: docs should reflect local-only verification and release operations. Touch `docs/REPOSITORY_STRUCTURE.md`, README release/build sections, and any roadmap item evidence that points to removed workflow files.
 
 ## Rejected Ideas
-- Mandatory cloud sync, hosted accounts, and team workspaces from Linkwarden/Raindrop: rejected because they conflict with the local-first single-user desktop posture unless added as optional interop later.
-- Docker/server-first deployment from Karakeep/ArchiveBox/Linkwarden: rejected because it weakens the native desktop value proposition and raises setup friction.
-- Native mobile app or PWA now: rejected because `Roadmap_Blocked.md` already gates web client/PWA work on a separate web architecture decision.
-- Native browser messaging now: rejected because `Roadmap_Blocked.md` gates it on extension publication and host registration.
-- Full Electron/Tauri rewrite: rejected because the current Python/Tk stack is mature, tested, and aligned with local packaging goals.
-- Chrome Prompt API integration now: rejected because `Roadmap_Blocked.md` already marks it gated by stable browser availability and local-model test hardware.
-- Paid AI proxy/SaaS plan: rejected because it conflicts with local-first privacy expectations and direct-provider/Ollama design.
-- Plugin API via `entry_points` now: rejected for this pass because `ROADMAP.md:626` already tracks it under consideration pending contributor demand.
+- Mandatory hosted sync or accounts from Linkwarden/Raindrop: rejected because they conflict with the local-first desktop posture; optional XBEL/WebDAV/Git interop remains the better path and is already under consideration.
+- Docker/server-first deployment from Karakeep, Linkwarden, and ArchiveBox: rejected because setup friction is the opposite of this app's native desktop advantage.
+- Native mobile/PWA work now: rejected because `Roadmap_Blocked.md` already gates web/PWA architecture decisions.
+- Native browser messaging now: rejected because `Roadmap_Blocked.md` already gates it on extension publication and host registration.
+- Full Electron/Tauri rewrite: rejected because the current Python/Tk codebase has working tests, packaging helpers, local storage, and service modules.
+- Chrome Prompt API integration now: rejected because `Roadmap_Blocked.md` already marks it gated by browser/API maturity and local hardware validation.
+- Multi-user/team workspaces: rejected because they would add auth, roles, sharing, and conflict-resolution complexity without improving the single-user local library.
+- Auto-delete duplicate bookmarks: rejected because destructive cleanup should remain reviewable with safepoints and explicit recovery.
 
 ## Sources
 OSS competitors:
@@ -57,29 +67,33 @@ OSS competitors:
 - https://github.com/jarun/buku
 - https://github.com/shaarli/Shaarli
 
-Commercial and community:
+Commercial, adjacent, and community:
 - https://raindrop.io/
 - https://readwise.io/read
+- https://obsidian.md/clipper
 - https://blog.mozilla.org/en/mozilla/update-on-pocket/
 - https://support.mozilla.org/en-US/kb/exporting-your-pocket-list
-- https://news.ycombinator.com/item?id=42648006
 - https://github.com/dogancelik/awesome-bookmarking
 - https://github.com/awesome-selfhosted/awesome-selfhosted
+- https://news.ycombinator.com/item?id=42648006
 
-Standards, platform, and accessibility:
+Standards and platform:
 - https://developer.chrome.com/docs/extensions/reference/api/readingList
 - https://developer.chrome.com/docs/extensions/reference/api/sidePanel
 - https://developer.chrome.com/docs/extensions/reference/api/storage
 - https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_messaging
+- https://modelcontextprotocol.io/specification/
 - https://www.w3.org/TR/WCAG22/
 - https://www.w3.org/WAI/ARIA/apg/
-- https://github.com/dequelabs/axe-core
 
-Dependencies and security:
+Dependencies, security, and techniques:
+- https://github.com/pypa/pip-audit
 - https://requests.readthedocs.io/en/latest/community/updates/
 - https://gofastmcp.com/changelog
 - https://cryptography.io/en/latest/changelog/
-- https://github.com/pypa/pip-audit
+- https://lancedb.github.io/lancedb/
+- https://github.com/qdrant/fastembed
+- https://trafilatura.readthedocs.io/
 
 ## Open Questions
-None that block prioritization. The remaining blocked areas are already captured in `Roadmap_Blocked.md` and depend on external accounts, SDK maturity, or a web architecture decision.
+None that block prioritization. Blocked platform and publication decisions are already tracked in `Roadmap_Blocked.md`.

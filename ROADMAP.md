@@ -903,3 +903,67 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
   Complexity: M
 
 ### P3 — Under Consideration
+
+### P0 - Trust and privacy
+
+- [ ] P0 - Authenticate OPDS catalog endpoints
+  Why: `/opds` and `/opds2` currently serialize bookmark catalog data before the bearer-token check used by other read endpoints.
+  Evidence: `bookmark_organizer_pro/services/api.py:176-214`; local-first privacy posture; Linkwarden/Readeck authenticated catalog models
+  Touches: `bookmark_organizer_pro/services/api.py`, `tests/test_core.py`, `README.md`
+  Acceptance: `/opds` and `/opds2` return 401 without an authorized bearer token unless an explicit read-only catalog token is configured; authenticated requests still return valid OPDS 1.2 and OPDS 2.0 output; tests cover unauthorized, authorized, and token-disabled modes.
+  Complexity: M
+
+### P1 - Contracts, docs, and scale
+
+- [ ] P1 - Add behavioral extension/API round-trip contract tests
+  Why: Static extension source assertions do not prove popup, side-panel, reading-list, and context-menu payloads persist the same fields through the local API.
+  Evidence: `tests/test_browser_extension.py`; `browser-extension/popup.js`; `browser-extension/sidepanel.js`; `browser-extension/background.js`; `bookmark_organizer_pro/services/api.py`
+  Touches: `tests/test_browser_extension.py`, `tests/test_core.py`, `browser-extension/*.js`, `bookmark_organizer_pro/services/api.py`
+  Acceptance: Tests start `BookmarkAPI` against an isolated manager, POST fixtures matching every extension save path, and assert URL, title, category, tags, notes, `read_later`, duplicate 409 handling, and error responses round-trip correctly.
+  Complexity: M
+
+- [ ] P1 - Sync local-only distribution documentation
+  Why: The repo no longer has `.github/`, but durable docs and existing roadmap evidence still point at workflow files, which misdirects release and verification work.
+  Evidence: `docs/REPOSITORY_STRUCTURE.md:16`; `git log` commit `4d0b881`; absence of `.github/`; `packaging/nuitka_build.py`; `packaging/bookmark_organizer.spec`
+  Touches: `docs/REPOSITORY_STRUCTURE.md`, `README.md`, `ROADMAP.md`, `tests/test_packaging.py`
+  Acceptance: Public docs describe local test/build/release commands only; no durable docs cite removed workflow paths; packaging tests or a docs check catch future workflow-reference drift.
+  Complexity: S
+
+- [ ] P1 - Add REST bookmark pagination and filter parity
+  Why: Large libraries need stable paging in the browser extension and REST API, while MCP already exposes offset and read-later filtering.
+  Evidence: `bookmark_organizer_pro/services/api.py:232-243`; `bookmark_organizer_pro/mcp_server.py:358-376`; `browser-extension/sidepanel.js:50-67`; linkding/Raindrop large-library UX
+  Touches: `bookmark_organizer_pro/services/api.py`, `browser-extension/sidepanel.js`, `browser-extension/shared.js`, `tests/test_core.py`, `tests/test_browser_extension.py`
+  Acceptance: `/bookmarks` supports `limit`, `offset`, `tag`, `read_later_only`, `pinned_only`, and deterministic sort; responses include `count`, `returned`, `next_offset`, and `has_more`; side panel can load more without replacing prior results.
+  Complexity: M
+
+### P2 - Preservation, migration, and MCP coverage
+
+- [ ] P2 - Persist snapshot backend failure reports and retry actions
+  Why: Snapshot preservation tries multiple backends but collapses diagnostics into a generic failure, making archive recovery hard to prioritize.
+  Evidence: `bookmark_organizer_pro/services/snapshot.py:51-70`; `bookmark_organizer_pro/services/auto_snapshot.py`; ArchiveBox/Readeck preservation status patterns
+  Touches: `bookmark_organizer_pro/services/snapshot.py`, `bookmark_organizer_pro/services/auto_snapshot.py`, `bookmark_organizer_pro/app_mixins/tools.py`, `bookmark_organizer_pro/app_mixins/dashboard.py`, tests
+  Acceptance: Failed snapshots record backend attempt names, error summaries, timestamp, and retry eligibility; dashboard/tools expose a failed-snapshots report with Retry and Clear actions; service tests cover all-backend failure and later successful retry.
+  Complexity: M
+
+- [ ] P2 - Add Firefox bookmark-backup JSON import
+  Why: Firefox JSON backups preserve tags and folder metadata that Netscape HTML export can lose, improving migration fidelity for browser-native users.
+  Evidence: `bookmark_organizer_pro/importers.py:183-267`; Mozilla Firefox bookmark backup/export docs; Floccus/XBEL ecosystem expectations
+  Touches: `bookmark_organizer_pro/importers.py`, `bookmark_organizer_pro/app_mixins/import_export.py`, `bookmark_organizer_pro/cli.py`, `tests/test_services.py`, README importer docs
+  Acceptance: Users can import Firefox `bookmarkbackups/*.json` files; folder hierarchy maps to categories, Firefox tags map to tags, invalid/missing URL entries are skipped with counts, and tests cover nested folders, tags, separators, and malformed JSON.
+  Complexity: M
+
+- [ ] P2 - Expose reader highlights and review operations through MCP
+  Why: Reader annotations and SM-2 review are implemented locally, but MCP clients cannot list highlights, fetch due reviews, record review quality, or export highlight Markdown.
+  Evidence: `bookmark_organizer_pro/services/reader_annotations.py`; `tests/test_services.py:1194-1513`; `bookmark_organizer_pro/mcp_server.py`; MCP tool/resource patterns
+  Touches: `bookmark_organizer_pro/mcp_server.py`, `bookmark_organizer_pro/services/mcp_auth.py`, `tests/test_mcp_tools.py`, `README.md`
+  Acceptance: MCP exposes read-only tools/resources for highlights and due reviews plus scoped write tools for review recording and highlight note updates; auth scopes distinguish read and write operations; tests cover raw SDK and FastMCP tool catalogs.
+  Complexity: M
+
+### P3 - Structured extraction
+
+- [ ] P3 - Add site-specific extraction templates
+  Why: The app already has URL patterns, snapshots, and extracted text, but domain-specific templates would capture richer fields for GitHub, docs, papers, videos, and stores without requiring a new storage backend.
+  Evidence: `bookmark_organizer_pro/core/pattern_engine.py`; `bookmark_organizer_pro/services/ingest.py`; `bookmark_organizer_pro/services/snapshot.py`; Obsidian Web Clipper templates
+  Touches: `bookmark_organizer_pro/core/`, `bookmark_organizer_pro/services/ingest.py`, `bookmark_organizer_pro/models/bookmark.py`, `bookmark_organizer_pro/ui/`, tests
+  Acceptance: A safe JSON/YAML template format can extract configured fields from trusted selectors/metadata, store them under structured bookmark metadata, and show/export them; tests cover selector failures, unsupported domains, and malicious template values.
+  Complexity: L
