@@ -37,6 +37,7 @@ themedetect = ["darkdetect>=0.8"]
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
+    "playwright>=1.50",
     "pyinstaller>=6.20",
     "jaraco.text>=4.0",
 ]

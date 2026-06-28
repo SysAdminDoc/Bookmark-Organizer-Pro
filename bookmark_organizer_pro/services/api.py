@@ -139,12 +139,23 @@ class BookmarkAPI:
                 self.end_headers()
                 self.wfile.write(body)
 
-            def _check_auth(self) -> bool:
+            def _check_auth(self, *, discard_body: bool = False) -> bool:
                 auth = self.headers.get('Authorization', '')
                 if hmac.compare_digest(auth, f'Bearer {api_token}'):
                     return True
+                if discard_body:
+                    self._discard_request_body()
                 self._send_json({"error": "Unauthorized. Provide Authorization: Bearer <token>"}, 401)
                 return False
+
+            def _discard_request_body(self) -> None:
+                try:
+                    content_length = int(self.headers.get('Content-Length', 0))
+                except (TypeError, ValueError):
+                    return
+                if content_length <= 0:
+                    return
+                self.rfile.read(min(content_length, 65_536))
             
             def _parse_path(self):
                 """Parse URL path and query params"""
@@ -304,7 +315,7 @@ class BookmarkAPI:
                     self._send_json({"error": "Not found"}, 404)
             
             def do_POST(self):
-                if not self._check_auth():
+                if not self._check_auth(discard_body=True):
                     return
                 path_parts, _ = self._parse_path()
 

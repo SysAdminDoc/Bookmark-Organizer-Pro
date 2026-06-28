@@ -33,6 +33,21 @@ The local REST API requires `Authorization: Bearer <token>` for bookmark data
 endpoints, including `/bookmarks`, `/search`, `/stats`, `/categories`, `/tags`,
 `/digest`, `/opds`, and `/opds2`. The root endpoint only reports API metadata.
 
+### Local visual verification
+
+Run the desktop and browser-extension screenshot smoke before shipping UI or
+extension changes:
+
+```bash
+python scripts/visual_regression_smoke.py
+```
+
+The smoke writes screenshots to a temporary directory, exercises dark/light
+desktop and MV3 extension surfaces, and fails on blank captures, missing
+critical text, extension console errors, or horizontal overflow. Install
+Playwright browsers once with `python -m playwright install chromium` if the
+extension smoke reports a missing Chromium runtime.
+
 ### v6 CLI quickstart
 
 ```bash

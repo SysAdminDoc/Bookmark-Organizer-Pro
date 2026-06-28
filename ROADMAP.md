@@ -837,13 +837,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P1 — Reliability, feedback, and verification
 
-- [ ] P1 — Add visual regression screenshots for core desktop and extension surfaces
-  Why: Repeated premium UI passes changed many Tk and extension surfaces without automated protection against blank, clipped, low-contrast, or broken states.
-  Evidence: recent UI-polish commits; `.github/workflows/ci.yml`; `tests/test_browser_extension.py`; absence of screenshot/visual tests in `tests/`
-  Touches: `tests/`, `.github/workflows/ci.yml`, `browser-extension/`, `bookmark_organizer_pro/ui/`, screenshot fixtures
-  Acceptance: A local/CI script captures main empty/list states, Assistant Settings, import/export, reader, graph, extension popup/options/sidepanel, and light/dark themes, then fails on blank output, clipped controls, or missing critical text.
-  Complexity: M
-
 - [ ] P1 — Add automated accessibility contract checks
   Why: Keyboard/focus and high-contrast support exist, but no test gate catches broken focus order, missing labels, or extension ARIA regressions.
   Evidence: WCAG 2.2; WAI-ARIA APG; `browser-extension/sidepanel.html:200-202`; `browser-extension/popup.html`; `browser-extension/options.html`; `bookmark_organizer_pro/ui/tk_interactions.py`; `.github/workflows/ci.yml`

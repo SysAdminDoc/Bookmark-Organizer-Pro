@@ -4,10 +4,15 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ## [v6.8.5] - 2026-06-28
 
+### Added
+
+- Added a local visual regression smoke gate that captures desktop and browser-extension surfaces, then fails on blank, missing-text, console-error, or horizontal-overflow regressions.
+
 ### Fixed
 
 - Required the local API bearer token for OPDS 1.2 and OPDS 2.0 catalog endpoints, matching the other bookmark-data read endpoints.
 - Added regression coverage for unauthorized and authorized OPDS catalog access.
+- Drained unauthenticated POST request bodies before returning 401 JSON so local API clients receive stable error responses on Windows.
 
 ## [v6.8.4] - 2026-06-27
 
