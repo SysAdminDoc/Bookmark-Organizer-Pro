@@ -7,6 +7,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 ### Added
 
 - Added a local visual regression smoke gate that captures desktop and browser-extension surfaces, then fails on blank, missing-text, console-error, or horizontal-overflow regressions.
+- Added local accessibility contract checks for extension labels/status/tab semantics and Tk keyboard-focus activation helpers.
 
 ### Fixed
 

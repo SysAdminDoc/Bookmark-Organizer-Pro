@@ -35,11 +35,12 @@ endpoints, including `/bookmarks`, `/search`, `/stats`, `/categories`, `/tags`,
 
 ### Local visual verification
 
-Run the desktop and browser-extension screenshot smoke before shipping UI or
-extension changes:
+Run the desktop and browser-extension screenshot and accessibility smokes before
+shipping UI or extension changes:
 
 ```bash
 python scripts/visual_regression_smoke.py
+python scripts/accessibility_contract_smoke.py
 ```
 
 The smoke writes screenshots to a temporary directory, exercises dark/light
@@ -47,6 +48,8 @@ desktop and MV3 extension surfaces, and fails on blank captures, missing
 critical text, extension console errors, or horizontal overflow. Install
 Playwright browsers once with `python -m playwright install chromium` if the
 extension smoke reports a missing Chromium runtime.
+The accessibility smoke verifies extension labels, status regions, tab roles,
+and Tk keyboard-focus activation contracts.
 
 ### v6 CLI quickstart
 

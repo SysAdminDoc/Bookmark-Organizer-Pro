@@ -190,19 +190,19 @@
       </div>
     </header>
 
-    <div class="api-status">
-      <span id="statusDot" class="status-dot"></span>
+    <div class="api-status" role="status" aria-live="polite">
+      <span id="statusDot" class="status-dot" aria-hidden="true"></span>
       <span id="statusText">Connecting...</span>
       <span id="totalCount" class="count-badge"></span>
     </div>
 
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="recent">Recent</button>
-      <button class="tab-btn" data-tab="search">Search</button>
-      <button class="tab-btn" data-tab="add">Add</button>
+    <div class="tabs" role="tablist" aria-label="Bookmark side panel sections">
+      <button id="tab-btn-recent" class="tab-btn active" data-tab="recent" type="button" role="tab" aria-selected="true" aria-controls="tab-recent">Recent</button>
+      <button id="tab-btn-search" class="tab-btn" data-tab="search" type="button" role="tab" aria-selected="false" aria-controls="tab-search" tabindex="-1">Search</button>
+      <button id="tab-btn-add" class="tab-btn" data-tab="add" type="button" role="tab" aria-selected="false" aria-controls="tab-add" tabindex="-1">Add</button>
     </div>
 
-    <div id="tab-recent" class="tab-content active">
+    <div id="tab-recent" class="tab-content active" role="tabpanel" aria-labelledby="tab-btn-recent">
       <ul id="recentList" class="bookmark-list"></ul>
       <div id="rediscoverSection" style="display:none">
         <p class="section-title">Rediscover</p>
@@ -210,15 +210,15 @@
       </div>
     </div>
 
-    <div id="tab-search" class="tab-content">
+    <div id="tab-search" class="tab-content" role="tabpanel" aria-labelledby="tab-btn-search" hidden>
       <div class="search-box">
-        <input id="searchInput" type="text" placeholder="Search bookmarks..." autocomplete="off">
+        <input id="searchInput" type="text" placeholder="Search bookmarks..." autocomplete="off" aria-label="Search bookmarks">
         <button id="searchBtn" type="button">Search</button>
       </div>
       <ul id="searchResults" class="bookmark-list"></ul>
     </div>
 
-    <div id="tab-add" class="tab-content">
+    <div id="tab-add" class="tab-content" role="tabpanel" aria-labelledby="tab-btn-add" hidden>
       <div class="quick-add">
         <p id="addPageTitle" class="current-page"></p>
         <label>

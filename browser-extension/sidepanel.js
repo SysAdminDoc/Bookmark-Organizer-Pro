@@ -250,17 +250,35 @@ async function importReadingList() {
 
 function switchTab(tabName) {
   for (const btn of document.querySelectorAll(".tab-btn")) {
-    btn.classList.toggle("active", btn.dataset.tab === tabName);
+    const active = btn.dataset.tab === tabName;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-selected", active ? "true" : "false");
+    btn.tabIndex = active ? 0 : -1;
   }
   for (const content of document.querySelectorAll(".tab-content")) {
-    content.classList.toggle("active", content.id === `tab-${tabName}`);
+    const active = content.id === `tab-${tabName}`;
+    content.classList.toggle("active", active);
+    content.hidden = !active;
   }
   if (tabName === "add") loadAddTab();
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  for (const btn of document.querySelectorAll(".tab-btn")) {
+  const tabButtons = Array.from(document.querySelectorAll(".tab-btn"));
+  for (const btn of tabButtons) {
     btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+    btn.addEventListener("keydown", event => {
+      const current = tabButtons.indexOf(btn);
+      let next = current;
+      if (event.key === "ArrowRight") next = (current + 1) % tabButtons.length;
+      else if (event.key === "ArrowLeft") next = (current - 1 + tabButtons.length) % tabButtons.length;
+      else if (event.key === "Home") next = 0;
+      else if (event.key === "End") next = tabButtons.length - 1;
+      else return;
+      event.preventDefault();
+      tabButtons[next].focus();
+      switchTab(tabButtons[next].dataset.tab);
+    });
   }
 
   document.getElementById("searchBtn").addEventListener("click", () => {

@@ -837,13 +837,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P1 — Reliability, feedback, and verification
 
-- [ ] P1 — Add automated accessibility contract checks
-  Why: Keyboard/focus and high-contrast support exist, but no test gate catches broken focus order, missing labels, or extension ARIA regressions.
-  Evidence: WCAG 2.2; WAI-ARIA APG; `browser-extension/sidepanel.html:200-202`; `browser-extension/popup.html`; `browser-extension/options.html`; `bookmark_organizer_pro/ui/tk_interactions.py`; `.github/workflows/ci.yml`
-  Touches: `tests/`, `.github/workflows/ci.yml`, `browser-extension/*.html`, `bookmark_organizer_pro/ui/tk_interactions.py`, key Tk dialog modules
-  Acceptance: CI runs extension accessibility checks with axe-core or equivalent and Tk focus-order smoke tests under xvfb; failures identify unlabeled controls, missing status semantics, broken focus rings, and tab/role regressions.
-  Complexity: M
-
 - [ ] P1 — Add recurring dependency vulnerability audit
   Why: Recent work repeatedly patched dependency CVEs, but CI has no scheduled pip-audit/OSV-style guard to surface new vulnerable transitive packages early.
   Evidence: `pyproject.toml`; `requirements.txt`; `.github/workflows/ci.yml`; Requests/FastMCP/cryptography changelogs; pip-audit
