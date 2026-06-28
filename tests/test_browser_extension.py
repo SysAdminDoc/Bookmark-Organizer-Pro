@@ -2,7 +2,10 @@
 
 import json
 import re
+import tempfile
 import unittest
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 from bookmark_organizer_pro.constants import APP_VERSION
@@ -169,6 +172,155 @@ class TestBrowserExtensionManifest(unittest.TestCase):
         self.assertIn(f"prodvers=({tuple_version})", version_info)
         self.assertRegex(version_info, re.compile(rf"FileVersion'.*{re.escape(file_version)}"))
         self.assertRegex(version_info, re.compile(rf"ProductVersion'.*{re.escape(file_version)}"))
+
+
+class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
+    def _make_manager(self, tmp: str):
+        import main
+
+        root = Path(tmp)
+        return main.BookmarkManager(
+            main.CategoryManager(filepath=root / "categories.json"),
+            main.TagManager(filepath=root / "tags.json"),
+            filepath=root / "bookmarks.json",
+        )
+
+    def _api_token(self) -> str:
+        from bookmark_organizer_pro.services.api import _KEYRING_KEY, _KEYRING_SERVICE, _TOKEN_FILE
+
+        if _TOKEN_FILE.exists():
+            token = _TOKEN_FILE.read_text(encoding="utf-8").strip()
+            if token:
+                return token
+        try:
+            import keyring
+
+            return keyring.get_password(_KEYRING_SERVICE, _KEYRING_KEY) or ""
+        except Exception:
+            return ""
+
+    def _post_json(self, base_url: str, payload, token: str = ""):
+        headers = {"Content-Type": "application/json"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        request = urllib.request.Request(
+            f"{base_url}/bookmarks",
+            data=json.dumps(payload).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=3) as response:
+                return response.status, json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            return error.code, json.loads(error.read().decode("utf-8"))
+
+    def test_extension_save_paths_round_trip_through_local_api(self):
+        import main
+
+        extension_payloads = [
+            (
+                "popup",
+                {
+                    "url": "https://example.com/popup-save",
+                    "title": "Popup Save",
+                    "category": "Research",
+                    "tags": "ai, browser, ai",
+                    "notes": "Selected: Popup passage",
+                    "read_later": True,
+                },
+                {
+                    "title": "Popup Save",
+                    "category": "Research",
+                    "tags": ["ai", "browser"],
+                    "notes": "Selected: Popup passage",
+                    "read_later": True,
+                    "read_later_position": 0,
+                },
+            ),
+            (
+                "sidepanel_add",
+                {
+                    "url": "https://example.com/sidepanel-save",
+                    "title": "Side Panel Save",
+                    "category": "Development",
+                    "tags": "extension, local",
+                    "notes": "Saved from side panel",
+                    "read_later": False,
+                },
+                {
+                    "title": "Side Panel Save",
+                    "category": "Development",
+                    "tags": ["extension", "local"],
+                    "notes": "Saved from side panel",
+                    "read_later": False,
+                },
+            ),
+            (
+                "reading_list_import",
+                {
+                    "url": "https://example.com/reading-list",
+                    "title": "Reading List Item",
+                    "category": "Uncategorized / Needs Review",
+                    "read_later": True,
+                },
+                {
+                    "title": "Reading List Item",
+                    "category": "Uncategorized / Needs Review",
+                    "tags": [],
+                    "notes": "",
+                    "read_later": True,
+                    "read_later_position": 1,
+                },
+            ),
+            (
+                "context_menu_quick_save",
+                {
+                    "url": "https://example.com/context-menu",
+                    "title": "Context Menu Save",
+                    "category": "Uncategorized / Needs Review",
+                    "tags": [],
+                    "notes": "Selected: Context passage",
+                },
+                {
+                    "title": "Context Menu Save",
+                    "category": "Uncategorized / Needs Review",
+                    "tags": [],
+                    "notes": "Selected: Context passage",
+                    "read_later": False,
+                },
+            ),
+        ]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            api = main.BookmarkAPI(manager, port=0)
+            try:
+                api.start()
+                token = self._api_token()
+                base_url = f"http://127.0.0.1:{api.port}"
+
+                status, body = self._post_json(base_url, {"url": "https://example.com/unauthorized"})
+                self.assertEqual(status, 401)
+                self.assertIn("Unauthorized", body["error"])
+
+                for label, payload, expected in extension_payloads:
+                    with self.subTest(label=label):
+                        status, body = self._post_json(base_url, payload, token=token)
+                        self.assertEqual(status, 201)
+                        self.assertEqual(body["url"], payload["url"])
+                        for key, value in expected.items():
+                            self.assertEqual(body[key], value)
+
+                status, body = self._post_json(base_url, extension_payloads[0][1], token=token)
+                self.assertEqual(status, 409)
+                self.assertIn("exists", body["error"])
+
+                status, body = self._post_json(base_url, {"url": "file:///tmp/not-saveable"}, token=token)
+                self.assertEqual(status, 400)
+                self.assertIn("http", body["error"])
+            finally:
+                api.stop()
 
 
 if __name__ == "__main__":

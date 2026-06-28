@@ -878,13 +878,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P1 - Contracts, docs, and scale
 
-- [ ] P1 - Add behavioral extension/API round-trip contract tests
-  Why: Static extension source assertions do not prove popup, side-panel, reading-list, and context-menu payloads persist the same fields through the local API.
-  Evidence: `tests/test_browser_extension.py`; `browser-extension/popup.js`; `browser-extension/sidepanel.js`; `browser-extension/background.js`; `bookmark_organizer_pro/services/api.py`
-  Touches: `tests/test_browser_extension.py`, `tests/test_core.py`, `browser-extension/*.js`, `bookmark_organizer_pro/services/api.py`
-  Acceptance: Tests start `BookmarkAPI` against an isolated manager, POST fixtures matching every extension save path, and assert URL, title, category, tags, notes, `read_later`, duplicate 409 handling, and error responses round-trip correctly.
-  Complexity: M
-
 - [ ] P1 - Sync local-only distribution documentation
   Why: The repo no longer has `.github/`, but durable docs and existing roadmap evidence still point at workflow files, which misdirects release and verification work.
   Evidence: `docs/REPOSITORY_STRUCTURE.md:16`; `git log` commit `4d0b881`; absence of `.github/`; `packaging/nuitka_build.py`; `packaging/bookmark_organizer.spec`
