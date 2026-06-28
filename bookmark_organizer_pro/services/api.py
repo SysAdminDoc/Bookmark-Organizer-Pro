@@ -1,7 +1,7 @@
 """Small local HTTP API for bookmark access.
 
-Security: requires Bearer token for all mutating requests (POST/DELETE).
-Reads are unauthenticated but CORS-restricted to same-origin.
+Security: requires a Bearer token for bookmark data reads and all mutating
+requests. The root metadata endpoint remains public.
 Token is auto-generated on first start and stored in the data directory.
 """
 
@@ -176,6 +176,9 @@ class BookmarkAPI:
                     })
                     return
 
+                if not self._check_auth():
+                    return
+
                 if path_parts[0] == 'opds':
                     bookmarks = bookmark_manager.get_all_bookmarks()
                     category = params.get('category', [''])[0]
@@ -208,9 +211,6 @@ class BookmarkAPI:
                     catalog_url = f"http://127.0.0.1:{self.server.server_port}{self.path}"
                     body = render_opds2(bookmarks[:limit], title=title, catalog_url=catalog_url)
                     self._send_json(json.loads(body))
-                    return
-
-                if not self._check_auth():
                     return
 
                 if path_parts[0] == 'bookmarks':

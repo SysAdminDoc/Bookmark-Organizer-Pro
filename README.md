@@ -3,7 +3,7 @@
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **single-file HTML snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
-![Version](https://img.shields.io/badge/Version-v6.8.4-2dd4bf.svg)
+![Version](https://img.shields.io/badge/Version-v6.8.5-2dd4bf.svg)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
@@ -26,6 +26,12 @@ Add to your MCP config:
 ```
 
 After restart, the MCP-compatible client can query your bookmark library directly.
+
+### Local API authentication
+
+The local REST API requires `Authorization: Bearer <token>` for bookmark data
+endpoints, including `/bookmarks`, `/search`, `/stats`, `/categories`, `/tags`,
+`/digest`, `/opds`, and `/opds2`. The root endpoint only reports API metadata.
 
 ### v6 CLI quickstart
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 
 APP_NAME = "Bookmark Organizer Pro"
-APP_VERSION = "6.8.4"
+APP_VERSION = "6.8.5"
 
 
 def main(argv: list[str] | None = None) -> int:

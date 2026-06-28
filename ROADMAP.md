@@ -904,15 +904,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P3 — Under Consideration
 
-### P0 - Trust and privacy
-
-- [ ] P0 - Authenticate OPDS catalog endpoints
-  Why: `/opds` and `/opds2` currently serialize bookmark catalog data before the bearer-token check used by other read endpoints.
-  Evidence: `bookmark_organizer_pro/services/api.py:176-214`; local-first privacy posture; Linkwarden/Readeck authenticated catalog models
-  Touches: `bookmark_organizer_pro/services/api.py`, `tests/test_core.py`, `README.md`
-  Acceptance: `/opds` and `/opds2` return 401 without an authorized bearer token unless an explicit read-only catalog token is configured; authenticated requests still return valid OPDS 1.2 and OPDS 2.0 output; tests cover unauthorized, authorized, and token-disabled modes.
-  Complexity: M
-
 ### P1 - Contracts, docs, and scale
 
 - [ ] P1 - Add behavioral extension/API round-trip contract tests

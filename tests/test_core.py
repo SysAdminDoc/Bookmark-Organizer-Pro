@@ -1620,8 +1620,20 @@ class TestMainAppManagers(unittest.TestCase):
                 api.stop()
 
     def test_bookmark_api_serves_opds_catalog(self):
+        import urllib.error
         import urllib.request
         import main
+
+        def get_text(url, token=None):
+            headers = {}
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+            request = urllib.request.Request(url, headers=headers)
+            try:
+                with urllib.request.urlopen(request, timeout=3) as response:
+                    return response.status, response.read().decode("utf-8"), response.headers
+            except urllib.error.HTTPError as error:
+                return error.code, error.read().decode("utf-8"), error.headers
 
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
@@ -1636,14 +1648,36 @@ class TestMainAppManagers(unittest.TestCase):
             try:
                 api.start()
                 url = f"http://127.0.0.1:{api.port}/opds?tag=OPDS&title=Catalog"
-                with urllib.request.urlopen(url, timeout=3) as response:
-                    body = response.read().decode("utf-8")
-                    content_type = response.headers.get("Content-Type", "")
+                from bookmark_organizer_pro.services.api import _TOKEN_FILE, _KEYRING_SERVICE, _KEYRING_KEY
+                token = ""
+                if _TOKEN_FILE.exists():
+                    token = _TOKEN_FILE.read_text(encoding="utf-8").strip()
+                if not token:
+                    try:
+                        import keyring
+                        token = keyring.get_password(_KEYRING_SERVICE, _KEYRING_KEY) or ""
+                    except Exception:
+                        pass
 
+                status, body, _ = get_text(url)
+                self.assertEqual(status, 401)
+                self.assertIn("Unauthorized", body)
+
+                status, body, headers = get_text(url, token)
+                self.assertEqual(status, 200)
+                content_type = headers.get("Content-Type", "")
                 self.assertIn("opds-catalog", content_type)
                 self.assertIn("API Book", body)
                 self.assertIn("application/pdf", body)
                 self.assertIn("http://opds-spec.org/acquisition/open-access", body)
+
+                status, body, _ = get_text(f"http://127.0.0.1:{api.port}/opds2?tag=OPDS", token)
+                self.assertEqual(status, 200)
+                self.assertEqual(json.loads(body)["metadata"]["title"], "Bookmarks")
+
+                status, body, _ = get_text(f"http://127.0.0.1:{api.port}/opds2?tag=OPDS")
+                self.assertEqual(status, 401)
+                self.assertIn("Unauthorized", body)
             finally:
                 api.stop()
 

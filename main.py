@@ -21,7 +21,7 @@ import sys
 multiprocessing.freeze_support()
 
 BOOTSTRAP_APP_NAME = "Bookmark Organizer Pro"
-BOOTSTRAP_APP_VERSION = "6.8.4"
+BOOTSTRAP_APP_VERSION = "6.8.5"
 
 if __name__ == "__main__" and any(arg in {"--version", "-V"} for arg in sys.argv[1:]):
     stdout = getattr(sys, "stdout", None)

@@ -2,6 +2,13 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.8.5] - 2026-06-28
+
+### Fixed
+
+- Required the local API bearer token for OPDS 1.2 and OPDS 2.0 catalog endpoints, matching the other bookmark-data read endpoints.
+- Added regression coverage for unauthorized and authorized OPDS catalog access.
+
 ## [v6.8.4] - 2026-06-27
 
 Trust and metadata repair pass.
