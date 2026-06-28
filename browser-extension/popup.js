@@ -1,5 +1,6 @@
 /* global DEFAULTS, api, storageGet, queryTabs, executeScript, getConfig,
-          baseUrl, authHeaders, isSaveableUrl, loadCategories */
+          isSaveableUrl, loadCategories, saveBookmarkPayload, getPendingSaves,
+          retryPendingSaves, clearPendingSaves */
 
 let activeTab = null;
 
@@ -60,6 +61,26 @@ async function loadPopup() {
   await loadCategories("categoryList");
 }
 
+async function refreshPendingPanel() {
+  const panel = document.getElementById("pendingPanel");
+  const count = document.getElementById("pendingCount");
+  const pending = await getPendingSaves();
+  panel.hidden = pending.length === 0;
+  count.textContent = `${pending.length} pending quick save${pending.length === 1 ? "" : "s"}`;
+}
+
+async function retryPendingQueue() {
+  const result = await retryPendingSaves();
+  setStatus(`Retried ${result.attempted}; resolved ${result.resolved}.`, result.remaining ? "warning" : "success");
+  await refreshPendingPanel();
+}
+
+async function clearPendingQueue() {
+  const cleared = await clearPendingSaves();
+  setStatus(`Cleared ${cleared} pending quick save${cleared === 1 ? "" : "s"}.`, "info");
+  await refreshPendingPanel();
+}
+
 async function saveBookmark() {
   if (!activeTab || !isSaveableUrl(activeTab.url)) {
     setStatus("This page cannot be saved.", "error");
@@ -85,20 +106,15 @@ async function saveBookmark() {
   };
 
   try {
-    const response = await fetch(`${baseUrl(values)}/bookmarks`, {
-      method: "POST",
-      headers: authHeaders(values),
-      body: JSON.stringify(payload)
-    });
-    const body = await response.json().catch(() => ({}));
-    if (response.status === 201) {
+    const result = await saveBookmarkPayload(payload, values);
+    if (result.status === 201) {
       setStatus("Saved to your library.", "success");
-    } else if (response.status === 409) {
+    } else if (result.status === 409) {
       setStatus("Already in your library.", "success");
-    } else if (response.status === 401) {
+    } else if (result.status === 401) {
       setStatus("Invalid API token. Check Options.", "error");
     } else {
-      setStatus(body.error || `Save failed (${response.status}).`, "error");
+      setStatus(result.body.error || `Save failed (${result.status}).`, "error");
     }
   } catch {
     setStatus("Cannot reach the local API. Start the app or run: bop api-server", "error");
@@ -114,5 +130,12 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("openOptions").addEventListener("click", () => {
     openOptionsPage().catch(() => setStatus("Options could not be opened.", "error"));
   });
+  document.getElementById("retryPending").addEventListener("click", () => {
+    retryPendingQueue().catch(() => setStatus("Pending retry failed.", "error"));
+  });
+  document.getElementById("clearPending").addEventListener("click", () => {
+    clearPendingQueue().catch(() => setStatus("Pending queue could not be cleared.", "error"));
+  });
+  refreshPendingPanel().catch(() => {});
   loadPopup().catch(() => setStatus("Could not load the active tab.", "error"));
 });

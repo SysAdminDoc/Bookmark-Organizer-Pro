@@ -196,6 +196,14 @@
       <span id="totalCount" class="count-badge"></span>
     </div>
 
+    <section id="pendingPanel" class="pending-panel" role="status" aria-live="polite" hidden>
+      <p id="pendingCount">0 pending quick saves</p>
+      <div class="pending-actions">
+        <button id="retryPending" type="button">Retry</button>
+        <button id="clearPending" class="secondary" type="button">Clear</button>
+      </div>
+    </section>
+
     <div class="tabs" role="tablist" aria-label="Bookmark side panel sections">
       <button id="tab-btn-recent" class="tab-btn active" data-tab="recent" type="button" role="tab" aria-selected="true" aria-controls="tab-recent">Recent</button>
       <button id="tab-btn-search" class="tab-btn" data-tab="search" type="button" role="tab" aria-selected="false" aria-controls="tab-search" tabindex="-1">Search</button>

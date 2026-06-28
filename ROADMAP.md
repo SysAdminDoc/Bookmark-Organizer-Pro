@@ -839,13 +839,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P2 — Quality and polish
 
-- [ ] P2 — Add extension pending-save queue and retry surface
-  Why: Context-menu quick-save silently fails when the local API is unavailable, so browser capture is less reliable than the desktop and side-panel flows.
-  Evidence: `browser-extension/background.js:39-63`; Chrome `storage.local` API; Karakeep/Linkwarden/Raindrop extension capture patterns
-  Touches: `browser-extension/background.js`, `browser-extension/popup.js`, `browser-extension/sidepanel.js`, `browser-extension/shared.js`, `tests/test_browser_extension.py`
-  Acceptance: Failed context-menu saves are queued in `chrome.storage.local`; popup/sidepanel show pending count with Retry and Clear actions; successful retries remove queued items and duplicate responses are treated as resolved.
-  Complexity: M
-
 - [ ] P2 — Remove or implement placeholder UI modules and no-op visual-mode hotkey
   Why: Placeholder modules and a bound no-op `v` command make the product feel unfinished and can mislead users and contributors.
   Evidence: `bookmark_organizer_pro/ui/navigation.py:97,276-278`; `bookmark_organizer_pro/ui/drag_drop.py`; `bookmark_organizer_pro/ui/widget_grid.py`; `bookmark_organizer_pro/ui/widget_lists.py`; `bookmark_organizer_pro/ui/widget_tray.py`; `README.md:93`

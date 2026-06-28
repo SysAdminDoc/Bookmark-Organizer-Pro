@@ -43,6 +43,14 @@
       <button id="openOptions" class="secondary" type="button">Options</button>
     </div>
 
+    <section id="pendingPanel" class="pending-panel" role="status" aria-live="polite" hidden>
+      <p id="pendingCount">0 pending quick saves</p>
+      <div class="pending-actions">
+        <button id="retryPending" type="button">Retry</button>
+        <button id="clearPending" class="secondary" type="button">Clear</button>
+      </div>
+    </section>
+
     <p id="status" class="status" role="status" aria-live="polite"></p>
   </main>
   <script src="shared.js"></script>

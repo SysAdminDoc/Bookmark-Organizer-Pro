@@ -249,6 +249,31 @@ button:disabled {
   color: var(--warning);
 }
 
+.pending-panel {
+  margin-top: 14px;
+  padding: 10px;
+  border: 1px solid var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, var(--panel));
+}
+
+.pending-panel p {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pending-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.pending-actions button {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
 .tabs {
   display: flex;
   gap: 4px;

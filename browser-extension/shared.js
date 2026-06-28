@@ -3,6 +3,7 @@ const DEFAULTS = {
   apiToken: "",
   defaultCategory: "Uncategorized / Needs Review"
 };
+const PENDING_SAVES_KEY = "pendingSaves";
 
 const api = globalThis.browser ?? globalThis.chrome;
 
@@ -11,6 +12,13 @@ function storageGet(keys) {
     return api.storage.local.get(keys);
   }
   return new Promise(resolve => api.storage.local.get(keys, resolve));
+}
+
+function storageSet(values) {
+  if (api.storage.local.set.length === 1) {
+    return api.storage.local.set(values);
+  }
+  return new Promise(resolve => api.storage.local.set(values, resolve));
 }
 
 function queryTabs(queryInfo) {
@@ -50,6 +58,16 @@ function authHeaders(config) {
   };
 }
 
+async function saveBookmarkPayload(payload, config) {
+  const response = await fetch(`${baseUrl(config)}/bookmarks`, {
+    method: "POST",
+    headers: authHeaders(config),
+    body: JSON.stringify(payload)
+  });
+  const body = await response.json().catch(() => ({}));
+  return { status: response.status, body };
+}
+
 function isSaveableUrl(url) {
   return /^https?:\/\//i.test(url || "");
 }
@@ -65,4 +83,73 @@ async function loadCategories(datalistId) {
       datalist.appendChild(opt);
     }
   } catch { /* bundled file missing */ }
+}
+
+function normalizePendingSave(payload, reason = "API unavailable", source = "context_menu") {
+  return {
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    source,
+    reason,
+    attempts: 0,
+    created_at: new Date().toISOString(),
+    payload: {
+      url: payload.url,
+      title: payload.title || payload.url,
+      category: payload.category || DEFAULTS.defaultCategory,
+      tags: Array.isArray(payload.tags) ? payload.tags : (payload.tags || []),
+      notes: payload.notes || "",
+      read_later: Boolean(payload.read_later)
+    }
+  };
+}
+
+async function getPendingSaves() {
+  const stored = await storageGet({ [PENDING_SAVES_KEY]: [] });
+  return Array.isArray(stored[PENDING_SAVES_KEY]) ? stored[PENDING_SAVES_KEY] : [];
+}
+
+async function setPendingSaves(items) {
+  await storageSet({ [PENDING_SAVES_KEY]: items.slice(-50) });
+}
+
+async function enqueuePendingSave(payload, reason = "API unavailable", source = "context_menu") {
+  const pending = await getPendingSaves();
+  const normalized = normalizePendingSave(payload, reason, source);
+  const duplicate = pending.find(item => item.payload && item.payload.url === normalized.payload.url);
+  if (duplicate) {
+    duplicate.payload = normalized.payload;
+    duplicate.reason = reason;
+    duplicate.created_at = normalized.created_at;
+  } else {
+    pending.push(normalized);
+  }
+  await setPendingSaves(pending);
+  return pending.length;
+}
+
+async function retryPendingSaves() {
+  const config = await getConfig();
+  const pending = await getPendingSaves();
+  const remaining = [];
+  let resolved = 0;
+  for (const item of pending) {
+    try {
+      const result = await saveBookmarkPayload(item.payload, config);
+      if (result.status === 201 || result.status === 409) {
+        resolved += 1;
+      } else {
+        remaining.push({ ...item, attempts: (item.attempts || 0) + 1, reason: result.body.error || `HTTP ${result.status}` });
+      }
+    } catch {
+      remaining.push({ ...item, attempts: (item.attempts || 0) + 1, reason: "API unavailable" });
+    }
+  }
+  await setPendingSaves(remaining);
+  return { attempted: pending.length, resolved, remaining: remaining.length };
+}
+
+async function clearPendingSaves() {
+  const pending = await getPendingSaves();
+  await setPendingSaves([]);
+  return pending.length;
 }

@@ -1,5 +1,6 @@
 /* global DEFAULTS, api, storageGet, queryTabs, executeScript, getConfig,
-          baseUrl, authHeaders, isSaveableUrl, loadCategories */
+          baseUrl, authHeaders, isSaveableUrl, loadCategories, saveBookmarkPayload,
+          getPendingSaves, retryPendingSaves, clearPendingSaves */
 
 const RECENT_PAGE_SIZE = 30;
 let recentOffset = 0;
@@ -64,6 +65,28 @@ function setRecentLoadMore(hasMore, label = "Load More") {
   button.hidden = !recentHasMore;
   button.disabled = false;
   button.textContent = label;
+}
+
+async function refreshPendingPanel() {
+  const panel = document.getElementById("pendingPanel");
+  const count = document.getElementById("pendingCount");
+  const pending = await getPendingSaves();
+  panel.hidden = pending.length === 0;
+  count.textContent = `${pending.length} pending quick save${pending.length === 1 ? "" : "s"}`;
+}
+
+async function retryPendingQueue() {
+  const result = await retryPendingSaves();
+  const text = document.getElementById("statusText");
+  text.textContent = result.remaining ? `${result.remaining} pending save(s) remain` : "Pending saves resolved";
+  await refreshPendingPanel();
+  if (result.resolved) loadRecent();
+}
+
+async function clearPendingQueue() {
+  const cleared = await clearPendingSaves();
+  document.getElementById("statusText").textContent = `Cleared ${cleared} pending save(s)`;
+  await refreshPendingPanel();
 }
 
 async function loadRecent({ append = false } = {}) {
@@ -211,21 +234,16 @@ async function saveBookmark() {
   try {
     saveBtn.disabled = true;
     saveBtn.textContent = "Saving...";
-    const response = await fetch(`${baseUrl(config)}/bookmarks`, {
-      method: "POST",
-      headers: authHeaders(config),
-      body: JSON.stringify(payload)
-    });
-    if (response.status === 201) {
+    const result = await saveBookmarkPayload(payload, config);
+    if (result.status === 201) {
       setAddStatus("Saved to your library.", "success");
       loadRecent();
-    } else if (response.status === 409) {
+    } else if (result.status === 409) {
       setAddStatus("Already in your library.", "success");
-    } else if (response.status === 401) {
+    } else if (result.status === 401) {
       setAddStatus("Invalid token. Check Options.", "error");
     } else {
-      const body = await response.json().catch(() => ({}));
-      setAddStatus(body.error || `Save failed (${response.status}).`, "error");
+      setAddStatus(result.body.error || `Save failed (${result.status}).`, "error");
     }
   } catch {
     setAddStatus("Cannot reach the local API. Start the app or run: bop api-server", "error");
@@ -326,8 +344,19 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("loadMoreRecent").addEventListener("click", () => {
     loadRecent({ append: true });
   });
+  document.getElementById("retryPending").addEventListener("click", () => {
+    retryPendingQueue().catch(() => {
+      document.getElementById("statusText").textContent = "Pending retry failed";
+    });
+  });
+  document.getElementById("clearPending").addEventListener("click", () => {
+    clearPendingQueue().catch(() => {
+      document.getElementById("statusText").textContent = "Pending queue could not be cleared";
+    });
+  });
 
   checkConnection();
+  refreshPendingPanel().catch(() => {});
   loadRecent();
   loadRediscover();
   loadCategories("categoryList");

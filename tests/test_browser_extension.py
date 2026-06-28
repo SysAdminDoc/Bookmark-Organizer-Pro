@@ -61,8 +61,9 @@ class TestBrowserExtensionManifest(unittest.TestCase):
         shared_js = (EXT_DIR / "shared.js").read_text(encoding="utf-8")
         combined = shared_js + "\n" + popup_js
 
-        self.assertIn("baseUrl(", popup_js)
-        self.assertIn("/bookmarks", popup_js)
+        self.assertIn("baseUrl(", shared_js)
+        self.assertIn("saveBookmarkPayload", popup_js)
+        self.assertIn("/bookmarks", shared_js)
         self.assertIn("http://127.0.0.1:", shared_js)
         self.assertIn("Bearer", shared_js)
         self.assertIn('"Content-Type": "application/json"', shared_js)
@@ -143,13 +144,36 @@ class TestBrowserExtensionManifest(unittest.TestCase):
 
     def test_background_quick_save_payload_contract_maps_context_fields(self):
         background_js = (EXT_DIR / "background.js").read_text(encoding="utf-8")
-        payload = extract_js_object_literal(background_js, "body: JSON.stringify({")
+        payload = extract_js_object_literal(background_js, "const payload =")
 
         self.assertIn("url,", payload)
         self.assertIn("title: title || url", payload)
         self.assertIn("category: values.defaultCategory", payload)
         self.assertIn("tags: []", payload)
         self.assertIn('notes: notes || ""', payload)
+
+    def test_extension_pending_save_queue_contract(self):
+        shared_js = (EXT_DIR / "shared.js").read_text(encoding="utf-8")
+        background_js = (EXT_DIR / "background.js").read_text(encoding="utf-8")
+        popup_html = (EXT_DIR / "popup.html").read_text(encoding="utf-8")
+        sidepanel_html = (EXT_DIR / "sidepanel.html").read_text(encoding="utf-8")
+        popup_js = (EXT_DIR / "popup.js").read_text(encoding="utf-8")
+        sidepanel_js = (EXT_DIR / "sidepanel.js").read_text(encoding="utf-8")
+
+        self.assertIn('PENDING_SAVES_KEY = "pendingSaves"', shared_js)
+        self.assertIn("enqueuePendingSave", background_js)
+        self.assertIn("HTTP ${response.status}", background_js)
+        self.assertIn("API unavailable", background_js)
+        self.assertIn("result.status === 201 || result.status === 409", shared_js)
+        for html in (popup_html, sidepanel_html):
+            self.assertIn('id="pendingPanel"', html)
+            self.assertIn('id="pendingCount"', html)
+            self.assertIn('id="retryPending"', html)
+            self.assertIn('id="clearPending"', html)
+        for js in (popup_js, sidepanel_js):
+            self.assertIn("refreshPendingPanel", js)
+            self.assertIn("retryPendingSaves", js)
+            self.assertIn("clearPendingSaves", js)
 
     def test_extension_assets_exist(self):
         for name in [
