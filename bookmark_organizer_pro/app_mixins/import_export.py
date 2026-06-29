@@ -13,6 +13,7 @@ from bookmark_organizer_pro.constants import BACKUP_DIR
 from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.importers import (
     BrowserProfileImporter,
+    FirefoxBookmarkBackupImporter,
     NetscapeBookmarkImporter,
     OPMLImporter,
     RaindropImporter,
@@ -214,15 +215,20 @@ class ImportExportMixin:
                         if ext in ('.html', '.htm'):
                             bookmarks = NetscapeBookmarkImporter.import_from_netscape(filepath)
                         elif ext == '.json':
-                            with open(filepath, 'r', encoding='utf-8') as f:
-                                data = json.load(f)
-                            items = data if isinstance(data, list) else data.get('bookmarks', [])
-                            for item in items:
-                                if isinstance(item, dict) and item.get('url'):
-                                    bm = Bookmark(id=None, url=item.get('url', ''),
-                                                  title=item.get('title', ''),
-                                                  category=item.get('category', 'Imported'))
-                                    bookmarks.append(bm)
+                            if FirefoxBookmarkBackupImporter.looks_like_backup(filepath):
+                                bookmarks = FirefoxBookmarkBackupImporter.import_from_json(filepath)
+                            else:
+                                with open(filepath, 'r', encoding='utf-8') as f:
+                                    data = json.load(f)
+                                items = data if isinstance(data, list) else data.get('bookmarks', [])
+                                for item in items:
+                                    if isinstance(item, dict) and item.get('url'):
+                                        bm = Bookmark(id=None, url=item.get('url', ''),
+                                                      title=item.get('title', ''),
+                                                      category=item.get('category', 'Imported'))
+                                        bookmarks.append(bm)
+                        elif ext == '.jsonlz4':
+                            bookmarks = FirefoxBookmarkBackupImporter.import_from_json(filepath)
                         elif ext == '.csv':
                             bookmarks = RaindropImporter.import_from_csv(filepath)
                         elif ext == '.opml':
@@ -419,6 +425,7 @@ class ImportExportMixin:
                 "readwise": self._import_service_readwise,
                 "raindrop": self._import_service_raindrop,
                 "arc": self._import_service_arc,
+                "firefox-backup": self._import_service_firefox_backup,
             }.get(source.action_arg)
             if handler:
                 handler()
@@ -581,6 +588,37 @@ class ImportExportMixin:
             RaindropCSVServiceImporter,
             "Raindrop",
             [("CSV", "*.csv"), ("All", "*.*")],
+        )
+
+    def _import_service_firefox_backup(self):
+        from tkinter import filedialog
+
+        path = filedialog.askopenfilename(
+            title=_("Import Firefox Bookmark Backup"),
+            filetypes=[
+                ("Firefox backup", "*.json *.jsonlz4"),
+                ("JSON", "*.json"),
+                ("All", "*.*"),
+            ],
+            parent=self.root,
+        )
+        if not path:
+            return
+
+        from bookmark_organizer_pro.importers_extra import import_into
+
+        self.bookmark_manager.create_safepoint("pre-import")
+        importer = FirefoxBookmarkBackupImporter()
+        added, dupes = import_into(self.bookmark_manager, importer, path)
+        skipped = importer.stats.skipped
+        self._on_import_done(added, dupes)
+        self._show_import_result_summary(
+            "Firefox Backup",
+            added,
+            dupes,
+            _(
+                "{skipped} invalid or missing-URL item(s) skipped. Review imported folders, then run tag cleanup."
+            ).format(skipped=skipped),
         )
 
     def _import_service_pinboard(self):

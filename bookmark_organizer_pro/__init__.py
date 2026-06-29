@@ -97,7 +97,8 @@ from .search import (
 from .importers import (
     BrowserProfileImporter, PocketImporter, RaindropImporter,
     OPMLExporter, TextURLImporter, OPMLImporter,
-    OneTabImporter, NetscapeBookmarkImporter,
+    OneTabImporter, NetscapeBookmarkImporter, FirefoxBookmarkBackupImporter,
+    FirefoxBackupImportStats,
 )
 from .link_checker import LinkChecker
 from .url_utils import URLUtilities
@@ -187,7 +188,8 @@ __all__ = [
     # Importers
     "BrowserProfileImporter", "PocketImporter", "RaindropImporter",
     "OPMLExporter", "TextURLImporter", "OPMLImporter",
-    "OneTabImporter", "NetscapeBookmarkImporter",
+    "OneTabImporter", "NetscapeBookmarkImporter", "FirefoxBookmarkBackupImporter",
+    "FirefoxBackupImportStats",
     # Link checker
     "LinkChecker",
     # URL utilities

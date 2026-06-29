@@ -845,13 +845,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P2 - Preservation, migration, and MCP coverage
 
-- [ ] P2 - Add Firefox bookmark-backup JSON import
-  Why: Firefox JSON backups preserve tags and folder metadata that Netscape HTML export can lose, improving migration fidelity for browser-native users.
-  Evidence: `bookmark_organizer_pro/importers.py:183-267`; Mozilla Firefox bookmark backup/export docs; Floccus/XBEL ecosystem expectations
-  Touches: `bookmark_organizer_pro/importers.py`, `bookmark_organizer_pro/app_mixins/import_export.py`, `bookmark_organizer_pro/cli.py`, `tests/test_services.py`, README importer docs
-  Acceptance: Users can import Firefox `bookmarkbackups/*.json` files; folder hierarchy maps to categories, Firefox tags map to tags, invalid/missing URL entries are skipped with counts, and tests cover nested folders, tags, separators, and malformed JSON.
-  Complexity: M
-
 - [ ] P2 - Expose reader highlights and review operations through MCP
   Why: Reader annotations and SM-2 review are implemented locally, but MCP clients cannot list highlights, fetch due reviews, record review quality, or export highlight Markdown.
   Evidence: `bookmark_organizer_pro/services/reader_annotations.py`; `tests/test_services.py:1194-1513`; `bookmark_organizer_pro/mcp_server.py`; MCP tool/resource patterns

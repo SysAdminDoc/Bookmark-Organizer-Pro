@@ -1073,7 +1073,141 @@ class TestArcImporter(_IsolatedTestBase):
         self.assertEqual(len(bms), 1)
 
 
-# ── 14. Batch save context manager ──────────────────────────────────
+# ── 14. FirefoxBookmarkBackupImporter ───────────────────────────────
+
+class TestFirefoxBookmarkBackupImporter(_IsolatedTestBase):
+    """Tests for Firefox bookmarkbackups JSON import."""
+
+    def _write_backup(self, path: Path) -> None:
+        payload = {
+            "guid": "root________",
+            "title": "",
+            "root": "placesRoot",
+            "typeCode": 2,
+            "children": [
+                {
+                    "title": "Bookmarks Menu",
+                    "root": "bookmarksMenuFolder",
+                    "typeCode": 2,
+                    "children": [
+                        {
+                            "title": "Development",
+                            "typeCode": 2,
+                            "children": [
+                                {
+                                    "title": "Python",
+                                    "uri": "https://www.python.org/",
+                                    "guid": "py__________",
+                                    "typeCode": 1,
+                                    "dateAdded": 1_700_000_000_000_000,
+                                    "lastModified": 1_700_100_000_000_000,
+                                    "tags": "language",
+                                },
+                                {"typeCode": 3, "title": ""},
+                                {"title": "Missing URL", "typeCode": 1},
+                                {"title": "Internal Query", "uri": "place:sort=8", "typeCode": 1},
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "title": "Bookmarks Toolbar",
+                    "root": "toolbarFolder",
+                    "typeCode": 2,
+                    "children": [
+                        {
+                            "title": "Python Docs",
+                            "uri": "https://docs.python.org/3/",
+                            "guid": "docs________",
+                            "typeCode": 1,
+                        }
+                    ],
+                },
+                {
+                    "title": "Tags",
+                    "root": "tagsFolder",
+                    "typeCode": 2,
+                    "children": [
+                        {
+                            "title": "reference",
+                            "typeCode": 2,
+                            "children": [
+                                {
+                                    "title": "Python",
+                                    "uri": "https://www.python.org/",
+                                    "typeCode": 1,
+                                }
+                            ],
+                        },
+                        {
+                            "title": "docs",
+                            "typeCode": 2,
+                            "children": [
+                                {
+                                    "title": "Python Docs",
+                                    "uri": "https://docs.python.org/3/",
+                                    "typeCode": 1,
+                                }
+                            ],
+                        },
+                    ],
+                },
+            ],
+        }
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+    def test_import_nested_folders_tags_and_skip_counts(self):
+        from bookmark_organizer_pro.importers import FirefoxBookmarkBackupImporter
+
+        path = Path(self._tmp) / "firefox-backup.json"
+        self._write_backup(path)
+        importer = FirefoxBookmarkBackupImporter()
+
+        bookmarks = importer.from_path(str(path))
+
+        self.assertEqual([bm.title for bm in bookmarks], ["Python", "Python Docs"])
+        self.assertEqual(bookmarks[0].category, "Bookmarks Menu / Development")
+        self.assertEqual(bookmarks[1].category, "Bookmarks Toolbar")
+        self.assertEqual(bookmarks[0].tags, ["language", "reference"])
+        self.assertEqual(bookmarks[1].tags, ["docs"])
+        self.assertEqual(bookmarks[0].source_file, "firefox-bookmark-backup")
+        self.assertIn("firefox_guid", bookmarks[0].custom_data)
+        self.assertTrue(bookmarks[0].created_at.startswith("2023-"))
+        self.assertEqual(importer.stats.imported, 2)
+        self.assertEqual(importer.stats.skipped_missing_url, 1)
+        self.assertEqual(importer.stats.skipped_invalid_url, 1)
+        self.assertEqual(importer.stats.tag_references, 2)
+
+    def test_malformed_backup_returns_empty_with_count(self):
+        from bookmark_organizer_pro.importers import FirefoxBookmarkBackupImporter
+
+        path = Path(self._tmp) / "bad-firefox.json"
+        path.write_text("{", encoding="utf-8")
+        importer = FirefoxBookmarkBackupImporter()
+
+        self.assertEqual(importer.from_path(str(path)), [])
+        self.assertEqual(importer.stats.malformed, 1)
+
+    def test_import_center_exposes_firefox_backup_card(self):
+        from bookmark_organizer_pro.ui.import_center import build_import_sources
+
+        source = next(item for item in build_import_sources([]) if item.key == "firefox-backup")
+
+        self.assertEqual(source.action_kind, "service")
+        self.assertEqual(source.action_arg, "firefox-backup")
+        self.assertIn(".json", source.accepted_formats)
+
+    def test_cli_registers_firefox_backup_command(self):
+        from bookmark_organizer_pro.cli import BookmarkCLI
+
+        parser = BookmarkCLI()._build_parser()
+        ns = parser.parse_args(["import-firefox-backup", "backup.json"])
+
+        self.assertEqual(ns.file, "backup.json")
+        self.assertEqual(ns.func.__name__, "_cmd_import_firefox_backup")
+
+
+# ── 15. Batch save context manager ──────────────────────────────────
 
 class TestBatchSave(_IsolatedTestBase):
     """Tests for BookmarkManager.batch() context manager."""

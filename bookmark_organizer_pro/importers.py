@@ -11,6 +11,7 @@ import os
 import re
 import shutil
 import tempfile
+from dataclasses import dataclass
 try:
     from defusedxml import ElementTree as _safe_ET
 except ImportError:  # pragma: no cover - defusedxml is a declared dependency
@@ -66,6 +67,238 @@ def _dedup_bookmarks(bookmarks: List[Bookmark]) -> List[Bookmark]:
             continue
         seen.add(key)
         out.append(bm)
+    return out
+
+
+def _firefox_timestamp(value) -> str:
+    """Convert Firefox backup timestamps to ISO when possible."""
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return ""
+    try:
+        if number > 10_000_000_000_000:
+            return datetime.fromtimestamp(number / 1_000_000).isoformat()
+        if number > 10_000_000_000:
+            return datetime.fromtimestamp(number / 1_000).isoformat()
+        return datetime.fromtimestamp(number).isoformat()
+    except Exception:
+        return ""
+
+
+def _bookmark_url_key(url: str) -> str:
+    return str(url or "").strip().lower().rstrip("/")
+
+
+@dataclass
+class FirefoxBackupImportStats:
+    total_nodes: int = 0
+    bookmarks_seen: int = 0
+    imported: int = 0
+    skipped_missing_url: int = 0
+    skipped_invalid_url: int = 0
+    tag_references: int = 0
+    malformed: int = 0
+
+    @property
+    def skipped(self) -> int:
+        return self.skipped_missing_url + self.skipped_invalid_url + self.malformed
+
+
+class FirefoxBookmarkBackupImporter:
+    """Import Firefox bookmark backup JSON trees from bookmarkbackups."""
+
+    MAX_BYTES = 250_000_000
+
+    def __init__(self):
+        self.stats = FirefoxBackupImportStats()
+
+    @staticmethod
+    def looks_like_backup(path: str) -> bool:
+        try:
+            data = FirefoxBookmarkBackupImporter._load_json(Path(path))
+        except Exception:
+            return False
+        return isinstance(data, dict) and FirefoxBookmarkBackupImporter._looks_like_node(data)
+
+    @staticmethod
+    def import_from_json(filepath: str) -> List[Bookmark]:
+        return FirefoxBookmarkBackupImporter().from_path(filepath)
+
+    def from_path(self, path: str) -> List[Bookmark]:
+        self.stats = FirefoxBackupImportStats()
+        try:
+            data = self._load_json(Path(path))
+        except Exception as exc:
+            self.stats.malformed = 1
+            log.error(f"Error importing Firefox bookmark backup: {exc}")
+            return []
+        if not isinstance(data, dict) or not self._looks_like_node(data):
+            self.stats.malformed = 1
+            log.error(f"Invalid Firefox bookmark backup structure: {path}")
+            return []
+
+        tag_map = self._collect_tag_map(data)
+        bookmarks: List[Bookmark] = []
+        self._walk(data, [], tag_map, bookmarks, in_tags_root=False)
+        return _dedup_bookmarks(bookmarks)
+
+    @staticmethod
+    def _load_json(path: Path):
+        if not path.exists() or path.stat().st_size > FirefoxBookmarkBackupImporter.MAX_BYTES:
+            raise ValueError("backup file is missing or too large")
+        raw = path.read_bytes()
+        if raw.startswith(b"mozLz40\0"):
+            try:
+                import lz4.block
+            except Exception as exc:
+                raise ValueError("Firefox .jsonlz4 import requires the lz4 package") from exc
+            raw = lz4.block.decompress(raw[8:])
+        return json.loads(raw.decode("utf-8-sig"))
+
+    @staticmethod
+    def _looks_like_node(data: dict) -> bool:
+        return (
+            "children" in data
+            or data.get("root") in {"placesRoot", "bookmarksMenuFolder", "toolbarFolder", "unfiledBookmarksFolder"}
+            or data.get("typeCode") in {1, 2, 3}
+        )
+
+    @staticmethod
+    def _is_folder(node: dict) -> bool:
+        node_type = str(node.get("type") or "").lower()
+        return node.get("typeCode") == 2 or "container" in node_type or isinstance(node.get("children"), list)
+
+    @staticmethod
+    def _is_bookmark(node: dict) -> bool:
+        node_type = str(node.get("type") or "").lower()
+        return node.get("typeCode") == 1 or node_type == "text/x-moz-place" or "uri" in node
+
+    @staticmethod
+    def _is_tags_root(node: dict) -> bool:
+        return node.get("root") == "tagsFolder" or str(node.get("title") or "").strip().lower() == "tags"
+
+    def _collect_tag_map(self, root: dict) -> Dict[str, List[str]]:
+        tag_map: Dict[str, List[str]] = {}
+
+        def add_tag(url: str, tag: str) -> None:
+            key = _bookmark_url_key(url)
+            tag = str(tag or "").strip()
+            if not key or not tag:
+                return
+            values = tag_map.setdefault(key, [])
+            if tag.lower() not in {existing.lower() for existing in values}:
+                values.append(tag)
+
+        def walk_tags(node: dict, active_tag: str = "") -> None:
+            if not isinstance(node, dict):
+                return
+            if self._is_folder(node):
+                tag_name = str(node.get("title") or active_tag).strip()
+                for child in node.get("children", []) or []:
+                    if isinstance(child, dict):
+                        walk_tags(child, tag_name)
+                return
+            if self._is_bookmark(node):
+                self.stats.tag_references += 1
+                add_tag(str(node.get("uri") or node.get("url") or ""), active_tag)
+
+        def find_tags(node: dict) -> None:
+            if not isinstance(node, dict):
+                return
+            if self._is_tags_root(node):
+                for child in node.get("children", []) or []:
+                    if isinstance(child, dict):
+                        walk_tags(child)
+                return
+            for child in node.get("children", []) or []:
+                if isinstance(child, dict):
+                    find_tags(child)
+
+        find_tags(root)
+        return tag_map
+
+    def _walk(
+        self,
+        node: dict,
+        path: List[str],
+        tag_map: Dict[str, List[str]],
+        out: List[Bookmark],
+        in_tags_root: bool,
+    ) -> None:
+        if not isinstance(node, dict):
+            return
+        self.stats.total_nodes += 1
+        if self._is_tags_root(node):
+            in_tags_root = True
+
+        if self._is_bookmark(node):
+            if in_tags_root:
+                return
+            self.stats.bookmarks_seen += 1
+            url = str(node.get("uri") or node.get("url") or "").strip()
+            if not url:
+                self.stats.skipped_missing_url += 1
+                return
+            if not _is_supported_web_url(url):
+                self.stats.skipped_invalid_url += 1
+                return
+            title = _decode(str(node.get("title") or url)).strip() or url
+            category = " / ".join(path) if path else "Firefox Backup"
+            explicit_tags = node.get("tags")
+            tags = _clean_firefox_tags(explicit_tags)
+            for tag in tag_map.get(_bookmark_url_key(url), []):
+                if tag.lower() not in {existing.lower() for existing in tags}:
+                    tags.append(tag)
+            bm = Bookmark(
+                id=None,
+                url=url,
+                title=title,
+                category=category,
+                tags=tags,
+                created_at=_firefox_timestamp(node.get("dateAdded")),
+                modified_at=_firefox_timestamp(node.get("lastModified")),
+                source_file="firefox-bookmark-backup",
+                custom_data={
+                    "firefox_guid": str(node.get("guid") or ""),
+                    "firefox_folder": category,
+                },
+            )
+            out.append(bm)
+            self.stats.imported += 1
+            return
+
+        children = node.get("children", []) or []
+        if not isinstance(children, list):
+            return
+        next_path = list(path)
+        if self._is_folder(node) and not in_tags_root:
+            title = str(node.get("title") or "").strip()
+            root_name = str(node.get("root") or "")
+            if title and root_name != "placesRoot":
+                next_path.append(_decode(title))
+        for child in children:
+            self._walk(child, next_path, tag_map, out, in_tags_root)
+
+
+def _clean_firefox_tags(value) -> List[str]:
+    if isinstance(value, str):
+        raw = re.split(r"[,;]", value)
+    elif isinstance(value, (list, tuple, set)):
+        raw = value
+    else:
+        return []
+    out: List[str] = []
+    seen = set()
+    for item in raw:
+        tag = str(item or "").strip()
+        if not tag:
+            continue
+        key = tag.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(tag)
     return out
 
 

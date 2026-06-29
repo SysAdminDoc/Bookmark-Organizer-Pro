@@ -107,7 +107,7 @@ Native messaging and offline category/tag suggestions remain on the roadmap.
 ## Features
 
 ### Core Features
-- **Multi-format Import**: HTML (Chrome, Firefox, Edge, Safari), JSON, CSV, OPML, TXT
+- **Multi-format Import**: HTML (Chrome, Firefox, Edge, Safari), Firefox bookmark backup JSON/JSONLZ4, JSON, CSV, OPML, TXT
 - **Nested Categories**: Hierarchical category organization with drag-and-drop
 - **Advanced Tagging**: User tags + AI-suggested tags with color coding
 - **Premium List Workspace**: Dense, searchable bookmark table with Studio Dark, refined states, command palette, polished empty states, and cohesive secondary dialogs
@@ -208,6 +208,7 @@ pip install beautifulsoup4 requests tksheet Pillow
 
 Supported paths:
 - Chrome/Firefox/Edge: Detected local profiles when available, or bookmark HTML export
+- Firefox bookmark backups: `bookmarkbackups/*.json` or `.jsonlz4`, preserving nested folders and Firefox tags
 - Safari: Bookmark HTML export from File menu
 - Pocket: HTML or JSON export
 - Arc: `StorableSidebar.json`

@@ -19,6 +19,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Added a reusable cleanup review dialog for URL duplicates, smart duplicate groups, and tag-lint suggestions with selectable groups, Apply, Skip, safepoint creation, and Restore controls.
 - Added a dedicated desktop Read Later Queue with open-next, open-selected, reorder, mark-done, remove, and empty-state handling.
 - Added persisted snapshot backend failure reports with per-backend diagnostics, retry eligibility, dashboard visibility, and Tools-menu Retry/Clear actions.
+- Added Firefox bookmark-backup JSON/JSONLZ4 import with nested folder categories, tag-folder preservation, invalid URL skip counts, GUI Import Center routing, and CLI support.
 
 ### Changed
 

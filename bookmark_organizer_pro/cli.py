@@ -201,6 +201,7 @@ class BookmarkCLI:
         # ── Importers ──────────────────────────────────────────────
         _importer_usage = {
             "import-pocket": "import-pocket <file>",
+            "import-firefox-backup": "import-firefox-backup <file>",
             "import-readwise": "import-readwise <csv>",
             "import-pinboard": "import-pinboard <json>",
             "import-instapaper": "import-instapaper <csv>",
@@ -212,6 +213,7 @@ class BookmarkCLI:
         }
         for name, helptext in [
             ("import-pocket", "Import Pocket export (HTML or JSON)"),
+            ("import-firefox-backup", "Import Firefox bookmarkbackups JSON"),
             ("import-readwise", "Import Readwise Reader CSV"),
             ("import-pinboard", "Import Pinboard JSON export"),
             ("import-instapaper", "Import Instapaper CSV export"),
@@ -424,7 +426,7 @@ Commands:
   add <url> [title]      Add a new bookmark
   delete <id>            Delete a bookmark by ID
   search <query>         Search bookmarks
-  import <file>          Import bookmarks from file (HTML/JSON)
+  import <file>          Import bookmarks from file (HTML/JSON/Firefox JSONLZ4)
   export <file>          Export bookmarks to file
   categories             List all categories
   tags                   List all tags
@@ -450,6 +452,7 @@ v6.0.0 commands:
   flow {{list|new|add|show}}    Manage research-trail flows
   feed {{list|add|fetch|remove}} Manage RSS/Atom feeds
   import-pocket <file>          Import Pocket export (HTML or JSON)
+  import-firefox-backup <file>  Import Firefox bookmarkbackups JSON
   import-readwise <csv>         Import Readwise Reader CSV
   import-pinboard <json>        Import Pinboard JSON export
   import-instapaper <csv>       Import Instapaper CSV export
@@ -637,12 +640,33 @@ Examples:
             self._error(f"Error: File not found: {filepath}")
             return 1
 
-        if filepath.endswith(".html") or filepath.endswith(".htm"):
+        lower_path = filepath.lower()
+        if lower_path.endswith(".html") or lower_path.endswith(".htm"):
             added, dupes = self.bookmark_manager.import_html_file(filepath)
-        elif filepath.endswith(".json"):
+        elif lower_path.endswith(".json"):
+            from bookmark_organizer_pro.importers import FirefoxBookmarkBackupImporter
+            if FirefoxBookmarkBackupImporter.looks_like_backup(filepath):
+                from bookmark_organizer_pro.importers_extra import import_into
+                importer = FirefoxBookmarkBackupImporter()
+                added, dupes = import_into(self.bookmark_manager, importer, filepath)
+                print(
+                    f"✓ Imported {added} bookmarks ({dupes} duplicates skipped; "
+                    f"{importer.stats.skipped} invalid/missing URL skipped)"
+                )
+                return 0
             added, dupes = self.bookmark_manager.import_json_file(filepath)
+        elif lower_path.endswith(".jsonlz4"):
+            from bookmark_organizer_pro.importers import FirefoxBookmarkBackupImporter
+            from bookmark_organizer_pro.importers_extra import import_into
+            importer = FirefoxBookmarkBackupImporter()
+            added, dupes = import_into(self.bookmark_manager, importer, filepath)
+            print(
+                f"✓ Imported {added} bookmarks ({dupes} duplicates skipped; "
+                f"{importer.stats.skipped} invalid/missing URL skipped)"
+            )
+            return 0
         else:
-            self._error("Error: Unsupported file format (use .html or .json)")
+            self._error("Error: Unsupported file format (use .html, .json, or .jsonlz4)")
             return 1
 
         print(f"✓ Imported {added} bookmarks ({dupes} duplicates skipped)")
@@ -1035,6 +1059,19 @@ Top Domains:
         from bookmark_organizer_pro.importers_extra import PocketExportImporter, import_into
         added, dupes = import_into(self.bookmark_manager, PocketExportImporter(), ns.file)
         print(f"+{added} ({dupes} duplicates skipped)")
+
+    def _cmd_import_firefox_backup(self, ns: argparse.Namespace):
+        if not ns.file:
+            print(f"Usage: {ns._usage_hint}")
+            return
+        from bookmark_organizer_pro.importers import FirefoxBookmarkBackupImporter
+        from bookmark_organizer_pro.importers_extra import import_into
+        importer = FirefoxBookmarkBackupImporter()
+        added, dupes = import_into(self.bookmark_manager, importer, ns.file)
+        print(
+            f"Firefox backup import: {added} added, {dupes} duplicates skipped, "
+            f"{importer.stats.skipped} invalid/missing URL skipped"
+        )
 
     def _cmd_import_readwise(self, ns: argparse.Namespace):
         if not ns.file:
