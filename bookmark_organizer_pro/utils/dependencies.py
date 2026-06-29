@@ -32,11 +32,6 @@ class DependencyManager:
             "required": False,
             "description": "Image processing for favicons",
         },
-        "pystray": {
-            "import_name": "pystray",
-            "required": False,
-            "description": "System tray integration",
-        },
     }
 
     def __init__(self):

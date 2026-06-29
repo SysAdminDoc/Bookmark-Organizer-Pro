@@ -24,7 +24,7 @@ fi
 # Install dependencies
 echo ""
 echo "Checking dependencies..."
-pip3 install beautifulsoup4 requests Pillow pystray --quiet 2>/dev/null || true
+pip3 install beautifulsoup4 requests Pillow --quiet 2>/dev/null || true
 
 # Build
 echo ""

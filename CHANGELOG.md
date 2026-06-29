@@ -14,6 +14,11 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Synced distribution documentation to local-only build/release commands and added a drift test for removed workflow references.
 - Added `/bookmarks` REST pagination and filter parity for tag, read-later, pinned, offset, and deterministic list responses, plus side-panel load-more behavior.
 - Added an extension pending-save queue for failed context-menu quick saves, with popup/side-panel pending counts plus Retry and Clear actions.
+- Added a packaging regression check that prevents empty placeholder UI modules, no-op visual-mode hotkeys, and unshipped tray dependency claims from returning.
+
+### Changed
+
+- Removed dead UI placeholder modules and the bound no-op Vim `v` command; installer, package, and diagnostics surfaces no longer advertise tray integration without a shipped tray workflow.
 
 ### Fixed
 

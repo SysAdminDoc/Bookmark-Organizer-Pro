@@ -82,7 +82,6 @@ hidden_imports = [
     'PIL.ImageFont',
     'bs4',
     'requests',
-    'pystray',
     'tksheet',
     # v6.0.0 — modular backend package
     'bookmark_organizer_pro',

@@ -32,7 +32,6 @@ if TYPE_CHECKING:
 
 _DEPENDENCY_MODULES = {
     "Pillow": ("Pillow", "PIL"),
-    "pystray": ("pystray", "pystray"),
     "darkdetect": ("darkdetect", "darkdetect"),
     "sv-ttk": ("sv-ttk", "sv_ttk"),
     "FastEmbed": ("fastembed", "fastembed"),

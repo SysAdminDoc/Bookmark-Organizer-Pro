@@ -97,7 +97,7 @@ class TestNuitkaBuildHelper(unittest.TestCase):
     def test_updates_extra_is_declared(self):
         pyproject_text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         self.assertIn('updates = ["tufup>=0.10,<0.11"]', pyproject_text)
-        self.assertIn('"bookmark-organizer-pro[tray,ai,encryption,mcp,updates,sunvalley]"', pyproject_text)
+        self.assertIn('"bookmark-organizer-pro[ai,encryption,mcp,updates,sunvalley]"', pyproject_text)
 
     def test_sunvalley_extra_is_declared(self):
         pyproject_text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
@@ -127,6 +127,33 @@ class TestNuitkaBuildHelper(unittest.TestCase):
             structure = structure_doc.read_text(encoding="utf-8")
             self.assertIn("python -m pytest -q", structure)
             self.assertIn("scripts/release_artifact_smoke.py", structure)
+
+    def test_unshipped_placeholder_ui_paths_are_removed(self):
+        removed_modules = [
+            ROOT / "bookmark_organizer_pro" / "ui" / "drag_drop.py",
+            ROOT / "bookmark_organizer_pro" / "ui" / "widget_grid.py",
+            ROOT / "bookmark_organizer_pro" / "ui" / "widget_lists.py",
+            ROOT / "bookmark_organizer_pro" / "ui" / "widget_tray.py",
+        ]
+        for path in removed_modules:
+            self.assertFalse(path.exists(), path)
+
+        navigation = (ROOT / "bookmark_organizer_pro" / "ui" / "navigation.py").read_text(encoding="utf-8")
+        self.assertNotIn("_visual_mode_toggle", navigation)
+        self.assertNotIn("'v':", navigation)
+
+        package_surfaces = [
+            ROOT / "README.md",
+            ROOT / "requirements.txt",
+            ROOT / "pyproject.toml",
+            ROOT / "packaging" / "bookmark_organizer.spec",
+            ROOT / "scripts" / "build_windows.bat",
+            ROOT / "scripts" / "build_unix.sh",
+        ]
+        for path in package_surfaces:
+            text = path.read_text(encoding="utf-8")
+            self.assertNotIn("pystray", text, path)
+            self.assertNotIn("System Tray", text, path)
 
 
 if __name__ == "__main__":

@@ -839,13 +839,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P2 — Quality and polish
 
-- [ ] P2 — Remove or implement placeholder UI modules and no-op visual-mode hotkey
-  Why: Placeholder modules and a bound no-op `v` command make the product feel unfinished and can mislead users and contributors.
-  Evidence: `bookmark_organizer_pro/ui/navigation.py:97,276-278`; `bookmark_organizer_pro/ui/drag_drop.py`; `bookmark_organizer_pro/ui/widget_grid.py`; `bookmark_organizer_pro/ui/widget_lists.py`; `bookmark_organizer_pro/ui/widget_tray.py`; `README.md:93`
-  Touches: `bookmark_organizer_pro/ui/navigation.py`, placeholder UI modules, `README.md`, `bookmark_organizer_pro/ui/about.py`, tests
-  Acceptance: No active keyboard shortcut points to a no-op; unused placeholder modules are removed or backed by shipped behavior; System Tray documentation and diagnostics match the actual feature state.
-  Complexity: S
-
 - [ ] P2 — Add guided migration and first-run import center
   Why: Importers exist, but users leaving Pocket/Arc/browser tools need source-specific guidance, privacy context, duplicate expectations, and post-import next steps.
   Evidence: `README.md` importer list; `browser-extension/sidepanel.js:213-247`; Mozilla Pocket shutdown/export docs; Readwise/Raindrop import/export workflows

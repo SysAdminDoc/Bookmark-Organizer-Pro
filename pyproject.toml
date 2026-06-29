@@ -21,7 +21,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-tray = ["pystray>=0.19"]
 ai = [
     "trafilatura>=2.1",
     "lingua-language-detector>=2.0",
@@ -43,7 +42,7 @@ dev = [
     "jaraco.text>=4.0",
 ]
 all = [
-    "bookmark-organizer-pro[tray,ai,encryption,mcp,updates,sunvalley]",
+    "bookmark-organizer-pro[ai,encryption,mcp,updates,sunvalley]",
     "defusedxml>=0.7",
 ]
 

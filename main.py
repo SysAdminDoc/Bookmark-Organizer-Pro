@@ -10,7 +10,6 @@ A powerful, modern bookmark manager with:
 - Grid/Card and List views
 - Advanced search syntax
 - Analytics dashboard
-- System tray integration
 - Enhanced favicon caching
 - Professional UI with DPI awareness
 """
@@ -74,17 +73,14 @@ from bookmark_organizer_pro.desktop_bootstrap import (
 
 def _sync_dependency_globals():
     """Mirror optional dependency state for legacy main.py consumers."""
-    global BeautifulSoup, requests, HAS_PIL, HAS_TRAY, Image, ImageTk, ImageDraw, ImageFont, pystray, TrayItem
+    global BeautifulSoup, requests, HAS_PIL, Image, ImageTk, ImageDraw, ImageFont
     BeautifulSoup = _desktop_bootstrap.BeautifulSoup
     requests = _desktop_bootstrap.requests
     HAS_PIL = _desktop_bootstrap.HAS_PIL
-    HAS_TRAY = _desktop_bootstrap.HAS_TRAY
     Image = _desktop_bootstrap.Image
     ImageTk = _desktop_bootstrap.ImageTk
     ImageDraw = _desktop_bootstrap.ImageDraw
     ImageFont = _desktop_bootstrap.ImageFont
-    pystray = _desktop_bootstrap.pystray
-    TrayItem = _desktop_bootstrap.TrayItem
 
 
 def import_dependencies():

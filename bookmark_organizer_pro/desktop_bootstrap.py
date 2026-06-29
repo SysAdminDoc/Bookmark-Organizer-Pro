@@ -49,7 +49,7 @@ def setup_dpi_awareness():
 # =============================================================================
 def import_dependencies():
     """Import dependencies after they've been checked/installed"""
-    global BeautifulSoup, requests, HAS_PIL, HAS_TRAY, Image, ImageTk, ImageDraw, ImageFont, pystray, TrayItem
+    global BeautifulSoup, requests, HAS_PIL, Image, ImageTk, ImageDraw, ImageFont
     
     from bs4 import BeautifulSoup
     import requests
@@ -62,26 +62,15 @@ def import_dependencies():
         HAS_PIL = False
         log.warning("Pillow not available - some image features disabled")
     
-    try:
-        import pystray
-        from pystray import MenuItem as TrayItem
-        HAS_TRAY = True
-    except ImportError:
-        HAS_TRAY = False
-        log.warning("pystray not available - system tray disabled")
-
 
 # Placeholder globals until import
 BeautifulSoup = None
 requests = None
 HAS_PIL = False
-HAS_TRAY = False
 Image = None
 ImageTk = None
 ImageDraw = None
 ImageFont = None
-pystray = None
-TrayItem = None
 
 # =============================================================================
 # DISTRIBUTION - Application Icon and About Dialog
@@ -192,4 +181,3 @@ def set_dark_title_bar(window):
         ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 19, ctypes.byref(value), 4)
     except Exception:
         pass
-

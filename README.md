@@ -125,7 +125,6 @@ Native messaging and offline category/tag suggestions remain on the roadmap.
 - **10+ Built-in Themes**: GitHub Dark/Light, Dracula, Nord, Monokai, Tokyo Night, and more
 - **Custom Themes**: Create, import, and export custom color schemes
 - **High DPI Support**: Crisp rendering on high-resolution displays
-- **System Tray**: Optional quick access when `pystray` is installed
 - **Keyboard Shortcuts**: Complete keyboard navigation
 - **Command Palette**: Quick access to all commands (Ctrl+P)
 
@@ -180,12 +179,11 @@ On first run, the application will:
 
 **Optional** (recommended):
 - `Pillow` - Image processing for favicons and screenshots
-- `pystray` - System tray integration
 
 ### Manual Installation
 
 ```bash
-pip install beautifulsoup4 requests tksheet Pillow pystray
+pip install beautifulsoup4 requests tksheet Pillow
 ```
 
 ## Usage
@@ -322,7 +320,7 @@ react OR vue                       # Boolean OR
 #### "Module not found" errors
 ```bash
 # Reinstall dependencies
-pip install --upgrade beautifulsoup4 requests Pillow pystray
+pip install --upgrade beautifulsoup4 requests Pillow
 ```
 
 #### Favicons not loading
@@ -498,7 +496,7 @@ GitHub-hosted build or release workflows.
 pip install pyinstaller
 
 # Install dependencies
-pip install beautifulsoup4 requests tksheet Pillow pystray
+pip install beautifulsoup4 requests tksheet Pillow
 ```
 
 ### Build Commands

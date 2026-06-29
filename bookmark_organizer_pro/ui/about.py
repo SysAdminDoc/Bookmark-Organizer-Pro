@@ -15,12 +15,6 @@ try:
 except ImportError:  # pragma: no cover - optional runtime dependency
     HAS_PIL = False
 
-try:
-    import pystray  # noqa: F401
-    HAS_TRAY = True
-except ImportError:  # pragma: no cover - optional runtime dependency
-    HAS_TRAY = False
-
 from bookmark_organizer_pro.constants import (
     APP_DIR,
     APP_NAME,
@@ -282,7 +276,6 @@ Tk Version:     {tk.TkVersion}
 OPTIONAL FEATURES
 ───────────────────────────────────
 PIL (Pillow):   {'Available' if HAS_PIL else 'Not installed'}
-System Tray:    {'Available' if HAS_TRAY else 'Not installed'}
 
 DATA LOCATIONS
 ───────────────────────────────────

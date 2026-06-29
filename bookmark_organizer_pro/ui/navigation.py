@@ -77,7 +77,6 @@ class VimNavigator:
         self.tree = tree
         self.on_open = on_open
         self._enabled = False
-        self._visual_start = None
         
         self._commands = {
             'j': self._move_down,
@@ -94,7 +93,6 @@ class VimNavigator:
             '/': self._search,
             'n': self._next_search,
             'N': self._prev_search,
-            'v': self._visual_mode_toggle,
             'Escape': self._escape,
             'space': self._page_down,
             'b': self._page_up,
@@ -273,13 +271,8 @@ class VimNavigator:
             self._search_index -= 1
             self._select(self._search_matches[self._search_index])
     
-    def _visual_mode_toggle(self):
-        """Toggle visual selection mode (v) — placeholder for future card/grid view."""
-        pass
-
     def _escape(self):
         """Cancel current operation"""
-        self._visual_start = None
         self._pending_command = None
     
     def search_items(self, pattern: str):

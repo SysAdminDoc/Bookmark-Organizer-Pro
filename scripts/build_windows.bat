@@ -25,7 +25,7 @@ if errorlevel 1 (
 REM Check for optional dependencies
 echo.
 echo Checking dependencies...
-pip install beautifulsoup4 requests Pillow pystray --quiet
+pip install beautifulsoup4 requests Pillow --quiet
 
 REM Build
 echo.
