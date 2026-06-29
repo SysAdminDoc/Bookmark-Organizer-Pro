@@ -839,13 +839,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P2 — Quality and polish
 
-- [ ] P2 — Add guided migration and first-run import center
-  Why: Importers exist, but users leaving Pocket/Arc/browser tools need source-specific guidance, privacy context, duplicate expectations, and post-import next steps.
-  Evidence: `README.md` importer list; `browser-extension/sidepanel.js:213-247`; Mozilla Pocket shutdown/export docs; Readwise/Raindrop import/export workflows
-  Touches: `bookmark_organizer_pro/app_mixins/import_export.py`, import dialogs under `bookmark_organizer_pro/ui/`, `browser-extension/sidepanel.js`, `README.md`
-  Acceptance: First-run/import UI offers source-specific cards for Pocket, Arc, Chrome/Firefox/Edge/Safari, Raindrop, Readwise-compatible files, and Chrome Reading List; each path shows accepted file type, privacy note, duplicate policy, import summary, and next action.
-  Complexity: M
-
 - [ ] P2 — Make duplicate and tag-lint results fully actionable in the GUI
   Why: Smart duplicate and tag-lint results still rely on modal summaries or CLI handoff instead of in-place review, apply, and recovery controls.
   Evidence: `bookmark_organizer_pro/app_mixins/tools.py:486-523,546-582`; `bookmark_organizer_pro/services/dup_hybrid.py`; `bookmark_organizer_pro/services/tag_linter.py`; Raindrop duplicate/broken-link utilities

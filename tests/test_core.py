@@ -2473,6 +2473,60 @@ class TestQuickAddForm(unittest.TestCase):
         self.assertEqual(pick_default_category(["Inbox"]), "Inbox")
 
 
+class TestImportCenterGuidance(unittest.TestCase):
+    """Test import-center source guidance without constructing Tk widgets."""
+
+    def test_import_center_covers_required_migration_paths(self):
+        from bookmark_organizer_pro.ui.import_center import build_import_sources
+
+        sources = {source.key: source for source in build_import_sources(["chrome", "firefox", "edge"])}
+
+        required = {
+            "browser-chrome",
+            "browser-firefox",
+            "browser-edge",
+            "browser-safari",
+            "pocket",
+            "arc",
+            "raindrop",
+            "readwise",
+            "chrome-reading-list",
+        }
+        self.assertTrue(required.issubset(sources))
+
+        for key in required:
+            source = sources[key]
+            self.assertTrue(source.accepted_formats, key)
+            self.assertTrue(source.privacy_note, key)
+            self.assertTrue(source.duplicate_policy, key)
+            self.assertTrue(source.import_summary, key)
+            self.assertTrue(source.next_action, key)
+            self.assertTrue(source.action_label, key)
+
+    def test_detected_browser_cards_use_direct_profiles_when_supported(self):
+        from bookmark_organizer_pro.ui.import_center import build_import_sources
+
+        sources = {source.key: source for source in build_import_sources(["chrome", "firefox", "edge"])}
+
+        self.assertEqual(sources["browser-chrome"].action_kind, "browser_profile")
+        self.assertEqual(sources["browser-firefox"].action_kind, "browser_profile")
+        self.assertEqual(sources["browser-edge"].action_kind, "browser_profile")
+        self.assertEqual(sources["browser-safari"].action_kind, "file")
+        self.assertIn(".html", sources["browser-safari"].accepted_formats)
+
+    def test_service_and_reading_list_cards_route_to_existing_paths(self):
+        from bookmark_organizer_pro.ui.import_center import build_import_sources
+
+        sources = {source.key: source for source in build_import_sources([])}
+
+        self.assertEqual(sources["pocket"].action_arg, "pocket")
+        self.assertEqual(sources["arc"].action_arg, "arc")
+        self.assertEqual(sources["raindrop"].action_arg, "raindrop")
+        self.assertEqual(sources["readwise"].action_arg, "readwise")
+        self.assertEqual(sources["chrome-reading-list"].action_kind, "reading_list_help")
+        self.assertIn("side panel", sources["chrome-reading-list"].next_action.lower())
+
+
 class TestFaviconServices(unittest.TestCase):
     """Test favicon services extracted from main.py."""
 

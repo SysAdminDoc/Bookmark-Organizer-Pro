@@ -167,7 +167,12 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
         ".txt": "Text File (URLs)",
     }
     
-    def __init__(self, parent, on_files_dropped: Callable = None):
+    def __init__(
+        self,
+        parent,
+        on_files_dropped: Callable = None,
+        on_open_import_center: Callable = None,
+    ):
         theme = get_theme()
         super().__init__(
             parent, bg=theme.bg_secondary, padx=18, pady=16,
@@ -175,6 +180,7 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
         )
         
         self.on_files_dropped = on_files_dropped
+        self.on_open_import_center = on_open_import_center
         self._drag_active = False
         self._compact = False
         self.compact_row = None
@@ -254,7 +260,14 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
                 pass
     
     def _browse_files(self):
-        """Open file browser for multiple files"""
+        """Open the guided import center, falling back to direct file browse."""
+        if self.on_open_import_center:
+            self.on_open_import_center()
+            return
+        self._browse_files_direct()
+
+    def _browse_files_direct(self):
+        """Open file browser for multiple files."""
         filetypes = [
             ("All Bookmark Files", "*.html *.htm *.json *.csv *.opml *.txt"),
             ("HTML Files", "*.html *.htm"),

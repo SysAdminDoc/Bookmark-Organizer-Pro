@@ -22,15 +22,22 @@ from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.ui.bookmark_workflows import SelectiveExportDialog
 from bookmark_organizer_pro.ui.foundation import FONTS, pluralize
+from bookmark_organizer_pro.ui.import_center import ImportCenterDialog, ImportSource, build_import_sources
 from bookmark_organizer_pro.ui.widgets import ModernButton, get_theme
 
 
 class ImportProgressModal(tk.Toplevel):
     """Large centered modal that shows import progress."""
 
-    def __init__(self, parent, source_label: str = "file"):
+    def __init__(
+        self,
+        parent,
+        source_label: str = "file",
+        next_action: str = "Review imported bookmarks, then run duplicate and tag cleanup.",
+    ):
         super().__init__(parent)
         theme = get_theme()
+        self._next_action = next_action
 
         self.title(_("Importing Bookmarks"))
         self.configure(bg=theme.bg_primary)
@@ -39,7 +46,7 @@ class ImportProgressModal(tk.Toplevel):
         self.grab_set()
         self.protocol("WM_DELETE_WINDOW", lambda: None)
 
-        width, height = 480, 260
+        width, height = 500, 300
         self.geometry(f"{width}x{height}")
         self.update_idletasks()
         px = parent.winfo_rootx() + (parent.winfo_width() - width) // 2
@@ -134,6 +141,16 @@ class ImportProgressModal(tk.Toplevel):
         )
         self._count_label.configure(text="")
 
+        tk.Label(
+            self,
+            text=_("Next: {action}").format(action=self._next_action),
+            bg=theme.bg_primary,
+            fg=theme.text_secondary,
+            font=FONTS.small(),
+            wraplength=400,
+            justify=tk.CENTER,
+        ).pack(pady=(8, 0))
+
         btn_frame = tk.Frame(self, bg=theme.bg_primary)
         btn_frame.pack(pady=(12, 0))
         ModernButton(
@@ -172,7 +189,11 @@ class ImportExportMixin:
         file_names = ", ".join(Path(f).name for f in filepaths[:3])
         if len(filepaths) > 3:
             file_names += f" (+{len(filepaths) - 3} more)"
-        modal = ImportProgressModal(self.root, source_label=file_names)
+        modal = ImportProgressModal(
+            self.root,
+            source_label=file_names,
+            next_action="Review imported categories, then run duplicate and tag cleanup.",
+        )
 
         def do_import():
             # Capture a recoverable snapshot of the pre-import state first, so a
@@ -379,42 +400,33 @@ class ImportExportMixin:
             )
     
     def _show_import_dialog(self):
-        """Show import options menu"""
-        theme = get_theme()
-        menu = tk.Menu(self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
-                       activebackground=theme.bg_hover, activeforeground=theme.text_primary,
-                       font=FONTS.body())
-        menu.add_command(label=_("Import from File…"), command=self.import_area._browse_files)
-        menu.add_separator()
-
-        # Detect installed browsers
+        """Show the guided import center."""
         importer = BrowserProfileImporter()
-        browsers = importer.get_available_browsers()
-        if browsers:
-            for browser in browsers:
-                menu.add_command(
-                    label=_("Import from {source}…").format(source=browser.title()),
-                    command=lambda b=browser: self._import_from_browser(b)
-                )
-        else:
-            menu.add_command(label=_("No browsers detected"), state="disabled")
+        sources = build_import_sources(importer.get_available_browsers())
+        ImportCenterDialog(self.root, sources, self._handle_import_center_source)
 
-        menu.add_separator()
-        service_importers = [
-            ("Pocket (HTML/JSON)", "*.html *.json", self._import_service_pocket),
-            ("Readwise Reader (CSV)", "*.csv", self._import_service_readwise),
-            ("Pinboard (JSON)", "*.json", self._import_service_pinboard),
-            ("Instapaper (CSV)", "*.csv", self._import_service_instapaper),
-            ("Reddit Saved (JSON)", "*.json", self._import_service_reddit),
-            ("Matter (CSV)", "*.csv", self._import_service_matter),
-            ("Wallabag (JSON)", "*.json", self._import_service_wallabag),
-            ("Arc Browser (JSON)", "*.json", self._import_service_arc),
-            ("Zotero (RDF)", "*.rdf", self._import_service_zotero),
-        ]
-        for label, _ext, callback in service_importers:
-            menu.add_command(label=_("Import from {source}").format(source=label), command=callback)
-
-        menu.tk_popup(self.root.winfo_pointerx(), self.root.winfo_pointery())
+    def _handle_import_center_source(self, source: ImportSource):
+        """Dispatch a selected import-center card."""
+        if source.action_kind == "file":
+            self.import_area._browse_files_direct()
+            return
+        if source.action_kind == "browser_profile":
+            self._import_from_browser(source.action_arg)
+            return
+        if source.action_kind == "service":
+            handler = {
+                "pocket": self._import_service_pocket,
+                "readwise": self._import_service_readwise,
+                "raindrop": self._import_service_raindrop,
+                "arc": self._import_service_arc,
+            }.get(source.action_arg)
+            if handler:
+                handler()
+                return
+        if source.action_kind == "reading_list_help":
+            self._show_reading_list_import_help()
+            return
+        self._show_toast(_("This import path is not available yet."), "warning")
 
     def _import_from_browser(self, browser: str):
         """Import bookmarks directly from a browser profile with progress modal."""
@@ -426,7 +438,11 @@ class ImportExportMixin:
             return
 
         profile_name, profile_path = profiles[0]
-        modal = ImportProgressModal(self.root, source_label=f"{browser.title()} ({profile_name})")
+        modal = ImportProgressModal(
+            self.root,
+            source_label=f"{browser.title()} ({profile_name})",
+            next_action="Review browser folders, then run duplicate and tag cleanup.",
+        )
 
         def do_import():
             try:
@@ -483,8 +499,68 @@ class ImportExportMixin:
         )
         if not path:
             return
+        self.bookmark_manager.create_safepoint("pre-import")
         added, dupes = import_into(self.bookmark_manager, importer_cls(), path)
         self._on_import_done(added, dupes)
+        self._show_import_result_summary(
+            label,
+            added,
+            dupes,
+            _("Review imported items, then run duplicate and tag cleanup."),
+        )
+
+    def _show_import_result_summary(self, label: str, added: int, dupes: int, next_action: str):
+        """Show a compact non-blocking import result with the next action."""
+        theme = get_theme()
+        dlg = tk.Toplevel(self.root)
+        dlg.title(_("Import Summary"))
+        dlg.configure(bg=theme.bg_primary)
+        dlg.geometry("430x230")
+        dlg.resizable(False, False)
+        dlg.transient(self.root)
+
+        tk.Label(
+            dlg,
+            text=_("{source} Import Complete").format(source=label),
+            bg=theme.bg_primary,
+            fg=theme.text_primary,
+            font=FONTS.subtitle(bold=True),
+        ).pack(anchor="w", padx=22, pady=(22, 8))
+
+        tk.Label(
+            dlg,
+            text=_("{added} imported. {dupes} duplicates skipped.").format(
+                added=pluralize(added, "bookmark"),
+                dupes=pluralize(dupes, "duplicate"),
+            ),
+            bg=theme.bg_primary,
+            fg=theme.text_secondary,
+            font=FONTS.body(),
+            wraplength=380,
+            justify=tk.LEFT,
+        ).pack(anchor="w", padx=22, pady=(0, 12))
+
+        tk.Label(
+            dlg,
+            text=_("Next: {action}").format(action=next_action),
+            bg=theme.bg_primary,
+            fg=theme.text_muted,
+            font=FONTS.small(),
+            wraplength=380,
+            justify=tk.LEFT,
+        ).pack(anchor="w", padx=22)
+
+        buttons = tk.Frame(dlg, bg=theme.bg_primary)
+        buttons.pack(side=tk.BOTTOM, fill=tk.X, padx=22, pady=18)
+        ModernButton(
+            buttons,
+            text=_("Review Library"),
+            style="primary",
+            command=lambda: (dlg.destroy(), self._clear_search()),
+            padx=14,
+            pady=7,
+        ).pack(side=tk.RIGHT)
+        ModernButton(buttons, text=_("Close"), command=dlg.destroy, padx=14, pady=7).pack(side=tk.RIGHT, padx=(0, 8))
 
     def _import_service_pocket(self):
         from bookmark_organizer_pro.importers_extra import PocketExportImporter
@@ -495,6 +571,17 @@ class ImportExportMixin:
         from bookmark_organizer_pro.importers_extra import ReadwiseReaderCSVImporter
         self._import_service_file(ReadwiseReaderCSVImporter, "Readwise",
                                   [("CSV", "*.csv"), ("All", "*.*")])
+
+    def _import_service_raindrop(self):
+        class RaindropCSVServiceImporter:
+            def from_path(self, path: str):
+                return iter(RaindropImporter.import_from_csv(path))
+
+        self._import_service_file(
+            RaindropCSVServiceImporter,
+            "Raindrop",
+            [("CSV", "*.csv"), ("All", "*.*")],
+        )
 
     def _import_service_pinboard(self):
         from bookmark_organizer_pro.importers_extra import PinboardJSONImporter
@@ -536,6 +623,7 @@ class ImportExportMixin:
         )
         if not path:
             return
+        self.bookmark_manager.create_safepoint("pre-import")
         bookmarks = import_zotero_rdf(path)
         added = dupes = 0
         for bm in bookmarks:
@@ -547,6 +635,21 @@ class ImportExportMixin:
         if added:
             self.bookmark_manager.save_bookmarks()
         self._on_import_done(added, dupes)
+        self._show_import_result_summary(
+            "Zotero",
+            added,
+            dupes,
+            _("Review imported references and export notes if needed."),
+        )
+
+    def _show_reading_list_import_help(self):
+        """Surface the browser-extension Reading List migration path."""
+        message = _(
+            "Chrome Reading List import runs from the browser extension side panel. "
+            "Start the local API, open the extension side panel, choose Add, then select Reading List."
+        )
+        self._set_status(message)
+        self._show_toast(message, "info")
 
     def _show_export_dialog(self):
         """Show export dialog"""

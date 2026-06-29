@@ -15,10 +15,12 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Added `/bookmarks` REST pagination and filter parity for tag, read-later, pinned, offset, and deterministic list responses, plus side-panel load-more behavior.
 - Added an extension pending-save queue for failed context-menu quick saves, with popup/side-panel pending counts plus Retry and Clear actions.
 - Added a packaging regression check that prevents empty placeholder UI modules, no-op visual-mode hotkeys, and unshipped tray dependency claims from returning.
+- Added a guided Import Center with source-specific cards for Chrome, Firefox, Edge, Safari, Pocket, Arc, Raindrop, Readwise-compatible CSV, and Chrome Reading List migration.
 
 ### Changed
 
 - Removed dead UI placeholder modules and the bound no-op Vim `v` command; installer, package, and diagnostics surfaces no longer advertise tray integration without a shipped tray workflow.
+- Import entry points now route through the guided center first, with accepted file types, privacy notes, duplicate policy, import summaries, and next actions shown in the desktop flow.
 
 ### Fixed
 

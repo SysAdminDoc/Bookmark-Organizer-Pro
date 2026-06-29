@@ -254,7 +254,7 @@ class AppShellMixin:
         import_btn = ModernButton(
             toolbar, text=_("Import"),
             command=self._show_import_dialog,
-            tooltip=_("Import bookmarks from HTML, JSON, CSV, or OPML files")
+            tooltip=_("Open guided import paths for browsers, services, and files")
         )
         import_btn.pack(side=tk.LEFT, padx=3)
         
@@ -314,7 +314,9 @@ class AppShellMixin:
         
         # Enhanced drag-drop import area
         self.import_area = DragDropImportArea(
-            self.left_scroll.inner, on_files_dropped=self._on_files_dropped
+            self.left_scroll.inner,
+            on_files_dropped=self._on_files_dropped,
+            on_open_import_center=self._show_import_dialog,
         )
         self.import_area.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=DesignTokens.PANEL_PAD)
         self.import_area.set_compact(True)

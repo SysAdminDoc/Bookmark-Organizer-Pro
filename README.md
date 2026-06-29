@@ -199,16 +199,24 @@ pip install beautifulsoup4 requests tksheet Pillow
 
 #### Importing Bookmarks
 1. Click **Import** or press `Ctrl+I`
-2. Select your bookmark file(s)
-3. Choose import options (merge duplicates, etc.)
-4. Click Import
+2. Choose the source card that matches your export or browser
+3. Review the accepted file type, privacy note, duplicate policy, and next step
+4. Select the file/profile and review the import summary
 
-Supported formats:
+Supported paths:
+- Chrome/Firefox/Edge: Detected local profiles when available, or bookmark HTML export
+- Safari: Bookmark HTML export from File menu
+- Pocket: HTML or JSON export
+- Arc: `StorableSidebar.json`
+- Raindrop: CSV export with collections, tags, and notes
+- Readwise-compatible CSV: URL/title/tag/note/date columns
+- Chrome Reading List: Browser extension side panel > Add > Reading List
+- Generic files: JSON, CSV, OPML, TXT URL lists, and Netscape bookmark HTML
+
+Browser export tips:
 - Chrome/Edge: Export as HTML from `chrome://bookmarks`
 - Firefox: Export as HTML from Bookmarks Manager
-- Safari: Export as HTML from File menu
-- JSON: Bookmark Organizer Pro native format
-- CSV: Spreadsheet format with URL, Title, Category columns
+- Safari: Export bookmarks as HTML from File menu
 
 #### Searching
 Use the search bar with advanced syntax:
