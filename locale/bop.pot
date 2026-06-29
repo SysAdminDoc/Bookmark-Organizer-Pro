@@ -116,7 +116,7 @@ msgstr ""
 msgid "Assistant Categorize Selected"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:39
+#: bookmark_organizer_pro/app_mixins/tools.py:45
 msgid "Assistant Provider Settings"
 msgstr ""
 
@@ -151,8 +151,8 @@ msgid "BOP"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:19
-#: bookmark_organizer_pro/app_mixins/tools.py:46
-#: bookmark_organizer_pro/app_mixins/tools.py:84
+#: bookmark_organizer_pro/app_mixins/tools.py:52
+#: bookmark_organizer_pro/app_mixins/tools.py:90
 msgid "Backup Now"
 msgstr ""
 
@@ -194,7 +194,7 @@ msgstr ""
 msgid "Categories appear after you import or add bookmarks."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:62
+#: bookmark_organizer_pro/app_mixins/tools.py:68
 msgid "Categorize All Bookmarks"
 msgstr ""
 
@@ -208,7 +208,7 @@ msgid "Category Not Added"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:34
-#: bookmark_organizer_pro/app_mixins/tools.py:72
+#: bookmark_organizer_pro/app_mixins/tools.py:78
 msgid "Check All Links"
 msgstr ""
 
@@ -245,7 +245,7 @@ msgid "Chrome Reading List import runs from the browser extension side panel. St
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:36
-#: bookmark_organizer_pro/app_mixins/tools.py:77
+#: bookmark_organizer_pro/app_mixins/tools.py:83
 msgid "Clean Tracking Parameters"
 msgstr ""
 
@@ -255,17 +255,17 @@ msgid "Clear"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:40
-#: bookmark_organizer_pro/app_mixins/tools.py:68
+#: bookmark_organizer_pro/app_mixins/tools.py:74
 msgid "Clear All Categories"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:41
-#: bookmark_organizer_pro/app_mixins/tools.py:44
-#: bookmark_organizer_pro/app_mixins/tools.py:69
+#: bookmark_organizer_pro/app_mixins/tools.py:50
+#: bookmark_organizer_pro/app_mixins/tools.py:75
 msgid "Clear All Tags"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:89
+#: bookmark_organizer_pro/app_mixins/tools.py:95
 msgid "Clear Favicon Cache"
 msgstr ""
 
@@ -464,13 +464,13 @@ msgid "Files or browser export"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:35
-#: bookmark_organizer_pro/app_mixins/tools.py:74
+#: bookmark_organizer_pro/app_mixins/tools.py:80
 msgid "Find Duplicates"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:39
-#: bookmark_organizer_pro/app_mixins/tools.py:43
-#: bookmark_organizer_pro/app_mixins/tools.py:67
+#: bookmark_organizer_pro/app_mixins/tools.py:49
+#: bookmark_organizer_pro/app_mixins/tools.py:73
 msgid "Flatten All Folders"
 msgstr ""
 
@@ -479,7 +479,7 @@ msgid "Focus Search"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:31
-#: bookmark_organizer_pro/app_mixins/tools.py:82
+#: bookmark_organizer_pro/app_mixins/tools.py:88
 msgid "Full Analytics"
 msgstr ""
 
@@ -487,7 +487,7 @@ msgstr ""
 msgid "Get API key"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:81
+#: bookmark_organizer_pro/app_mixins/tools.py:87
 msgid "Graph View"
 msgstr ""
 
@@ -544,7 +544,7 @@ msgstr ""
 msgid "Import Bookmarks"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:63
+#: bookmark_organizer_pro/app_mixins/tools.py:69
 msgid "Import Categories File"
 msgstr ""
 
@@ -655,7 +655,7 @@ msgstr ""
 msgid "Library Overview"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:76
+#: bookmark_organizer_pro/app_mixins/tools.py:82
 msgid "Lint Tags"
 msgstr ""
 
@@ -668,12 +668,12 @@ msgid "List view"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:38
-#: bookmark_organizer_pro/app_mixins/tools.py:41
-#: bookmark_organizer_pro/app_mixins/tools.py:61
+#: bookmark_organizer_pro/app_mixins/tools.py:47
+#: bookmark_organizer_pro/app_mixins/tools.py:67
 msgid "Manage Categories"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:83
+#: bookmark_organizer_pro/app_mixins/tools.py:89
 msgid "Migrate to SQLite"
 msgstr ""
 
@@ -869,7 +869,7 @@ msgstr ""
 msgid "Reader"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:80
+#: bookmark_organizer_pro/app_mixins/tools.py:86
 msgid "Reader View"
 msgstr ""
 
@@ -893,11 +893,11 @@ msgstr ""
 msgid "Redo"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:87
+#: bookmark_organizer_pro/app_mixins/tools.py:93
 msgid "Redownload All Favicons"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:88
+#: bookmark_organizer_pro/app_mixins/tools.py:94
 msgid "Redownload Missing Favicons"
 msgstr ""
 
@@ -932,8 +932,8 @@ msgstr ""
 msgid "Reset view"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:47
-#: bookmark_organizer_pro/app_mixins/tools.py:85
+#: bookmark_organizer_pro/app_mixins/tools.py:53
+#: bookmark_organizer_pro/app_mixins/tools.py:91
 msgid "Restore Last Maintenance Safepoint"
 msgstr ""
 
@@ -1063,7 +1063,7 @@ msgstr ""
 msgid "Server is running!"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:64
+#: bookmark_organizer_pro/app_mixins/tools.py:70
 msgid "Set Custom Favicon"
 msgstr ""
 
@@ -1112,11 +1112,11 @@ msgstr ""
 msgid "Smart"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:79
+#: bookmark_organizer_pro/app_mixins/tools.py:85
 msgid "Smart Collections"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:75
+#: bookmark_organizer_pro/app_mixins/tools.py:81
 msgid "Smart Duplicate Scan"
 msgstr ""
 
@@ -1159,7 +1159,7 @@ msgid "Test Provider"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:30
-#: bookmark_organizer_pro/app_mixins/tools.py:40
+#: bookmark_organizer_pro/app_mixins/tools.py:46
 msgid "Theme Settings"
 msgstr ""
 
@@ -1232,7 +1232,7 @@ msgstr ""
 msgid "View"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:73
+#: bookmark_organizer_pro/app_mixins/tools.py:79
 msgid "View Dead Links"
 msgstr ""
 

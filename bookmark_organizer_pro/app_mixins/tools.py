@@ -17,6 +17,12 @@ from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.core.category_manager import get_category_icon
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Category
+from bookmark_organizer_pro.ui.cleanup_review import (
+    CleanupReviewDialog,
+    build_hybrid_duplicate_review_groups,
+    build_tag_lint_review_groups,
+    build_url_duplicate_review_groups,
+)
 from bookmark_organizer_pro.ui.foundation import FONTS, readable_text_on
 from bookmark_organizer_pro.ui.widgets import ModernButton, ThemeSelectorDialog, apply_window_chrome
 from bookmark_organizer_pro.ui.graph_view import GraphViewDialog
@@ -135,6 +141,16 @@ class ToolsActionsMixin:
         self._set_status("Maintenance safepoint restore failed")
         self._toast("Maintenance safepoint restore failed; see logs", "error")
         return False
+
+    def _show_cleanup_review_dialog(self, title: str, intro: str, groups, on_apply) -> None:
+        CleanupReviewDialog(
+            self.root,
+            title=title,
+            intro=intro,
+            groups=groups,
+            on_apply=on_apply,
+            on_restore=self._restore_last_maintenance_safepoint,
+        )
 
     def _show_nonblocking_report(self, title: str, lines, status: str, toast: str | None = None) -> None:
         text = "\n".join(lines) if isinstance(lines, list) else str(lines)
@@ -535,26 +551,45 @@ class ToolsActionsMixin:
         threading.Thread(target=_worker, daemon=True).start()
 
     def _find_duplicates(self):
-        """Find duplicates"""
+        """Find URL duplicates and open an actionable review queue."""
         dupes = self.bookmark_manager.find_duplicates()
         
         if not dupes:
             self._show_toast("No duplicate bookmarks found", "success")
             return
-        
-        # dupes is Dict[str, List[Bookmark]] - use values()
-        total = sum(len(g) - 1 for g in dupes.values())
-        
-        if not self._create_maintenance_safepoint("remove-duplicates"):
-            return
 
-        for group in dupes.values():
-            for bm in group[1:]:
-                self.bookmark_manager.delete_bookmark(bm.id)
-        self.bookmark_manager.save_bookmarks()
-        self._refresh_all()
-        self._set_status(f"Removed {total} duplicates; restore available from Tools")
-        self._toast(f"Removed {total} duplicate bookmarks; safepoint ready", "success")
+        review_groups = build_url_duplicate_review_groups(dupes)
+        group_map = {}
+        for index, (_canonical_url, bookmarks) in enumerate(sorted(dupes.items()), 1):
+            clean = [bm for bm in bookmarks if bm and bm.id is not None]
+            if len(clean) > 1:
+                group_map[f"url:{index}:{clean[0].id}"] = clean
+
+        def _apply(selected_keys):
+            selected = [group_map[key] for key in selected_keys if key in group_map]
+            total = sum(max(len(group) - 1, 0) for group in selected)
+            if total <= 0:
+                return "No duplicate groups selected."
+            if not self._create_maintenance_safepoint("remove-duplicates"):
+                return "No changes made because a recovery safepoint could not be created."
+            removed = 0
+            for group in selected:
+                for bm in list(group)[1:]:
+                    if self.bookmark_manager.delete_bookmark(bm.id):
+                        removed += 1
+            if removed:
+                self.bookmark_manager.save_bookmarks()
+                self._refresh_all()
+            self._set_status(f"Removed {removed} duplicates; restore available from Tools")
+            self._toast(f"Removed {removed} duplicate bookmarks; safepoint ready", "success")
+            return f"Removed {removed} duplicate bookmark(s). Restore is available from this dialog or Tools."
+
+        self._show_cleanup_review_dialog(
+            "Duplicate Review",
+            "Select URL duplicate groups to remove. The first bookmark in each group is kept.",
+            review_groups,
+            _apply,
+        )
 
     def _smart_duplicate_scan(self):
         """Run the 3-pass hybrid duplicate detector and show grouped results."""
@@ -566,31 +601,68 @@ class ToolsActionsMixin:
                 from bookmark_organizer_pro.services.dup_hybrid import HybridDuplicateDetector
                 bms = self.bookmark_manager.get_all_bookmarks()
                 detector = HybridDuplicateDetector()
-                groups = detector.detect(bms)
-                self.root.after(0, lambda: self._show_dup_results(groups))
+                report = detector.detect(bms)
+                self.root.after(0, lambda: self._show_dup_results(report))
             except Exception as exc:
                 msg = str(exc)
                 self.root.after(0, lambda: self._set_status(f"Duplicate scan failed: {msg}"))
 
         threading.Thread(target=_run, daemon=True).start()
 
-    def _show_dup_results(self, groups):
-        if not groups:
+    def _show_dup_results(self, report):
+        raw_groups = list(getattr(report, "groups", report or []))
+        if not raw_groups:
             self._show_toast("No duplicates found", "success")
             self._set_status("Smart duplicate scan complete: 0 groups")
             return
-        total = sum(len(g.bookmark_ids) - 1 for g in groups)
-        lines = [f"Found {len(groups)} duplicate group(s) ({total} extra bookmark(s)):\n"]
-        for i, g in enumerate(groups[:20], 1):
-            lines.append(f"  {i}. [{g.method}] confidence={g.confidence:.2f} — IDs: {g.bookmark_ids}")
-        if len(groups) > 20:
-            lines.append(f"  ... and {len(groups) - 20} more groups")
-        lines.append("\nUse 'bop dups --merge' from the CLI to merge duplicates.")
-        self._show_nonblocking_report(
-            "Smart Duplicate Scan",
-            lines,
-            f"Smart duplicate scan: {len(groups)} groups, {total} duplicates",
-            f"Smart duplicate scan found {len(groups)} group(s)",
+
+        bookmarks_by_id = {bm.id: bm for bm in self.bookmark_manager.get_all_bookmarks() if bm.id is not None}
+        review_groups = build_hybrid_duplicate_review_groups(report, bookmarks_by_id)
+        if not review_groups:
+            self._show_toast("No actionable duplicates found", "success")
+            self._set_status("Smart duplicate scan complete: 0 actionable groups")
+            return
+
+        review_keys = {group.key for group in review_groups}
+        detector_groups_by_key = {}
+        for index, group in enumerate(raw_groups, 1):
+            ids = [int(bookmark_id) for bookmark_id in getattr(group, "bookmark_ids", [])]
+            if len(ids) <= 1:
+                continue
+            canonical_id = int(getattr(group, "canonical_id", ids[0]))
+            key = f"hybrid:{index}:{canonical_id}"
+            if key in review_keys:
+                detector_groups_by_key[key] = group
+
+        def _apply(selected_keys):
+            selected = [detector_groups_by_key[key] for key in selected_keys if key in detector_groups_by_key]
+            total = sum(max(len(getattr(group, "bookmark_ids", [])) - 1, 0) for group in selected)
+            if total <= 0:
+                return "No smart duplicate groups selected."
+            if not self._create_maintenance_safepoint("smart-duplicates"):
+                return "No changes made because a recovery safepoint could not be created."
+            removed = 0
+            for group in selected:
+                ids = [int(bookmark_id) for bookmark_id in getattr(group, "bookmark_ids", [])]
+                canonical_id = int(getattr(group, "canonical_id", ids[0]))
+                for bookmark_id in ids:
+                    if bookmark_id == canonical_id:
+                        continue
+                    if self.bookmark_manager.delete_bookmark(bookmark_id):
+                        removed += 1
+            if removed:
+                self.bookmark_manager.save_bookmarks()
+                self._refresh_all()
+            self._set_status(f"Smart duplicates: removed {removed}; restore available from Tools")
+            self._toast(f"Removed {removed} smart duplicate bookmark(s); safepoint ready", "success")
+            return f"Removed {removed} duplicate bookmark(s). Restore is available from this dialog or Tools."
+
+        total = sum(len(getattr(group, "bookmark_ids", [])) - 1 for group in raw_groups)
+        self._show_cleanup_review_dialog(
+            "Smart Duplicate Review",
+            f"Found {len(review_groups)} group(s) and {total} extra bookmark(s). Select only the groups you want to apply.",
+            review_groups,
+            _apply,
         )
 
     def _lint_tags_gui(self):
@@ -611,37 +683,57 @@ class ToolsActionsMixin:
 
         threading.Thread(target=_run, daemon=True).start()
 
-    def _show_lint_results(self, suggestions):
+    def _show_lint_results(self, report):
+        suggestions = list(getattr(report, "suggestions", report or []))
         if not suggestions:
-            self._show_toast("Tags are clean — no issues found", "success")
+            self._show_toast("Tags are clean - no issues found", "success")
             self._set_status("Tag lint complete: 0 issues")
             return
-        lines = [f"Found {len(suggestions)} tag issue(s):\n"]
-        for i, s in enumerate(suggestions[:30], 1):
-            lines.append(f"  {i}. {s.get('reason', 'merge')}: "
-                         f"{', '.join(s.get('tags', []))} -> {s.get('canonical', '?')}")
-        if len(suggestions) > 30:
-            lines.append(f"  ... and {len(suggestions) - 30} more")
-        lines.append("\nSuggested merges apply immediately from this tool. Restore is available from Tools.")
-        if not self._create_maintenance_safepoint("lint-tags"):
+
+        review_groups = build_tag_lint_review_groups(report)
+        if not review_groups:
+            self._show_toast("No actionable tag issues found", "success")
+            self._set_status("Tag lint complete: 0 actionable issues")
             return
 
-        try:
-            from bookmark_organizer_pro.services.tag_linter import TagLinter
-            bms = self.bookmark_manager.get_all_bookmarks()
-            linter = TagLinter()
-            applied = linter.apply(bms)
-            if applied:
-                self.bookmark_manager.save_bookmarks()
-                self._refresh_all()
-            self._show_nonblocking_report(
-                "Tag Lint Results",
-                lines,
-                f"Tag lint: applied {applied} merges",
-                f"Applied {applied} tag merge(s); safepoint ready",
-            )
-        except Exception as exc:
-            self._set_status(f"Tag lint apply failed: {exc}")
+        review_keys = {group.key for group in review_groups}
+        suggestion_by_key = {}
+        for index, suggestion in enumerate(suggestions, 1):
+            if isinstance(suggestion, dict):
+                canonical = str(suggestion.get("canonical", "") or "")
+            else:
+                canonical = str(getattr(suggestion, "canonical", "") or "")
+            key = f"tag:{index}:{canonical}"
+            if key in review_keys:
+                suggestion_by_key[key] = suggestion
+
+        def _apply(selected_keys):
+            selected = [suggestion_by_key[key] for key in selected_keys if key in suggestion_by_key]
+            if not selected:
+                return "No tag lint groups selected."
+            if not self._create_maintenance_safepoint("lint-tags"):
+                return "No changes made because a recovery safepoint could not be created."
+            try:
+                from bookmark_organizer_pro.services.tag_linter import TagLinter
+                bms = self.bookmark_manager.get_all_bookmarks()
+                linter = TagLinter()
+                applied = linter.apply(bms, selected)
+                if applied:
+                    self.bookmark_manager.save_bookmarks()
+                    self._refresh_all()
+                self._set_status(f"Tag lint: applied {applied} merge(s); restore available from Tools")
+                self._toast(f"Applied {applied} tag merge(s); safepoint ready", "success")
+                return f"Applied {applied} tag merge(s). Restore is available from this dialog or Tools."
+            except Exception as exc:
+                self._set_status(f"Tag lint apply failed: {exc}")
+                return f"Tag lint apply failed: {exc}"
+
+        self._show_cleanup_review_dialog(
+            "Tag Cleanup Review",
+            f"Found {len(review_groups)} tag issue group(s). Select the merges to apply.",
+            review_groups,
+            _apply,
+        )
 
     def _show_smart_collections(self):
         """Show smart collections in a dialog."""

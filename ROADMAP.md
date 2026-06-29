@@ -839,13 +839,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P2 — Quality and polish
 
-- [ ] P2 — Make duplicate and tag-lint results fully actionable in the GUI
-  Why: Smart duplicate and tag-lint results still rely on modal summaries or CLI handoff instead of in-place review, apply, and recovery controls.
-  Evidence: `bookmark_organizer_pro/app_mixins/tools.py:486-523,546-582`; `bookmark_organizer_pro/services/dup_hybrid.py`; `bookmark_organizer_pro/services/tag_linter.py`; Raindrop duplicate/broken-link utilities
-  Touches: `bookmark_organizer_pro/app_mixins/tools.py`, `bookmark_organizer_pro/ui/`, `bookmark_organizer_pro/services/dup_hybrid.py`, `bookmark_organizer_pro/services/tag_linter.py`, tests
-  Acceptance: Duplicate and tag-lint scans open grouped previews with selection, apply, skip, safepoint, and restore controls; no successful GUI path tells users to switch to the CLI for routine cleanup.
-  Complexity: M
-
 - [ ] P2 — Promote Read Later into a full desktop queue workflow
   Why: Read Later is a first-class model/service field, but the GUI only exposes a checkbox and short dashboard/sidebar lists, not the ordered queue operations users expect from read-later tools.
   Evidence: `bookmark_organizer_pro/services/read_later.py:15-65`; `bookmark_organizer_pro/cli.py:1173-1199`; `bookmark_organizer_pro/app_mixins/dashboard.py:409-425`; `bookmark_organizer_pro/app_mixins/app_shell.py:600-620`; Readwise Reader

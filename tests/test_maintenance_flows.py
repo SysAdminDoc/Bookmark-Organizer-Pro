@@ -75,6 +75,7 @@ class MaintenanceHarness(ToolsActionsMixin):
         self.toasts = []
         self.refresh_count = 0
         self.root = object()
+        self.review_dialogs = []
 
     def _set_status(self, message):
         self.statuses.append(message)
@@ -84,6 +85,14 @@ class MaintenanceHarness(ToolsActionsMixin):
 
     def _refresh_all(self):
         self.refresh_count += 1
+
+    def _show_cleanup_review_dialog(self, title, intro, groups, on_apply):
+        self.review_dialogs.append({
+            "title": title,
+            "intro": intro,
+            "groups": list(groups),
+            "on_apply": on_apply,
+        })
 
 
 def bookmark(bookmark_id, url, category="Dev", tags=None, ai_tags=None):
@@ -132,7 +141,7 @@ class TestMaintenanceFlows(unittest.TestCase):
         self.assertEqual(0, app.bookmark_manager.save_count)
         self.assertEqual(0, app.refresh_count)
 
-    def test_find_duplicates_removes_extras_without_confirmation(self):
+    def test_find_duplicates_opens_review_then_removes_selected_extras(self):
         first = bookmark(1, "https://example.com")
         duplicate = bookmark(2, "https://example.com")
         app = MaintenanceHarness([first, duplicate])
@@ -142,8 +151,61 @@ class TestMaintenanceFlows(unittest.TestCase):
             app._find_duplicates()
 
         ask.assert_not_called()
+        self.assertEqual(1, len(app.review_dialogs))
+        self.assertEqual("Duplicate Review", app.review_dialogs[0]["title"])
+        self.assertEqual([1, 2], [bm.id for bm in app.bookmark_manager.bookmarks])
+        self.assertEqual([], app.bookmark_manager.created_safepoints)
+
+        group_key = app.review_dialogs[0]["groups"][0].key
+        result = app.review_dialogs[0]["on_apply"]([group_key])
+
+        self.assertIn("Removed 1 duplicate", result)
         self.assertEqual(["remove-duplicates"], app.bookmark_manager.created_safepoints)
         self.assertEqual([1], [bm.id for bm in app.bookmark_manager.bookmarks])
+        self.assertEqual(1, app.bookmark_manager.save_count)
+        self.assertEqual(1, app.refresh_count)
+
+    def test_smart_duplicate_review_applies_selected_groups(self):
+        from bookmark_organizer_pro.services.dup_hybrid import DuplicateGroup, DuplicateReport
+
+        first = bookmark(1, "https://example.com/a")
+        duplicate = bookmark(2, "https://mirror.example/a")
+        app = MaintenanceHarness([first, duplicate])
+        report = DuplicateReport(groups=[
+            DuplicateGroup(method="simhash", canonical_id=1, bookmark_ids=[1, 2], confidence=0.85)
+        ])
+
+        app._show_dup_results(report)
+
+        self.assertEqual(1, len(app.review_dialogs))
+        self.assertEqual("Smart Duplicate Review", app.review_dialogs[0]["title"])
+        group_key = app.review_dialogs[0]["groups"][0].key
+        result = app.review_dialogs[0]["on_apply"]([group_key])
+
+        self.assertIn("Removed 1 duplicate", result)
+        self.assertEqual(["smart-duplicates"], app.bookmark_manager.created_safepoints)
+        self.assertEqual([1], [bm.id for bm in app.bookmark_manager.bookmarks])
+        self.assertEqual(1, app.bookmark_manager.save_count)
+        self.assertEqual(1, app.refresh_count)
+
+    def test_tag_lint_review_applies_selected_merges(self):
+        from bookmark_organizer_pro.services.tag_linter import TagLinter
+
+        first = bookmark(1, "https://example.com/a", tags=["Python"])
+        second = bookmark(2, "https://example.com/b", tags=["python"])
+        app = MaintenanceHarness([first, second])
+        report = TagLinter().lint(app.bookmark_manager.get_all_bookmarks())
+
+        app._show_lint_results(report)
+
+        self.assertEqual(1, len(app.review_dialogs))
+        self.assertEqual("Tag Cleanup Review", app.review_dialogs[0]["title"])
+        group_key = app.review_dialogs[0]["groups"][0].key
+        result = app.review_dialogs[0]["on_apply"]([group_key])
+
+        self.assertIn("Applied 1 tag merge", result)
+        self.assertEqual(["lint-tags"], app.bookmark_manager.created_safepoints)
+        self.assertEqual([["Python"], ["Python"]], [bm.tags for bm in app.bookmark_manager.bookmarks])
         self.assertEqual(1, app.bookmark_manager.save_count)
         self.assertEqual(1, app.refresh_count)
 

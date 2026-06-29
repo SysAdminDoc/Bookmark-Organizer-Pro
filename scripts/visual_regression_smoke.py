@@ -39,6 +39,7 @@ DESKTOP_SURFACES = (
     "desktop-main-list-light",
     "desktop-assistant-settings",
     "desktop-import-progress",
+    "desktop-cleanup-review",
     "desktop-export-dialog",
     "desktop-reader-view",
     "desktop-graph-view",
@@ -267,6 +268,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
     from bookmark_organizer_pro.services.reader_annotations import ReaderAnnotationStore
     from bookmark_organizer_pro.theme_runtime import get_theme_manager
     from bookmark_organizer_pro.ui.graph_view import GraphViewDialog
+    from bookmark_organizer_pro.ui.cleanup_review import CleanupReviewDialog, CleanupReviewGroup
     from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog
     from bookmark_organizer_pro.ui.workflow_selective_export import SelectiveExportDialog
 
@@ -357,6 +359,42 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
             )
         )
         destroy_window(import_modal)
+
+        cleanup_dialog = CleanupReviewDialog(
+            root,
+            title="Duplicate Review",
+            intro="Select duplicate groups to remove. A safepoint is created before changes.",
+            groups=[
+                CleanupReviewGroup(
+                    key="visual-duplicate",
+                    title="example.com/article",
+                    subtitle="1 duplicate bookmark will be removed; earliest item is kept.",
+                    items=(
+                        "Keep #501: Visual Regression Guide - https://example.com/visual-regression",
+                        "Remove #505: Visual Regression Copy - https://example.com/visual-regression?utm_source=x",
+                    ),
+                    action_label="Remove 1 duplicate",
+                ),
+                CleanupReviewGroup(
+                    key="visual-tags",
+                    title="Normalize to 'python'",
+                    subtitle="2 bookmarks affected; 1 variant tag.",
+                    items=("Merge 'Python' -> 'python'",),
+                    action_label="Merge 1 variant",
+                ),
+            ],
+            on_apply=lambda keys: f"Applied {len(keys)} selected group(s).",
+            on_restore=lambda: True,
+        )
+        results.append(
+            capture_tk_window(
+                cleanup_dialog,
+                output_dir,
+                "desktop-cleanup-review",
+                ("Duplicate Review", "Apply Selected", "Restore Safepoint", "Remove #505"),
+            )
+        )
+        destroy_window(cleanup_dialog)
 
         export_dialog = SelectiveExportDialog(root, app.bookmark_manager)
         results.append(
