@@ -1292,6 +1292,86 @@ class TestSnapshotArchiver(_IsolatedTestBase):
         self.assertGreater(archiver.MAX_BYTES, 0)
         self.assertLessEqual(archiver.MAX_BYTES, 50_000_000)
 
+    def test_snapshot_failure_records_backend_attempts(self):
+        from bookmark_organizer_pro.services.snapshot import SnapshotArchiver, SnapshotFailureStore
+
+        with tempfile.TemporaryDirectory() as tmp:
+            store = SnapshotFailureStore(Path(tmp) / "snapshot_failures.json")
+            archiver = SnapshotArchiver(Path(tmp) / "snapshots", failure_store=store)
+            bookmark = _make_bookmark(id=42, url="https://example.com/page", title="Example Page")
+
+            def _snapshot_monolith(_url, _out_path):
+                return False, "monolith missing"
+
+            def _snapshot_singlefile(_url, _out_path):
+                return False, "single-file missing"
+
+            def _snapshot_playwright(_url, _out_path):
+                return False, "playwright browser unavailable"
+
+            def _snapshot_python(_url, _out_path):
+                return False, "fetch failed: timeout"
+
+            archiver._snapshot_monolith = _snapshot_monolith
+            archiver._snapshot_singlefile = _snapshot_singlefile
+            archiver._snapshot_playwright = _snapshot_playwright
+            archiver._snapshot_python = _snapshot_python
+
+            ok, message = archiver.snapshot(bookmark)
+
+            self.assertFalse(ok)
+            self.assertIn("monolith", message)
+            self.assertIn("python", message)
+            records = store.list_failures()
+            self.assertEqual(len(records), 1)
+            self.assertEqual(records[0].bookmark_id, 42)
+            self.assertTrue(records[0].retry_eligible)
+            self.assertEqual(
+                [attempt.backend for attempt in records[0].attempts],
+                ["monolith", "singlefile", "playwright", "python"],
+            )
+            self.assertIn("fetch failed", records[0].attempts[-1].message)
+
+    def test_successful_snapshot_retry_clears_failure_report(self):
+        from bookmark_organizer_pro.services.snapshot import SnapshotArchiver, SnapshotFailureStore
+
+        with tempfile.TemporaryDirectory() as tmp:
+            store = SnapshotFailureStore(Path(tmp) / "snapshot_failures.json")
+            archiver = SnapshotArchiver(Path(tmp) / "snapshots", failure_store=store)
+            bookmark = _make_bookmark(id=43, url="https://example.com/retry", title="Retry Me")
+
+            def _snapshot_monolith(_url, _out_path):
+                return False, "monolith missing"
+
+            def _snapshot_singlefile(_url, _out_path):
+                return False, "single-file missing"
+
+            def _snapshot_playwright(_url, _out_path):
+                return False, "playwright missing"
+
+            def _snapshot_python(_url, _out_path):
+                return False, "fetch failed"
+
+            archiver._snapshot_monolith = _snapshot_monolith
+            archiver._snapshot_singlefile = _snapshot_singlefile
+            archiver._snapshot_playwright = _snapshot_playwright
+            archiver._snapshot_python = _snapshot_python
+            ok, _message = archiver.snapshot(bookmark)
+            self.assertFalse(ok)
+            self.assertEqual(len(store.list_failures()), 1)
+
+            def _snapshot_monolith_success(_url, out_path):
+                out_path.write_text("<html>saved</html>", encoding="utf-8")
+                return True, str(out_path)
+
+            archiver._snapshot_monolith = _snapshot_monolith_success
+            ok, path = archiver.snapshot(bookmark)
+
+            self.assertTrue(ok)
+            self.assertEqual(Path(path), Path(bookmark.snapshot_path))
+            self.assertGreater(bookmark.snapshot_size, 0)
+            self.assertEqual(store.list_failures(), [])
+
 
 # ── 18. Embedding model config ──────────────────────────────────────
 

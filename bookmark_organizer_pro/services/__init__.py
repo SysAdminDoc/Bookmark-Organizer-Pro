@@ -78,7 +78,12 @@ from .rss_feeds import (
     FeedRegistry,
     parse_feed,
 )
-from .snapshot import SnapshotArchiver
+from .snapshot import (
+    SnapshotArchiver,
+    SnapshotBackendAttempt,
+    SnapshotFailureRecord,
+    SnapshotFailureStore,
+)
 from .tag_linter import LintReport, TagLinter, TagSuggestion
 from .updates import (
     StagedUpdateStatus,
@@ -135,7 +140,8 @@ __all__ = [
     "read_extracted_text", "render_highlights_markdown",
     "RSS_AI_MODES", "FeedConfig", "FeedIngestor", "FeedItem",
     "FeedRegistry", "parse_feed",
-    "SnapshotArchiver",
+    "SnapshotArchiver", "SnapshotBackendAttempt", "SnapshotFailureRecord",
+    "SnapshotFailureStore",
     "LintReport", "TagLinter", "TagSuggestion",
     "StagedUpdateStatus", "UpdateApplyPreflightResult", "UpdateApplyPlan",
     "UpdateCheckResult", "UpdateCleanupResult", "UpdateDownloadResult",

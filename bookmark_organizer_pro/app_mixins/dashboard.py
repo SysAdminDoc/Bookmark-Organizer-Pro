@@ -214,10 +214,20 @@ class DashboardActionsMixin:
 
         stats = self.bookmark_manager.get_statistics()
         all_bookmarks = self.bookmark_manager.get_all_bookmarks()
+        try:
+            from bookmark_organizer_pro.services.snapshot import SnapshotFailureStore
+            snapshot_failures = SnapshotFailureStore().list_failures()
+        except Exception:
+            snapshot_failures = []
 
-        if hasattr(self, '_last_analytics_stats') and self._last_analytics_stats == stats:
+        analytics_signature = (
+            stats,
+            len(snapshot_failures),
+            sum(1 for record in snapshot_failures if record.retry_eligible),
+        )
+        if hasattr(self, '_last_analytics_stats') and self._last_analytics_stats == analytics_signature:
             return
-        self._last_analytics_stats = stats
+        self._last_analytics_stats = analytics_signature
 
         for widget in self.analytics_frame.winfo_children():
             widget.destroy()
@@ -437,6 +447,24 @@ class DashboardActionsMixin:
             dead_lbl.pack(side=tk.LEFT)
             make_keyboard_activatable(dead_row, lambda: self._apply_filter("Broken"))
             dead_lbl.bind("<Button-1>", lambda e: self._apply_filter("Broken"))
+
+        # Snapshot failures badge
+        if snapshot_failures and hasattr(self, "_view_snapshot_failures"):
+            retryable = sum(1 for record in snapshot_failures if record.retry_eligible)
+            section_label(f"Snapshot Failures ({len(snapshot_failures)})")
+            snap_row = tk.Frame(self.analytics_frame, bg=theme.bg_secondary, cursor="hand2")
+            snap_row.pack(fill=tk.X, pady=2)
+            snap_lbl = tk.Label(
+                snap_row,
+                text=f"Review {retryable} retryable failure(s)",
+                bg=theme.bg_secondary,
+                fg=theme.accent_warning,
+                font=FONTS.small(bold=True),
+                cursor="hand2",
+            )
+            snap_lbl.pack(side=tk.LEFT)
+            make_keyboard_activatable(snap_row, self._view_snapshot_failures)
+            snap_lbl.bind("<Button-1>", lambda e: self._view_snapshot_failures())
 
         # Daily digest — rediscover forgotten bookmarks
         try:

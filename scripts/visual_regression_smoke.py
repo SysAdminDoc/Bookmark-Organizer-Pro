@@ -41,6 +41,7 @@ DESKTOP_SURFACES = (
     "desktop-import-progress",
     "desktop-cleanup-review",
     "desktop-read-later-queue",
+    "desktop-snapshot-failures-sidebar",
     "desktop-export-dialog",
     "desktop-reader-view",
     "desktop-graph-view",
@@ -267,6 +268,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
     from bookmark_organizer_pro.constants import APP_DIR, ensure_directories
     from bookmark_organizer_pro.models import Bookmark
     from bookmark_organizer_pro.services.reader_annotations import ReaderAnnotationStore
+    from bookmark_organizer_pro.services.snapshot import SnapshotBackendAttempt, SnapshotFailureStore
     from bookmark_organizer_pro.theme_runtime import get_theme_manager
     from bookmark_organizer_pro.ui.graph_view import GraphViewDialog
     from bookmark_organizer_pro.ui.cleanup_review import CleanupReviewDialog, CleanupReviewGroup
@@ -332,6 +334,22 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
                 output_dir,
                 "desktop-main-list-light",
                 ("Bookmark Organizer Pro", "Bookmark"),
+            )
+        )
+
+        SnapshotFailureStore().record_failure(
+            sample_bookmarks[1],
+            "All snapshot backends failed",
+            (SnapshotBackendAttempt("python", False, "fetch failed: visual smoke"),),
+        )
+        app._refresh_all()
+        root.update()
+        results.append(
+            capture_tk_window(
+                root,
+                output_dir,
+                "desktop-snapshot-failures-sidebar",
+                ("Snapshot Failures", "Review 1 retryable", "Tkinter Reference"),
             )
         )
 

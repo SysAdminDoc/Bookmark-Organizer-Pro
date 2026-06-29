@@ -845,13 +845,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P2 - Preservation, migration, and MCP coverage
 
-- [ ] P2 - Persist snapshot backend failure reports and retry actions
-  Why: Snapshot preservation tries multiple backends but collapses diagnostics into a generic failure, making archive recovery hard to prioritize.
-  Evidence: `bookmark_organizer_pro/services/snapshot.py:51-70`; `bookmark_organizer_pro/services/auto_snapshot.py`; ArchiveBox/Readeck preservation status patterns
-  Touches: `bookmark_organizer_pro/services/snapshot.py`, `bookmark_organizer_pro/services/auto_snapshot.py`, `bookmark_organizer_pro/app_mixins/tools.py`, `bookmark_organizer_pro/app_mixins/dashboard.py`, tests
-  Acceptance: Failed snapshots record backend attempt names, error summaries, timestamp, and retry eligibility; dashboard/tools expose a failed-snapshots report with Retry and Clear actions; service tests cover all-backend failure and later successful retry.
-  Complexity: M
-
 - [ ] P2 - Add Firefox bookmark-backup JSON import
   Why: Firefox JSON backups preserve tags and folder metadata that Netscape HTML export can lose, improving migration fidelity for browser-native users.
   Evidence: `bookmark_organizer_pro/importers.py:183-267`; Mozilla Firefox bookmark backup/export docs; Floccus/XBEL ecosystem expectations

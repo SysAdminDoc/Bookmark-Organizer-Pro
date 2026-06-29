@@ -13,6 +13,7 @@ def test_visual_smoke_surface_matrix_covers_required_desktop_and_extension_views
         "desktop-import-progress",
         "desktop-cleanup-review",
         "desktop-read-later-queue",
+        "desktop-snapshot-failures-sidebar",
         "desktop-export-dialog",
         "desktop-reader-view",
         "desktop-graph-view",

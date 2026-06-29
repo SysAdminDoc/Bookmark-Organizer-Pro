@@ -13,17 +13,23 @@ from __future__ import annotations
 
 import base64
 import importlib
+import json
+import os
 import shutil
 import subprocess
+import tempfile
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Iterable, Optional, Tuple
 from urllib.parse import urljoin
 
-from bookmark_organizer_pro.constants import SNAPSHOTS_DIR
+from bookmark_organizer_pro.constants import DATA_DIR, SNAPSHOTS_DIR
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.url_utils import URLUtilities
+
+SNAPSHOT_FAILURES_FILE = DATA_DIR / "snapshot_failures.json"
 
 
 def _has_binary(name: str) -> bool:
@@ -37,37 +43,233 @@ def _try_import(name: str):
         return None
 
 
+@dataclass(frozen=True)
+class SnapshotBackendAttempt:
+    backend: str
+    ok: bool
+    message: str
+
+    def to_dict(self) -> dict:
+        return {
+            "backend": self.backend,
+            "ok": self.ok,
+            "message": self.message,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SnapshotBackendAttempt":
+        return cls(
+            backend=str(data.get("backend") or "unknown"),
+            ok=bool(data.get("ok")),
+            message=str(data.get("message") or ""),
+        )
+
+
+@dataclass(frozen=True)
+class SnapshotFailureRecord:
+    bookmark_id: int | None
+    url: str
+    title: str
+    failed_at: str
+    error: str
+    retry_eligible: bool
+    attempts: Tuple[SnapshotBackendAttempt, ...]
+
+    @property
+    def key(self) -> str:
+        if self.bookmark_id is not None:
+            return f"id:{self.bookmark_id}"
+        return f"url:{self.url}"
+
+    def to_dict(self) -> dict:
+        return {
+            "bookmark_id": self.bookmark_id,
+            "url": self.url,
+            "title": self.title,
+            "failed_at": self.failed_at,
+            "error": self.error,
+            "retry_eligible": self.retry_eligible,
+            "attempts": [attempt.to_dict() for attempt in self.attempts],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SnapshotFailureRecord":
+        bookmark_id = data.get("bookmark_id")
+        try:
+            bookmark_id = int(bookmark_id) if bookmark_id is not None else None
+        except (TypeError, ValueError):
+            bookmark_id = None
+        attempts = tuple(
+            SnapshotBackendAttempt.from_dict(item)
+            for item in data.get("attempts", [])
+            if isinstance(item, dict)
+        )
+        return cls(
+            bookmark_id=bookmark_id,
+            url=str(data.get("url") or ""),
+            title=str(data.get("title") or ""),
+            failed_at=str(data.get("failed_at") or ""),
+            error=str(data.get("error") or ""),
+            retry_eligible=bool(data.get("retry_eligible", True)),
+            attempts=attempts,
+        )
+
+
+class SnapshotFailureStore:
+    """Persist recoverable snapshot failures as a compact JSON sidecar."""
+
+    def __init__(self, path: Path = SNAPSHOT_FAILURES_FILE):
+        self.path = Path(path)
+
+    def list_failures(self) -> list[SnapshotFailureRecord]:
+        if not self.path.exists():
+            return []
+        try:
+            payload = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            log.warning("Could not load snapshot failure report: %s", exc)
+            return []
+        if isinstance(payload, list):
+            records = payload
+        elif isinstance(payload, dict):
+            records = payload.get("failures", [])
+        else:
+            records = []
+        if not isinstance(records, list):
+            return []
+        out = [
+            SnapshotFailureRecord.from_dict(item)
+            for item in records
+            if isinstance(item, dict)
+        ]
+        return sorted(out, key=lambda item: item.failed_at, reverse=True)
+
+    def get_for_bookmark(self, bookmark: Bookmark) -> SnapshotFailureRecord | None:
+        key = self._key_for(bookmark)
+        return next((record for record in self.list_failures() if record.key == key), None)
+
+    def record_failure(
+        self,
+        bookmark: Bookmark,
+        error: str,
+        attempts: Iterable[SnapshotBackendAttempt],
+        retry_eligible: bool = True,
+    ) -> SnapshotFailureRecord:
+        record = SnapshotFailureRecord(
+            bookmark_id=int(bookmark.id) if bookmark.id is not None else None,
+            url=bookmark.url or "",
+            title=bookmark.title or bookmark.url or "",
+            failed_at=datetime.now().isoformat(),
+            error=error,
+            retry_eligible=retry_eligible,
+            attempts=tuple(attempts),
+        )
+        records = [item for item in self.list_failures() if item.key != record.key]
+        records.append(record)
+        self._write(records)
+        return record
+
+    def clear_for_bookmark(self, bookmark: Bookmark) -> bool:
+        key = self._key_for(bookmark)
+        records = self.list_failures()
+        kept = [item for item in records if item.key != key]
+        if len(kept) == len(records):
+            return False
+        self._write(kept)
+        return True
+
+    def clear_all(self) -> int:
+        records = self.list_failures()
+        if self.path.exists():
+            try:
+                self.path.unlink()
+            except OSError as exc:
+                log.warning("Could not clear snapshot failure report: %s", exc)
+                return 0
+        return len(records)
+
+    def _write(self, records: list[SnapshotFailureRecord]) -> None:
+        if not records:
+            if self.path.exists():
+                try:
+                    self.path.unlink()
+                except OSError as exc:
+                    log.warning("Could not remove empty snapshot failure report: %s", exc)
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "updated_at": datetime.now().isoformat(),
+            "failures": [record.to_dict() for record in sorted(records, key=lambda item: item.key)],
+        }
+        fd, tmp = tempfile.mkstemp(dir=self.path.parent, suffix=".tmp", text=True)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, indent=2)
+            os.replace(tmp, self.path)
+        except Exception:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+            raise
+
+    @staticmethod
+    def _key_for(bookmark: Bookmark) -> str:
+        if bookmark.id is not None:
+            return f"id:{int(bookmark.id)}"
+        return f"url:{bookmark.url or ''}"
+
+
 class SnapshotArchiver:
     """Capture a self-contained HTML snapshot of a page."""
 
     MAX_BYTES = 25_000_000  # 25MB hard ceiling per snapshot
 
-    def __init__(self, snapshots_dir: Path = SNAPSHOTS_DIR):
+    def __init__(
+        self,
+        snapshots_dir: Path = SNAPSHOTS_DIR,
+        failure_store: SnapshotFailureStore | None = None,
+    ):
         self.snapshots_dir = Path(snapshots_dir)
         self.snapshots_dir.mkdir(parents=True, exist_ok=True)
+        self.failure_store = failure_store or SnapshotFailureStore()
 
     # --- public API ---------------------------------------------------------
 
     def snapshot(self, bookmark: Bookmark) -> Tuple[bool, str]:
         """Capture and persist a snapshot. Returns (success, path_or_error)."""
         if not URLUtilities._is_safe_url(bookmark.url):
+            self.failure_store.record_failure(
+                bookmark,
+                "Private or unsupported URL",
+                (),
+                retry_eligible=False,
+            )
             return False, "Private or unsupported URL"
         out_path = self.snapshots_dir / f"{bookmark.id}.html"
+        attempts: list[SnapshotBackendAttempt] = []
         for backend in (self._snapshot_monolith, self._snapshot_singlefile,
                         self._snapshot_playwright, self._snapshot_python):
+            backend_name = self._backend_label(backend.__name__)
             try:
                 ok, msg = backend(bookmark.url, out_path)
             except Exception as exc:
                 log.debug(f"Snapshot backend {backend.__name__} crashed: {exc}")
+                attempts.append(SnapshotBackendAttempt(backend_name, False, f"crashed: {exc}"))
                 continue
+            attempts.append(SnapshotBackendAttempt(backend_name, ok, str(msg)))
             if ok:
                 size = out_path.stat().st_size if out_path.exists() else 0
                 bookmark.snapshot_path = str(out_path)
                 bookmark.snapshot_size = size
                 bookmark.snapshot_at = datetime.now().isoformat()
                 bookmark.modified_at = bookmark.snapshot_at
+                self.failure_store.clear_for_bookmark(bookmark)
                 return True, str(out_path)
-        return False, "All snapshot backends failed"
+        details = "; ".join(f"{attempt.backend}: {attempt.message}" for attempt in attempts)
+        error = "All snapshot backends failed"
+        if details:
+            error = f"{error}: {details}"
+        self.failure_store.record_failure(bookmark, error, attempts, retry_eligible=True)
+        return False, error
 
     def archive(self, bookmark: Bookmark) -> Tuple[bool, str]:
         """Compatibility alias for snapshot()."""
@@ -90,6 +292,10 @@ class SnapshotArchiver:
         if not bookmark.snapshot_path:
             return False
         return Path(bookmark.snapshot_path).exists()
+
+    @staticmethod
+    def _backend_label(method_name: str) -> str:
+        return method_name.replace("_snapshot_", "").replace("_", "-")
 
     # --- backends -----------------------------------------------------------
 

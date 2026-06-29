@@ -16,6 +16,10 @@ from typing import Callable, Dict, List, Optional, Set
 from bookmark_organizer_pro.constants import DATA_DIR
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.snapshot import (
+    SnapshotBackendAttempt,
+    SnapshotFailureStore,
+)
 
 SCHEDULE_FILE = DATA_DIR / "snapshot_schedule.json"
 
@@ -25,10 +29,12 @@ class SnapshotScheduler:
 
     def __init__(self, snapshot_fn: Callable[[Bookmark], tuple],
                  get_bookmark_fn: Callable[[int], Optional[Bookmark]],
-                 interval_hours: int = 24):
+                 interval_hours: int = 24,
+                 failure_store: SnapshotFailureStore | None = None):
         self._snapshot_fn = snapshot_fn
         self._get_bookmark = get_bookmark_fn
         self._interval = interval_hours
+        self._failure_store = failure_store or SnapshotFailureStore()
         self._scheduled_ids: Set[int] = set()
         self._lock = threading.RLock()
         self._thread: Optional[threading.Thread] = None
@@ -113,11 +119,23 @@ class SnapshotScheduler:
                 ok, msg = self._snapshot_fn(bm)
                 if ok:
                     success += 1
+                    self._failure_store.clear_for_bookmark(bm)
                 else:
                     failed += 1
+                    if not self._failure_store.get_for_bookmark(bm):
+                        self._failure_store.record_failure(
+                            bm,
+                            str(msg),
+                            (SnapshotBackendAttempt("auto-snapshot", False, str(msg)),),
+                        )
                     log.debug(f"Auto-snapshot failed for {bm.url}: {msg}")
             except Exception as exc:
                 failed += 1
+                self._failure_store.record_failure(
+                    bm,
+                    f"Auto-snapshot error: {exc}",
+                    (SnapshotBackendAttempt("auto-snapshot", False, str(exc)),),
+                )
                 log.warning(f"Auto-snapshot error for {bm.url}: {exc}")
 
         return {"success": success, "failed": failed, "skipped": skipped, "total": len(ids)}

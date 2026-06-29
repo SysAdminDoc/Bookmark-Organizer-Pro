@@ -17,6 +17,7 @@ from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.core.category_manager import get_category_icon
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Category
+from bookmark_organizer_pro.services.snapshot import SnapshotArchiver, SnapshotFailureStore
 from bookmark_organizer_pro.ui.cleanup_review import (
     CleanupReviewDialog,
     build_hybrid_duplicate_review_groups,
@@ -79,6 +80,7 @@ class ToolsActionsMixin:
 
         menu.add_command(label=_("Check All Links"), command=self._check_all_links)
         menu.add_command(label=_("View Dead Links"), command=self._view_dead_links)
+        menu.add_command(label=_("Snapshot Failure Report"), command=self._view_snapshot_failures)
         menu.add_command(label=_("Find Duplicates"), command=self._find_duplicates)
         menu.add_command(label=_("Smart Duplicate Scan"), command=self._smart_duplicate_scan)
         menu.add_command(label=_("Lint Tags"), command=self._lint_tags_gui)
@@ -155,7 +157,14 @@ class ToolsActionsMixin:
             on_restore=self._restore_last_maintenance_safepoint,
         )
 
-    def _show_nonblocking_report(self, title: str, lines, status: str, toast: str | None = None) -> None:
+    def _show_nonblocking_report(
+        self,
+        title: str,
+        lines,
+        status: str,
+        toast: str | None = None,
+        actions: list[tuple[str, object, str]] | None = None,
+    ) -> None:
         text = "\n".join(lines) if isinstance(lines, list) else str(lines)
         self._set_status(status)
         if toast:
@@ -198,6 +207,15 @@ class ToolsActionsMixin:
 
             footer = tk.Frame(win, bg=theme.bg_primary)
             footer.pack(fill=tk.X, padx=18, pady=(0, 16))
+            for label, command, style in actions or []:
+                ModernButton(
+                    footer,
+                    text=label,
+                    command=command,
+                    style=style,
+                    padx=18,
+                    pady=8,
+                ).pack(side=tk.LEFT, padx=(0, 8))
             ModernButton(footer, text="Close", command=win.destroy, padx=22, pady=8).pack(side=tk.RIGHT)
             win.bind("<Escape>", lambda _event: win.destroy())
         except Exception as exc:
@@ -833,6 +851,93 @@ class ToolsActionsMixin:
             f"Dead link results: {len(records)} saved records",
             f"Loaded {len(records)} saved dead-link result(s)",
         )
+
+    def _view_snapshot_failures(self):
+        """Show recoverable snapshot backend failures."""
+        records = SnapshotFailureStore().list_failures()
+        if not records:
+            self._set_status("No snapshot failures on file")
+            self._toast("No snapshot failures on file", "success")
+            return
+
+        retryable = sum(1 for record in records if record.retry_eligible)
+        lines = [f"{len(records)} failed snapshot(s) on file; {retryable} retryable.\n"]
+        for record in records[:20]:
+            title = record.title or record.url or "Untitled bookmark"
+            lines.append(f"- {title[:70]}")
+            lines.append(f"  URL: {record.url[:90]}")
+            lines.append(f"  Failed: {record.failed_at or 'unknown'}")
+            lines.append(f"  Retry: {'yes' if record.retry_eligible else 'no'}")
+            if record.attempts:
+                lines.append("  Backend attempts:")
+                for attempt in record.attempts:
+                    lines.append(f"    - {attempt.backend}: {attempt.message[:120]}")
+            else:
+                lines.append(f"  Reason: {record.error[:160]}")
+            lines.append("")
+        if len(records) > 20:
+            lines.append(f"... and {len(records) - 20} more failure(s)")
+
+        self._show_nonblocking_report(
+            "Snapshot Failure Report",
+            lines,
+            f"Snapshot failures: {len(records)} saved records",
+            f"Loaded {len(records)} snapshot failure record(s)",
+            actions=[
+                ("Retry Failed", self._retry_snapshot_failures, "primary"),
+                ("Clear Reports", self._clear_snapshot_failures, "danger"),
+            ],
+        )
+
+    def _retry_snapshot_failures(self):
+        """Retry retryable snapshot failure reports."""
+        store = SnapshotFailureStore()
+        records = [record for record in store.list_failures() if record.retry_eligible]
+        if not records:
+            self._set_status("No retryable snapshot failures")
+            self._toast("No retryable snapshot failures", "info")
+            return
+
+        bookmarks = self.bookmark_manager.get_all_bookmarks()
+        by_id = {bm.id: bm for bm in bookmarks if bm.id is not None}
+        by_url = {bm.url: bm for bm in bookmarks if bm.url}
+        archiver = SnapshotArchiver(failure_store=store)
+        success = 0
+        failed = 0
+        skipped = 0
+
+        self._set_status(f"Retrying {len(records)} failed snapshot(s)...")
+        for record in records:
+            bookmark = by_id.get(record.bookmark_id) if record.bookmark_id is not None else None
+            if bookmark is None:
+                bookmark = by_url.get(record.url)
+            if bookmark is None:
+                skipped += 1
+                continue
+            ok, _msg = archiver.snapshot(bookmark)
+            if ok:
+                success += 1
+            else:
+                failed += 1
+
+        if success:
+            self.bookmark_manager.save_bookmarks()
+            self._refresh_all()
+        self._set_status(
+            f"Snapshot retry complete: {success} fixed, {failed} still failing, {skipped} missing"
+        )
+        style = "success" if success and failed == 0 else "info"
+        self._toast(
+            f"Snapshot retry complete: {success} fixed, {failed} failed, {skipped} skipped",
+            style,
+        )
+
+    def _clear_snapshot_failures(self):
+        """Clear saved snapshot failure reports."""
+        cleared = SnapshotFailureStore().clear_all()
+        self._refresh_all()
+        self._set_status(f"Cleared {cleared} snapshot failure report(s)")
+        self._toast(f"Cleared {cleared} snapshot failure report(s)", "success")
 
     def _clean_urls(self):
         """Clean tracking params"""

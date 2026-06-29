@@ -18,6 +18,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Added a guided Import Center with source-specific cards for Chrome, Firefox, Edge, Safari, Pocket, Arc, Raindrop, Readwise-compatible CSV, and Chrome Reading List migration.
 - Added a reusable cleanup review dialog for URL duplicates, smart duplicate groups, and tag-lint suggestions with selectable groups, Apply, Skip, safepoint creation, and Restore controls.
 - Added a dedicated desktop Read Later Queue with open-next, open-selected, reorder, mark-done, remove, and empty-state handling.
+- Added persisted snapshot backend failure reports with per-backend diagnostics, retry eligibility, dashboard visibility, and Tools-menu Retry/Clear actions.
 
 ### Changed
 

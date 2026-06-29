@@ -133,6 +133,7 @@ Native messaging and offline category/tag suggestions remain on the roadmap.
 - **Export Options**: HTML, JSON, CSV, OPML, XBEL, Markdown formats
 - **Soft Delete / Trash**: Recoverable deletion with trash management
 - **URL Validation**: Check for broken links with concurrent checking
+- **Snapshot Failure Recovery**: Backend attempt reports with retry and clear actions for failed preservation runs
 - **Smart Duplicate Detection**: Academic-grade URL normalization (strips 60+ tracking params, normalizes scheme/host/port/path, sorts query params)
 - **Duplicate Review**: URL and smart duplicate scans open selectable cleanup previews with safepoint restore
 - **Tag Cleanup Review**: Tag-lint suggestions can be selected, applied, skipped, and restored from the GUI
