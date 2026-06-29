@@ -136,6 +136,7 @@ Native messaging and offline category/tag suggestions remain on the roadmap.
 - **Smart Duplicate Detection**: Academic-grade URL normalization (strips 60+ tracking params, normalizes scheme/host/port/path, sorts query params)
 - **Duplicate Review**: URL and smart duplicate scans open selectable cleanup previews with safepoint restore
 - **Tag Cleanup Review**: Tag-lint suggestions can be selected, applied, skipped, and restored from the GUI
+- **Read Later Queue**: Dedicated desktop queue for opening, reordering, completing, and removing saved read-later items
 - **Favicon Caching**: Fast, cached favicon display with multi-size support
 
 ### Bookmark Intelligence

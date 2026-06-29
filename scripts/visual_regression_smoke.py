@@ -40,6 +40,7 @@ DESKTOP_SURFACES = (
     "desktop-assistant-settings",
     "desktop-import-progress",
     "desktop-cleanup-review",
+    "desktop-read-later-queue",
     "desktop-export-dialog",
     "desktop-reader-view",
     "desktop-graph-view",
@@ -269,6 +270,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
     from bookmark_organizer_pro.theme_runtime import get_theme_manager
     from bookmark_organizer_pro.ui.graph_view import GraphViewDialog
     from bookmark_organizer_pro.ui.cleanup_review import CleanupReviewDialog, CleanupReviewGroup
+    from bookmark_organizer_pro.ui.read_later_queue import ReadLaterQueueDialog
     from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog
     from bookmark_organizer_pro.ui.workflow_selective_export import SelectiveExportDialog
 
@@ -395,6 +397,22 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
             )
         )
         destroy_window(cleanup_dialog)
+
+        read_later_dialog = ReadLaterQueueDialog(
+            root,
+            bookmark_manager=app.bookmark_manager,
+            on_changed=app._refresh_all,
+            on_open_url=lambda _url: True,
+        )
+        results.append(
+            capture_tk_window(
+                read_later_dialog,
+                output_dir,
+                "desktop-read-later-queue",
+                ("Read Later Queue", "Open Next", "Mark Done", "Visual Regression Guide"),
+            )
+        )
+        destroy_window(read_later_dialog)
 
         export_dialog = SelectiveExportDialog(root, app.bookmark_manager)
         results.append(

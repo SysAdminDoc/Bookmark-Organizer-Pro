@@ -891,6 +891,25 @@ class TestReadLaterQueue(_IsolatedTestBase):
         self.assertEqual(bm2.read_later_position, 0)
         self.assertEqual(bm1.read_later_position, 1)
 
+    def test_read_later_dialog_rows_match_queue_order(self):
+        from bookmark_organizer_pro.ui.read_later_queue import build_read_later_rows
+
+        bm1 = _make_bookmark(id=1, url="https://r1.com/a", title="First")
+        bm2 = _make_bookmark(id=2, url="https://r2.com/b", title="Second")
+        archived = _make_bookmark(id=3, url="https://old.com", title="Archived")
+        bm1.read_later = True
+        bm1.read_later_position = 2
+        bm2.read_later = True
+        bm2.read_later_position = 1
+        archived.read_later = True
+        archived.is_archived = True
+
+        rows = build_read_later_rows([bm1, bm2, archived])
+
+        self.assertEqual([row.bookmark_id for row in rows], [2, 1])
+        self.assertEqual([row.position for row in rows], [1, 2])
+        self.assertEqual(rows[0].title, "Second")
+
 
 # ── 9. HybridSearch (keyword-only fallback) ─────────────────────────
 

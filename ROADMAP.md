@@ -839,13 +839,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P2 — Quality and polish
 
-- [ ] P2 — Promote Read Later into a full desktop queue workflow
-  Why: Read Later is a first-class model/service field, but the GUI only exposes a checkbox and short dashboard/sidebar lists, not the ordered queue operations users expect from read-later tools.
-  Evidence: `bookmark_organizer_pro/services/read_later.py:15-65`; `bookmark_organizer_pro/cli.py:1173-1199`; `bookmark_organizer_pro/app_mixins/dashboard.py:409-425`; `bookmark_organizer_pro/app_mixins/app_shell.py:600-620`; Readwise Reader
-  Touches: `bookmark_organizer_pro/app_mixins/tools.py`, `bookmark_organizer_pro/app_mixins/dashboard.py`, `bookmark_organizer_pro/app_mixins/app_shell.py`, `bookmark_organizer_pro/services/read_later.py`, `bookmark_organizer_pro/ui/`, tests
-  Acceptance: Desktop users can open a dedicated Read Later queue, reorder items, open next, mark done, remove from queue, and see empty/success states; queue changes persist and refresh dashboard/sidebar counts.
-  Complexity: M
-
 ### P3 — Under Consideration
 
 ### P1 - Contracts, docs, and scale

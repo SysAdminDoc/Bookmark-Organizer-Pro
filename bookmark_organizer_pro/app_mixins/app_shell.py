@@ -412,15 +412,25 @@ class AppShellMixin:
         # --- Read Later section (R-67) ---
         rl_header = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
         rl_header.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(4, 7))
-        tk.Label(
+        rl_title = tk.Label(
             rl_header, text=_("READ LATER"), bg=theme.bg_dark,
-            fg=theme.text_muted, font=FONTS.tiny(bold=True),
-        ).pack(side=tk.LEFT)
+            fg=theme.text_muted, font=FONTS.tiny(bold=True), cursor="hand2",
+        )
+        rl_title.pack(side=tk.LEFT)
+        make_keyboard_activatable(rl_title, self._show_read_later_queue)
+        Tooltip(rl_title, _("Open Read Later queue"))
         self._rl_count_label = tk.Label(
             rl_header, text="0", bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.tiny(),
         )
         self._rl_count_label.pack(side=tk.RIGHT)
+        rl_open = tk.Label(
+            rl_header, text=_("Open"), bg=theme.bg_dark,
+            fg=theme.accent_primary, font=FONTS.tiny(bold=True), cursor="hand2",
+        )
+        rl_open.pack(side=tk.RIGHT, padx=(0, 8))
+        make_keyboard_activatable(rl_open, self._show_read_later_queue)
+        Tooltip(rl_open, _("Open Read Later queue"))
 
         self._rl_frame = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
         self._rl_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(0, 12))

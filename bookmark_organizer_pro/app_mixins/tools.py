@@ -28,8 +28,10 @@ from bookmark_organizer_pro.ui.widgets import ModernButton, ThemeSelectorDialog,
 from bookmark_organizer_pro.ui.graph_view import GraphViewDialog
 from bookmark_organizer_pro.ui.management_dialogs import CategoryManagementDialog, CustomFaviconDialog
 from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog
+from bookmark_organizer_pro.ui.read_later_queue import ReadLaterQueueDialog
 from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable
 from bookmark_organizer_pro.ui.widgets import AnalyticsDashboard, Tooltip, get_theme
+from bookmark_organizer_pro.ui.widget_runtime import _open_external_url
 from bookmark_organizer_pro.url_utils import URLUtilities
 
 
@@ -83,6 +85,7 @@ class ToolsActionsMixin:
         menu.add_command(label=_("Clean Tracking Parameters"), command=self._clean_urls)
         menu.add_separator()
         menu.add_command(label=_("Smart Collections"), command=self._show_smart_collections)
+        menu.add_command(label=_("Read Later Queue"), command=self._show_read_later_queue)
         menu.add_command(label=_("Reader View"), command=self._open_reader_view)
         menu.add_command(label=_("Graph View"), command=self._open_graph_view)
         menu.add_command(label=_("Full Analytics"), command=self._show_analytics)
@@ -781,6 +784,15 @@ class ToolsActionsMixin:
             lines,
             f"Smart collections: {len(collections)} defined",
             f"Listed {len(collections)} smart collection(s)",
+        )
+
+    def _show_read_later_queue(self):
+        """Open the dedicated Read Later queue workflow."""
+        ReadLaterQueueDialog(
+            self.root,
+            bookmark_manager=self.bookmark_manager,
+            on_changed=self._refresh_all,
+            on_open_url=_open_external_url,
         )
 
     def _view_dead_links(self):
