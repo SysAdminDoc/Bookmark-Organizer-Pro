@@ -845,13 +845,6 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P2 - Preservation, migration, and MCP coverage
 
-- [ ] P2 - Expose reader highlights and review operations through MCP
-  Why: Reader annotations and SM-2 review are implemented locally, but MCP clients cannot list highlights, fetch due reviews, record review quality, or export highlight Markdown.
-  Evidence: `bookmark_organizer_pro/services/reader_annotations.py`; `tests/test_services.py:1194-1513`; `bookmark_organizer_pro/mcp_server.py`; MCP tool/resource patterns
-  Touches: `bookmark_organizer_pro/mcp_server.py`, `bookmark_organizer_pro/services/mcp_auth.py`, `tests/test_mcp_tools.py`, `README.md`
-  Acceptance: MCP exposes read-only tools/resources for highlights and due reviews plus scoped write tools for review recording and highlight note updates; auth scopes distinguish read and write operations; tests cover raw SDK and FastMCP tool catalogs.
-  Complexity: M
-
 ### P3 - Structured extraction
 
 - [ ] P3 - Add site-specific extraction templates

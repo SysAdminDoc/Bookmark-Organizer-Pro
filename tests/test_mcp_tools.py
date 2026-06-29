@@ -268,6 +268,98 @@ class TestListSnapshots(MCPToolTestBase):
         self.assertIsInstance(result, list)
 
 
+class TestReaderMCPTools(MCPToolTestBase):
+    def _install_reader_services(self):
+        from types import SimpleNamespace
+        from bookmark_organizer_pro.models import Bookmark
+        from bookmark_organizer_pro.services.reader_annotations import ReaderAnnotationStore
+
+        tmp = tempfile.mkdtemp(prefix="bop_reader_mcp_")
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        bookmark = Bookmark(
+            id=7101,
+            url="https://reader-mcp.example.com/article",
+            title="Reader MCP Article",
+            category="Research",
+            tags=["mcp", "reader"],
+        )
+
+        class FakeBookmarkManager:
+            def __init__(self, items):
+                self.items = {int(item.id): item for item in items}
+
+            def get_bookmark(self, bookmark_id):
+                return self.items.get(int(bookmark_id))
+
+            def get_all_bookmarks(self):
+                return list(self.items.values())
+
+            def get_statistics(self):
+                return {
+                    "total_bookmarks": len(self.items),
+                    "total_categories": 1,
+                    "total_tags": 2,
+                    "broken": 0,
+                }
+
+        store = ReaderAnnotationStore(Path(tmp) / "reader_annotations.json")
+        self.ms.SERVICES = SimpleNamespace(
+            bookmark_manager=FakeBookmarkManager([bookmark]),
+            reader_annotations=store,
+        )
+        return bookmark, store
+
+    def test_reader_highlight_tools_list_export_note_and_review(self):
+        bookmark, store = self._install_reader_services()
+        highlight = store.add_from_text(
+            bookmark.id,
+            "Alpha selected reader passage omega",
+            6,
+            29,
+            color="green",
+            note="Initial note",
+        )
+
+        listed = self.ms.t_list_reader_highlights(bookmark_id=bookmark.id)
+        self.assertEqual(len(listed), 1)
+        self.assertEqual(listed[0]["id"], highlight.id)
+        self.assertEqual(listed[0]["bookmark"]["title"], "Reader MCP Article")
+        self.assertEqual(listed[0]["color_hex"], "#bbf7d0")
+
+        exported = self.ms.t_export_reader_highlights(bookmark.id)
+        self.assertEqual(exported["format"], "markdown")
+        self.assertEqual(exported["highlight_count"], 1)
+        self.assertIn("> selected reader passage", exported["markdown"])
+
+        updated = self.ms.t_update_reader_highlight_note(highlight.id, "Reviewed from MCP")
+        self.assertTrue(updated["updated"])
+        self.assertEqual(store.get(highlight.id).note, "Reviewed from MCP")
+
+        reviewed = self.ms.t_record_reader_review(highlight.id, 4)
+        self.assertTrue(reviewed["reviewed"])
+        self.assertEqual(reviewed["quality"], 4)
+        self.assertEqual(store.get(highlight.id).sr_interval, 1)
+        self.assertTrue(store.get(highlight.id).sr_next_review)
+
+    def test_due_reader_reviews_and_due_filter(self):
+        bookmark, store = self._install_reader_services()
+        highlight = store.add_from_text(bookmark.id, "Due review passage", 0, 3)
+
+        due = self.ms.t_list_due_reader_reviews()
+        due_filtered = self.ms.t_list_reader_highlights(bookmark_id=bookmark.id, due_only=True)
+
+        self.assertEqual([item["id"] for item in due], [highlight.id])
+        self.assertEqual([item["id"] for item in due_filtered], [highlight.id])
+
+    def test_reader_tools_report_not_found_and_validation_errors(self):
+        self._install_reader_services()
+
+        self.assertIn("error", self.ms.t_export_reader_highlights(404))
+        self.assertIn("error", self.ms.t_update_reader_highlight_note("missing", "note"))
+        self.assertIn("error", self.ms.t_record_reader_review("missing", 3))
+        self.assertIn("error", self.ms.t_record_reader_review("missing", 6))
+
+
 class TestExportZip(MCPToolTestBase):
     def test_not_found(self):
         result = self.ms.t_export_zip(bookmark_id=999999999)
@@ -288,6 +380,24 @@ class TestToolsSchema(MCPToolTestBase):
     def test_no_duplicate_tool_names(self):
         names = [t[0] for t in self.ms.TOOLS]
         self.assertEqual(len(names), len(set(names)), f"Duplicate tool names: {names}")
+
+    def test_reader_tool_auth_scope_lists_are_classified(self):
+        from bookmark_organizer_pro.services import mcp_auth
+
+        read_tools = {
+            "list_reader_highlights",
+            "list_due_reader_reviews",
+            "export_reader_highlights",
+        }
+        write_tools = {
+            "update_reader_highlight_note",
+            "record_reader_review",
+        }
+
+        self.assertTrue(read_tools.issubset(self.ms.MCP_READ_ONLY_TOOLS))
+        self.assertTrue(read_tools.issubset(mcp_auth.READ_ONLY_TOOLS))
+        self.assertTrue(write_tools.isdisjoint(self.ms.MCP_READ_ONLY_TOOLS))
+        self.assertTrue(write_tools.issubset(mcp_auth.WRITE_TOOLS))
 
 
 class TestMCPRuntimeCompatibility(MCPToolTestBase):
@@ -317,6 +427,11 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
         self.assertTrue(tools["list_bookmarks"]["annotations"]["readOnlyHint"])
         self.assertFalse(tools["delete_bookmark"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["delete_bookmark"]["annotations"]["destructiveHint"])
+        self.assertTrue(tools["list_reader_highlights"]["annotations"]["readOnlyHint"])
+        self.assertTrue(tools["list_due_reader_reviews"]["annotations"]["readOnlyHint"])
+        self.assertTrue(tools["export_reader_highlights"]["annotations"]["readOnlyHint"])
+        self.assertFalse(tools["update_reader_highlight_note"]["annotations"]["readOnlyHint"])
+        self.assertFalse(tools["record_reader_review"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["chat_with_collection_stream"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["chat_with_collection_stream"]["annotations"]["openWorldHint"])
         self.assertEqual(
@@ -356,6 +471,11 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
         self.assertTrue(tools["list_bookmarks"]["annotations"]["readOnlyHint"])
         self.assertFalse(tools["delete_bookmark"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["delete_bookmark"]["annotations"]["destructiveHint"])
+        self.assertTrue(tools["list_reader_highlights"]["annotations"]["readOnlyHint"])
+        self.assertTrue(tools["list_due_reader_reviews"]["annotations"]["readOnlyHint"])
+        self.assertTrue(tools["export_reader_highlights"]["annotations"]["readOnlyHint"])
+        self.assertFalse(tools["update_reader_highlight_note"]["annotations"]["readOnlyHint"])
+        self.assertFalse(tools["record_reader_review"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["chat_with_collection_stream"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["chat_with_collection_stream"]["annotations"]["openWorldHint"])
         self.assertEqual(
@@ -630,6 +750,43 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
 class TestMCPResources(MCPToolTestBase):
     """MCP resource definitions for bookmark library."""
 
+    def _install_reader_resource_services(self):
+        from types import SimpleNamespace
+        from bookmark_organizer_pro.models import Bookmark
+        from bookmark_organizer_pro.services.reader_annotations import ReaderAnnotationStore
+
+        tmp = tempfile.mkdtemp(prefix="bop_reader_resource_")
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        bookmark = Bookmark(
+            id=7201,
+            url="https://resource-reader.example.com",
+            title="Resource Reader",
+            category="Research",
+            tags=["reader"],
+        )
+
+        class FakeBookmarkManager:
+            def get_bookmark(self, bookmark_id):
+                return bookmark if int(bookmark_id) == int(bookmark.id) else None
+
+            def get_all_bookmarks(self):
+                return [bookmark]
+
+            def get_statistics(self):
+                return {
+                    "total_bookmarks": 1,
+                    "total_categories": 1,
+                    "total_tags": 1,
+                    "broken": 0,
+                }
+
+        store = ReaderAnnotationStore(Path(tmp) / "reader_annotations.json")
+        store.add_from_text(bookmark.id, "Resource highlight text", 0, 8)
+        self.ms.SERVICES = SimpleNamespace(
+            bookmark_manager=FakeBookmarkManager(),
+            reader_annotations=store,
+        )
+
     def test_fastmcp_has_library_resource(self):
         mcp_app = self.ms._build_fastmcp_server()
         if mcp_app is None:
@@ -651,6 +808,48 @@ class TestMCPResources(MCPToolTestBase):
         svc = self.ms._services()
         stats = svc.bookmark_manager.get_statistics()
         self.assertGreater(stats.get("total_bookmarks", 0), 0)
+
+    def test_raw_resources_include_reader_resources(self):
+        import mcp.types as types
+
+        result = self.ms._build_mcp_resources_result(types)
+        payload = result.model_dump(by_alias=True, exclude_none=True)
+        uris = {str(item["uri"]).rstrip("/") for item in payload["resources"]}
+
+        self.assertIn("bookmarks://reader/highlights", uris)
+        self.assertIn("bookmarks://reader/reviews/due", uris)
+
+    def test_raw_reader_resource_returns_json(self):
+        import mcp.types as types
+
+        self._install_reader_resource_services()
+        result = self.ms._build_mcp_resource_read_result(types, "bookmarks://reader/highlights")
+        payload = result.model_dump(by_alias=True, exclude_none=True)
+        data = json.loads(payload["contents"][0]["text"])
+
+        self.assertEqual(data["total_highlights"], 1)
+        self.assertEqual(data["due_reviews"], 1)
+        self.assertEqual(data["recent"][0]["bookmark"]["title"], "Resource Reader")
+
+    def test_fastmcp_reader_resource_returns_json(self):
+        from fastmcp import Client
+
+        self._install_reader_resource_services()
+
+        async def _read_resource():
+            app = self.ms._build_fastmcp_server()
+            async with Client(app) as client:
+                resources = await client.list_resources()
+                contents = await client.read_resource("bookmarks://reader/reviews/due")
+            return resources, contents
+
+        resources, contents = asyncio.run(_read_resource())
+        uris = {str(item.uri).rstrip("/") for item in resources}
+        data = json.loads(contents[0].text)
+
+        self.assertIn("bookmarks://reader/reviews/due", uris)
+        self.assertEqual(data["due_reviews"], 1)
+        self.assertEqual(data["highlights"][0]["bookmark"]["title"], "Resource Reader")
 
 
 if __name__ == "__main__":

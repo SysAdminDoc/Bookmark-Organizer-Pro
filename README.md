@@ -26,6 +26,11 @@ Add to your MCP config:
 ```
 
 After restart, the MCP-compatible client can query your bookmark library directly.
+The server exposes bookmark search, semantic/hybrid retrieval, snapshots,
+research flows, reader highlights, due SM-2 reviews, per-bookmark highlight
+Markdown export, and scoped reader review/note updates. Read-only MCP tokens can
+list and export reader data; review recording and note edits require read-write
+scope.
 
 ### Local API authentication
 

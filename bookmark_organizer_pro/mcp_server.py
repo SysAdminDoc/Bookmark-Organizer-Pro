@@ -16,6 +16,11 @@ Tools exposed:
     list_tags() -> list
     list_categories() -> list
     get_extracted_text(bookmark_id) -> str
+    list_reader_highlights(bookmark_id, limit, offset, due_only) -> list
+    list_due_reader_reviews(limit, offset) -> list
+    export_reader_highlights(bookmark_id) -> dict
+    update_reader_highlight_note(highlight_id, note) -> dict
+    record_reader_review(highlight_id, quality) -> dict
     chat_with_collection(question, restrict_ids) -> dict
     chat_with_collection_stream(question, restrict_ids, chunk_chars) -> dict
     summarize_bookmark(bookmark_id) -> dict                 (cited)
@@ -48,6 +53,11 @@ from bookmark_organizer_pro.services.digest import DailyDigestService
 from bookmark_organizer_pro.services.embeddings import EmbeddingService
 from bookmark_organizer_pro.services.flows import FlowManager
 from bookmark_organizer_pro.services.hybrid_search import HybridSearch
+from bookmark_organizer_pro.services.reader_annotations import (
+    ReaderAnnotationStore,
+    ReaderHighlight,
+    render_highlights_markdown,
+)
 from bookmark_organizer_pro.services.zip_export import ZipExporter
 from bookmark_organizer_pro.services.rag_chat import CollectionChat, normalize_stream_chunk_chars
 from bookmark_organizer_pro.services.vector_store import VectorStore
@@ -99,6 +109,7 @@ class BookmarkServices:
         self.flows = FlowManager()
         self.zip_exporter = ZipExporter()
         self.digest = DailyDigestService()
+        self.reader_annotations = ReaderAnnotationStore()
         self.dead_links = DeadLinkScanner(
             get_bookmarks=lambda: self.bookmark_manager.get_all_bookmarks(),
         )
@@ -152,6 +163,7 @@ MCP_READ_ONLY_TOOLS = {
     "semantic_search", "hybrid_search", "list_tags", "list_categories",
     "get_extracted_text", "daily_digest", "list_dead_links",
     "list_flows", "get_flow", "list_snapshots",
+    "list_reader_highlights", "list_due_reader_reviews", "export_reader_highlights",
     "chat_with_collection", "chat_with_collection_stream", "summarize_bookmark",
 }
 
@@ -228,6 +240,129 @@ def _build_mcp_tools_result(types: Any) -> Any:
         for name, _, desc, schema in TOOLS
     ]
     return types.ListToolsResult(tools=tools, **_list_result_cache_kwargs())
+
+
+MCP_RESOURCE_DEFINITIONS = (
+    (
+        "bookmarks://library",
+        "Bookmark library summary",
+        "Total bookmarks, categories, tags, broken counts, and recent changes.",
+    ),
+    (
+        "bookmarks://stats",
+        "Bookmark statistics",
+        "Full collection statistics.",
+    ),
+    (
+        "bookmarks://reader/highlights",
+        "Reader highlights summary",
+        "Recent reader highlights plus total and due-review counts.",
+    ),
+    (
+        "bookmarks://reader/reviews/due",
+        "Due reader reviews",
+        "Highlights currently due for SM-2 review.",
+    ),
+)
+
+
+def _mcp_resource_definition(types: Any, uri: str, name: str, desc: str) -> Any:
+    return types.Resource(
+        name=name,
+        title=name,
+        uri=uri,
+        description=desc,
+        mimeType="application/json",
+        _meta={
+            "io.modelcontextprotocol/protocolVersion": _mcp_protocol_version(),
+            "io.modelcontextprotocol/statelessReady": True,
+            "io.modelcontextprotocol/method": "resources/read",
+            "io.modelcontextprotocol/name": uri,
+        },
+    )
+
+
+def _build_mcp_resources_result(types: Any) -> Any:
+    resources = [
+        _mcp_resource_definition(types, uri, name, desc)
+        for uri, name, desc in MCP_RESOURCE_DEFINITIONS
+    ]
+    return types.ListResourcesResult(resources=resources)
+
+
+def _library_resource_payload() -> str:
+    svc = _services()
+    stats = svc.bookmark_manager.get_statistics()
+    recent = sorted(
+        svc.bookmark_manager.get_all_bookmarks(),
+        key=lambda b: b.modified_at or b.created_at or "",
+        reverse=True,
+    )[:5]
+    return json.dumps({
+        "total_bookmarks": stats.get("total_bookmarks", 0),
+        "categories": stats.get("total_categories", 0),
+        "tags": stats.get("total_tags", 0),
+        "broken": stats.get("broken", 0),
+        "recent": [
+            {"id": bm.id, "title": bm.title, "url": bm.url,
+             "modified_at": bm.modified_at}
+            for bm in recent
+        ],
+    }, indent=2)
+
+
+def _stats_resource_payload() -> str:
+    svc = _services()
+    return json.dumps(svc.bookmark_manager.get_statistics(), indent=2, default=str)
+
+
+def _reader_highlights_resource_payload() -> str:
+    highlights = t_list_reader_highlights(limit=25)
+    due = t_list_due_reader_reviews(limit=25)
+    return json.dumps({
+        "total_highlights": len(_services().reader_annotations.list_all()),
+        "due_reviews": len(_services().reader_annotations.due_for_review()),
+        "recent": highlights,
+        "due": due,
+    }, indent=2, default=str)
+
+
+def _reader_due_reviews_resource_payload() -> str:
+    due = t_list_due_reader_reviews(limit=50)
+    return json.dumps({
+        "due_reviews": len(_services().reader_annotations.due_for_review()),
+        "highlights": due,
+    }, indent=2, default=str)
+
+
+def _mcp_resource_payload(uri: str) -> Optional[str]:
+    normalized = str(uri).rstrip("/")
+    handlers = {
+        "bookmarks://library": _library_resource_payload,
+        "bookmarks://stats": _stats_resource_payload,
+        "bookmarks://reader/highlights": _reader_highlights_resource_payload,
+        "bookmarks://reader/reviews/due": _reader_due_reviews_resource_payload,
+    }
+    handler = handlers.get(normalized)
+    if handler is None:
+        return None
+    return handler()
+
+
+def _build_mcp_resource_read_result(types: Any, uri: str) -> Any:
+    payload = _mcp_resource_payload(uri)
+    if payload is None:
+        raise ValueError(f"Unknown resource: {uri}")
+    normalized = str(uri).rstrip("/")
+    return types.ReadResourceResult(
+        contents=[
+            types.TextResourceContents(
+                uri=normalized,
+                mimeType="application/json",
+                text=payload,
+            ),
+        ],
+    )
 
 
 def _patch_fastmcp_list_tools_cache(mcp_app: Any) -> None:
@@ -466,6 +601,113 @@ def t_get_extracted_text(bookmark_id: int) -> str:
         return Path(bm.extracted_text_path).read_text(encoding="utf-8")
     except OSError:
         return ""
+
+
+def _bookmark_brief(s: BookmarkServices, bookmark_id: int) -> Optional[Dict[str, Any]]:
+    bm = s.bookmark_manager.get_bookmark(int(bookmark_id))
+    if bm is None:
+        return None
+    return {
+        "id": bm.id,
+        "title": bm.title,
+        "url": bm.url,
+        "category": bm.full_category_path,
+    }
+
+
+def _reader_highlight_to_dict(
+    highlight: ReaderHighlight,
+    s: Optional[BookmarkServices] = None,
+) -> Dict[str, Any]:
+    payload = highlight.to_dict()
+    payload["color_hex"] = highlight.color_hex
+    payload["preview"] = " ".join(highlight.text.split())[:160]
+    svc = s or _services()
+    bookmark = _bookmark_brief(svc, highlight.bookmark_id)
+    if bookmark is not None:
+        payload["bookmark"] = bookmark
+    return payload
+
+
+def t_list_reader_highlights(
+    bookmark_id: Optional[int] = None,
+    limit: int = 50,
+    offset: int = 0,
+    due_only: bool = False,
+) -> List[Dict]:
+    """List persisted reader highlights for MCP clients."""
+    limit = _clamp_limit(limit)
+    offset = _clamp_offset(offset)
+    s = _services()
+    if due_only:
+        highlights = s.reader_annotations.due_for_review()
+        if bookmark_id is not None:
+            bid = int(bookmark_id)
+            highlights = [item for item in highlights if item.bookmark_id == bid]
+    elif bookmark_id is not None:
+        highlights = s.reader_annotations.list_for_bookmark(int(bookmark_id))
+    else:
+        highlights = s.reader_annotations.list_all()
+    window = highlights[offset: offset + limit]
+    return [_reader_highlight_to_dict(item, s) for item in window]
+
+
+def t_list_due_reader_reviews(limit: int = 50, offset: int = 0) -> List[Dict]:
+    """List highlights due for SM-2 review."""
+    limit = _clamp_limit(limit)
+    offset = _clamp_offset(offset)
+    s = _services()
+    due = s.reader_annotations.due_for_review()
+    return [_reader_highlight_to_dict(item, s) for item in due[offset: offset + limit]]
+
+
+def t_export_reader_highlights(bookmark_id: int) -> Dict:
+    """Return Markdown for one bookmark's reader highlights without writing a file."""
+    s = _services()
+    bm = s.bookmark_manager.get_bookmark(int(bookmark_id))
+    if bm is None:
+        return {"error": "Bookmark not found"}
+    highlights = s.reader_annotations.list_for_bookmark(int(bookmark_id))
+    return {
+        "bookmark": _bookmark_brief(s, int(bookmark_id)),
+        "highlight_count": len(highlights),
+        "format": "markdown",
+        "markdown": render_highlights_markdown(bm, highlights),
+    }
+
+
+def t_update_reader_highlight_note(highlight_id: str, note: str = "") -> Dict:
+    """Update a reader highlight note."""
+    highlight_id = _sanitize_str(highlight_id, 200)
+    note = _sanitize_str(note, 5000)
+    s = _services()
+    if not s.reader_annotations.set_note(highlight_id, note):
+        return {"error": "Highlight not found"}
+    highlight = s.reader_annotations.get(highlight_id)
+    return {
+        "updated": True,
+        "highlight": _reader_highlight_to_dict(highlight, s) if highlight else None,
+    }
+
+
+def t_record_reader_review(highlight_id: str, quality: int) -> Dict:
+    """Record a 0-5 SM-2 review quality score for a reader highlight."""
+    highlight_id = _sanitize_str(highlight_id, 200)
+    try:
+        score = int(quality)
+    except (TypeError, ValueError):
+        return {"error": "quality must be an integer from 0 to 5"}
+    if score < 0 or score > 5:
+        return {"error": "quality must be an integer from 0 to 5"}
+    s = _services()
+    if not s.reader_annotations.record_review(highlight_id, score):
+        return {"error": "Highlight not found"}
+    highlight = s.reader_annotations.get(highlight_id)
+    return {
+        "reviewed": True,
+        "quality": score,
+        "highlight": _reader_highlight_to_dict(highlight, s) if highlight else None,
+    }
 
 
 def _resolve_chat_scope_ids(s: BookmarkServices, restrict_ids: Optional[List[int]] = None,
@@ -904,6 +1146,55 @@ TOOLS = [
          },
          "required": ["bookmark_id"],
      }),
+    ("list_reader_highlights", t_list_reader_highlights,
+     "List saved reader highlights, optionally scoped to a bookmark or only highlights due for review.",
+     {
+         "type": "object",
+         "properties": {
+             "bookmark_id": {"type": "integer", "description": "Optional bookmark ID filter"},
+             "limit": {"type": "integer", "description": "Max highlights to return (default 50)", "default": 50},
+             "offset": {"type": "integer", "description": "Skip first N highlights for pagination", "default": 0},
+             "due_only": {"type": "boolean", "description": "If true, only return highlights due for review", "default": False},
+         },
+     }),
+    ("list_due_reader_reviews", t_list_due_reader_reviews,
+     "List reader highlights currently due for SM-2 review.",
+     {
+         "type": "object",
+         "properties": {
+             "limit": {"type": "integer", "description": "Max due highlights to return (default 50)", "default": 50},
+             "offset": {"type": "integer", "description": "Skip first N due highlights for pagination", "default": 0},
+         },
+     }),
+    ("export_reader_highlights", t_export_reader_highlights,
+     "Return one bookmark's reader highlights as Markdown without writing files.",
+     {
+         "type": "object",
+         "properties": {
+             "bookmark_id": {"type": "integer", "description": "The bookmark ID to export highlights for"},
+         },
+         "required": ["bookmark_id"],
+     }),
+    ("update_reader_highlight_note", t_update_reader_highlight_note,
+     "Update the note attached to a saved reader highlight.",
+     {
+         "type": "object",
+         "properties": {
+             "highlight_id": {"type": "string", "description": "Reader highlight ID"},
+             "note": {"type": "string", "description": "Replacement note text"},
+         },
+         "required": ["highlight_id", "note"],
+     }),
+    ("record_reader_review", t_record_reader_review,
+     "Record a 0-5 SM-2 review quality score for a reader highlight.",
+     {
+         "type": "object",
+         "properties": {
+             "highlight_id": {"type": "string", "description": "Reader highlight ID"},
+             "quality": {"type": "integer", "description": "Review quality score from 0 to 5"},
+         },
+         "required": ["highlight_id", "quality"],
+     }),
     ("chat_with_collection", t_chat,
      "Ask a question about your bookmark collection using RAG. Can scope to a tag or category.",
      {
@@ -1097,6 +1388,14 @@ async def serve_stdio() -> int:
     async def _list_tools(request: Any = None) -> Any:
         return _build_mcp_tools_result(types)
 
+    @server.list_resources()
+    async def _list_resources(request: Any = None) -> Any:
+        return _build_mcp_resources_result(types)
+
+    @server.read_resource()
+    async def _read_resource(uri: Any) -> Any:
+        return _build_mcp_resource_read_result(types, str(uri))
+
     @server.call_tool()
     async def _call_tool(name: str, arguments: Dict[str, Any]) -> List[Any]:
         from mcp.types import TextContent
@@ -1196,6 +1495,27 @@ def _build_fastmcp_server():
     def get_extracted_text(bookmark_id: int) -> str:
         return t_get_extracted_text(bookmark_id)
 
+    @tool("list_reader_highlights", "List saved reader highlights.")
+    def list_reader_highlights(bookmark_id: int | None = None, limit: int = 50,
+                               offset: int = 0, due_only: bool = False) -> list[dict]:
+        return t_list_reader_highlights(bookmark_id, limit, offset, due_only)
+
+    @tool("list_due_reader_reviews", "List reader highlights due for SM-2 review.")
+    def list_due_reader_reviews(limit: int = 50, offset: int = 0) -> list[dict]:
+        return t_list_due_reader_reviews(limit, offset)
+
+    @tool("export_reader_highlights", "Return reader highlights as Markdown.")
+    def export_reader_highlights(bookmark_id: int) -> dict:
+        return t_export_reader_highlights(bookmark_id)
+
+    @tool("update_reader_highlight_note", "Update a saved reader highlight note.")
+    def update_reader_highlight_note(highlight_id: str, note: str = "") -> dict:
+        return t_update_reader_highlight_note(highlight_id, note)
+
+    @tool("record_reader_review", "Record a 0-5 SM-2 reader review quality score.")
+    def record_reader_review(highlight_id: str, quality: int) -> dict:
+        return t_record_reader_review(highlight_id, quality)
+
     @tool("chat_with_collection", "Conversational RAG over the bookmark library.")
     def chat_with_collection(question: str, restrict_ids: list[int] | None = None,
                              restrict_tag: str = "", restrict_category: str = "") -> dict:
@@ -1292,30 +1612,22 @@ def _build_fastmcp_server():
     @mcp_app.resource("bookmarks://library")
     def library_resource() -> str:
         """Library summary: total bookmarks, categories, tags, and recent changes."""
-        svc = _services()
-        stats = svc.bookmark_manager.get_statistics()
-        recent = sorted(
-            svc.bookmark_manager.get_all_bookmarks(),
-            key=lambda b: b.modified_at or b.created_at or "",
-            reverse=True,
-        )[:5]
-        return json.dumps({
-            "total_bookmarks": stats.get("total_bookmarks", 0),
-            "categories": stats.get("total_categories", 0),
-            "tags": stats.get("total_tags", 0),
-            "broken": stats.get("broken", 0),
-            "recent": [
-                {"id": bm.id, "title": bm.title, "url": bm.url,
-                 "modified_at": bm.modified_at}
-                for bm in recent
-            ],
-        }, indent=2)
+        return _library_resource_payload()
 
     @mcp_app.resource("bookmarks://stats")
     def stats_resource() -> str:
         """Full collection statistics."""
-        svc = _services()
-        return json.dumps(svc.bookmark_manager.get_statistics(), indent=2, default=str)
+        return _stats_resource_payload()
+
+    @mcp_app.resource("bookmarks://reader/highlights")
+    def reader_highlights_resource() -> str:
+        """Recent reader highlights and due-review counts."""
+        return _reader_highlights_resource_payload()
+
+    @mcp_app.resource("bookmarks://reader/reviews/due")
+    def reader_due_reviews_resource() -> str:
+        """Reader highlights currently due for review."""
+        return _reader_due_reviews_resource_payload()
 
     @mcp_app.prompt()
     def organize_recent(days: int = 7) -> str:

@@ -87,7 +87,12 @@ class TestMcpTokenAuth(unittest.TestCase):
         # read-write may call a mutation; read-only may not.
         self.assertTrue(mgr.validate(rw, "delete_bookmark"))
         self.assertTrue(mgr.validate(ro, "list_bookmarks"))
+        self.assertTrue(mgr.validate(ro, "list_reader_highlights"))
+        self.assertTrue(mgr.validate(ro, "list_due_reader_reviews"))
+        self.assertTrue(mgr.validate(ro, "export_reader_highlights"))
         self.assertFalse(mgr.validate(ro, "delete_bookmark"))
+        self.assertFalse(mgr.validate(ro, "record_reader_review"))
+        self.assertFalse(mgr.validate(ro, "update_reader_highlight_note"))
 
         # Unknown / empty tokens are rejected.
         self.assertFalse(mgr.validate("not-a-real-token", "list_bookmarks"))

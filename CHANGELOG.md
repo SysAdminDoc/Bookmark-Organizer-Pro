@@ -20,6 +20,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Added a dedicated desktop Read Later Queue with open-next, open-selected, reorder, mark-done, remove, and empty-state handling.
 - Added persisted snapshot backend failure reports with per-backend diagnostics, retry eligibility, dashboard visibility, and Tools-menu Retry/Clear actions.
 - Added Firefox bookmark-backup JSON/JSONLZ4 import with nested folder categories, tag-folder preservation, invalid URL skip counts, GUI Import Center routing, and CLI support.
+- Added MCP reader-highlight and SM-2 review tools/resources for listing highlights, listing due reviews, exporting highlight Markdown, updating highlight notes, and recording review quality with read-only/read-write auth separation.
 
 ### Changed
 

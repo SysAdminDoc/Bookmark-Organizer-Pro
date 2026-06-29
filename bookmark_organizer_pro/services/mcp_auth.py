@@ -24,6 +24,7 @@ READ_ONLY_TOOLS = {
     "semantic_search", "hybrid_search", "list_tags", "list_categories",
     "get_extracted_text", "daily_digest", "list_dead_links",
     "list_flows", "get_flow", "list_snapshots",
+    "list_reader_highlights", "list_due_reader_reviews", "export_reader_highlights",
 }
 
 WRITE_TOOLS = {
@@ -32,6 +33,7 @@ WRITE_TOOLS = {
     "create_flow", "append_to_flow",
     "export_zip", "export_to_obsidian",
     "chat_with_collection", "chat_with_collection_stream", "summarize_bookmark",
+    "update_reader_highlight_note", "record_reader_review",
 }
 
 
