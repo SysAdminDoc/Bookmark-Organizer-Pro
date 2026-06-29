@@ -846,10 +846,3 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 ### P2 - Preservation, migration, and MCP coverage
 
 ### P3 - Structured extraction
-
-- [ ] P3 - Add site-specific extraction templates
-  Why: The app already has URL patterns, snapshots, and extracted text, but domain-specific templates would capture richer fields for GitHub, docs, papers, videos, and stores without requiring a new storage backend.
-  Evidence: `bookmark_organizer_pro/core/pattern_engine.py`; `bookmark_organizer_pro/services/ingest.py`; `bookmark_organizer_pro/services/snapshot.py`; Obsidian Web Clipper templates
-  Touches: `bookmark_organizer_pro/core/`, `bookmark_organizer_pro/services/ingest.py`, `bookmark_organizer_pro/models/bookmark.py`, `bookmark_organizer_pro/ui/`, tests
-  Acceptance: A safe JSON/YAML template format can extract configured fields from trusted selectors/metadata, store them under structured bookmark metadata, and show/export them; tests cover selector failures, unsupported domains, and malicious template values.
-  Complexity: L

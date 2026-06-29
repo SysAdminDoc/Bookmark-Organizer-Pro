@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import sys
 from typing import List
@@ -138,7 +139,13 @@ class BookmarkCLI:
         # ── v6.0.0 ─────────────────────────────────────────────────
         p = sub.add_parser("ingest", help="Extract text + reading time + language")
         p.add_argument("ids", nargs="*", type=int, help="Bookmark IDs (default: all)")
+        p.add_argument("--templates", help="Optional JSON/YAML structured extraction templates")
         p.set_defaults(func=self._cmd_ingest)
+
+        p = sub.add_parser("structured", help="Show structured metadata for a bookmark")
+        p.add_argument("bookmark_id", type=int, help="Bookmark ID")
+        p.add_argument("--json", action="store_true", dest="as_json", help="Print raw JSON payload")
+        p.set_defaults(func=self._cmd_structured)
 
         p = sub.add_parser("snapshot", help="Capture single-file HTML snapshot")
         p.add_argument("bookmark_id", type=int, help="Bookmark ID")
@@ -318,8 +325,8 @@ class BookmarkCLI:
         # ── Reader ─────────────────────────────────────────────────
         p = sub.add_parser("reader", help="Manage reader highlights/notes")
         p.add_argument("action", nargs="?", default=None,
-                        choices=["list", "add", "note", "delete", "export"],
-                        help="Action: list, add, note, delete, export")
+                        choices=["list", "add", "note", "delete", "due", "review", "export"],
+                        help="Action: list, add, note, delete, due, review, export")
         p.add_argument("reader_args", nargs="*", help="Action-specific arguments")
         p.add_argument("--color", default="yellow",
                         choices=["yellow", "green", "blue", "pink"],
@@ -438,6 +445,7 @@ Commands:
 
 v6.0.0 commands:
   ingest [id...]                Extract text + reading time + language for bookmark(s)
+  structured <id>               Show structured metadata extracted from templates
   snapshot <id>                 Capture single-file HTML snapshot of a bookmark
   embed [id...]                 Build/update vector embeddings (uses ingested text)
   semantic <query>              Vector-only semantic search
@@ -465,7 +473,7 @@ v6.0.0 commands:
   encrypt <pass> [src] [dst]    Encrypt a JSON file with AES-256-GCM
   decrypt <pass> <src> [dst]    Decrypt an encrypted JSON file
   read-later {{add|next|done|list}} <id>   Manage the read-later queue
-  reader {{list|add|note|delete|export}}   Manage reader highlights/notes
+  reader {{list|add|note|delete|due|review|export}}   Manage reader highlights/notes
   api-server [--port N]          Run the local HTTP API for extensions/bookmarklet
   mcp-server                    Run the MCP server (stdio) for compatible clients.
   mcp-http-server [--host H] [--port N] [--path /mcp]
@@ -480,6 +488,7 @@ Examples:
   python main.py add https://example.com "Example Site"
   python main.py hybrid "python async tutorials"
   python main.py ingest        # ingest all
+  python main.py structured 42 # show structured metadata
   python main.py mcp-server    # expose to an MCP-compatible client
   python main.py mcp-http-server --port 8766
   python main.py sqlite-migrate
@@ -807,7 +816,7 @@ Top Domains:
 
     def _cmd_ingest(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.services.ingest import ContentIngestor
-        ing = ContentIngestor()
+        ing = ContentIngestor(template_path=getattr(ns, "templates", None))
         ids = self._bookmark_ids_from_ns(ns)
         ok = updated = 0
         for bid in ids:
@@ -822,6 +831,30 @@ Top Domains:
         if updated:
             self.bookmark_manager.save_bookmarks()
         print(f"Ingested {ok}/{len(ids)} bookmarks; {updated} updated.")
+
+    def _cmd_structured(self, ns: argparse.Namespace):
+        from bookmark_organizer_pro.services.extraction_templates import (
+            format_structured_value,
+            structured_metadata_fields,
+            structured_metadata_payload,
+        )
+
+        bm = self.bookmark_manager.get_bookmark(ns.bookmark_id)
+        if not bm:
+            print("not found")
+            return
+        payload = structured_metadata_payload(bm)
+        if not payload:
+            print("No structured metadata.")
+            return
+        if ns.as_json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            return
+        template = payload.get("template") or "Structured metadata"
+        print(f"Structured metadata: {template}")
+        fields = structured_metadata_fields(bm)
+        for key, value in sorted(fields.items()):
+            print(f"- {key}: {format_structured_value(value)}")
 
     def _cmd_snapshot(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.services.snapshot import SnapshotArchiver

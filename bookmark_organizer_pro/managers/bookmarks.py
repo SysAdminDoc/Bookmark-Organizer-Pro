@@ -25,6 +25,11 @@ from bookmark_organizer_pro.core import CategoryManager, SQLiteStorageManager, S
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.search import SearchEngine
+from bookmark_organizer_pro.services.extraction_templates import (
+    format_structured_value,
+    structured_metadata_fields,
+    structured_metadata_payload,
+)
 from bookmark_organizer_pro.utils import (
     calculate_health_score,
     fetch_page_metadata,
@@ -1010,6 +1015,16 @@ class BookmarkManager:
                     if bm.notes:
                         notes = self._markdown_text(bm.notes).replace('\n', '\n  > ')
                         f.write(f'  > {notes}\n')
+                    fields = structured_metadata_fields(bm)
+                    if fields:
+                        template = structured_metadata_payload(bm).get("template", "")
+                        label = f"Structured metadata ({template})" if template else "Structured metadata"
+                        f.write(f'  - {self._markdown_text(label)}:\n')
+                        for key, value in sorted(fields.items()):
+                            f.write(
+                                f'    - {self._markdown_text(key)}: '
+                                f'{self._markdown_text(format_structured_value(value))}\n'
+                            )
                 f.write('\n')
     
     def export_txt(self, filepath: str, include_titles: bool = True):

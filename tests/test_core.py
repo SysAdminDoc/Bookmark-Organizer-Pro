@@ -1356,6 +1356,8 @@ class TestMainAppManagers(unittest.TestCase):
                 self.assertTrue(target.exists(), target)
 
     def test_full_markdown_export_escapes_user_fields(self):
+        from bookmark_organizer_pro.services.extraction_templates import STRUCTURED_METADATA_KEY
+
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
             manager.add_bookmark(
@@ -1366,6 +1368,13 @@ class TestMainAppManagers(unittest.TestCase):
                     category="Cat #1",
                     tags=["tag`x`"],
                     notes="Line (one)\nLine [two]",
+                    custom_data={
+                        STRUCTURED_METADATA_KEY: {
+                            "schema_version": 1,
+                            "template": "Docs",
+                            "fields": {"heading": "Install [Guide]", "topics": ["alpha", "beta"]},
+                        },
+                    },
                 ),
                 save=False,
             )
@@ -1379,6 +1388,9 @@ class TestMainAppManagers(unittest.TestCase):
             self.assertIn("`tag\\`x\\``", text)
             self.assertIn("> Line (one)", text)
             self.assertIn("> Line \\[two\\]", text)
+            self.assertIn("Structured metadata (Docs)", text)
+            self.assertIn("heading: Install \\[Guide\\]", text)
+            self.assertIn("topics: alpha, beta", text)
 
     def test_pdf_export_escapes_bookmark_fields(self):
         import main

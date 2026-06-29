@@ -39,6 +39,17 @@ from .bookmark_graph import (
 from .hybrid_search import HybridResult, HybridSearch
 from .icons import AIIconSuggester, IconLibrary
 from .ingest import ContentIngestor, IngestResult
+from .extraction_templates import (
+    STRUCTURED_METADATA_KEY,
+    ExtractionField,
+    ExtractionTemplate,
+    StructuredExtractionResult,
+    extract_structured_metadata,
+    format_structured_value,
+    load_extraction_templates,
+    structured_metadata_fields,
+    structured_metadata_payload,
+)
 from .local_state import BackupScheduler, CategoryColorManager, FontManager, VersionHistory
 from .nl_query import NLQueryTranslator, StructuredQuery, execute_query
 from .organization import (
@@ -131,6 +142,10 @@ __all__ = [
     "apply_force_layout", "build_bookmark_graph", "export_bookmark_graph_json",
     "HybridResult", "HybridSearch",
     "ContentIngestor", "IngestResult",
+    "STRUCTURED_METADATA_KEY", "ExtractionField", "ExtractionTemplate",
+    "StructuredExtractionResult", "extract_structured_metadata",
+    "format_structured_value", "load_extraction_templates",
+    "structured_metadata_fields", "structured_metadata_payload",
     "NLQueryTranslator", "StructuredQuery", "execute_query",
     "ChatMessage", "ChatStreamEvent", "ChatStreamResult", "ChatTurn", "CollectionChat",
     "build_chat_stream_events", "normalize_stream_chunk_chars", "split_answer_chunks",

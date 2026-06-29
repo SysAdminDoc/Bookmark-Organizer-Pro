@@ -1747,5 +1747,173 @@ class TestSpacedRepetition(_IsolatedTestBase):
         self.assertFalse(store.record_review("nonexistent-id", quality=3))
 
 
+class TestStructuredExtractionTemplates(_IsolatedTestBase):
+    """Tests for safe site-specific structured metadata extraction."""
+
+    def _write_templates(self, payload):
+        path = Path(self._tmp) / f"templates_{datetime.now().timestamp()}.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return path
+
+    def test_custom_template_extracts_selector_meta_constant_and_lists(self):
+        from bookmark_organizer_pro.services.extraction_templates import (
+            extract_structured_metadata,
+            load_extraction_templates,
+        )
+
+        path = self._write_templates({
+            "templates": [{
+                "name": "Example product",
+                "domains": ["example.com"],
+                "content_type": "store",
+                "fields": {
+                    "title": {"selector": "h1"},
+                    "description": {"meta": "description"},
+                    "tags": {"selector": ".tag", "multiple": True, "max_items": 2},
+                    "source": {"constant": "custom"},
+                },
+            }],
+        })
+        templates = load_extraction_templates(path)
+        html = """
+        <html><head><meta name="description" content="Local product"></head>
+        <body><h1>Example Widget</h1><span class="tag">tools</span>
+        <span class="tag">research</span><span class="tag">ignored</span></body></html>
+        """
+
+        result = extract_structured_metadata("https://example.com/item", html, templates)
+
+        self.assertTrue(result.matched)
+        self.assertEqual(result.content_type, "store")
+        self.assertEqual(result.fields["title"], "Example Widget")
+        self.assertEqual(result.fields["description"], "Local product")
+        self.assertEqual(result.fields["tags"], ["tools", "research"])
+        self.assertEqual(result.fields["source"], "custom")
+
+    def test_unsupported_domain_does_not_extract(self):
+        from bookmark_organizer_pro.services.extraction_templates import (
+            extract_structured_metadata,
+            load_extraction_templates,
+        )
+
+        path = self._write_templates({
+            "templates": [{
+                "name": "Example",
+                "domains": ["example.com"],
+                "fields": {"title": {"selector": "h1"}},
+            }],
+        })
+        result = extract_structured_metadata(
+            "https://other.example.net",
+            "<h1>Should not match</h1>",
+            load_extraction_templates(path),
+        )
+
+        self.assertFalse(result.matched)
+        self.assertEqual(result.fields, {})
+
+    def test_selector_failures_are_warnings_not_crashes(self):
+        from bookmark_organizer_pro.services.extraction_templates import (
+            extract_structured_metadata,
+            load_extraction_templates,
+        )
+
+        path = self._write_templates({
+            "templates": [{
+                "name": "Broken selector",
+                "domains": ["example.com"],
+                "fields": {
+                    "bad": {"selector": "a["},
+                    "title": {"selector": "h1"},
+                },
+            }],
+        })
+        result = extract_structured_metadata(
+            "https://example.com",
+            "<h1>Still extracted</h1>",
+            load_extraction_templates(path),
+        )
+
+        self.assertEqual(result.fields, {"title": "Still extracted"})
+        self.assertTrue(any("bad" in warning for warning in result.warnings))
+
+    def test_malicious_template_values_are_rejected(self):
+        from bookmark_organizer_pro.services.extraction_templates import (
+            extract_structured_metadata,
+            load_extraction_templates,
+        )
+
+        path = self._write_templates({
+            "templates": [{
+                "name": "Malicious",
+                "domains": ["example.com"],
+                "fields": {
+                    "__proto__": {"constant": "poison"},
+                    "_hidden": {"constant": "hidden"},
+                    "event_attr": {"selector": "a", "attribute": "onclick"},
+                    "heavy_selector": {"selector": "div:has(span)"},
+                    "safe": {"meta": "description"},
+                },
+            }],
+        })
+        result = extract_structured_metadata(
+            "https://example.com",
+            '<meta name="description" content="safe"><a onclick="bad()">x</a>',
+            load_extraction_templates(path),
+        )
+
+        self.assertEqual(result.fields, {"safe": "safe"})
+
+    def test_ingest_applies_structured_metadata_to_bookmark(self):
+        from bookmark_organizer_pro.services.extraction_templates import load_extraction_templates
+        from bookmark_organizer_pro.services.ingest import ContentIngestor
+
+        path = self._write_templates({
+            "templates": [{
+                "name": "Docs",
+                "domains": ["docs.example.com"],
+                "content_type": "documentation",
+                "fields": {"heading": {"selector": "h1"}},
+            }],
+        })
+        html = "<html><head><title>Doc</title></head><body><h1>Install Guide</h1><p>Useful words here.</p></body></html>"
+        bookmark = _make_bookmark(id=991, url="https://docs.example.com/install", title="Doc")
+        result = ContentIngestor(templates=load_extraction_templates(path)).ingest_url(
+            bookmark.url,
+            bookmark.id,
+            html=html,
+        )
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.content_type, "documentation")
+        self.assertTrue(result.apply_to(bookmark))
+        payload = bookmark.custom_data["structured_metadata"]
+        self.assertEqual(payload["template"], "Docs")
+        self.assertEqual(payload["fields"], {"heading": "Install Guide"})
+
+    def test_obsidian_export_includes_structured_metadata_section(self):
+        from bookmark_organizer_pro.services.extraction_templates import STRUCTURED_METADATA_KEY
+        from bookmark_organizer_pro.services.obsidian_export import export_bookmark
+
+        bookmark = _make_bookmark(
+            id=992,
+            url="https://docs.example.com/structured",
+            title="Structured Export",
+            custom_data={
+                STRUCTURED_METADATA_KEY: {
+                    "schema_version": 1,
+                    "template": "Docs",
+                    "fields": {"heading": "Install Guide", "topics": ["alpha", "beta"]},
+                },
+            },
+        )
+        out = export_bookmark(bookmark, Path(self._tmp) / "obsidian_structured")
+        text = out.read_text(encoding="utf-8")
+
+        self.assertIn("## Structured Metadata - Docs", text)
+        self.assertIn("- **heading:** Install Guide", text)
+        self.assertIn("- **topics:** alpha, beta", text)
+
+
 if __name__ == "__main__":
     unittest.main()

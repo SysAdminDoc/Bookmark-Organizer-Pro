@@ -21,10 +21,12 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Added persisted snapshot backend failure reports with per-backend diagnostics, retry eligibility, dashboard visibility, and Tools-menu Retry/Clear actions.
 - Added Firefox bookmark-backup JSON/JSONLZ4 import with nested folder categories, tag-folder preservation, invalid URL skip counts, GUI Import Center routing, and CLI support.
 - Added MCP reader-highlight and SM-2 review tools/resources for listing highlights, listing due reviews, exporting highlight Markdown, updating highlight notes, and recording review quality with read-only/read-write auth separation.
+- Added safe site-specific structured extraction templates with built-in GitHub/docs/paper/video/store patterns, optional JSON/YAML custom templates, ingest persistence, CLI display, detail-panel display, and Markdown/Obsidian export rendering.
 
 ### Changed
 
 - Removed dead UI placeholder modules and the bound no-op Vim `v` command; installer, package, and diagnostics surfaces no longer advertise tray integration without a shipped tray workflow.
+- Fixed `reader due` and `reader review` CLI parser choices so the existing SM-2 review commands are reachable.
 - Import entry points now route through the guided center first, with accepted file types, privacy notes, duplicate policy, import summaries, and next actions shown in the desktop flow.
 - Duplicate and tag-lint cleanup no longer drops users into report-only or CLI-handoff flows; successful GUI scans can be reviewed and applied in place.
 

@@ -14,12 +14,19 @@ from __future__ import annotations
 
 import importlib
 import re
-from dataclasses import dataclass
-from typing import Dict, Optional
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Dict, List, Optional
 
 from bookmark_organizer_pro.constants import EXTRACTED_DIR
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.extraction_templates import (
+    STRUCTURED_METADATA_KEY,
+    ExtractionTemplate,
+    extract_structured_metadata,
+    load_extraction_templates,
+)
 from bookmark_organizer_pro.url_utils import URLUtilities
 
 
@@ -54,6 +61,7 @@ class IngestResult:
     extracted_path: str = ""
     success: bool = False
     error: str = ""
+    structured_metadata: Dict[str, object] = field(default_factory=dict)
 
     def apply_to(self, bookmark: Bookmark) -> bool:
         """Apply the ingest result to a Bookmark in place. Returns True if
@@ -80,6 +88,11 @@ class IngestResult:
         if self.extracted_path and not bookmark.extracted_text_path:
             bookmark.extracted_text_path = self.extracted_path
             changed = True
+        if self.structured_metadata:
+            existing = bookmark.custom_data.get(STRUCTURED_METADATA_KEY)
+            if existing != self.structured_metadata:
+                bookmark.custom_data[STRUCTURED_METADATA_KEY] = dict(self.structured_metadata)
+                changed = True
         return changed
 
 
@@ -271,6 +284,13 @@ def _store_extracted(bookmark_id: int, text: str) -> str:
 class ContentIngestor:
     """Coordinates HTML fetch → extract → derive metrics → persist."""
 
+    def __init__(
+        self,
+        template_path: str | Path | None = None,
+        templates: Optional[List[ExtractionTemplate]] = None,
+    ):
+        self.templates = templates if templates is not None else load_extraction_templates(template_path)
+
     def ingest_url(self, url: str, bookmark_id: Optional[int] = None,
                    html: Optional[str] = None,
                    store_text: bool = True) -> IngestResult:
@@ -281,8 +301,16 @@ class ContentIngestor:
             result.error = "Could not fetch page"
             return result
 
+        structured = extract_structured_metadata(url, html, templates=self.templates)
+        if structured.fields:
+            result.structured_metadata = structured.to_bookmark_payload()
+
         extracted = _trafilatura_extract(html, url) or _bs4_fallback(html)
         if not extracted:
+            if result.structured_metadata:
+                result.content_type = structured.content_type or _detect_content_type_from_url(url)
+                result.success = True
+                return result
             result.error = "No extraction backend available"
             return result
 
@@ -295,6 +323,7 @@ class ContentIngestor:
         result.language = _detect_language(text)
         result.content_type = (
             _detect_content_type_from_url(url)
+            or structured.content_type
             or _detect_content_type_from_text(text, result.word_count)
         )
         result.success = True

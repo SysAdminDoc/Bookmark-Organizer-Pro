@@ -7,6 +7,11 @@ import tkinter as tk
 from typing import Callable, Optional
 
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.extraction_templates import (
+    format_structured_value,
+    structured_metadata_fields,
+    structured_metadata_payload,
+)
 
 from .foundation import DesignTokens, FONTS, readable_text_on
 from .tk_interactions import make_keyboard_activatable
@@ -155,6 +160,13 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
         if status_parts:
             self._add_detail("Status", " • ".join(status_parts))
         
+        structured_fields = structured_metadata_fields(bookmark)
+        if structured_fields:
+            template = structured_metadata_payload(bookmark).get("template", "")
+            self._add_detail("Template", str(template or "Structured metadata"))
+            for key, value in sorted(structured_fields.items()):
+                self._add_detail(key.replace("_", " ").title(), format_structured_value(value))
+
         # Notes
         if bookmark.notes:
             tk.Frame(self.content, bg=theme.border, height=1).pack(fill=tk.X, pady=15)

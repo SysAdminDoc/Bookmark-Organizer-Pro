@@ -76,6 +76,10 @@ python -m bookmark_organizer_pro.cli hybrid "python async tutorials"
 # Snapshot a bookmark to portable HTML
 python -m bookmark_organizer_pro.cli snapshot 12345
 
+# Extract site-specific structured fields from supported pages
+python -m bookmark_organizer_pro.cli ingest --templates extraction_templates.json 12345
+python -m bookmark_organizer_pro.cli structured 12345
+
 # Ask the AI about your collection
 python -m bookmark_organizer_pro.cli ask "what have I saved about CRDTs?"
 
@@ -136,6 +140,7 @@ Native messaging and offline category/tag suggestions remain on the roadmap.
 ### Data Management
 - **Automatic Backups**: Timestamped backups with easy restore
 - **Export Options**: HTML, JSON, CSV, OPML, XBEL, Markdown formats
+- **Structured Metadata Templates**: Safe JSON/YAML extraction templates capture fields for GitHub, docs, papers, videos, and store pages into bookmark metadata
 - **Soft Delete / Trash**: Recoverable deletion with trash management
 - **URL Validation**: Check for broken links with concurrent checking
 - **Snapshot Failure Recovery**: Backend attempt reports with retry and clear actions for failed preservation runs
@@ -240,6 +245,29 @@ category:Development               # Filter by category
 -deprecated                        # Exclude term
 python AND tutorial                # Boolean AND
 react OR vue                       # Boolean OR
+```
+
+#### Structured Metadata Templates
+`bop ingest` applies built-in templates for common domains and can load custom
+JSON/YAML templates. Extracted fields are stored locally under bookmark
+metadata and appear in `bop structured`, Markdown exports, Obsidian exports, and
+the detail panel.
+
+```json
+{
+  "templates": [
+    {
+      "name": "Example docs",
+      "domains": ["docs.example.com"],
+      "content_type": "documentation",
+      "fields": {
+        "heading": { "selector": "h1" },
+        "description": { "meta": "description" },
+        "section": { "selector": ".breadcrumb li", "multiple": true }
+      }
+    }
+  ]
+}
 ```
 
 ### Keyboard Shortcuts

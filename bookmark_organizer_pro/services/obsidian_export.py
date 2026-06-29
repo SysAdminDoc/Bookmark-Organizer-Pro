@@ -28,6 +28,11 @@ from typing import List, Optional
 
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.extraction_templates import (
+    format_structured_value,
+    structured_metadata_fields,
+    structured_metadata_payload,
+)
 
 
 def _safe_filename(title: str) -> str:
@@ -94,6 +99,18 @@ def export_bookmark(bookmark: Bookmark, vault_dir: Path,
         lines.append("## Notes")
         lines.append("")
         lines.append(bookmark.notes)
+        lines.append("")
+
+    fields = structured_metadata_fields(bookmark)
+    if fields:
+        payload = structured_metadata_payload(bookmark)
+        title = "Structured Metadata"
+        if payload.get("template"):
+            title += f" - {payload['template']}"
+        lines.append(f"## {title}")
+        lines.append("")
+        for key, value in sorted(fields.items()):
+            lines.append(f"- **{key}:** {format_structured_value(value)}")
         lines.append("")
 
     if include_text and bookmark.extracted_text_path:

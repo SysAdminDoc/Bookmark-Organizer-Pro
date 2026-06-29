@@ -362,6 +362,32 @@ class TestCLIReader(CLITestBase):
         self.assertTrue(list(output_dir.glob("*.md")))
 
 
+class TestCLIStructuredMetadata(CLITestBase):
+    def test_structured_command_prints_saved_template_fields(self):
+        from bookmark_organizer_pro.cli import BookmarkCLI
+        from bookmark_organizer_pro.services.extraction_templates import STRUCTURED_METADATA_KEY
+
+        cli = BookmarkCLI()
+        bookmark = cli.bookmark_manager.add_bookmark_clean(
+            url="https://structured-cli.example.com",
+            title="Structured CLI",
+            category="Testing",
+        )
+        self.assertIsNotNone(bookmark)
+        bookmark.custom_data[STRUCTURED_METADATA_KEY] = {
+            "schema_version": 1,
+            "template": "CLI Template",
+            "fields": {"heading": "Structured Heading", "tags": ["one", "two"]},
+        }
+        cli.bookmark_manager.save_bookmarks()
+
+        out = self._run(["structured", str(bookmark.id)])
+
+        self.assertIn("CLI Template", out)
+        self.assertIn("heading: Structured Heading", out)
+        self.assertIn("tags: one, two", out)
+
+
 class TestCLINlQuery(CLITestBase):
     def test_nl_query_no_args(self):
         out = self._run(["nl-query"])
