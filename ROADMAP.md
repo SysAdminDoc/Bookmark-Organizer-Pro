@@ -837,9 +837,49 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 
 ### P1 — Reliability, feedback, and verification
 
+- [ ] P1 — **SIGALRM not thread-safe in PatternEngine**
+  Why: `signal.alarm()` is process-global; concurrent regex timeout calls on Unix interfere across threads.
+  Where: `bookmark_organizer_pro/core/pattern_engine.py:44-55`
+
+- [ ] P1 — **SQLite `save()` explicit BEGIN inside implicit transaction**
+  Why: `conn.execute("BEGIN")` without `isolation_level=None` can raise `OperationalError` on some Python/SQLite versions.
+  Where: `bookmark_organizer_pro/core/sqlite_storage.py:113`
+
+- [ ] P1 — **BookmarkManager `get_statistics()` creates 8+ full copies**
+  Why: Each sub-method calls `_iter_snapshot()` separately; very slow for large collections.
+  Where: `bookmark_organizer_pro/managers/bookmarks.py:1082-1121`
+
 ### P2 — Quality and polish
 
+- [ ] P2 — **Consolidate browser extension CSS**
+  Why: sidepanel.html duplicates large portions of popup.css with slightly different values (gap, padding, font-weight).
+  Where: `browser-extension/sidepanel.html`, `browser-extension/popup.css`
+
+- [ ] P2 — **Consolidate browser extension shared code**
+  Why: `background.js` and `options.js` duplicate `DEFAULTS`, `storageGet`, `storageSet`, `enqueuePendingSave` from `shared.js` because service workers cannot use `<script>` tags.
+  Where: `browser-extension/background.js`, `browser-extension/options.js`, `browser-extension/shared.js`
+
+- [ ] P2 — **Graph view canvas keyboard navigation**
+  Why: Nodes can only be selected by mouse click; no Tab or arrow-key traversal for keyboard-only users.
+  Where: `bookmark_organizer_pro/ui/graph_view.py`
+
+- [ ] P2 — **Linux/macOS scroll wheel events**
+  Why: `ScrollableFrame.bind_all("<MouseWheel>")` only works on Windows; Linux needs `<Button-4>/<Button-5>`.
+  Where: `bookmark_organizer_pro/ui/components.py:462-558`
+
+- [ ] P2 — **Standardize dialog header dimensions**
+  Why: Multiple dialogs use different `height`, `padx`, `pady` values instead of the `DesignTokens.HEADER_HEIGHT` constant.
+  Where: `bookmark_organizer_pro/ui/widget_bookmark_editor.py`, `widget_analytics.py`, `management_dialogs.py`
+
 ### P3 — Under Consideration
+
+- [ ] P3 — **Embedding model name ignored for non-fastembed backends**
+  Why: `model_name` parameter only takes effect for fastembed; model2vec and sentence_transformers always load their hardcoded defaults.
+  Where: `bookmark_organizer_pro/services/embeddings.py:127,141`
+
+- [ ] P3 — **RSS XML entity stripping regex incomplete**
+  Why: Fallback `_xml_fromstring` strips `<!DOCTYPE>` and `<!ENTITY>` but doesn't handle inline entity expansion within complex internal subsets.
+  Where: `bookmark_organizer_pro/services/rss_feeds.py:27-28`
 
 ### P1 - Contracts, docs, and scale
 
