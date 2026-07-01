@@ -107,8 +107,6 @@ class EnhancedProgressBar(tk.Frame, ThemedWidget):
             self._animating = False
             return
 
-        get_theme()
-
         # Simple back-and-forth animation
         current_pos = float(self.bar_fill.place_info().get('relx', 0))
         current_width = 0.3
@@ -306,8 +304,6 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
     
     def set_importing(self, is_importing: bool):
         """Visual feedback during import"""
-        get_theme()
-        
         if is_importing:
             self.icon_label.configure(text="⏳")
             self.main_label.configure(text=_("Importing bookmarks…"))

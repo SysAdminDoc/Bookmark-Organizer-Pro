@@ -297,10 +297,6 @@ class ModernButton(tk.Frame, ThemedWidget):
         if self.command:
             self.command()
 
-    def _on_click(self, e):
-        if self.state == 'normal' and self.command:
-            self.command()
-
     def _on_key_activate(self, e):
         if self.state == 'normal':
             self._on_press(e)
@@ -549,7 +545,6 @@ class TagEditor(tk.Frame, ThemedWidget):
         self.entry.bind("<FocusIn>", self._on_entry_focus_in)
         self.entry.bind("<FocusOut>", self._on_entry_focus_out)
         self.entry.bind("<Return>", self._add_tag)
-        self.entry.bind("<KeyRelease>", self._on_key)
 
         self.add_btn = tk.Label(
             self.entry_frame, text="+", bg=theme.bg_secondary,
@@ -608,11 +603,6 @@ class TagEditor(tk.Frame, ThemedWidget):
             self._refresh_tags()
             if self.on_change:
                 self.on_change(self.tags)
-    
-    def _on_key(self, e):
-        """Handle key events for autocomplete"""
-        # Could implement autocomplete dropdown here
-        pass
     
     def get_tags(self) -> List[str]:
         """Get current tags"""

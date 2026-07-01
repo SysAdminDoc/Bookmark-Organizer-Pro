@@ -144,31 +144,34 @@ class TestCLIList(CLITestBase):
 class TestCLIAdd(CLITestBase):
     def test_add_no_url(self):
         out = self._run(["add"])
-        self.assertIn("URL", out.upper() if out else "URL")
+        self.assertTrue(out, "Expected error output when adding with no URL")
+        self.assertIn("URL", out.upper())
 
     def test_add_valid_url(self):
         out = self._run(["add", "https://test-cli-add.example.com", "CLI Test"])
-        self.assertIn("Added" if out else "", out or "")
+        self.assertTrue(out, "Expected output when adding a bookmark")
+        self.assertIn("Added", out)
 
 
 class TestCLICategories(CLITestBase):
     def test_categories(self):
         out = self._run(["categories"])
-        self.assertIsInstance(out, str)
+        self.assertTrue(out, "Expected category list output")
 
     def test_tags(self):
         out = self._run(["tags"])
-        self.assertIsInstance(out, str)
+        self.assertIsNotNone(out)
 
     def test_stats(self):
         out = self._run(["stats"])
-        self.assertIn("bookmark", out.lower() if out else "bookmark")
+        self.assertTrue(out, "Expected statistics output")
+        self.assertIn("bookmark", out.lower())
 
 
 class TestCLISearchAndCheck(CLITestBase):
     def test_search_empty(self):
         out = self._run(["search", "nonexistent-term-xyz"])
-        self.assertIsInstance(out, str)
+        self.assertIsNotNone(out)
 
     @patch("bookmark_organizer_pro.services.dead_link_scanner.DeadLinkScanner")
     def test_scan_accepts_space_separated_hours(self, scanner_cls):
@@ -262,19 +265,19 @@ class TestCLISearchAndCheck(CLITestBase):
 
     def test_digest(self):
         out = self._run(["digest"])
-        self.assertIsInstance(out, str)
+        self.assertIsNotNone(out)
 
 
 class TestCLISmartCollections(CLITestBase):
     def test_smart_collections_list(self):
         out = self._run(["smart-collections", "list"])
-        self.assertIsInstance(out, str)
+        self.assertIsNotNone(out)
 
 
 class TestCLIExportSubcommands(CLITestBase):
     def test_epub_export_no_args(self):
         out = self._run(["epub-export"])
-        self.assertIsInstance(out, str)
+        self.assertIsNotNone(out)
 
     def test_obsidian_export_no_args(self):
         out = self._run(["obsidian-export"])
@@ -286,7 +289,8 @@ class TestCLIExportSubcommands(CLITestBase):
         os.close(fd)
         try:
             out = self._run(["atom-export", "--output", tmp, "--title", "Test"])
-            self.assertIn("exported", out.lower() if out else "exported")
+            self.assertTrue(out, "Expected export output")
+            self.assertIn("exported", out.lower())
         finally:
             os.unlink(tmp) if os.path.exists(tmp) else None
 
@@ -296,7 +300,8 @@ class TestCLIExportSubcommands(CLITestBase):
         os.close(fd)
         try:
             out = self._run(["json-feed", "--output", tmp, "--title", "Test"])
-            self.assertIn("exported", out.lower() if out else "exported")
+            self.assertTrue(out, "Expected export output")
+            self.assertIn("exported", out.lower())
         finally:
             os.unlink(tmp) if os.path.exists(tmp) else None
 
@@ -306,7 +311,8 @@ class TestCLIExportSubcommands(CLITestBase):
         os.close(fd)
         try:
             out = self._run(["opds-export", "--output", tmp, "--title", "Test"])
-            self.assertIn("opds", out.lower() if out else "opds")
+            self.assertTrue(out, "Expected OPDS export output")
+            self.assertIn("opds", out.lower())
         finally:
             os.unlink(tmp) if os.path.exists(tmp) else None
 

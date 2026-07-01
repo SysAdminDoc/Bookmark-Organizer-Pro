@@ -169,9 +169,9 @@ msgstr ""
 msgid "Bookmarks restored from backup"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/components.py:206
-#: bookmark_organizer_pro/ui/components.py:325
-#: bookmark_organizer_pro/ui/components.py:391
+#: bookmark_organizer_pro/ui/components.py:204
+#: bookmark_organizer_pro/ui/components.py:321
+#: bookmark_organizer_pro/ui/components.py:387
 msgid "Bring bookmarks in"
 msgstr ""
 
@@ -220,15 +220,15 @@ msgstr ""
 msgid "Checking…"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/components.py:370
+#: bookmark_organizer_pro/ui/components.py:366
 msgid "Choose"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/components.py:303
+#: bookmark_organizer_pro/ui/components.py:301
 msgid "Choose an HTML, JSON, CSV, OPML, or text file containing bookmark URLs."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/components.py:221
+#: bookmark_organizer_pro/ui/components.py:219
 msgid "Choose files"
 msgstr ""
 
@@ -296,7 +296,7 @@ msgstr ""
 msgid "Command Palette"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/components.py:140
+#: bookmark_organizer_pro/ui/components.py:138
 msgid "Complete"
 msgstr ""
 
@@ -459,8 +459,8 @@ msgstr ""
 msgid "File"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/components.py:333
-#: bookmark_organizer_pro/ui/components.py:364
+#: bookmark_organizer_pro/ui/components.py:329
+#: bookmark_organizer_pro/ui/components.py:360
 msgid "Files or browser export"
 msgstr ""
 
@@ -492,9 +492,9 @@ msgstr ""
 msgid "Graph View"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/components.py:212
-#: bookmark_organizer_pro/ui/components.py:328
-#: bookmark_organizer_pro/ui/components.py:392
+#: bookmark_organizer_pro/ui/components.py:210
+#: bookmark_organizer_pro/ui/components.py:324
+#: bookmark_organizer_pro/ui/components.py:388
 msgid "HTML, JSON, CSV, OPML, and text URL files"
 msgstr ""
 
@@ -522,21 +522,21 @@ msgstr ""
 msgid "Highlights Due"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/components.py:414
+#: bookmark_organizer_pro/ui/components.py:410
 msgid "Icons ready"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/components.py:446
+#: bookmark_organizer_pro/ui/components.py:442
 msgid "Icons ready ({count})"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/components.py:442
+#: bookmark_organizer_pro/ui/components.py:438
 msgid "Icons {completed}/{total}"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:255
-#: bookmark_organizer_pro/ui/components.py:331
-#: bookmark_organizer_pro/ui/components.py:358
+#: bookmark_organizer_pro/ui/components.py:327
+#: bookmark_organizer_pro/ui/components.py:354
 msgid "Import"
 msgstr ""
 
@@ -582,7 +582,7 @@ msgstr ""
 msgid "Import from {source}"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/components.py:325
+#: bookmark_organizer_pro/ui/components.py:321
 msgid "Import library"
 msgstr ""
 
@@ -590,7 +590,7 @@ msgstr ""
 msgid "Importing Bookmarks"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/components.py:313
+#: bookmark_organizer_pro/ui/components.py:309
 msgid "Importing bookmarks…"
 msgstr ""
 
@@ -598,7 +598,7 @@ msgstr ""
 msgid "Importing from {source}…"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/components.py:317
+#: bookmark_organizer_pro/ui/components.py:313
 msgid "Importing…"
 msgstr ""
 
@@ -731,7 +731,7 @@ msgstr ""
 msgid "Next: {action}"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/components.py:302
+#: bookmark_organizer_pro/ui/components.py:300
 msgid "No Supported Bookmark Files"
 msgstr ""
 
@@ -870,7 +870,7 @@ msgstr ""
 msgid "Pinned"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/components.py:314
+#: bookmark_organizer_pro/ui/components.py:310
 msgid "Please keep the app open while files are processed."
 msgstr ""
 
@@ -886,7 +886,7 @@ msgstr ""
 msgid "Processing bookmark {current} of {total}"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/components.py:319
+#: bookmark_organizer_pro/ui/components.py:315
 msgid "Processing selected files"
 msgstr ""
 
@@ -1102,7 +1102,7 @@ msgstr ""
 msgid "Select All Bookmarks"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/components.py:282
+#: bookmark_organizer_pro/ui/components.py:280
 msgid "Select Bookmark Files to Import"
 msgstr ""
 
@@ -1230,7 +1230,7 @@ msgstr ""
 msgid "Suggest Tags"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/components.py:304
+#: bookmark_organizer_pro/ui/components.py:302
 msgid "Supported extensions:"
 msgstr ""
 
@@ -1248,7 +1248,7 @@ msgstr ""
 msgid "Theme Settings"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/components.py:586
+#: bookmark_organizer_pro/ui/components.py:582
 msgid "Themes"
 msgstr ""
 

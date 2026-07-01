@@ -164,16 +164,16 @@ class SmartCollectionManager:
     def _save(self):
         with self._lock:
             payload = [sc.to_dict() for sc in self._collections.values()]
-        self.filepath.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=self.filepath.parent, suffix=".tmp", text=True)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2, ensure_ascii=False)
-            os.replace(tmp, self.filepath)
-        except Exception:
-            if os.path.exists(tmp):
-                os.remove(tmp)
-            raise
+            self.filepath.parent.mkdir(parents=True, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(dir=self.filepath.parent, suffix=".tmp", text=True)
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(payload, f, indent=2, ensure_ascii=False)
+                os.replace(tmp, self.filepath)
+            except Exception:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+                raise
 
     def create(self, name: str, filters: SmartCollectionFilter,
                icon: str = "") -> SmartCollection:

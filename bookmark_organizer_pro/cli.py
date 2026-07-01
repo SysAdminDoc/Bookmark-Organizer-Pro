@@ -8,8 +8,6 @@ from pathlib import Path
 import sys
 from typing import List
 
-import requests
-
 from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION, MASTER_BOOKMARKS_FILE
 from bookmark_organizer_pro.core import CategoryManager, get_category_icon
 from bookmark_organizer_pro.logging_config import log
@@ -744,6 +742,7 @@ Top Domains:
 
     def _cmd_check(self, ns: argparse.Namespace):
         """Check for broken links (multi-threaded)"""
+        import requests
         from concurrent.futures import ThreadPoolExecutor, as_completed
         bookmarks = self.bookmark_manager.get_all_bookmarks()
 
