@@ -606,7 +606,7 @@ class BookmarkManager:
 
         Returns True if any field was updated.
         """
-        bm = self.bookmarks.get(bookmark_id)
+        bm = self.get_bookmark(bookmark_id)
         if not bm:
             return False
 
@@ -636,7 +636,7 @@ class BookmarkManager:
 
         Returns the archive URL or None.
         """
-        bm = self.bookmarks.get(bookmark_id)
+        bm = self.get_bookmark(bookmark_id)
         if not bm:
             return None
         return wayback_check(bm.url)
@@ -646,7 +646,7 @@ class BookmarkManager:
 
         Returns the archive URL or None.
         """
-        bm = self.bookmarks.get(bookmark_id)
+        bm = self.get_bookmark(bookmark_id)
         if not bm:
             return None
         return wayback_save(bm.url)

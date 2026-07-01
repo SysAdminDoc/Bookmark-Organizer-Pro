@@ -101,16 +101,16 @@ class FeedRegistry:
     def _save(self):
         with self._lock:
             payload = [f.to_dict() for f in self._feeds.values()]
-        self.filepath.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=self.filepath.parent, suffix=".tmp", text=True)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2, ensure_ascii=False)
-            os.replace(tmp, self.filepath)
-        except Exception:
-            if os.path.exists(tmp):
-                os.remove(tmp)
-            raise
+            self.filepath.parent.mkdir(parents=True, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(dir=self.filepath.parent, suffix=".tmp", text=True)
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(payload, f, indent=2, ensure_ascii=False)
+                os.replace(tmp, self.filepath)
+            except Exception:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+                raise
 
     def add(self, url: str, name: str = "",
             default_tags: Optional[List[str]] = None,
@@ -151,10 +151,12 @@ class FeedRegistry:
         return cfg
 
     def list_feeds(self) -> List[FeedConfig]:
-        return list(self._feeds.values())
+        with self._lock:
+            return list(self._feeds.values())
 
     def get(self, feed_id: str) -> Optional[FeedConfig]:
-        return self._feeds.get(feed_id)
+        with self._lock:
+            return self._feeds.get(feed_id)
 
 
 def parse_feed(xml_text: str, base_url: str = "") -> List[FeedItem]:

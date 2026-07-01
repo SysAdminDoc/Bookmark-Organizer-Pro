@@ -2,6 +2,41 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.9.0] - 2026-06-30
+
+Deep engineering and product-quality audit pass.
+
+### Fixed
+
+- Fixed file watcher reloading its own saves, silently discarding concurrent in-memory edits.
+- Fixed SM-2 spaced repetition ease factor incorrectly penalized on failed recalls (quality < 3), causing accelerating review intervals.
+- Fixed HTML snapshot sanitizer bypass for unquoted event handlers (`onload=alert(1)`) and `javascript:` URIs.
+- Fixed MCP `t_get_extracted_text` reading arbitrary file paths outside the data directory (path confinement).
+- Fixed CLI `encrypt` command file descriptor leak and broken error cleanup on write failure.
+- Fixed launcher silently discarding CLI exit codes (always returned 0).
+- Fixed cross-encoder model initialization race condition with double-checked locking.
+- Fixed LanceDB FTS search O(n^2) list membership check (now uses a set).
+- Fixed `FlowManager.project_onto` iterating dict without lock (RuntimeError on concurrent mutation).
+- Fixed `SmartCollectionManager._save()` file write outside lock (race on concurrent create/delete).
+- Fixed `FeedRegistry._save()` file write outside lock; `list_feeds`/`get` now lock-protected.
+- Fixed `BookmarkManager.fetch_metadata_for_bookmark`, `check_wayback`, and `save_to_wayback` reading without lock.
+- Fixed 10 vacuous test assertions in `test_cli.py` that passed regardless of actual output.
+- Fixed stale "v4" string in HTML bookmark export (now uses `APP_VERSION`).
+- Fixed `DashboardPanel` crashing on statistics error (now catches and shows empty state).
+- Made `cli.py` `import requests` lazy so the CLI works without the optional dependency.
+- Removed dead `_parse_position` function from digest service.
+- Removed dead `ModernButton._on_click` and `TagEditor._on_key` methods.
+- Removed unused `get_theme()` calls in `EnhancedProgressBar` and `DragDropImportArea`.
+
+### Changed
+
+- Graph view node colors now adapt to the active theme (were hardcoded hex).
+- Primary/Success/Danger button foreground now uses `readable_text_on()` (was hardcoded `#ffffff`).
+- Theme preview canvas button text now uses `readable_text_on()` for contrast.
+- Search highlighter now derives colors from the active theme (was hardcoded yellow/black).
+- Privacy banner accent now uses the active theme's primary accent.
+- Added `<Escape>`-to-close on `AnalyticsDashboard` and `ThemeSelectorDialog`.
+
 ## [v6.8.5] - 2026-06-28
 
 ### Added

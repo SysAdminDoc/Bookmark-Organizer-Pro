@@ -54,7 +54,11 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         stats_frame = tk.Frame(self, bg=self.theme.bg_primary)
         stats_frame.pack(fill=tk.X, padx=20, pady=10)
         
-        stats = self.manager.get_statistics()
+        try:
+            stats = self.manager.get_statistics()
+        except Exception:
+            stats = {"total_bookmarks": 0, "total_categories": 0, "total_tags": 0,
+                     "top_categories": [], "top_domains": []}
         
         # Stat cards
         stat_cards = [
