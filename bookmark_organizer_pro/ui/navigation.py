@@ -298,8 +298,16 @@ class VimNavigator:
 class SearchHighlighter:
     """Highlights search terms in text"""
     
-    def __init__(self, highlight_color: str = "#ffeb3b", 
-                 text_color: str = "#000000"):
+    def __init__(self, highlight_color: str = "", text_color: str = ""):
+        if not highlight_color or not text_color:
+            try:
+                from .widgets import get_theme
+                theme = get_theme()
+                highlight_color = highlight_color or theme.accent_warning
+                text_color = text_color or theme.text_primary
+            except Exception:
+                highlight_color = highlight_color or "#ffeb3b"
+                text_color = text_color or "#000000"
         self.highlight_color = highlight_color
         self.text_color = text_color
     

@@ -242,6 +242,8 @@ class BookmarkManager:
             self._batch_dirty = True
             return
         self.storage.save([bm.to_dict() for bm in snapshot])
+        if hasattr(self, "_watch_mtime"):
+            self._watch_mtime = self._get_mtime()
 
     @contextlib.contextmanager
     def batch(self):
@@ -918,7 +920,7 @@ class BookmarkManager:
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, "w", encoding="utf-8") as f:
             f.write('<!DOCTYPE NETSCAPE-Bookmark-file-1>\n')
-            f.write('<!-- Exported by Bookmark Organizer Pro v4 -->\n')
+            f.write(f'<!-- Exported by Bookmark Organizer Pro v{APP_VERSION} -->\n')
             f.write('<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">\n')
             f.write('<TITLE>Bookmarks</TITLE>\n<H1>Bookmarks</H1>\n<DL><p>\n')
             

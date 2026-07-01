@@ -21,12 +21,14 @@ from .widget_controls import ModernButton
 from .widgets import apply_window_chrome, get_theme
 
 
-NODE_COLORS = {
-    "bookmark": "#58a6ff",
-    "tag": "#3fb950",
-    "category": "#d29922",
-    "domain": "#a371f7",
-}
+def _node_colors():
+    theme = get_theme()
+    return {
+        "bookmark": theme.accent_cyan,
+        "tag": theme.accent_success,
+        "category": theme.accent_warning,
+        "domain": theme.accent_purple,
+    }
 
 
 class GraphViewDialog(tk.Toplevel):
@@ -160,7 +162,7 @@ class GraphViewDialog(tk.Toplevel):
         for node_type in ("bookmark", "tag", "category", "domain"):
             row = tk.Frame(legend, bg=theme.bg_secondary)
             row.pack(fill=tk.X, pady=1)
-            tk.Frame(row, bg=NODE_COLORS[node_type], width=10, height=10).pack(side=tk.LEFT, padx=(0, 6))
+            tk.Frame(row, bg=_node_colors()[node_type], width=10, height=10).pack(side=tk.LEFT, padx=(0, 6))
             tk.Label(
                 row, text=node_type.title(), bg=theme.bg_secondary,
                 fg=theme.text_muted, font=FONTS.small(), anchor="w",
@@ -217,7 +219,7 @@ class GraphViewDialog(tk.Toplevel):
 
     def _draw_node(self, node: GraphNode) -> None:
         theme = get_theme()
-        color = NODE_COLORS.get(node.type, theme.accent_primary)
+        color = _node_colors().get(node.type, theme.accent_primary)
         size = 8 + min(10, node.weight)
         tag = f"node:{node.id}"
         self.canvas.create_rectangle(

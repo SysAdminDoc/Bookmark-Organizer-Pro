@@ -75,7 +75,7 @@ msgstr ""
 msgid "Add bookmark"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:196
+#: bookmark_organizer_pro/ui/graph_view.py:198
 msgid "Add bookmarks with tags, categories, or shared domains to build relationships."
 msgstr ""
 
@@ -160,8 +160,8 @@ msgstr ""
 msgid "Batch size"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:57
-#: bookmark_organizer_pro/ui/graph_view.py:76
+#: bookmark_organizer_pro/ui/graph_view.py:59
+#: bookmark_organizer_pro/ui/graph_view.py:78
 msgid "Bookmark Graph"
 msgstr ""
 
@@ -313,7 +313,7 @@ msgstr ""
 msgid "Connection Successful"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:291
+#: bookmark_organizer_pro/ui/graph_view.py:293
 msgid "Connections: {count}"
 msgstr ""
 
@@ -412,12 +412,12 @@ msgstr ""
 msgid "Exit"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:84
+#: bookmark_organizer_pro/ui/graph_view.py:86
 msgid "Explore relationships between bookmarks, tags, categories, and domains."
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:263
-#: bookmark_organizer_pro/ui/graph_view.py:92
+#: bookmark_organizer_pro/ui/graph_view.py:94
 #: bookmark_organizer_pro/ui/reader_view.py:78
 msgid "Export"
 msgstr ""
@@ -426,7 +426,7 @@ msgstr ""
 msgid "Export Bookmarks"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:306
+#: bookmark_organizer_pro/ui/graph_view.py:308
 msgid "Export Graph JSON"
 msgstr ""
 
@@ -438,7 +438,7 @@ msgstr ""
 msgid "Export bookmarks to HTML, JSON, CSV, or Markdown"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:313
+#: bookmark_organizer_pro/ui/graph_view.py:315
 #: bookmark_organizer_pro/ui/reader_view.py:331
 msgid "Exported {name}"
 msgstr ""
@@ -648,7 +648,7 @@ msgstr ""
 msgid "Keyboard Shortcuts"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:156
+#: bookmark_organizer_pro/ui/graph_view.py:158
 msgid "Legend"
 msgstr ""
 
@@ -752,7 +752,7 @@ msgstr ""
 msgid "No extracted text is available yet.\n\nCapture page text or an archive snapshot, then return here to highlight key passages."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:190
+#: bookmark_organizer_pro/ui/graph_view.py:192
 msgid "No graph data yet"
 msgstr ""
 
@@ -1111,11 +1111,11 @@ msgstr ""
 msgid "Select a highlight first."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:150
+#: bookmark_organizer_pro/ui/graph_view.py:152
 msgid "Select a node to inspect its relationship details."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:171
+#: bookmark_organizer_pro/ui/graph_view.py:173
 msgid "Select a node. Double-click bookmark nodes to open them."
 msgstr ""
 
@@ -1128,7 +1128,7 @@ msgstr ""
 msgid "Select text in the reader, choose a color, then add a highlight."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:131
+#: bookmark_organizer_pro/ui/graph_view.py:133
 msgid "Selected"
 msgstr ""
 
@@ -1285,7 +1285,7 @@ msgstr ""
 msgid "Try domain:example.com, is:pinned, is:broken, or #tag in search."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:289
+#: bookmark_organizer_pro/ui/graph_view.py:291
 msgid "Type: {type}"
 msgstr ""
 
@@ -1321,7 +1321,7 @@ msgstr ""
 msgid "View Dead Links"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:290
+#: bookmark_organizer_pro/ui/graph_view.py:292
 msgid "Weight: {weight}"
 msgstr ""
 
@@ -1369,7 +1369,7 @@ msgstr ""
 msgid "{model} ready!"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:122
+#: bookmark_organizer_pro/ui/graph_view.py:124
 msgid "{nodes} nodes / {edges} edges"
 msgstr ""
 

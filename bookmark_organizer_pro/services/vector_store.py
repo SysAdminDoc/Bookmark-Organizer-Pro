@@ -208,12 +208,14 @@ class VectorStore:
                 table.create_fts_index("text", replace=True)
                 self._fts_indexed = True
             rows = table.search(query, query_type="fts").limit(k).to_list()
-            seen = []
+            seen_set = set()
+            ordered = []
             for row in rows:
                 bid = int(row.get("bookmark_id", 0))
-                if bid not in seen:
-                    seen.append(bid)
-            return seen
+                if bid not in seen_set:
+                    seen_set.add(bid)
+                    ordered.append(bid)
+            return ordered
         except Exception as exc:
             log.debug(f"LanceDB FTS search failed: {exc}")
             return []

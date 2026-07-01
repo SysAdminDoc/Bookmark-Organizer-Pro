@@ -1185,9 +1185,16 @@ Top Domains:
                     import os as _os
                     _os.write(fd, encrypted)
                     _os.close(fd)
+                    fd = -1
                     _os.replace(tmp, out_path)
                 except Exception:
-                    _os.close(fd) if not _os.path.exists(tmp) else None
+                    if fd >= 0:
+                        try:
+                            _os.close(fd)
+                        except OSError:
+                            pass
+                    if _os.path.exists(tmp):
+                        _os.remove(tmp)
                     raise
                 print(f"encrypted -> {out_path}")
                 print(f"\nRECOVERY KEY (save this — it can decrypt without the passphrase):\n  {rk}\n")

@@ -221,7 +221,9 @@ class FlowManager:
         for bm in bookmarks_by_id.values():
             bm.flow_id = ""
             bm.flow_position = 0
-        for flow in self._flows.values():
+        with self._lock:
+            flows = list(self._flows.values())
+        for flow in flows:
             for step in flow.steps:
                 bm = bookmarks_by_id.get(step.bookmark_id)
                 if bm is None:

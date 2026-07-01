@@ -286,7 +286,7 @@ class ReaderAnnotationStore:
                 else:
                     h.sr_interval = max(1, round(h.sr_interval * h.sr_ease))
                 h.sr_repetitions += 1
-            h.sr_ease = max(1.3, h.sr_ease + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+                h.sr_ease = max(1.3, h.sr_ease + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
             from datetime import timedelta
             next_date = datetime.now() + timedelta(days=h.sr_interval)
             h.sr_next_review = next_date.date().isoformat()

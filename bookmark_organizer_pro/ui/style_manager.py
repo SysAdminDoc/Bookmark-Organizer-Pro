@@ -10,7 +10,7 @@ from typing import Any, Dict
 
 from bookmark_organizer_pro.logging_config import log
 
-from .foundation import FONTS, DesignTokens
+from .foundation import FONTS, DesignTokens, readable_text_on
 
 
 def _load_sv_ttk() -> ModuleType | None:
@@ -245,7 +245,7 @@ class StyleManager:
         # Primary button style
         self.style.configure("Primary.TButton",
             background=colors.accent_primary,
-            foreground="#ffffff",
+            foreground=readable_text_on(colors.accent_primary),
             borderwidth=0,
             bordercolor=colors.accent_primary,
             padding=(DesignTokens.SPACE_LG, DesignTokens.SPACE_SM),
@@ -266,7 +266,7 @@ class StyleManager:
         # Success button style
         self.style.configure("Success.TButton",
             background=colors.accent_success,
-            foreground="#ffffff",
+            foreground=readable_text_on(colors.accent_success),
             borderwidth=0,
             font=FONTS.small(bold=True)
         )
@@ -281,7 +281,7 @@ class StyleManager:
         # Danger button style
         self.style.configure("Danger.TButton",
             background=colors.accent_error,
-            foreground="#ffffff",
+            foreground=readable_text_on(colors.accent_error),
             borderwidth=0,
             font=FONTS.small(bold=True)
         )

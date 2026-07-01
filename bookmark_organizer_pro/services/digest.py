@@ -149,10 +149,3 @@ class DailyDigestService:
                 out.append(bm)
         out.sort(key=lambda b: b.visit_count, reverse=True)
         return out[:8]
-
-
-def _parse_position(b: Bookmark) -> int:
-    try:
-        return int(b.read_later_position)
-    except Exception:
-        return 0

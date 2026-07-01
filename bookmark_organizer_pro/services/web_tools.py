@@ -20,13 +20,17 @@ from bookmark_organizer_pro.url_utils import URLUtilities
 from bookmark_organizer_pro.utils import sanitize_filename, truncate_string
 
 _SCRIPT_RE = re.compile(r"<script[\s>].*?</script\s*>", re.DOTALL | re.IGNORECASE)
-_EVENT_HANDLER_RE = re.compile(r"\s+on[a-z]+\s*=\s*[\"'][^\"']*[\"']", re.IGNORECASE)
+_EVENT_HANDLER_QUOTED_RE = re.compile(r"\s+on[a-z]+\s*=\s*[\"'][^\"']*[\"']", re.IGNORECASE)
+_EVENT_HANDLER_UNQUOTED_RE = re.compile(r"\s+on[a-z]+\s*=\s*[^\s>]+", re.IGNORECASE)
+_JS_URI_RE = re.compile(r"""(?:href|src|action)\s*=\s*["']?\s*javascript\s*:""", re.IGNORECASE)
 
 
 def _strip_dangerous_html(html_text: str) -> str:
-    """Remove <script> tags and inline event handlers from HTML."""
+    """Remove <script> tags, inline event handlers, and javascript: URIs from HTML."""
     html_text = _SCRIPT_RE.sub("", html_text)
-    html_text = _EVENT_HANDLER_RE.sub("", html_text)
+    html_text = _EVENT_HANDLER_QUOTED_RE.sub("", html_text)
+    html_text = _EVENT_HANDLER_UNQUOTED_RE.sub("", html_text)
+    html_text = _JS_URI_RE.sub('href="about:blank"', html_text)
     return html_text
 
 

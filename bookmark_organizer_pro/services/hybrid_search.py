@@ -8,6 +8,7 @@ local VectorStore for semantic ranking, then merges the two with RRF
 from __future__ import annotations
 
 import math
+import threading
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, List, Optional, Sequence
@@ -35,6 +36,7 @@ class HybridResult:
 
 _cross_encoder = None
 _cross_encoder_tried = False
+_cross_encoder_lock = threading.Lock()
 
 
 def _try_rerank(query: str, texts: List[str]) -> Optional[List[float]]:
@@ -58,11 +60,13 @@ def _try_rerank(query: str, texts: List[str]) -> Optional[List[float]]:
             _cross_encoder_tried = True
             return None
         if _cross_encoder is None:
-            log.info("Downloading cross-encoder model (~90 MB) for re-ranking...")
-            from sentence_transformers import CrossEncoder
-            _cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
-            _cross_encoder_tried = True
-            log.info("Cross-encoder model loaded")
+            with _cross_encoder_lock:
+                if _cross_encoder is None:
+                    log.info("Downloading cross-encoder model (~90 MB) for re-ranking...")
+                    from sentence_transformers import CrossEncoder
+                    _cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+                    _cross_encoder_tried = True
+                    log.info("Cross-encoder model loaded")
         pairs = [(query, t) for t in texts]
         scores = _cross_encoder.predict(pairs)
         return [float(s) for s in scores]

@@ -29,7 +29,8 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         self.transient(parent)
         
         apply_window_chrome(self)
-        
+        self.bind("<Escape>", lambda _event: self.destroy())
+
         # Header
         header = tk.Frame(self, bg=theme.bg_dark, height=82)
         header.pack(fill=tk.X)

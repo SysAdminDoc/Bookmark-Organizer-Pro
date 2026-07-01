@@ -598,7 +598,12 @@ def t_get_extracted_text(bookmark_id: int) -> str:
     if not bm or not bm.extracted_text_path:
         return ""
     try:
-        return Path(bm.extracted_text_path).read_text(encoding="utf-8")
+        text_path = Path(bm.extracted_text_path).resolve()
+        data_root = Path(DATA_DIR).resolve()
+        if not text_path.is_relative_to(data_root):
+            log.warning(f"Blocked extracted_text_path outside data dir: {text_path}")
+            return ""
+        return text_path.read_text(encoding="utf-8")
     except OSError:
         return ""
 

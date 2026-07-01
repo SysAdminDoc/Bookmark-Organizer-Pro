@@ -45,7 +45,12 @@ def _show_first_run_privacy_notice(root: tk.Tk):
         except Exception:
             pass
 
-    accent = "#0f766e"
+    try:
+        from bookmark_organizer_pro.theme_runtime import get_theme
+        theme = get_theme()
+        accent = theme.accent_primary
+    except Exception:
+        accent = "#0f766e"
     accent_fg = readable_text_on(accent)
     banner = tk.Frame(root, bg=accent, height=40)
     banner.pack(fill=tk.X, side=tk.TOP)
@@ -91,8 +96,8 @@ def main(argv: Sequence[str] | None = None):
     # CLI mode
     if args:
         cli = BookmarkCLI()
-        cli.run(args)
-        return
+        rc = cli.run(args)
+        raise SystemExit(rc if isinstance(rc, int) else 0)
 
     # GUI mode with error handling
     try:

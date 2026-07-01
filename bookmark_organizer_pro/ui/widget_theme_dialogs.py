@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import colorchooser, filedialog, messagebox, ttk
 from typing import Dict, List, Tuple
 
-from .foundation import FONTS
+from .foundation import FONTS, readable_text_on
 from .theme import ThemeInfo, ThemeManager
 from .widget_controls import ModernButton, ThemedWidget
 from .widget_runtime import apply_window_chrome, get_theme
@@ -301,7 +301,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         
         # Accent button
         self.preview_canvas.create_rectangle(300, 75, 400, 95, fill=accent, outline="")
-        self.preview_canvas.create_text(350, 85, text="Button", fill="#ffffff", font=FONTS.small())
+        self.preview_canvas.create_text(350, 85, text="Button", fill=readable_text_on(accent), font=FONTS.small())
     
     def _reset_to_base(self):
         """Reset all colors to base theme"""
@@ -402,9 +402,10 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
         self.grab_set()
-        
+
         apply_window_chrome(self)
-        
+        self.bind("<Escape>", lambda _event: self.destroy())
+
         # Header
         header = tk.Frame(self, bg=theme.bg_dark, padx=22, pady=18)
         header.pack(fill=tk.X)
