@@ -147,22 +147,18 @@ class AppShellMixin:
         
         # Brand block
         brand = tk.Frame(header, bg=theme.bg_dark)
-        brand.pack(side=tk.LEFT, padx=(24, 18), pady=12)
+        brand.pack(side=tk.LEFT, padx=(18, 22), pady=14)
         brand_row = tk.Frame(brand, bg=theme.bg_dark)
         brand_row.pack(anchor="w")
         tk.Label(
             brand_row, text="B", bg=theme.accent_primary,
             fg=readable_text_on(theme.accent_primary),
-            font=FONTS.header(bold=True), width=2, padx=3, pady=3
+            font=FONTS.header(bold=True), width=2, padx=3, pady=4
         ).pack(side=tk.LEFT, padx=(0, 9))
         tk.Label(
             brand_row, text=APP_NAME, bg=theme.bg_dark,
-            fg=theme.text_primary, font=FONTS.title(bold=True)
+            fg=theme.text_primary, font=FONTS.header(bold=True)
         ).pack(side=tk.LEFT)
-        tk.Label(
-            brand, text=_("Search, clean up, and revisit saved work"),
-            bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small()
-        ).pack(anchor="w", pady=(2, 0))
         
         # Search bar
         search_frame = tk.Frame(
@@ -170,11 +166,11 @@ class AppShellMixin:
             highlightbackground=theme.border_muted,
             highlightthickness=DesignTokens.FOCUS_RING_WIDTH
         )
-        search_frame.pack(side=tk.LEFT, padx=(0, 18), fill=tk.X, expand=True, pady=14)
+        search_frame.pack(side=tk.LEFT, padx=(0, 12), pady=14)
         self.search_frame = search_frame
 
         self._search_icon_label = tk.Label(
-            search_frame, text=_("Search"), bg=theme.bg_secondary,
+            search_frame, text="⌕", bg=theme.bg_secondary,
             fg=theme.text_muted, font=FONTS.small()
         )
         self._search_icon_label.pack(side=tk.LEFT, padx=(12, 6))
@@ -186,7 +182,7 @@ class AppShellMixin:
             search_frame, textvariable=self.search_var,
             bg=theme.bg_secondary, fg=theme.text_primary,
             insertbackground=theme.text_primary, bd=0,
-            font=FONTS.body(), width=35
+            font=FONTS.body(), width=20
         )
         self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=7, padx=5)
         Tooltip(self.search_entry,
@@ -196,7 +192,7 @@ class AppShellMixin:
                "Type a prefix (e.g. tag:) for suggestions.")
 
         # Placeholder text
-        self._search_placeholder = "Search bookmarks…"
+        self._search_placeholder = "Search your library"
         self._suppress_search_callback = True
         self.search_entry.insert(0, self._search_placeholder)
         self.search_entry.configure(fg=theme.text_muted)
@@ -221,9 +217,9 @@ class AppShellMixin:
 
         self._nl_search_mode = False
         self._nl_toggle_btn = tk.Label(
-            search_frame, text=_("Smart"), bg=theme.bg_tertiary,
-            fg=theme.text_muted, font=FONTS.tiny(bold=True),
-            padx=6, pady=3, cursor="hand2",
+            search_frame, text=_("AI"), bg=theme.bg_tertiary,
+            fg=theme.accent_secondary, font=FONTS.tiny(bold=True),
+            padx=7, pady=3, cursor="hand2",
         )
         self._nl_toggle_btn.pack(side=tk.RIGHT, padx=(4, 4))
         self._nl_toggle_btn.bind("<Button-1>", lambda e: self._toggle_nl_search())
@@ -240,40 +236,40 @@ class AppShellMixin:
         
         # ===== TOOLBAR BUTTONS =====
         toolbar = tk.Frame(header, bg=theme.bg_dark)
-        toolbar.pack(side=tk.RIGHT, padx=(0, 18))
+        toolbar.pack(side=tk.RIGHT, padx=(0, 14))
         
         # Add button
         add_btn = ModernButton(
-            toolbar, text=_("New"), icon="+", style="primary",
+            toolbar, text=_("Add bookmark"), icon="+", style="primary",
             command=self._add_bookmark,
-            tooltip=_("Add a new bookmark manually")
+            tooltip=_("Add one bookmark manually"), padx=10, pady=8,
         )
         add_btn.pack(side=tk.LEFT, padx=3)
         
         # Import button
         import_btn = ModernButton(
-            toolbar, text=_("Import"),
+            toolbar, text=_("Import"), icon="↓",
             command=self._show_import_dialog,
-            tooltip=_("Open guided import paths for browsers, services, and files")
+            tooltip=_("Open guided import paths for browsers, services, and files"),
+            padx=7, pady=8,
         )
         import_btn.pack(side=tk.LEFT, padx=3)
         
         # Export button
         export_btn = ModernButton(
-            toolbar, text=_("Export"),
+            toolbar, text=_("Export"), icon="↑",
             command=self._show_export_dialog,
-            tooltip=_("Export bookmarks to HTML, JSON, CSV, or Markdown")
+            tooltip=_("Export bookmarks to HTML, JSON, CSV, or Markdown"),
+            padx=7, pady=8,
         )
         export_btn.pack(side=tk.LEFT, padx=3)
         
-        # Separator
-        tk.Frame(toolbar, bg=theme.border_muted, width=1, height=30).pack(side=tk.LEFT, padx=8)
-        
         # AI button
         self.ai_btn = ModernButton(
-            toolbar, text=_("Ask"),
+            toolbar, text=_("Assistant"), icon="✦",
             command=self._show_ai_menu,
-            tooltip=_("Assistant tools: categorize, tag, summarize, and find semantic duplicates")
+            tooltip=_("Assistant tools: categorize, tag, summarize, and find semantic duplicates"),
+            padx=7, pady=8,
         )
         self.ai_btn.pack(side=tk.LEFT, padx=3)
         
@@ -281,18 +277,17 @@ class AppShellMixin:
         self.tools_btn = ModernButton(
             toolbar, text=_("Tools"),
             command=self._show_tools_menu,
-            tooltip=_("Tools: Check links, Find duplicates,\nClean URLs, Manage categories, Backup")
+            tooltip=_("Tools: Check links, Find duplicates,\nClean URLs, Manage categories, Backup"),
+            padx=7, pady=8,
         )
         self.tools_btn.pack(side=tk.LEFT, padx=3)
         
-        # Separator
-        tk.Frame(toolbar, bg=theme.border_muted, width=1, height=30).pack(side=tk.LEFT, padx=8)
-        
         # Settings
         settings_btn = ModernButton(
-            toolbar, text=_("Settings"),
+            toolbar, text=_("Settings"), icon="⚙",
             command=self._show_settings_menu,
-            tooltip=_("Settings: AI provider, themes, preferences")
+            tooltip=_("Settings: AI provider, themes, preferences"),
+            padx=7, pady=8,
         )
         settings_btn.pack(side=tk.LEFT, padx=3)
         self.settings_btn = settings_btn
@@ -304,7 +299,10 @@ class AppShellMixin:
         content.pack(fill=tk.BOTH, expand=True)
         
         # ----- LEFT SIDEBAR (Scrollable) -----
-        left_sidebar = tk.Frame(content, bg=theme.bg_dark, width=DesignTokens.SIDEBAR_WIDTH)
+        left_sidebar = tk.Frame(
+            content, bg=theme.bg_dark, width=DesignTokens.SIDEBAR_WIDTH,
+            highlightbackground=theme.border_muted, highlightthickness=1,
+        )
         left_sidebar.pack(side=tk.LEFT, fill=tk.Y)
         left_sidebar.pack_propagate(False)
         
@@ -312,13 +310,34 @@ class AppShellMixin:
         self.left_scroll = ScrollableFrame(left_sidebar, bg=theme.bg_dark)
         self.left_scroll.pack(fill=tk.BOTH, expand=True)
         
-        # Enhanced drag-drop import area
+        workspace = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
+        workspace.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(20, 12))
+        tk.Label(
+            workspace, text=_("WORKSPACE"), bg=theme.bg_dark,
+            fg=theme.text_muted, font=FONTS.tiny(bold=True),
+        ).pack(anchor="w", pady=(0, 9))
+        workspace_row = tk.Frame(
+            workspace, bg=theme.bg_secondary,
+            highlightbackground=theme.border_muted, highlightthickness=1,
+        )
+        workspace_row.pack(fill=tk.X)
+        tk.Label(
+            workspace_row, text=_("▣  My Workspace"), bg=theme.bg_secondary,
+            fg=theme.text_primary, font=FONTS.small(bold=True),
+            anchor="w", padx=10, pady=9,
+        ).pack(side=tk.LEFT, fill=tk.X, expand=True)
+        tk.Label(
+            workspace_row, text="⌄", bg=theme.bg_secondary,
+            fg=theme.text_muted, font=FONTS.small(), padx=10,
+        ).pack(side=tk.RIGHT)
+
+        # Keep the drop target available to callers without giving it permanent
+        # visual priority over the library navigation.
         self.import_area = DragDropImportArea(
             self.left_scroll.inner,
             on_files_dropped=self._on_files_dropped,
             on_open_import_center=self._show_import_dialog,
         )
-        self.import_area.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=DesignTokens.PANEL_PAD)
         self.import_area.set_compact(True)
         
         # Quick filters
@@ -326,7 +345,7 @@ class AppShellMixin:
         filters_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(0, DesignTokens.SPACE_MD))
         
         tk.Label(
-            filters_frame, text=_("VIEWS"), bg=theme.bg_dark,
+            filters_frame, text=_("LIBRARY"), bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.tiny(bold=True)
         ).pack(anchor="w", pady=(5, 7))
         
@@ -344,11 +363,11 @@ class AppShellMixin:
         }
 
         for filter_name, label in [
-            ("All", _("All Links")),
-            ("Pinned", _("Pinned")),
-            ("Recent", _("Recent")),
-            ("Broken", _("Needs Review")),
-            ("Untagged", _("Untagged")),
+            ("All", _("▣  All Bookmarks")),
+            ("Pinned", _("◆  Pinned")),
+            ("Recent", _("◷  Recent")),
+            ("Broken", _("⚑  Needs Review")),
+            ("Untagged", _("◇  Untagged")),
         ]:
             is_active = (filter_name == "All")  # All is active by default
             row = tk.Frame(
@@ -401,7 +420,7 @@ class AppShellMixin:
         cat_header.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(16, 7))
         
         tk.Label(
-            cat_header, text=_("CATEGORIES"), bg=theme.bg_dark,
+            cat_header, text=_("COLLECTIONS"), bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.tiny(bold=True)
         ).pack(side=tk.LEFT)
         
@@ -445,7 +464,7 @@ class AppShellMixin:
         flows_header = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
         flows_header.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(4, 7))
         tk.Label(
-            flows_header, text=_("FLOWS"), bg=theme.bg_dark,
+            flows_header, text=_("WORKFLOWS"), bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.tiny(bold=True),
         ).pack(side=tk.LEFT)
         self._flows_count_label = tk.Label(
@@ -463,6 +482,22 @@ class AppShellMixin:
         )
         self._flows_empty.pack(fill=tk.X, pady=2)
 
+        local_state = tk.Frame(
+            self.left_scroll.inner, bg=theme.bg_secondary,
+            highlightbackground=theme.border_muted, highlightthickness=1,
+        )
+        local_state.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(0, 18))
+        tk.Label(
+            local_state, text=_("LOCAL WORKSPACE"), bg=theme.bg_secondary,
+            fg=theme.text_muted, font=FONTS.tiny(bold=True),
+            anchor="w", padx=10, pady=7,
+        ).pack(fill=tk.X)
+        tk.Label(
+            local_state, text=_("Your library stays on this device"),
+            bg=theme.bg_secondary, fg=theme.text_secondary,
+            font=FONTS.tiny(), anchor="w", padx=10,
+        ).pack(fill=tk.X, pady=(0, 9))
+
         # ----- MAIN CONTENT -----
         self.content_area = tk.Frame(content, bg=theme.bg_primary)
         self.content_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -472,7 +507,7 @@ class AppShellMixin:
         content_header.pack(fill=tk.X, padx=DesignTokens.CONTENT_PAD_X, pady=(16, 8))
 
         self.count_label = tk.Label(
-            content_header, text=_("Library"), bg=theme.bg_primary,
+            content_header, text=_("Your library"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.header(bold=True)
         )
         self.count_label.pack(side=tk.LEFT)
@@ -555,7 +590,10 @@ class AppShellMixin:
         self.list_frame.pack(fill=tk.BOTH, expand=True, padx=DesignTokens.CONTENT_PAD_X, pady=(0, DesignTokens.CONTENT_PAD_Y))
 
         # ----- RIGHT SIDEBAR (Scrollable) - ANALYTICS -----
-        right_sidebar = tk.Frame(content, bg=theme.bg_dark, width=DesignTokens.RIGHT_SIDEBAR_WIDTH)
+        right_sidebar = tk.Frame(
+            content, bg=theme.bg_dark, width=DesignTokens.RIGHT_SIDEBAR_WIDTH,
+            highlightbackground=theme.border_muted, highlightthickness=1,
+        )
         right_sidebar.pack(side=tk.RIGHT, fill=tk.Y, before=self.content_area)
         right_sidebar.pack_propagate(False)
         
@@ -563,16 +601,16 @@ class AppShellMixin:
         self.right_scroll = ScrollableFrame(right_sidebar, bg=theme.bg_dark)
         self.right_scroll.pack(fill=tk.BOTH, expand=True)
         
+        # Collection signals lead; the assistant is a contextual follow-up.
+        self._create_analytics_panel()
+
         # Chat Panel (R-60)
         self.chat_panel = ChatPanel(
             self.right_scroll.inner,
             on_ask=self._on_chat_ask,
             on_bookmark_click=self._on_chat_bookmark_click,
         )
-        self.chat_panel.pack(fill=tk.X, pady=(0, DesignTokens.SPACE_SM))
-
-        # Analytics Dashboard
-        self._create_analytics_panel()
+        self.chat_panel.pack(fill=tk.X, pady=(DesignTokens.SPACE_SM, DesignTokens.SPACE_MD))
 
     # --- Chat panel handlers (R-60) -----------------------------------------
 
