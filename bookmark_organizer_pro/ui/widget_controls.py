@@ -77,6 +77,8 @@ class Tooltip:
         # This prevents overwriting click handlers on buttons
         widget.bind("<Enter>", self._schedule_show, add='+')
         widget.bind("<Leave>", self._hide, add='+')
+        widget.bind("<FocusIn>", self._schedule_show, add='+')
+        widget.bind("<FocusOut>", self._hide, add='+')
         widget.bind("<Button-1>", self._hide, add='+')
     
     def _schedule_show(self, event=None):
@@ -207,12 +209,14 @@ class ModernButton(tk.Frame, ThemedWidget):
             fg = fg or theme.text_primary
 
         super().__init__(
-            parent, bg=bg, takefocus=1,
+            parent, bg=bg, takefocus=1 if state == 'normal' else 0,
             highlightthickness=DesignTokens.FOCUS_RING_WIDTH,
             highlightbackground=theme.border_muted if style == "default" else bg,
             highlightcolor=theme.border_active
         )
         self.command = command
+        self.text = text
+        self.icon = icon
         self.default_bg = bg
         self.hover_bg = hover_bg
         self.fg = fg
@@ -228,7 +232,7 @@ class ModernButton(tk.Frame, ThemedWidget):
         self._disabled_fg = theme.text_muted
         
         # Icon + text
-        display_text = f"{icon} {text}" if icon else text
+        display_text = self._display_text()
         
         self.label = tk.Label(
             self, text=display_text, bg=bg,
@@ -246,16 +250,19 @@ class ModernButton(tk.Frame, ThemedWidget):
         if tooltip:
             self.tooltip = Tooltip(self, tooltip)
         
-        if state == 'normal':
-            for widget in [self, self.label]:
-                widget.bind("<Enter>", self._on_enter)
-                widget.bind("<Leave>", self._on_leave)
-                widget.bind("<ButtonPress-1>", self._on_press)
-                widget.bind("<ButtonRelease-1>", self._on_release)
-            self.bind("<FocusIn>", self._on_focus_in)
-            self.bind("<FocusOut>", self._on_focus_out)
-            self.bind("<Return>", self._on_key_activate)
-            self.bind("<space>", self._on_key_activate)
+        for widget in [self, self.label]:
+            widget.bind("<Enter>", self._on_enter)
+            widget.bind("<Leave>", self._on_leave)
+            widget.bind("<ButtonPress-1>", self._on_press)
+            widget.bind("<ButtonRelease-1>", self._on_release)
+        self.bind("<FocusIn>", self._on_focus_in)
+        self.bind("<FocusOut>", self._on_focus_out)
+        self.bind("<Return>", self._on_key_activate)
+        self.bind("<KP_Enter>", self._on_key_activate)
+        self.bind("<space>", self._on_key_activate)
+
+    def _display_text(self):
+        return f"{self.icon} {self.text}" if self.icon else self.text
 
     def _on_enter(self, e):
         if self.state == 'normal':
@@ -320,15 +327,19 @@ class ModernButton(tk.Frame, ThemedWidget):
             bg = self.hover_bg if self._is_hovered else self.default_bg
             fg = self.hover_fg if self._is_hovered else self.fg
             border = theme.border_active if self._is_hovered or self._is_focused else self._normal_border
-            self.configure(bg=bg, highlightbackground=border, cursor="hand2")
+            self.configure(bg=bg, highlightbackground=border, cursor="hand2", takefocus=1)
             self.label.configure(bg=bg, fg=fg)
         else:
             self.label.configure(fg=self._disabled_fg, cursor="arrow")
-            self.configure(bg=self._disabled_bg, highlightbackground=theme.border_muted, cursor="arrow")
+            self.configure(
+                bg=self._disabled_bg, highlightbackground=theme.border_muted,
+                cursor="arrow", takefocus=0,
+            )
             self.label.configure(bg=self._disabled_bg)
     
     def set_text(self, text):
-        self.label.configure(text=text)
+        self.text = text
+        self.label.configure(text=self._display_text())
 
 
 # =============================================================================

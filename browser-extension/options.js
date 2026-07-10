@@ -43,6 +43,11 @@ async function saveOptions() {
     return;
   }
 
+  if (!apiToken) {
+    setStatus("Enter the local API token before saving.", "error");
+    return;
+  }
+
   await storageSet({ apiPort: port, apiToken, defaultCategory });
   setStatus("Settings saved.", "success");
 }
@@ -55,8 +60,15 @@ async function testConnection() {
     setStatus("Enter a valid TCP port first.", "error");
     return;
   }
+  if (!token) {
+    setStatus("Enter the local API token before testing.", "error");
+    return;
+  }
 
   setStatus("Testing connection...");
+  const button = document.getElementById("testConnection");
+  button.disabled = true;
+  button.textContent = "Testing...";
 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/`, {
@@ -72,6 +84,9 @@ async function testConnection() {
     }
   } catch {
     setStatus("Cannot reach the local API. Start the app or run: bop api-server", "error");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Test API";
   }
 }
 

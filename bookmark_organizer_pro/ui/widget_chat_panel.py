@@ -26,12 +26,13 @@ class ChatPanel(tk.Frame, ThemedWidget):
         super().__init__(parent, bg=theme.bg_dark)
         self._on_ask = on_ask
         self._on_bookmark_click = on_bookmark_click
+        self._history = []
         self._build(theme)
 
     def _build(self, theme):
         header = tk.Frame(self, bg=theme.bg_dark)
         header.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD,
-                    pady=(DesignTokens.PANEL_PAD, DesignTokens.SPACE_SM))
+                    pady=(10, 4))
 
         tk.Label(
             header, text=_("Ask your library"), bg=theme.bg_dark,
@@ -45,8 +46,9 @@ class ChatPanel(tk.Frame, ThemedWidget):
         self._clear_btn.pack(side=tk.RIGHT)
         self._clear_btn.bind("<Button-1>", lambda e: self.clear_conversation())
         make_keyboard_activatable(self._clear_btn, self.clear_conversation)
+        self._clear_btn.pack_forget()
 
-        self._messages_frame = tk.Frame(self, bg=theme.bg_dark, height=108)
+        self._messages_frame = tk.Frame(self, bg=theme.bg_dark, height=54)
         self._messages_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD)
         self._messages_frame.pack_propagate(False)
 
@@ -86,7 +88,7 @@ class ChatPanel(tk.Frame, ThemedWidget):
         # Input area
         input_frame = tk.Frame(self, bg=theme.bg_dark)
         input_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD,
-                         pady=(DesignTokens.SPACE_SM, DesignTokens.PANEL_PAD))
+                         pady=(6, 10))
 
         input_row = tk.Frame(input_frame, bg=theme.border_muted)
         input_row.pack(fill=tk.X)
@@ -113,8 +115,8 @@ class ChatPanel(tk.Frame, ThemedWidget):
         suggestions = tk.Frame(input_frame, bg=theme.bg_dark)
         suggestions.pack(fill=tk.X, pady=(8, 0))
         for text, question in (
-            (_("Find duplicates"), _("Which bookmarks look like duplicates?")),
-            (_("Untagged items"), _("Which bookmarks still need tags?")),
+            (_("Duplicates"), _("Which bookmarks look like duplicates?")),
+            (_("Untagged"), _("Which bookmarks still need tags?")),
             (_("Rediscover"), _("What useful bookmark should I revisit?")),
         ):
             ModernButton(
@@ -142,14 +144,14 @@ class ChatPanel(tk.Frame, ThemedWidget):
             self._welcome_frame,
             text=_("Ask about saved links, themes, projects, or old research."),
             bg=theme.bg_dark, fg=theme.text_secondary,
-            font=FONTS.small(), wraplength=230, justify=tk.LEFT,
+            font=FONTS.small(), wraplength=300, justify=tk.LEFT,
             anchor="w",
         ).pack(fill=tk.X)
         tk.Label(
             self._welcome_frame,
             text=_("Answers cite matching bookmarks when the local search index is available."),
             bg=theme.bg_dark, fg=theme.text_muted,
-            font=FONTS.tiny(), wraplength=230, justify=tk.LEFT,
+            font=FONTS.tiny(), wraplength=300, justify=tk.LEFT,
             anchor="w",
         ).pack(fill=tk.X, pady=(6, 0))
 
@@ -206,10 +208,14 @@ class ChatPanel(tk.Frame, ThemedWidget):
             self._on_ask(question)
         return "break"
 
-    def _add_message(self, role: str, text: str, sources=None):
+    def _add_message(self, role: str, text: str, sources=None, *, record: bool = True):
         theme = get_theme()
         is_user = role == "user"
+        if record:
+            self._history.append((role, text, list(sources or [])))
         self._hide_welcome()
+        if not self._clear_btn.winfo_ismapped():
+            self._clear_btn.pack(side=tk.RIGHT)
         self._messages_frame.configure(height=184)
         if not self._messages_scrollbar.winfo_ismapped():
             self._messages_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -270,6 +276,41 @@ class ChatPanel(tk.Frame, ThemedWidget):
         for widget in self._messages_inner.winfo_children():
             widget.destroy()
         self._status_label.config(text="")
-        self._messages_frame.configure(height=108)
+        self._history.clear()
+        self._clear_btn.pack_forget()
+        self._messages_frame.configure(height=54)
         self._messages_scrollbar.pack_forget()
         self._show_welcome()
+
+    def export_state(self):
+        """Return portable conversation state for live theme rebuilds."""
+        entry_text = "" if self._placeholder_active else self._entry.get()
+        return {
+            "history": list(self._history),
+            "status": self._status_label.cget("text"),
+            "entry_text": entry_text,
+            "entry_state": str(self._entry.cget("state")),
+        }
+
+    def restore_state(self, state):
+        """Restore conversation state after a live theme rebuild."""
+        if not isinstance(state, dict):
+            return
+        for widget in self._messages_inner.winfo_children():
+            widget.destroy()
+        self._history.clear()
+        history = list(state.get("history") or [])
+        if history:
+            for role, text, sources in history:
+                self._add_message(role, text, sources=sources, record=True)
+        else:
+            self._show_welcome()
+        self._status_label.config(text=str(state.get("status") or ""))
+        entry_text = str(state.get("entry_text") or "")
+        if entry_text:
+            self._entry.delete(0, tk.END)
+            self._entry.insert(0, entry_text)
+            self._entry.config(fg=get_theme().text_primary)
+            self._placeholder_active = False
+        if state.get("entry_state") == str(tk.DISABLED):
+            self._entry.config(state=tk.DISABLED)

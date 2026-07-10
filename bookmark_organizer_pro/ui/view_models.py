@@ -205,6 +205,14 @@ def build_collection_pulse(
             "Review broken links",
             f"Check {pluralize(metrics['broken'], 'link')} that could not be reached.",
         )
+    elif _safe_int(stats.get("snapshot_failures", 0)):
+        failures = _safe_int(stats.get("snapshot_failures", 0))
+        health_label = "Needs review"
+        action = (
+            "snapshots",
+            "Retry failed snapshots",
+            f"Review {pluralize(failures, 'snapshot')} that could not be preserved.",
+        )
     elif _safe_int(stats.get("duplicate_bookmarks", 0)):
         duplicates = _safe_int(stats.get("duplicate_bookmarks", 0))
         health_label = "Needs review"

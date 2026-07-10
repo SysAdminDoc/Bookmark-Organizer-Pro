@@ -166,12 +166,16 @@
     .status-dot {
       width: 8px;
       height: 8px;
-      background: var(--error);
+      background: var(--warning);
       flex-shrink: 0;
     }
 
     .status-dot.connected {
       background: var(--success);
+    }
+
+    .status-dot.error {
+      background: var(--error);
     }
 
     .count-badge {
@@ -194,6 +198,7 @@
       <span id="statusDot" class="status-dot" aria-hidden="true"></span>
       <span id="statusText">Connecting...</span>
       <span id="totalCount" class="count-badge"></span>
+      <button id="openOptions" class="secondary status-options" type="button">Options</button>
     </div>
 
     <section id="pendingPanel" class="pending-panel" role="status" aria-live="polite" hidden>
@@ -211,7 +216,7 @@
     </div>
 
     <div id="tab-recent" class="tab-content active" role="tabpanel" aria-labelledby="tab-btn-recent">
-      <ul id="recentList" class="bookmark-list"></ul>
+      <ul id="recentList" class="bookmark-list" aria-busy="true"></ul>
       <button id="loadMoreRecent" class="secondary" type="button" hidden>Load More</button>
       <div id="rediscoverSection" style="display:none">
         <p class="section-title">Rediscover</p>

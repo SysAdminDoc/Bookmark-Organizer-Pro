@@ -211,7 +211,7 @@ class EmptyState(tk.Frame):
         )
         activity.pack(fill=tk.X)
         tk.Label(
-            activity, text="◷", bg=theme.bg_tertiary,
+            activity, text="↻", bg=theme.bg_tertiary,
             fg=theme.text_secondary, font=FONTS.title(), width=3, pady=8,
         ).pack(side=tk.LEFT, padx=16, pady=14)
         activity_copy = tk.Frame(activity, bg=theme.bg_dark)

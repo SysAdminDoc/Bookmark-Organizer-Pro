@@ -250,6 +250,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         base_name = self.base_display_to_name.get(self.base_var.get(), self.base_var.get())
         if base_name in self.theme_manager.built_in_themes:
             self.base_theme = self.theme_manager.built_in_themes[base_name]
+            self.is_dark_var.set(self.base_theme.is_dark)
             self._load_base_colors()
             self._update_preview()
     
@@ -346,7 +347,8 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
                 name=safe_name,
                 display_name=name,
                 base_theme=self.base_display_to_name.get(self.base_var.get(), self.base_var.get()),
-                color_overrides=overrides
+                color_overrides=overrides,
+                is_dark=self.is_dark_var.get(),
             )
             
             self.result = new_theme

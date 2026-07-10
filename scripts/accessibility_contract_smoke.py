@@ -47,6 +47,8 @@ class ContractHTMLParser(HTMLParser):
         attr_map = {str(name).lower(): str(value or "") for name, value in attrs}
         if any(parent.tag == "label" for parent in self._stack):
             attr_map["__wrapped_label"] = "1"
+        if self._stack:
+            attr_map["__parent_tag"] = self._stack[-1].tag
         element = Element(tag, attr_map)
         self.elements.append(element)
         if tag not in VOID_TAGS:
@@ -134,6 +136,16 @@ def check_extension_file(path: Path) -> dict[str, object]:
             failures.append(f"{element.tag}#{element.attr('id') or '<no-id>'} has no accessible name")
         if role == "status" and element.attr("aria-live") not in {"polite", "assertive"}:
             failures.append(f"status region #{element.attr('id') or '<no-id>'} must declare aria-live")
+        if element.attr("__parent_tag") == "ul" and element.tag != "li":
+            failures.append(f"ul must contain li children, found {element.tag}")
+
+    if path.name == "sidepanel.html":
+        options = ids.get("openOptions")
+        recent = ids.get("recentList")
+        if not options:
+            failures.append("side panel must expose an Options recovery action")
+        if not recent or recent.attr("aria-busy") not in {"true", "false"}:
+            failures.append("recent list must expose an aria-busy loading state")
 
     tablists = [element for element in elements if element.attr("role") == "tablist"]
     for tablist in tablists:
@@ -158,6 +170,18 @@ def check_extension_file(path: Path) -> dict[str, object]:
     if failures:
         raise AccessibilityContractError(f"{path.name} accessibility failures: " + "; ".join(failures))
     return {"file": path.name, "elements": len(elements), "interactive": sum(1 for e in elements if e.tag in INTERACTIVE_TAGS)}
+
+
+def check_extension_css(path: Path) -> dict[str, object]:
+    css = path.read_text(encoding="utf-8")
+    failures = []
+    if "@media (prefers-reduced-motion: reduce)" not in css:
+        failures.append("extension CSS must respect reduced motion")
+    if "--bg: #0c1a29" not in css or "--accent: #19c7b5" not in css:
+        failures.append("extension dark tokens must match Studio Dark")
+    if failures:
+        raise AccessibilityContractError(f"{path.name} accessibility failures: " + "; ".join(failures))
+    return {"file": path.name, "reduced_motion": True, "studio_tokens": True}
 
 
 def check_tk_interactions() -> dict[str, object]:
@@ -205,9 +229,14 @@ def check_tk_interactions() -> dict[str, object]:
             root.update()
             if button.cget("takefocus") not in {1, "1"}:
                 raise AccessibilityContractError("ModernButton must be focusable")
-            for sequence in ("<Return>", "<space>"):
+            for sequence in ("<Return>", "<KP_Enter>", "<space>"):
                 if not button.bind(sequence):
                     raise AccessibilityContractError(f"ModernButton missing {sequence} binding")
+            button.set_state("disabled")
+            root.update()
+            if button.cget("takefocus") not in {0, "0"}:
+                raise AccessibilityContractError("disabled ModernButton must leave the tab order")
+            button.set_state("normal")
             return {"focusable_label": True, "modern_button": True}
         finally:
             root.destroy()
@@ -217,6 +246,7 @@ def run_checks() -> dict[str, object]:
     extension_dir = ROOT / "browser-extension"
     return {
         "extension": [check_extension_file(extension_dir / name) for name in EXTENSION_FILES],
+        "extension_css": check_extension_css(extension_dir / "popup.css"),
         "tk": check_tk_interactions(),
     }
 

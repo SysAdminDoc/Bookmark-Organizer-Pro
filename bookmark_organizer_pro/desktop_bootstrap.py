@@ -169,14 +169,21 @@ def set_window_icon(window: tk.Tk) -> bool:
 # =============================================================================
 # Helper: Dark Title Bar (Windows 10/11)
 # =============================================================================
-def set_dark_title_bar(window):
-    """Set dark title bar on Windows"""
+def set_dark_title_bar(window, is_dark: Optional[bool] = None):
+    """Match Windows title-bar chrome to the active application theme."""
     if not IS_WINDOWS:
         return
     try:
-        window.update()
+        if is_dark is None:
+            try:
+                from bookmark_organizer_pro.theme_runtime import get_theme_manager
+
+                is_dark = get_theme_manager().current_theme.is_dark
+            except Exception:
+                is_dark = True
+        window.update_idletasks()
         hwnd = ctypes.windll.user32.GetParent(window.winfo_id())
-        value = ctypes.c_int(1)
+        value = ctypes.c_int(1 if is_dark else 0)
         ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(value), 4)
         ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 19, ctypes.byref(value), 4)
     except Exception:

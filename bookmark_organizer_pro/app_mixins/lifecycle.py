@@ -221,6 +221,13 @@ class LifecycleActionsMixin:
                 except Exception:
                     log.debug("Error during shutdown", exc_info=True)
 
+        callback = getattr(self, "_theme_change_callback", None)
+        if callback is not None:
+            try:
+                self.theme_manager.remove_theme_change_callback(callback)
+            except Exception:
+                log.debug("Error removing theme callback", exc_info=True)
+
         try:
             self.root.destroy()
         except Exception:

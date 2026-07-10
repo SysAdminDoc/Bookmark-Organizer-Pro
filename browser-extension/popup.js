@@ -24,6 +24,13 @@ function setBusy(isBusy) {
   button.textContent = isBusy ? "Saving..." : "Save Bookmark";
 }
 
+function setUnavailable(message) {
+  const button = document.getElementById("saveBookmark");
+  button.disabled = true;
+  button.textContent = "Unavailable";
+  setStatus(message, "error");
+}
+
 async function getSelection(tabId) {
   try {
     const frames = await executeScript(tabId, () => String(window.getSelection() || "").slice(0, 500));
@@ -42,14 +49,12 @@ async function loadPopup() {
   document.getElementById("pageTitle").textContent = activeTab?.title || "No active tab";
 
   if (!activeTab || !isSaveableUrl(activeTab.url)) {
-    setStatus("Open an HTTP or HTTPS page before saving.", "error");
-    setBusy(true);
+    setUnavailable("Open an HTTP or HTTPS page before saving.");
     return;
   }
 
   if (!values.apiToken) {
-    setStatus("Add the local API token in Options before saving.", "error");
-    setBusy(true);
+    setUnavailable("Add the local API token in Options before saving.");
     return;
   }
 

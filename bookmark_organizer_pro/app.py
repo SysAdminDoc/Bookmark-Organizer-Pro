@@ -102,8 +102,12 @@ class FinalBookmarkOrganizerApp(
     def __init__(self, root: tk.Tk):
         self.root = root
         self.theme_manager = get_theme_manager()
+        self._theme_change_callback = (
+            lambda theme_info: self._on_theme_change(theme_info.display_name)
+        )
+        self.theme_manager.add_theme_change_callback(self._theme_change_callback)
         self.root.title(f"{APP_NAME} v{APP_VERSION}")
-        self.root.geometry("1500x950")
+        self.root.geometry("1540x980")
         self.root.minsize(1320, 760)
         
         theme = get_theme()

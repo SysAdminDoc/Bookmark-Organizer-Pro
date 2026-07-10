@@ -8,6 +8,8 @@ app against a temporary BOOKMARK_DATA_DIR unless --data-dir is supplied.
 from __future__ import annotations
 
 import argparse
+import ctypes
+from ctypes import wintypes
 import json
 import os
 import sys
@@ -74,7 +76,7 @@ EXTENSION_SURFACES = (
         "sidepanel.html",
         (430, 760),
         "dark",
-        ("Recent", "Search", "Connected", "Visual QA Handbook"),
+        ("Recent", "Search", "Connected", "Options", "Visual QA Handbook"),
     ),
     ExtensionSurface(
         "extension-sidepanel-add-light",
@@ -97,6 +99,133 @@ class CaptureResult:
 
 class VisualSmokeError(AssertionError):
     """Raised when a visual smoke surface fails its contract."""
+
+
+def _background_position(
+    virtual_desktop: tuple[int, int, int, int], width: int, height: int
+) -> tuple[int, int]:
+    """Place a capture window completely left of the virtual desktop."""
+    left, top, _desktop_width, desktop_height = virtual_desktop
+    return left - max(1, width) - 128, top + max(0, (desktop_height - height) // 2)
+
+
+def _virtual_desktop_bounds() -> tuple[int, int, int, int]:
+    if os.name != "nt":
+        return (0, 0, 1920, 1080)
+    user32 = ctypes.windll.user32
+    return (
+        user32.GetSystemMetrics(76),
+        user32.GetSystemMetrics(77),
+        user32.GetSystemMetrics(78),
+        user32.GetSystemMetrics(79),
+    )
+
+
+def _get_toplevel_hwnd(window) -> int:
+    """Resolve Tk's client handle to the native top-level window handle."""
+    window.update_idletasks()
+    hwnd = int(window.winfo_id())
+    if os.name == "nt":
+        hwnd = int(ctypes.windll.user32.GetAncestor(hwnd, 2)) or hwnd
+    return hwnd
+
+
+def _prepare_background_window(window) -> int:
+    """Map a Windows Tk window offscreen without activating or taskbar noise."""
+    if os.name != "nt":
+        window.deiconify()
+        window.update_idletasks()
+        return _get_toplevel_hwnd(window)
+
+    user32 = ctypes.windll.user32
+    window.update_idletasks()
+    owner = getattr(window, "master", None)
+    if owner is not None and not hasattr(owner, "wm_state"):
+        owner = None
+    client_hwnd = int(window.winfo_id())
+    hwnd = _get_toplevel_hwnd(window)
+    if user32.IsWindowVisible(hwnd):
+        window.update_idletasks()
+        window.update()
+        user32.RedrawWindow(hwnd, None, None, 0x0001 | 0x0080 | 0x0100)
+        user32.UpdateWindow(hwnd)
+        return hwnd
+    min_width, min_height = window.minsize()
+    width = max(window.winfo_width(), window.winfo_reqwidth(), min_width, 240)
+    height = max(window.winfo_height(), window.winfo_reqheight(), min_height, 180)
+    x, y = _background_position(_virtual_desktop_bounds(), width, height)
+
+    gwl_exstyle = -20
+    ws_ex_toolwindow = 0x00000080
+    ws_ex_appwindow = 0x00040000
+    ws_ex_noactivate = 0x08000000
+    style = int(user32.GetWindowLongW(hwnd, gwl_exstyle))
+    style = (style | ws_ex_toolwindow | ws_ex_noactivate) & ~ws_ex_appwindow
+    user32.SetWindowLongW(hwnd, gwl_exstyle, style)
+    swp_nozorder = 0x0004
+    swp_noactivate = 0x0010
+    swp_showwindow = 0x0040
+    if hwnd != client_hwnd:
+        try:
+            window.attributes("-topmost", False)
+        except Exception:
+            pass
+    insert_after = -2 if hwnd != client_hwnd else 0
+    flags = swp_noactivate
+    if hwnd == client_hwnd:
+        flags |= swp_nozorder
+    if owner is None:
+        flags |= swp_showwindow
+    positioned = user32.SetWindowPos(hwnd, insert_after, x, y, width, height, flags)
+    if not positioned and hwnd == client_hwnd:
+        raise VisualSmokeError("could not position background capture window")
+    if owner is not None:
+        _prepare_background_window(owner)
+    user32.ShowWindow(hwnd, 4)  # SW_SHOWNOACTIVATE
+    for _ in range(8):
+        window.update_idletasks()
+        window.update()
+        if user32.IsWindowVisible(hwnd):
+            break
+        time.sleep(0.01)
+    if not user32.IsWindowVisible(hwnd):
+        raise VisualSmokeError("background capture window did not map")
+    user32.RedrawWindow(hwnd, None, None, 0x0001 | 0x0080 | 0x0100)
+    user32.UpdateWindow(hwnd)
+    window.update()
+    return hwnd
+
+
+def _capture_background_window(window, hwnd: int):
+    """Capture a mapped HWND directly, independent of desktop occlusion."""
+    from PIL import ImageGrab, ImageWin
+
+    if os.name != "nt":
+        x = window.winfo_rootx()
+        y = window.winfo_rooty()
+        return ImageGrab.grab(
+            bbox=(x, y, x + window.winfo_width(), y + window.winfo_height())
+        )
+
+    image = ImageGrab.grab(window=ImageWin.HWND(hwnd))
+    user32 = ctypes.windll.user32
+    window_rect = wintypes.RECT()
+    client_rect = wintypes.RECT()
+    client_origin = wintypes.POINT(0, 0)
+    if not user32.GetWindowRect(hwnd, ctypes.byref(window_rect)):
+        raise VisualSmokeError("could not read capture window bounds")
+    if not user32.GetClientRect(hwnd, ctypes.byref(client_rect)):
+        raise VisualSmokeError("could not read capture client bounds")
+    user32.ClientToScreen(hwnd, ctypes.byref(client_origin))
+    client_width = max(1, client_rect.right - client_rect.left)
+    client_height = max(1, client_rect.bottom - client_rect.top)
+    if image.size == (client_width, client_height):
+        return image
+    left = max(0, client_origin.x - window_rect.left)
+    top = max(0, client_origin.y - window_rect.top)
+    right = left + client_width
+    bottom = top + client_height
+    return image.crop((left, top, right, bottom))
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -201,45 +330,23 @@ def require_text(surface: str, text_blob: str, expected: Iterable[str]) -> None:
 
 
 def capture_tk_window(window, output_dir: Path, name: str, expected_text: Iterable[str]) -> CaptureResult:
-    from PIL import ImageGrab
-
-    try:
-        window.deiconify()
-    except Exception:
-        pass
-    try:
-        window.attributes("-topmost", True)
-    except Exception:
-        pass
-    for _ in range(12):
-        window.update_idletasks()
-        window.lift()
-        try:
-            window.focus_force()
-        except Exception:
-            pass
-        window.update()
-        if window.winfo_ismapped():
-            break
-        time.sleep(0.1)
-    time.sleep(0.35)
-    window.update()
-
-    x = window.winfo_rootx()
-    y = window.winfo_rooty()
-    width = window.winfo_width()
-    height = window.winfo_height()
-    if width < 240 or height < 180:
-        raise VisualSmokeError(f"{name} window is too small: {width}x{height}")
+    hwnd = _prepare_background_window(window)
 
     text_blob = collect_tk_text(window)
     require_text(name, text_blob, expected_text)
 
     output_path = output_dir / f"{name}.png"
-    image = ImageGrab.grab(bbox=(x, y, x + width, y + height))
+    image = _capture_background_window(window, hwnd)
+    width, height = image.size
+    if width < 240 or height < 180:
+        raise VisualSmokeError(f"{name} window is too small: {width}x{height}")
     image.save(output_path)
+    owner = getattr(window, "master", None)
     try:
-        window.attributes("-topmost", False)
+        if owner is not None:
+            window.withdraw()
+        if owner is not None and hasattr(owner, "withdraw"):
+            owner.withdraw()
     except Exception:
         pass
     width, height = assert_image_healthy(output_path)
@@ -247,6 +354,11 @@ def capture_tk_window(window, output_dir: Path, name: str, expected_text: Iterab
 
 
 def destroy_window(window) -> None:
+    try:
+        window.withdraw()
+        window.update_idletasks()
+    except Exception:
+        pass
     try:
         window.grab_release()
     except Exception:
@@ -278,7 +390,8 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
 
     ensure_directories()
     root = tk.Tk()
-    root.geometry("1360x860+40+40")
+    root.withdraw()
+    root.geometry("1540x980")
     root.title("Bookmark Organizer Pro Visual Smoke")
     app = FinalBookmarkOrganizerApp(root)
     root.update()
@@ -290,7 +403,14 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
                 root,
                 output_dir,
                 "desktop-main-empty-dark",
-                ("Bookmark Organizer Pro", "EMPTY LIBRARY", "Start With an Import"),
+                (
+                    "Bookmark Organizer Pro",
+                    "Build a library worth returning to",
+                    "Quick start",
+                    "Collection pulse",
+                    "Next best action",
+                    "Ask your library",
+                ),
             )
         )
 
@@ -326,7 +446,6 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
 
         theme_manager = get_theme_manager()
         theme_manager.set_theme("github_light")
-        app._apply_theme_live()
         root.update()
         results.append(
             capture_tk_window(
@@ -349,12 +468,12 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
                 root,
                 output_dir,
                 "desktop-snapshot-failures-sidebar",
-                ("Snapshot Failures", "Review 1 retryable", "Tkinter Reference"),
+                ("Next best action", "Retry failed snapshots", "1 snapshot"),
             )
         )
 
+        root.withdraw()
         theme_manager.set_theme("github_dark")
-        app._apply_theme_live()
         root.update()
         app._show_ai_settings()
         assistant = root.winfo_children()[-1]

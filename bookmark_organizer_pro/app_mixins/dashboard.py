@@ -61,10 +61,10 @@ class DashboardActionsMixin:
         """Create one compact metric in the summary strip."""
         theme = get_theme()
         block = tk.Frame(parent, bg=theme.bg_card)
-        block.pack(side=tk.LEFT, padx=(14, 0))
+        block.pack(side=tk.LEFT, padx=(8, 0))
         value_lbl = tk.Label(
             block, text="0", bg=theme.bg_card, fg=color,
-            font=FONTS.title(bold=True), width=5, anchor="e"
+            font=FONTS.title(bold=True), width=3, anchor="e"
         )
         value_lbl.pack(anchor="e")
         label_lbl = tk.Label(
@@ -335,8 +335,15 @@ class DashboardActionsMixin:
         ).pack(side=tk.RIGHT, padx=12)
         callback = lambda: self._run_pulse_action(pulse.action_key)
         make_keyboard_activatable(action_card, callback)
+
+        def bind_action(widget):
+            widget.configure(cursor="hand2")
+            widget.bind("<Button-1>", lambda _event, run=callback: run())
+            for child in widget.winfo_children():
+                bind_action(child)
+
         for child in action_card.winfo_children():
-            child.bind("<Button-1>", lambda _event, run=callback: run())
+            bind_action(child)
 
         if pulse.metrics["total"]:
             ModernButton(
@@ -350,6 +357,7 @@ class DashboardActionsMixin:
             "import": self._show_import_dialog,
             "broken": lambda: self._apply_filter("Broken"),
             "duplicates": self._find_duplicates,
+            "snapshots": self._view_snapshot_failures,
             "untagged": lambda: self._apply_filter("Untagged"),
             "search": self._focus_search,
         }
@@ -362,12 +370,14 @@ class DashboardActionsMixin:
 
         stats = self.bookmark_manager.get_statistics()
         all_bookmarks = self.bookmark_manager.get_all_bookmarks()
-        self._refresh_collection_pulse(stats, all_bookmarks)
         try:
             from bookmark_organizer_pro.services.snapshot import SnapshotFailureStore
             snapshot_failures = SnapshotFailureStore().list_failures()
         except Exception:
             snapshot_failures = []
+        pulse_stats = dict(stats)
+        pulse_stats["snapshot_failures"] = len(snapshot_failures)
+        self._refresh_collection_pulse(pulse_stats, all_bookmarks)
 
         analytics_signature = (
             stats,

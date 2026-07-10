@@ -10,6 +10,11 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Replaced the empty right-rail signal feed with a compact collection pulse, mutually exclusive health signals, trustworthy zero-state metrics, and a state-aware next best action.
 - Refined the assistant rail with a visible send action, reusable prompt starters, keyboard-accessible clearing, and a compact conversation state.
 - Added local-first trust copy to the application brand, an accessible Collections action, larger primary targets, and responsive search sizing.
+- Made live theme changes repaint the full shell while preserving filters, selection, scroll position, search, and assistant conversation state; Windows title bars now follow light and dark themes.
+- Raised muted-copy contrast to WCAG AA across every built-in theme and added regression coverage for palette contrast and semantic secondary accents.
+- Reworked desktop visual verification to capture offscreen, non-activating HWNDs directly, including transient dialogs, so QA no longer steals focus or captures occluding windows.
+- Aligned the browser extension with Studio Dark tokens, reduced-motion preferences, clearer unavailable/loading/recovery states, valid list semantics, and a focused options layout.
+- Fixed the custom-theme dark/light choice, disabled-button tab stops, focus-triggered tooltips, keypad activation, and icon preservation when button labels change.
 
 ## [v6.9.0] - 2026-06-30
 

@@ -246,6 +246,7 @@ class ThemeManager:
         display_name: str,
         base_theme: str = "github_dark",
         color_overrides: Optional[Mapping[str, object]] = None,
+        is_dark: Optional[bool] = None,
     ) -> ThemeInfo:
         """Create and persist a custom theme based on an existing theme."""
         base = self.built_in_themes.get(base_theme, self.built_in_themes[self.default_theme])
@@ -268,7 +269,7 @@ class ThemeManager:
             author="User",
             version="1.0",
             description="Custom theme",
-            is_dark=base.is_dark,
+            is_dark=base.is_dark if is_dark is None else bool(is_dark),
             colors=ThemeColors.from_dict(new_colors_dict),
         )
 

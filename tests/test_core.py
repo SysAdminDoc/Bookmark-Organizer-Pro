@@ -39,6 +39,7 @@ from bookmark_organizer_pro.ui import (
     build_collection_pulse,
     build_collection_summary,
     build_filter_counts,
+    contrast_ratio,
     format_compact_count,
     NonBlockingTaskRunner,
     pick_default_category,
@@ -2162,6 +2163,23 @@ class TestUIFoundation(unittest.TestCase):
         self.assertEqual(readable_text_on("#07090b"), "#ffffff")
         self.assertEqual(readable_text_on("#2dd4bf"), "#07100f")
 
+    def test_builtin_theme_muted_copy_meets_wcag_aa(self):
+        from bookmark_organizer_pro.theme_runtime import BUILT_IN_THEMES
+
+        failures = {
+            name: contrast_ratio(theme.colors.bg_primary, theme.colors.text_muted)
+            for name, theme in BUILT_IN_THEMES.items()
+            if contrast_ratio(theme.colors.bg_primary, theme.colors.text_muted) < 4.5
+        }
+        self.assertEqual(failures, {})
+
+    def test_builtin_themes_define_semantic_secondary_accents(self):
+        from bookmark_organizer_pro.theme_runtime import BUILT_IN_THEMES
+
+        for name, theme in BUILT_IN_THEMES.items():
+            self.assertTrue(theme.colors.accent_secondary.startswith("#"), name)
+            self.assertNotEqual(theme.colors.accent_secondary, ThemeColors().accent_secondary, name)
+
     def test_filter_counts_view_model(self):
         now = datetime(2026, 4, 19)
         bookmarks = [
@@ -2264,6 +2282,20 @@ class TestUITheme(unittest.TestCase):
         self.assertEqual(colors.bg_primary, "#010203")
         self.assertEqual(colors.accent_primary, "#abcdef")
         self.assertNotIn("future_field", colors.to_dict())
+
+    def test_custom_theme_honors_explicit_light_dark_choice(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manager = ThemeManager(
+                self._built_in_themes(),
+                settings_file=root / "settings.json",
+                themes_dir=root / "themes",
+                default_theme="base",
+            )
+            theme = manager.create_custom_theme(
+                "light_custom", "Light Custom", base_theme="base", is_dark=False
+            )
+            self.assertFalse(theme.is_dark)
 
     def test_theme_colors_reject_css_injection_values(self):
         colors = ThemeColors.from_dict({

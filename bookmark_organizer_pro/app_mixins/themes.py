@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from bookmark_organizer_pro.ui.widgets import get_theme
+from bookmark_organizer_pro.ui.widgets import apply_window_chrome, get_theme
 
 
 class ThemeActionsMixin:
@@ -32,6 +32,22 @@ class ThemeActionsMixin:
         except Exception:
             pass
 
+        active_filter = getattr(self, "active_filter", "All")
+        quick_filter = getattr(self, "quick_filter", None)
+        current_category = getattr(self, "current_category", None)
+        selected_ids = list(getattr(self, "selected_bookmarks", []) or [])
+        chat_state = None
+        try:
+            chat_state = self.chat_panel.export_state()
+        except Exception:
+            pass
+        scroll_positions = {}
+        for name in ("left_scroll", "right_scroll"):
+            try:
+                scroll_positions[name] = getattr(self, name).canvas.yview()[0]
+            except Exception:
+                pass
+
         for name in ("main_container", "status_bar"):
             widget = getattr(self, name, None)
             try:
@@ -42,9 +58,13 @@ class ThemeActionsMixin:
 
         self._last_analytics_stats = None
         self.root.configure(bg=theme.bg_primary)
+        apply_window_chrome(self.root)
         self._create_menu()
         self._create_main_layout()
         self._create_status_bar()
+        self.active_filter = active_filter
+        self.quick_filter = quick_filter
+        self.current_category = current_category
 
         if query:
             self._suppress_search_callback = True
@@ -55,5 +75,24 @@ class ThemeActionsMixin:
             self._suppress_search_callback = False
 
         self._refresh_all()
+        for filter_name in self.filter_buttons:
+            self._set_filter_visual(filter_name, filter_name == active_filter)
+        valid_selection = [
+            str(bookmark_id) for bookmark_id in selected_ids
+            if str(bookmark_id) in self.tree.get_children("")
+        ]
+        if valid_selection:
+            self.tree.selection_set(valid_selection)
+            self.tree.focus(valid_selection[0])
+            self.tree.see(valid_selection[0])
+        try:
+            self.chat_panel.restore_state(chat_state)
+        except Exception:
+            pass
+        for name, position in scroll_positions.items():
+            try:
+                getattr(self, name).canvas.yview_moveto(position)
+            except Exception:
+                pass
         self.status_label.configure(text=status_text)
         self._update_status_counts()

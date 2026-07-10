@@ -7,11 +7,18 @@ let recentOffset = 0;
 let recentHasMore = false;
 let recentLoading = false;
 
+class ApiResponseError extends Error {
+  constructor(status) {
+    super(`HTTP ${status}`);
+    this.status = status;
+  }
+}
+
 async function apiFetch(path, config) {
   const response = await fetch(`${baseUrl(config)}${path}`, {
     headers: authHeaders(config)
   });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  if (!response.ok) throw new ApiResponseError(response.status);
   return response.json();
 }
 
@@ -52,10 +59,20 @@ function renderBookmark(bm) {
 
 function showEmpty(container, message) {
   container.innerHTML = "";
-  const p = document.createElement("p");
-  p.className = "empty-state";
-  p.textContent = message;
-  container.appendChild(p);
+  const empty = document.createElement(container.tagName === "UL" ? "li" : "p");
+  empty.className = "empty-state";
+  empty.textContent = message;
+  container.appendChild(empty);
+}
+
+function connectionMessage(error) {
+  if (error instanceof ApiResponseError && error.status === 401) {
+    return "The API token was rejected. Open Options and replace it.";
+  }
+  if (error instanceof ApiResponseError) {
+    return `The local API returned ${error.status}. Try again or check the app logs.`;
+  }
+  return "Cannot reach the local API. Start the app or run: bop api-server";
 }
 
 function setRecentLoadMore(hasMore, label = "Load More") {
@@ -93,6 +110,7 @@ async function loadRecent({ append = false } = {}) {
   if (recentLoading) return;
   recentLoading = true;
   const list = document.getElementById("recentList");
+  list.setAttribute("aria-busy", "true");
   const loadMore = document.getElementById("loadMoreRecent");
   if (loadMore) {
     loadMore.disabled = true;
@@ -119,15 +137,16 @@ async function loadRecent({ append = false } = {}) {
     }
     recentOffset = Number.isInteger(data.next_offset) ? data.next_offset : recentOffset + bookmarks.length;
     setRecentLoadMore(Boolean(data.has_more));
-  } catch {
+  } catch (error) {
     if (append) {
       setRecentLoadMore(recentHasMore, "Retry");
     } else {
-      showEmpty(list, "Cannot reach the local API. Start the app or run: bop api-server");
+      showEmpty(list, connectionMessage(error));
       setRecentLoadMore(false);
     }
   } finally {
     recentLoading = false;
+    list.setAttribute("aria-busy", "false");
   }
 }
 
@@ -168,8 +187,8 @@ async function doSearch(query) {
     for (const bm of hits.slice(0, 50)) {
       results.appendChild(renderBookmark(bm));
     }
-  } catch {
-    showEmpty(results, "Cannot reach the local API. Start the app or run: bop api-server");
+  } catch (error) {
+    showEmpty(results, connectionMessage(error));
   }
 }
 
@@ -180,16 +199,21 @@ async function checkConnection() {
   try {
     const config = await getConfig();
     if (!config.apiToken) {
+      dot.classList.remove("connected", "error");
       text.textContent = "No API token";
       return;
     }
     const stats = await apiFetch("/stats", config);
     dot.classList.add("connected");
+    dot.classList.remove("error");
     text.textContent = "Connected";
     count.textContent = `${stats.total_bookmarks || 0} bookmarks`;
-  } catch {
+  } catch (error) {
     dot.classList.remove("connected");
-    text.textContent = "Disconnected";
+    dot.classList.add("error");
+    text.textContent = error instanceof ApiResponseError && error.status === 401
+      ? "Token rejected"
+      : "Disconnected";
     count.textContent = "";
   }
 }
@@ -260,11 +284,14 @@ function setAddStatus(message, tone) {
 }
 
 async function importReadingList() {
+  const button = document.getElementById("importReadingListBtn");
   if (!api.readingList || !api.readingList.query) {
     setAddStatus("Reading List API not available in this browser.", "error");
     return;
   }
   try {
+    button.disabled = true;
+    button.textContent = "Importing...";
     const config = await getConfig();
     if (!config.apiToken) {
       setAddStatus("Set API token in Options first.", "error");
@@ -276,6 +303,8 @@ async function importReadingList() {
       return;
     }
     let imported = 0;
+    let duplicates = 0;
+    let failed = 0;
     for (const item of items) {
       if (!item.url || !/^https?:\/\//i.test(item.url)) continue;
       try {
@@ -290,13 +319,28 @@ async function importReadingList() {
           })
         });
         if (response.status === 201) imported++;
-      } catch { /* skip individual failures */ }
+        else if (response.status === 409) duplicates++;
+        else failed++;
+      } catch { failed++; }
     }
-    setAddStatus(`Imported ${imported} of ${items.length} reading list item(s).`, "success");
+    const itemWord = items.length === 1 ? "item" : "items";
+    const detail = duplicates ? `; ${duplicates} already saved` : "";
+    const failureDetail = failed ? `; ${failed} failed` : "";
+    setAddStatus(`Imported ${imported} of ${items.length} reading list ${itemWord}${detail}${failureDetail}.`, failed ? "error" : "success");
     if (imported > 0) loadRecent();
   } catch {
     setAddStatus("Could not access reading list.", "error");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Reading List";
   }
+}
+
+function openOptionsPage() {
+  if (api.runtime.openOptionsPage.length === 0) {
+    return Promise.resolve(api.runtime.openOptionsPage());
+  }
+  return new Promise(resolve => api.runtime.openOptionsPage(resolve));
 }
 
 function switchTab(tabName) {
@@ -341,6 +385,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("addSaveBtn").addEventListener("click", saveBookmark);
   document.getElementById("importReadingListBtn").addEventListener("click", importReadingList);
+  document.getElementById("openOptions").addEventListener("click", () => {
+    openOptionsPage().catch(() => {
+      document.getElementById("statusText").textContent = "Options could not be opened";
+    });
+  });
   document.getElementById("loadMoreRecent").addEventListener("click", () => {
     loadRecent({ append: true });
   });

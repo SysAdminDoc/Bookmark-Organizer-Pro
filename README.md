@@ -50,13 +50,15 @@ python scripts/dependency_vulnerability_audit.py
 python scripts/release_artifact_smoke.py --artifact dist/BookmarkOrganizerPro.exe
 ```
 
-The smoke writes screenshots to a temporary directory, exercises dark/light
-desktop and MV3 extension surfaces, and fails on blank captures, missing
+The smoke writes screenshots to a temporary directory, captures Windows desktop
+surfaces offscreen without activating them, exercises dark/light desktop and
+MV3 extension surfaces, and fails on blank captures, missing
 critical text, extension console errors, or horizontal overflow. Install
 Playwright browsers once with `python -m playwright install chromium` if the
 extension smoke reports a missing Chromium runtime.
 The accessibility smoke verifies extension labels, status regions, tab roles,
-and Tk keyboard-focus activation contracts.
+valid list/loading recovery structure, reduced-motion styling, Studio token
+parity, and Tk keyboard-focus activation contracts.
 The dependency audit resolves `requirements.txt` with `pip-audit`, reports
 actionable vulnerability IDs and fix versions, and requires every suppression in
 `security/pip_audit_suppressions.json` to include package, version, ID, and

@@ -146,7 +146,7 @@ class AppShellMixin:
         header.pack_propagate(False)
         
         # Brand block
-        brand = tk.Frame(header, bg=theme.bg_dark, width=286)
+        brand = tk.Frame(header, bg=theme.bg_dark, width=294)
         brand.pack(side=tk.LEFT, padx=(18, 12), pady=9, fill=tk.Y)
         brand.pack_propagate(False)
         brand_row = tk.Frame(brand, bg=theme.bg_dark)
@@ -158,7 +158,7 @@ class AppShellMixin:
         ).pack(side=tk.LEFT, padx=(0, 9))
         tk.Label(
             brand_row, text=APP_NAME, bg=theme.bg_dark,
-            fg=theme.text_primary, font=FONTS.header(bold=True)
+            fg=theme.text_primary, font=FONTS.body(bold=True)
         ).pack(side=tk.LEFT)
         tk.Label(
             brand, text=_("Your library stays on this device"),
@@ -188,7 +188,7 @@ class AppShellMixin:
             search_frame, textvariable=self.search_var,
             bg=theme.bg_secondary, fg=theme.text_primary,
             insertbackground=theme.text_primary, bd=0,
-            font=FONTS.body(), width=26
+            font=FONTS.body(), width=22
         )
         self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=7, padx=5)
         Tooltip(self.search_entry,
@@ -248,7 +248,8 @@ class AppShellMixin:
         add_btn = ModernButton(
             toolbar, text=_("Add bookmark"), icon="+", style="primary",
             command=self._add_bookmark,
-            tooltip=_("Add one bookmark manually"), padx=10, pady=8,
+            tooltip=_("Add one bookmark manually"), padx=8, pady=8,
+            font=FONTS.tiny(bold=True),
         )
         add_btn.pack(side=tk.LEFT, padx=3)
         
@@ -257,7 +258,7 @@ class AppShellMixin:
             toolbar, text=_("Import"), icon="↓",
             command=self._show_import_dialog,
             tooltip=_("Open guided import paths for browsers, services, and files"),
-            padx=7, pady=8,
+            padx=5, pady=8, font=FONTS.tiny(bold=True),
         )
         import_btn.pack(side=tk.LEFT, padx=3)
         
@@ -266,7 +267,7 @@ class AppShellMixin:
             toolbar, text=_("Export"), icon="↑",
             command=self._show_export_dialog,
             tooltip=_("Export bookmarks to HTML, JSON, CSV, or Markdown"),
-            padx=7, pady=8,
+            padx=5, pady=8, font=FONTS.tiny(bold=True),
         )
         export_btn.pack(side=tk.LEFT, padx=3)
         
@@ -275,7 +276,7 @@ class AppShellMixin:
             toolbar, text=_("Assistant"), icon="✦",
             command=self._show_ai_menu,
             tooltip=_("Assistant tools: categorize, tag, summarize, and find semantic duplicates"),
-            padx=7, pady=8,
+            padx=5, pady=8, font=FONTS.tiny(bold=True),
         )
         self.ai_btn.pack(side=tk.LEFT, padx=3)
         
@@ -284,7 +285,7 @@ class AppShellMixin:
             toolbar, text=_("Tools"), icon="\u2692",
             command=self._show_tools_menu,
             tooltip=_("Tools: Check links, Find duplicates,\nClean URLs, Manage categories, Backup"),
-            padx=7, pady=8,
+            padx=5, pady=8, font=FONTS.tiny(bold=True),
         )
         self.tools_btn.pack(side=tk.LEFT, padx=3)
         
@@ -293,7 +294,7 @@ class AppShellMixin:
             toolbar, text=_("Settings"), icon="⚙",
             command=self._show_settings_menu,
             tooltip=_("Settings: AI provider, themes, preferences"),
-            padx=7, pady=8,
+            padx=5, pady=8, font=FONTS.tiny(bold=True),
         )
         settings_btn.pack(side=tk.LEFT, padx=3)
         self.settings_btn = settings_btn

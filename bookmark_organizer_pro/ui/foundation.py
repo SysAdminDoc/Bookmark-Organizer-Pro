@@ -111,7 +111,7 @@ class DesignTokens:
 
     SIDEBAR_WIDTH = 256
     SIDEBAR_MIN_WIDTH = 240
-    RIGHT_SIDEBAR_WIDTH = 344
+    RIGHT_SIDEBAR_WIDTH = 368
     CONTENT_PAD_X = 24
     CONTENT_PAD_Y = 18
     PANEL_PAD = 16
@@ -191,3 +191,30 @@ def readable_text_on(hex_color: str) -> str:
     contrast_dark = (max(bg_lum, dark_lum) + 0.05) / (min(bg_lum, dark_lum) + 0.05)
     contrast_light = (max(bg_lum, light_lum) + 0.05) / (min(bg_lum, light_lum) + 0.05)
     return "#07100f" if contrast_dark >= contrast_light else "#ffffff"
+
+
+def contrast_ratio(first: str, second: str) -> float:
+    """Return the WCAG contrast ratio for two hex colors."""
+    def luminance(value: str) -> float:
+        text = str(value or "").lstrip("#")
+        if len(text) == 3:
+            text = "".join(character * 2 for character in text)
+        if len(text) != 6:
+            return 1.0
+        try:
+            channels = [int(text[index:index + 2], 16) / 255 for index in (0, 2, 4)]
+        except ValueError:
+            return 1.0
+        linear = [
+            channel / 12.92
+            if channel <= 0.04045
+            else ((channel + 0.055) / 1.055) ** 2.4
+            for channel in channels
+        ]
+        return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+    first_luminance = luminance(first)
+    second_luminance = luminance(second)
+    lighter = max(first_luminance, second_luminance)
+    darker = min(first_luminance, second_luminance)
+    return (lighter + 0.05) / (darker + 0.05)

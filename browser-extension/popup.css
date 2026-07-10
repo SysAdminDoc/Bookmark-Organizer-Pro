@@ -1,20 +1,20 @@
 :root {
   color-scheme: dark light;
-  --bg: #101413;
-  --panel: #19201d;
-  --surface: #1d2421;
-  --surface-2: #26302c;
-  --hover: #22352f;
-  --border: #303b36;
-  --border-soft: #26302c;
-  --text: #eef5f1;
-  --muted: #b8c7c0;
-  --subtle: #7d8d86;
-  --accent: #2dd4bf;
-  --accent-strong: #0f766e;
-  --warning: #f59e0b;
-  --error: #f87171;
-  --success: #22c55e;
+  --bg: #0c1a29;
+  --panel: #102235;
+  --surface: #112438;
+  --surface-2: #182d42;
+  --hover: #17364a;
+  --border: #294158;
+  --border-soft: #20364a;
+  --text: #f2f7fb;
+  --muted: #b4c2cf;
+  --subtle: #7f92a3;
+  --accent: #19c7b5;
+  --accent-strong: #0d8179;
+  --warning: #f5b942;
+  --error: #f0646d;
+  --success: #35cf8b;
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
 }
 
@@ -29,7 +29,7 @@
     --border-soft: #d8dee4;
     --text: #1f2328;
     --muted: #57606a;
-    --subtle: #6e7781;
+    --subtle: #656d76;
     --accent: #0969da;
     --accent-strong: #0550ae;
     --warning: #9a6700;
@@ -54,6 +54,13 @@ body {
 .options-body {
   width: auto;
   min-width: 420px;
+}
+
+.options-body .panel {
+  width: min(720px, calc(100% - 40px));
+  min-height: auto;
+  margin: 28px auto;
+  border: 1px solid var(--border-soft);
 }
 
 .panel {
@@ -204,6 +211,21 @@ button.secondary:hover:not(:disabled) {
 button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  button:hover:not(:disabled) {
+    transform: none;
+  }
 }
 
 .checkbox-row {
@@ -440,12 +462,23 @@ button:disabled {
 .status-dot {
   width: 8px;
   height: 8px;
-  background: var(--error);
+  background: var(--warning);
   flex: 0 0 8px;
 }
 
 .status-dot.connected {
   background: var(--success);
+}
+
+.status-dot.error {
+  background: var(--error);
+}
+
+.status-options {
+  min-height: 28px;
+  margin-left: auto;
+  padding: 4px 7px;
+  font-size: 11px;
 }
 
 .count-badge {
