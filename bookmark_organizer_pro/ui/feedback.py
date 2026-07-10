@@ -121,85 +121,145 @@ class HoverPreview:
 # EMPTY STATE - Shown when no bookmarks exist
 # =============================================================================
 class EmptyState(tk.Frame):
-    """First-run empty state with clear, calm next actions."""
+    """First-run workspace that teaches the product without a tour."""
 
-    def __init__(self, parent, on_import=None, on_add=None):
+    def __init__(self, parent, on_import=None, on_add=None,
+                 on_organize=None, on_search=None):
         theme = get_theme()
         super().__init__(parent, bg=theme.bg_primary)
         self._on_import = on_import
         self._on_add = on_add
+        self._on_organize = on_organize
+        self._on_search = on_search
         self._build(theme)
 
     def _build(self, theme):
         stage = tk.Frame(self, bg=theme.bg_primary)
-        stage.place(relx=0.5, rely=0.5, relwidth=0.9, relheight=0.78, anchor="center")
-
-        left = tk.Frame(stage, bg=theme.bg_primary)
-        left.pack(fill=tk.BOTH, expand=True, padx=(32, 0))
+        stage.pack(fill=tk.BOTH, expand=True, padx=48, pady=(28, 24))
 
         tk.Label(
-            left, text=_("EMPTY LIBRARY"), bg=theme.bg_primary,
+            stage, text=_("YOUR LIBRARY"), bg=theme.bg_primary,
             fg=theme.accent_primary, font=FONTS.tiny(bold=True)
-        ).pack(anchor="w", pady=(10, 14))
+        ).pack(anchor="w", pady=(0, 13))
 
         tk.Label(
-            left, text=_("Start With an Import"),
+            stage, text=_("Build a library worth returning to"),
             bg=theme.bg_primary, fg=theme.text_primary,
             font=FONTS.display(), justify=tk.LEFT
         ).pack(anchor="w")
 
         tk.Label(
-            left,
+            stage,
             text=(
-                "Bring in a browser export or add one URL. Then review duplicates, "
-                "missing tags, weak categories, and broken links from a single workspace."
+                "Import your existing bookmarks or add new ones. We'll help you clean up, "
+                "organize, and rediscover what matters."
             ),
             bg=theme.bg_primary, fg=theme.text_secondary,
-            font=FONTS.body(), justify=tk.LEFT, wraplength=620
-        ).pack(anchor="w", pady=(18, 28))
+            font=FONTS.body(), justify=tk.LEFT, wraplength=690
+        ).pack(anchor="w", pady=(15, 24))
 
-        btn_row = tk.Frame(left, bg=theme.bg_primary)
+        btn_row = tk.Frame(stage, bg=theme.bg_primary)
         btn_row.pack(anchor="w")
 
         import_btn = ModernButton(
-            btn_row, text=_("Import Bookmarks"), icon="↓",
+            btn_row, text=_("Import bookmarks"), icon="⇩",
             style="primary", command=self._on_import,
-            font=FONTS.body(bold=True), padx=22, pady=11
+            font=FONTS.body(bold=True), padx=22, pady=11,
+            tooltip=_("Import from a browser, service, or bookmark file"),
         )
         import_btn.pack(side=tk.LEFT, padx=(0, 10))
 
         add_btn = ModernButton(
-            btn_row, text=_("Add URL"), icon="+",
+            btn_row, text=_("Add one link"), icon="∞",
             command=self._on_add,
-            font=FONTS.body(), padx=20, pady=11
+            font=FONTS.body(), padx=20, pady=11,
+            tooltip=_("Save one bookmark manually"),
         )
         add_btn.pack(side=tk.LEFT)
 
-        runway = tk.Frame(left, bg=theme.bg_primary)
-        runway.pack(fill=tk.X, pady=(34, 0))
-        for eyebrow, title, body in [
-            ("01", "Import", "HTML, JSON, CSV, OPML, and plain URL lists."),
-            ("02", "Review", "Find broken links, duplicates, uncategorized items, and gaps."),
-            ("03", "Search", "Use domain:, #tags, saved filters, and library actions."),
-        ]:
-            row = tk.Frame(runway, bg=theme.bg_primary)
-            row.pack(fill=tk.X, pady=7)
-            tk.Label(
-                row, text=eyebrow, bg=theme.bg_primary,
-                fg=theme.accent_primary, font=FONTS.small(bold=True), width=4, anchor="w"
-            ).pack(side=tk.LEFT)
-            tk.Frame(row, bg=theme.border, width=1, height=34).pack(side=tk.LEFT, padx=(4, 14))
-            copy = tk.Frame(row, bg=theme.bg_primary)
-            copy.pack(side=tk.LEFT, fill=tk.X, expand=True)
-            tk.Label(
-                copy, text=title, bg=theme.bg_primary,
-                fg=theme.text_primary, font=FONTS.body(bold=True), anchor="w"
-            ).pack(anchor="w")
-            tk.Label(
-                copy, text=body, bg=theme.bg_primary,
-                fg=theme.text_secondary, font=FONTS.small(), anchor="w", justify=tk.LEFT,
-                wraplength=440
-            ).pack(anchor="w", pady=(2, 0))
+        tk.Frame(stage, bg=theme.border_muted, height=1).pack(fill=tk.X, pady=(24, 20))
+
+        tk.Label(
+            stage, text=_("Quick start"), bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.subtitle(bold=True),
+        ).pack(anchor="w", pady=(0, 12))
+
+        cards = tk.Frame(stage, bg=theme.bg_primary)
+        cards.pack(fill=tk.X)
+        for column in range(3):
+            cards.grid_columnconfigure(column, weight=1, uniform="quick-start")
+
+        card_specs = (
+            ("⇩", "Capture", "Import from your browser or file to bring everything into one place.",
+             "Import bookmarks  →", theme.accent_primary, self._on_import),
+            ("▦", "Organize", "Find duplicates, fix tags, and group bookmarks into collections.",
+             "Start organizing  →", theme.accent_secondary, self._on_organize),
+            ("⌕", "Rediscover", "Search with filters, tags, and saved views that surface what you need.",
+             "Go to search  →", theme.accent_purple, self._on_search),
+        )
+        for column, spec in enumerate(card_specs):
+            self._create_quick_start_card(cards, theme, column, *spec)
+
+        tk.Label(
+            stage, text=_("Recent activity"), bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.subtitle(bold=True),
+        ).pack(anchor="w", pady=(24, 10))
+
+        activity = tk.Frame(
+            stage, bg=theme.bg_dark,
+            highlightbackground=theme.border_muted, highlightthickness=1,
+        )
+        activity.pack(fill=tk.X)
+        tk.Label(
+            activity, text="◷", bg=theme.bg_tertiary,
+            fg=theme.text_secondary, font=FONTS.title(), width=3, pady=8,
+        ).pack(side=tk.LEFT, padx=16, pady=14)
+        activity_copy = tk.Frame(activity, bg=theme.bg_dark)
+        activity_copy.pack(side=tk.LEFT, fill=tk.X, expand=True, pady=14)
+        tk.Label(
+            activity_copy, text=_("No recent activity yet"), bg=theme.bg_dark,
+            fg=theme.text_primary, font=FONTS.body(bold=True), anchor="w",
+        ).pack(fill=tk.X)
+        tk.Label(
+            activity_copy, text=_("Your imports, edits, and searches will appear here."),
+            bg=theme.bg_dark, fg=theme.text_secondary,
+            font=FONTS.small(), anchor="w",
+        ).pack(fill=tk.X, pady=(3, 0))
+
+    @staticmethod
+    def _create_quick_start_card(parent, theme, column, icon, title, body,
+                                 action_text, accent, command):
+        card = tk.Frame(
+            parent, bg=theme.bg_card, cursor="hand2" if command else "arrow",
+            highlightbackground=theme.card_border, highlightthickness=1,
+        )
+        card.grid(
+            row=0, column=column, sticky="nsew",
+            padx=(0 if column == 0 else 5, 0 if column == 2 else 5),
+        )
+        tk.Label(
+            card, text=icon, bg=theme.bg_card, fg=accent,
+            font=FONTS.custom(26), anchor="w",
+        ).pack(fill=tk.X, padx=16, pady=(15, 8))
+        tk.Label(
+            card, text=title, bg=theme.bg_card, fg=theme.text_primary,
+            font=FONTS.subtitle(bold=True), anchor="w",
+        ).pack(fill=tk.X, padx=16)
+        tk.Label(
+            card, text=body, bg=theme.bg_card, fg=theme.text_secondary,
+            font=FONTS.small(), anchor="nw", justify=tk.LEFT, wraplength=205,
+        ).pack(fill=tk.X, expand=True, padx=16, pady=(6, 10))
+        action = tk.Label(
+            card, text=action_text, bg=theme.bg_card, fg=accent,
+            font=FONTS.small(bold=True), anchor="w",
+            cursor="hand2" if command else "arrow",
+        )
+        action.pack(fill=tk.X, padx=16, pady=(0, 14))
+        if command:
+            make_keyboard_activatable(card, command)
+            for child in card.winfo_children():
+                child.configure(cursor="hand2")
+                child.bind("<Button-1>", lambda _event, callback=command: callback())
 
 
 

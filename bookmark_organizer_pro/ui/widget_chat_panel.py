@@ -9,7 +9,8 @@ from typing import Callable
 from bookmark_organizer_pro.i18n import _
 
 from .foundation import FONTS, DesignTokens, readable_text_on
-from .widget_controls import ThemedWidget
+from .tk_interactions import make_keyboard_activatable
+from .widget_controls import ModernButton, ThemedWidget
 from .widget_runtime import get_theme
 
 
@@ -33,8 +34,8 @@ class ChatPanel(tk.Frame, ThemedWidget):
                     pady=(DesignTokens.PANEL_PAD, DesignTokens.SPACE_SM))
 
         tk.Label(
-            header, text=_("ASK YOUR LIBRARY"), bg=theme.bg_dark,
-            fg=theme.text_muted, font=FONTS.tiny(bold=True),
+            header, text=_("Ask your library"), bg=theme.bg_dark,
+            fg=theme.text_primary, font=FONTS.subtitle(bold=True),
         ).pack(side=tk.LEFT)
 
         self._clear_btn = tk.Label(
@@ -43,10 +44,11 @@ class ChatPanel(tk.Frame, ThemedWidget):
         )
         self._clear_btn.pack(side=tk.RIGHT)
         self._clear_btn.bind("<Button-1>", lambda e: self.clear_conversation())
+        make_keyboard_activatable(self._clear_btn, self.clear_conversation)
 
-        self._messages_frame = tk.Frame(self, bg=theme.bg_dark)
-        self._messages_frame.pack(fill=tk.BOTH, expand=True,
-                                  padx=DesignTokens.PANEL_PAD)
+        self._messages_frame = tk.Frame(self, bg=theme.bg_dark, height=108)
+        self._messages_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD)
+        self._messages_frame.pack_propagate(False)
 
         self._messages_canvas = tk.Canvas(
             self._messages_frame, bg=theme.bg_dark, highlightthickness=0,
@@ -64,12 +66,17 @@ class ChatPanel(tk.Frame, ThemedWidget):
                 scrollregion=self._messages_canvas.bbox("all")
             ),
         )
-        self._messages_canvas.create_window(
+        self._messages_window = self._messages_canvas.create_window(
             (0, 0), window=self._messages_inner, anchor="nw",
+        )
+        self._messages_canvas.bind(
+            "<Configure>",
+            lambda event: self._messages_canvas.itemconfigure(
+                self._messages_window, width=max(1, event.width)
+            ),
         )
         self._messages_canvas.configure(yscrollcommand=self._messages_scrollbar.set)
         self._messages_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self._messages_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self._show_welcome(theme)
 
         # Bind mousewheel for scrolling
@@ -81,19 +88,40 @@ class ChatPanel(tk.Frame, ThemedWidget):
         input_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD,
                          pady=(DesignTokens.SPACE_SM, DesignTokens.PANEL_PAD))
 
+        input_row = tk.Frame(input_frame, bg=theme.border_muted)
+        input_row.pack(fill=tk.X)
+
         self._entry = tk.Entry(
-            input_frame, bg=theme.bg_secondary, fg=theme.text_primary,
+            input_row, bg=theme.bg_secondary, fg=theme.text_primary,
             insertbackground=theme.text_primary, bd=0, font=FONTS.body(),
             highlightthickness=1, highlightbackground=theme.border_muted,
             highlightcolor=theme.accent_primary,
         )
-        self._entry.pack(fill=tk.X, ipady=8, ipadx=8)
-        self._entry.insert(0, _("Ask about your bookmarks..."))
+        self._entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=8, ipadx=8)
+        self._entry.insert(0, _("Type your question..."))
         self._entry.config(fg=theme.text_muted)
 
         self._entry.bind("<FocusIn>", self._on_focus_in)
         self._entry.bind("<FocusOut>", self._on_focus_out)
         self._entry.bind("<Return>", self._on_submit)
+
+        ModernButton(
+            input_row, text=_("Ask"), command=self._on_submit,
+            padx=9, pady=7, tooltip=_("Ask the local assistant"),
+        ).pack(side=tk.RIGHT)
+
+        suggestions = tk.Frame(input_frame, bg=theme.bg_dark)
+        suggestions.pack(fill=tk.X, pady=(8, 0))
+        for text, question in (
+            (_("Find duplicates"), _("Which bookmarks look like duplicates?")),
+            (_("Untagged items"), _("Which bookmarks still need tags?")),
+            (_("Rediscover"), _("What useful bookmark should I revisit?")),
+        ):
+            ModernButton(
+                suggestions, text=text,
+                command=lambda prompt=question: self._submit_prompt(prompt),
+                font=FONTS.tiny(), padx=6, pady=5,
+            ).pack(side=tk.LEFT, padx=(0, 5))
 
         self._status_label = tk.Label(
             input_frame, text="", bg=theme.bg_dark,
@@ -153,11 +181,20 @@ class ChatPanel(tk.Frame, ThemedWidget):
         theme = get_theme()
         self._entry.configure(highlightbackground=theme.border_muted)
         if not self._entry.get().strip():
-            self._entry.insert(0, _("Ask about your bookmarks..."))
+            self._entry.insert(0, _("Type your question..."))
             self._entry.config(fg=theme.text_muted)
             self._placeholder_active = True
 
-    def _on_submit(self, event):
+    def _submit_prompt(self, question: str):
+        if str(self._entry.cget("state")) == str(tk.DISABLED):
+            return
+        self._entry.delete(0, tk.END)
+        self._entry.insert(0, question)
+        self._entry.config(fg=get_theme().text_primary)
+        self._placeholder_active = False
+        self._on_submit()
+
+    def _on_submit(self, event=None):
         question = self._entry.get().strip()
         if not question or self._placeholder_active:
             return "break"
@@ -173,6 +210,9 @@ class ChatPanel(tk.Frame, ThemedWidget):
         theme = get_theme()
         is_user = role == "user"
         self._hide_welcome()
+        self._messages_frame.configure(height=184)
+        if not self._messages_scrollbar.winfo_ismapped():
+            self._messages_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         bubble = tk.Frame(
             self._messages_inner,
@@ -230,4 +270,6 @@ class ChatPanel(tk.Frame, ThemedWidget):
         for widget in self._messages_inner.winfo_children():
             widget.destroy()
         self._status_label.config(text="")
+        self._messages_frame.configure(height=108)
+        self._messages_scrollbar.pack_forget()
         self._show_welcome()

@@ -93,16 +93,16 @@ class DesignTokens:
     RADIUS_MD = 6
     RADIUS_LG = 8
 
-    BUTTON_HEIGHT = 34
+    BUTTON_HEIGHT = 40
     BUTTON_PAD_X = 14
     BUTTON_PAD_Y = 7
     INPUT_HEIGHT = 36
     ROW_HEIGHT = 32
     TREEVIEW_ROW_HEIGHT = 36
-    HEADER_HEIGHT = 72
+    HEADER_HEIGHT = 70
     SUMMARY_STRIP_HEIGHT = 112
     STATUS_BAR_HEIGHT = 34
-    TOUCH_TARGET_MIN = 36
+    TOUCH_TARGET_MIN = 44
     FOCUS_RING_WIDTH = 2
 
     ICON_SM = 16
@@ -122,6 +122,10 @@ class DesignTokens:
     ANIMATION_FAST = 100
     ANIMATION_NORMAL = 200
     ANIMATION_SLOW = 300
+
+    # Desktop controls stay compact, while primary actions meet the larger
+    # target used by the first-run and import flows.
+    PRIMARY_TARGET_MIN = 44
 
 
 def pluralize(count: int, singular: str, plural: Optional[str] = None) -> str:

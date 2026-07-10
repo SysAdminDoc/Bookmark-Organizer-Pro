@@ -36,6 +36,7 @@ from bookmark_organizer_pro.ui import (
     ThemeColors,
     ThemeInfo,
     ThemeManager,
+    build_collection_pulse,
     build_collection_summary,
     build_filter_counts,
     format_compact_count,
@@ -2208,6 +2209,32 @@ class TestUIFoundation(unittest.TestCase):
         self.assertEqual(summary.metrics["visible"], 0)
         self.assertEqual(summary.metrics["pinned"], 0)
         self.assertEqual(summary.metrics["broken"], 0)
+
+    def test_collection_pulse_prioritizes_recoverable_work(self):
+        bookmarks = [
+            Bookmark(id=1, url="https://a.com", title="A", category="Research", tags=["x"]),
+            Bookmark(id=2, url="https://b.com", title="B", is_valid=False),
+            Bookmark(id=3, url="https://c.com", title="C", category="", tags=[]),
+        ]
+        pulse = build_collection_pulse(
+            stats={
+                "total_bookmarks": 3,
+                "with_tags": 1,
+                "broken": 1,
+                "category_counts": {"Research": 1},
+            },
+            all_bookmarks=bookmarks,
+            health_score=62,
+        )
+        self.assertEqual((pulse.healthy, pulse.needs_review, pulse.issues), (1, 1, 1))
+        self.assertEqual(pulse.action_key, "broken")
+        self.assertEqual(pulse.metrics["collections"], 1)
+
+    def test_collection_pulse_empty_state_is_import_first(self):
+        pulse = build_collection_pulse(stats={}, all_bookmarks=[], health_score=100)
+        self.assertEqual(pulse.health_score, 0)
+        self.assertEqual(pulse.health_label, "Ready")
+        self.assertEqual(pulse.action_key, "import")
 
 
 class TestUITheme(unittest.TestCase):

@@ -70,8 +70,10 @@ from .system_theme import SystemThemeDetector
 from .tk_interactions import make_keyboard_activatable
 from .treeview import BookmarkListWidget, SortableTreeview, TKSHEET_AVAILABLE, VirtualBookmarkSheet
 from .view_models import (
+    CollectionPulseViewModel,
     CollectionSummaryViewModel,
     FilterCountsViewModel,
+    build_collection_pulse,
     build_collection_summary,
     build_filter_counts,
 )
@@ -165,7 +167,9 @@ __all__ = [
     "TKSHEET_AVAILABLE",
     "VirtualBookmarkSheet",
     "CollectionSummaryViewModel",
+    "CollectionPulseViewModel",
     "FilterCountsViewModel",
+    "build_collection_pulse",
     "build_collection_summary",
     "build_filter_counts",
     "ThemeColors",

@@ -10,7 +10,7 @@ from bookmark_organizer_pro.constants import APP_VERSION
 from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, format_compact_count, pluralize, truncate_middle
 from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable
-from bookmark_organizer_pro.ui.view_models import build_collection_summary
+from bookmark_organizer_pro.ui.view_models import build_collection_pulse, build_collection_summary
 from bookmark_organizer_pro.ui.components import EnhancedProgressBar, FaviconStatusDisplay
 from bookmark_organizer_pro.ui.widgets import ModernButton, Tooltip, get_theme
 
@@ -182,31 +182,179 @@ class DashboardActionsMixin:
             self.selection_bar.pack_forget()
 
     def _create_analytics_panel(self):
-        """Create analytics panel in right sidebar"""
+        """Create the compact collection pulse shown in the right rail."""
         theme = get_theme()
-        
-        # Header
-        header = tk.Frame(self.right_scroll.inner, bg=theme.bg_secondary)
+
+        header = tk.Frame(self.right_scroll.inner, bg=theme.bg_dark)
         header.pack(fill=tk.X)
-        
         tk.Label(
-            header, text=_("Signals"), bg=theme.bg_secondary,
-            fg=theme.text_primary, font=FONTS.body(bold=True),
-            padx=15, pady=12
+            header, text=_("Collection pulse"), bg=theme.bg_dark,
+            fg=theme.text_primary, font=FONTS.subtitle(bold=True),
+            padx=DesignTokens.PANEL_PAD, pady=14,
         ).pack(side=tk.LEFT)
-        
         refresh_btn = tk.Label(
-            header, text="↻", bg=theme.bg_secondary,
+            header, text="↻", bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.subtitle(),
-            cursor="hand2", padx=15
+            cursor="hand2", padx=DesignTokens.PANEL_PAD,
         )
         refresh_btn.pack(side=tk.RIGHT)
         make_keyboard_activatable(refresh_btn, self._refresh_analytics)
-        Tooltip(refresh_btn, "Refresh Signals")
-        
-        # Stats container
+        Tooltip(refresh_btn, _("Refresh collection pulse"))
+
+        self.collection_pulse_frame = tk.Frame(self.right_scroll.inner, bg=theme.bg_dark)
+        self.collection_pulse_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD)
+
+        # Kept as an unmounted compatibility surface for the legacy detailed
+        # renderer; full analytics remain available from Tools > Analytics.
         self.analytics_frame = tk.Frame(self.right_scroll.inner, bg=theme.bg_secondary)
-        self.analytics_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+
+    def _refresh_collection_pulse(self, stats, all_bookmarks):
+        """Render health, trustworthy zero-state metrics, and one next action."""
+        theme = get_theme()
+        frame = self.collection_pulse_frame
+        for widget in frame.winfo_children():
+            widget.destroy()
+
+        pulse = build_collection_pulse(
+            stats=stats,
+            all_bookmarks=all_bookmarks,
+            health_score=self._calculate_health_score(stats),
+        )
+        health_color = (
+            theme.text_muted if pulse.metrics["total"] == 0
+            else theme.accent_success if pulse.health_score >= 70
+            else theme.accent_warning if pulse.health_score >= 40
+            else theme.accent_error
+        )
+
+        card = tk.Frame(
+            frame, bg=theme.bg_card,
+            highlightbackground=theme.card_border, highlightthickness=1,
+        )
+        card.pack(fill=tk.X)
+        summary = tk.Frame(card, bg=theme.bg_card)
+        summary.pack(fill=tk.X, padx=12, pady=12)
+
+        ring = tk.Canvas(
+            summary, width=114, height=114, bg=theme.bg_card,
+            highlightthickness=0, bd=0,
+        )
+        ring.pack(side=tk.LEFT, padx=(0, 10))
+        ring.create_oval(13, 13, 101, 101, outline=theme.bg_tertiary, width=11)
+        if pulse.health_score:
+            ring.create_arc(
+                13, 13, 101, 101, start=90,
+                extent=-(pulse.health_score / 100) * 359.9,
+                style=tk.ARC, outline=health_color, width=11,
+            )
+        ring.create_text(
+            57, 49, text=f"{pulse.health_score}%",
+            fill=health_color, font=FONTS.title(bold=True),
+        )
+        ring.create_text(
+            57, 70, text=_(pulse.health_label),
+            fill=theme.text_secondary, font=FONTS.tiny(),
+        )
+
+        legend = tk.Frame(summary, bg=theme.bg_card)
+        legend.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, pady=8)
+        for label, value, color in (
+            (_("Healthy"), pulse.healthy, theme.accent_success),
+            (_("Needs review"), pulse.needs_review, theme.accent_warning),
+            (_("Issues"), pulse.issues, theme.accent_error),
+        ):
+            row = tk.Frame(legend, bg=theme.bg_card)
+            row.pack(fill=tk.X, pady=4)
+            tk.Label(
+                row, text="■", bg=theme.bg_card, fg=color,
+                font=FONTS.tiny(),
+            ).pack(side=tk.LEFT, padx=(0, 6))
+            tk.Label(
+                row, text=label, bg=theme.bg_card, fg=theme.text_secondary,
+                font=FONTS.small(), anchor="w",
+            ).pack(side=tk.LEFT, fill=tk.X, expand=True)
+            tk.Label(
+                row, text=format_compact_count(value), bg=theme.bg_card,
+                fg=theme.text_primary, font=FONTS.small(bold=True),
+            ).pack(side=tk.RIGHT)
+
+        metrics = tk.Frame(card, bg=theme.card_border)
+        metrics.pack(fill=tk.X, pady=(0, 0))
+        metric_specs = (
+            ("total", _("Total bookmarks")),
+            ("tagged", _("Tagged")),
+            ("collections", _("Collections")),
+            ("broken", _("Broken links")),
+        )
+        for index, (key, label) in enumerate(metric_specs):
+            metrics.grid_columnconfigure(index % 2, weight=1, uniform="pulse-metrics")
+            cell = tk.Frame(
+                metrics, bg=theme.bg_card,
+                highlightbackground=theme.card_border, highlightthickness=1,
+            )
+            cell.grid(row=index // 2, column=index % 2, sticky="nsew")
+            tk.Label(
+                cell, text=label, bg=theme.bg_card, fg=theme.text_muted,
+                font=FONTS.tiny(), anchor="w",
+            ).pack(fill=tk.X, padx=12, pady=(10, 2))
+            tk.Label(
+                cell, text=format_compact_count(pulse.metrics[key]),
+                bg=theme.bg_card, fg=theme.text_primary,
+                font=FONTS.subtitle(bold=True), anchor="w",
+            ).pack(fill=tk.X, padx=12, pady=(0, 10))
+
+        tk.Label(
+            frame, text=_("Next best action"), bg=theme.bg_dark,
+            fg=theme.text_primary, font=FONTS.subtitle(bold=True),
+        ).pack(anchor="w", pady=(18, 9))
+
+        action_card = tk.Frame(
+            frame, bg=theme.bg_card, cursor="hand2",
+            highlightbackground=theme.card_border, highlightthickness=1,
+        )
+        action_card.pack(fill=tk.X)
+        tk.Label(
+            action_card, text="◎", bg=theme.bg_tertiary,
+            fg=theme.accent_primary, font=FONTS.title(bold=True),
+            width=3, pady=7,
+        ).pack(side=tk.LEFT, padx=12, pady=12)
+        action_copy = tk.Frame(action_card, bg=theme.bg_card)
+        action_copy.pack(side=tk.LEFT, fill=tk.X, expand=True, pady=12)
+        tk.Label(
+            action_copy, text=_(pulse.action_title), bg=theme.bg_card,
+            fg=theme.text_primary, font=FONTS.small(bold=True), anchor="w",
+        ).pack(fill=tk.X)
+        tk.Label(
+            action_copy, text=_(pulse.action_detail), bg=theme.bg_card,
+            fg=theme.text_secondary, font=FONTS.tiny(),
+            wraplength=210, justify=tk.LEFT, anchor="w",
+        ).pack(fill=tk.X, pady=(3, 0))
+        tk.Label(
+            action_card, text="›", bg=theme.bg_card,
+            fg=theme.text_secondary, font=FONTS.title(),
+        ).pack(side=tk.RIGHT, padx=12)
+        callback = lambda: self._run_pulse_action(pulse.action_key)
+        make_keyboard_activatable(action_card, callback)
+        for child in action_card.winfo_children():
+            child.bind("<Button-1>", lambda _event, run=callback: run())
+
+        if pulse.metrics["total"]:
+            ModernButton(
+                frame, text=_("View detailed analytics"),
+                command=self._show_analytics, padx=10, pady=6,
+                tooltip=_("Open category, age, domain, and issue analytics"),
+            ).pack(fill=tk.X, pady=(8, 0))
+
+    def _run_pulse_action(self, action_key: str):
+        actions = {
+            "import": self._show_import_dialog,
+            "broken": lambda: self._apply_filter("Broken"),
+            "duplicates": self._find_duplicates,
+            "untagged": lambda: self._apply_filter("Untagged"),
+            "search": self._focus_search,
+        }
+        action = actions.get(action_key, self._focus_search)
+        action()
     
     def _refresh_analytics(self):
         """Refresh analytics display with clear health and empty states."""
@@ -214,6 +362,7 @@ class DashboardActionsMixin:
 
         stats = self.bookmark_manager.get_statistics()
         all_bookmarks = self.bookmark_manager.get_all_bookmarks()
+        self._refresh_collection_pulse(stats, all_bookmarks)
         try:
             from bookmark_organizer_pro.services.snapshot import SnapshotFailureStore
             snapshot_failures = SnapshotFailureStore().list_failures()
@@ -586,8 +735,8 @@ class DashboardActionsMixin:
         left_frame.pack(side=tk.LEFT, fill=tk.Y)
         
         self.status_label = tk.Label(
-            left_frame, text=_("Ready"), bg=theme.bg_dark,
-            fg=theme.text_muted, font=FONTS.small()
+            left_frame, text=_("✓ Library ready"), bg=theme.bg_dark,
+            fg=theme.text_secondary, font=FONTS.small()
         )
         self.status_label.pack(side=tk.LEFT, padx=DesignTokens.SPACE_MD, pady=DesignTokens.SPACE_SM)
         

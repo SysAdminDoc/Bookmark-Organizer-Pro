@@ -2,6 +2,15 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- Rebuilt the desktop first-run workspace with a guided library hero, import and single-link actions, practical Capture/Organize/Rediscover cards, and an intentional recent-activity empty state.
+- Replaced the empty right-rail signal feed with a compact collection pulse, mutually exclusive health signals, trustworthy zero-state metrics, and a state-aware next best action.
+- Refined the assistant rail with a visible send action, reusable prompt starters, keyboard-accessible clearing, and a compact conversation state.
+- Added local-first trust copy to the application brand, an accessible Collections action, larger primary targets, and responsive search sizing.
+
 ## [v6.9.0] - 2026-06-30
 
 Deep engineering and product-quality audit pass.

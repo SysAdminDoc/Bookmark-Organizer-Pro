@@ -236,7 +236,8 @@ class ModernButton(tk.Frame, ThemedWidget):
             font=font, cursor="hand2" if state == 'normal' else "arrow",
             anchor="center"
         )
-        self.label.pack(padx=padx, pady=pady)
+        effective_pady = max(pady, 9) if style == "primary" else pady
+        self.label.pack(padx=padx, pady=effective_pady)
         
         if width:
             self.configure(width=width)

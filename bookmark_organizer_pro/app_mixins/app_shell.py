@@ -146,8 +146,9 @@ class AppShellMixin:
         header.pack_propagate(False)
         
         # Brand block
-        brand = tk.Frame(header, bg=theme.bg_dark)
-        brand.pack(side=tk.LEFT, padx=(18, 22), pady=14)
+        brand = tk.Frame(header, bg=theme.bg_dark, width=286)
+        brand.pack(side=tk.LEFT, padx=(18, 12), pady=9, fill=tk.Y)
+        brand.pack_propagate(False)
         brand_row = tk.Frame(brand, bg=theme.bg_dark)
         brand_row.pack(anchor="w")
         tk.Label(
@@ -159,6 +160,11 @@ class AppShellMixin:
             brand_row, text=APP_NAME, bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.header(bold=True)
         ).pack(side=tk.LEFT)
+        tk.Label(
+            brand, text=_("Your library stays on this device"),
+            bg=theme.bg_dark, fg=theme.text_secondary,
+            font=FONTS.tiny(), anchor="w",
+        ).pack(anchor="w", padx=(43, 0), pady=(1, 0))
         
         # Search bar
         search_frame = tk.Frame(
@@ -166,7 +172,7 @@ class AppShellMixin:
             highlightbackground=theme.border_muted,
             highlightthickness=DesignTokens.FOCUS_RING_WIDTH
         )
-        search_frame.pack(side=tk.LEFT, padx=(0, 12), pady=14)
+        search_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 12), pady=13)
         self.search_frame = search_frame
 
         self._search_icon_label = tk.Label(
@@ -182,7 +188,7 @@ class AppShellMixin:
             search_frame, textvariable=self.search_var,
             bg=theme.bg_secondary, fg=theme.text_primary,
             insertbackground=theme.text_primary, bd=0,
-            font=FONTS.body(), width=20
+            font=FONTS.body(), width=26
         )
         self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=7, padx=5)
         Tooltip(self.search_entry,
@@ -275,7 +281,7 @@ class AppShellMixin:
         
         # Tools button
         self.tools_btn = ModernButton(
-            toolbar, text=_("Tools"),
+            toolbar, text=_("Tools"), icon="\u2692",
             command=self._show_tools_menu,
             tooltip=_("Tools: Check links, Find duplicates,\nClean URLs, Manage categories, Backup"),
             padx=7, pady=8,
@@ -423,6 +429,14 @@ class AppShellMixin:
             cat_header, text=_("COLLECTIONS"), bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.tiny(bold=True)
         ).pack(side=tk.LEFT)
+        add_collection = tk.Label(
+            cat_header, text="+", bg=theme.bg_dark,
+            fg=theme.text_secondary, font=FONTS.subtitle(),
+            cursor="hand2", padx=5,
+        )
+        add_collection.pack(side=tk.RIGHT)
+        make_keyboard_activatable(add_collection, self._add_new_category_dialog)
+        Tooltip(add_collection, _("Create a collection"))
         
         # Categories list
         self.categories_frame = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
@@ -482,38 +496,22 @@ class AppShellMixin:
         )
         self._flows_empty.pack(fill=tk.X, pady=2)
 
-        local_state = tk.Frame(
-            self.left_scroll.inner, bg=theme.bg_secondary,
-            highlightbackground=theme.border_muted, highlightthickness=1,
-        )
-        local_state.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(0, 18))
-        tk.Label(
-            local_state, text=_("LOCAL WORKSPACE"), bg=theme.bg_secondary,
-            fg=theme.text_muted, font=FONTS.tiny(bold=True),
-            anchor="w", padx=10, pady=7,
-        ).pack(fill=tk.X)
-        tk.Label(
-            local_state, text=_("Your library stays on this device"),
-            bg=theme.bg_secondary, fg=theme.text_secondary,
-            font=FONTS.tiny(), anchor="w", padx=10,
-        ).pack(fill=tk.X, pady=(0, 9))
-
         # ----- MAIN CONTENT -----
         self.content_area = tk.Frame(content, bg=theme.bg_primary)
         self.content_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Content header
-        content_header = tk.Frame(self.content_area, bg=theme.bg_primary)
-        content_header.pack(fill=tk.X, padx=DesignTokens.CONTENT_PAD_X, pady=(16, 8))
+        self.content_header = tk.Frame(self.content_area, bg=theme.bg_primary)
+        self.content_header.pack(fill=tk.X, padx=DesignTokens.CONTENT_PAD_X, pady=(16, 8))
 
         self.count_label = tk.Label(
-            content_header, text=_("Your library"), bg=theme.bg_primary,
+            self.content_header, text=_("Your library"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.header(bold=True)
         )
         self.count_label.pack(side=tk.LEFT)
 
         self.view_hint_label = tk.Label(
-            content_header, text=_("List view"),
+            self.content_header, text=_("List view"),
             bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.small()
         )
         self.view_hint_label.pack(side=tk.RIGHT)
@@ -578,7 +576,9 @@ class AppShellMixin:
         self.empty_state = EmptyState(
             self.content_area,
             on_import=self._show_import_dialog,
-            on_add=self._add_bookmark
+            on_add=self._add_bookmark,
+            on_organize=self._show_tools_menu,
+            on_search=self._focus_search,
         )
         self.filtered_empty_state = FilteredEmptyState(
             self.content_area,
@@ -611,6 +611,27 @@ class AppShellMixin:
             on_bookmark_click=self._on_chat_bookmark_click,
         )
         self.chat_panel.pack(fill=tk.X, pady=(DesignTokens.SPACE_SM, DesignTokens.SPACE_MD))
+
+    def _set_content_header_visible(self, visible: bool):
+        """Keep list chrome out of the first-run workspace."""
+        header = getattr(self, "content_header", None)
+        if not header:
+            return
+        if visible:
+            if header.winfo_ismapped():
+                return
+            options = {
+                "fill": tk.X,
+                "padx": DesignTokens.CONTENT_PAD_X,
+                "pady": (16, 8),
+            }
+            summary = getattr(self, "collection_summary_frame", None)
+            try:
+                header.pack(**options, before=summary) if summary else header.pack(**options)
+            except tk.TclError:
+                header.pack(**options)
+        else:
+            header.pack_forget()
 
     # --- Chat panel handlers (R-60) -----------------------------------------
 

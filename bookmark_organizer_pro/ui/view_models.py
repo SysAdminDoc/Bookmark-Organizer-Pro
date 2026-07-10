@@ -43,6 +43,21 @@ class CollectionSummaryViewModel:
     metrics: Mapping[str, int]
 
 
+@dataclass(frozen=True)
+class CollectionPulseViewModel:
+    """Compact health and next-action state for the contextual rail."""
+
+    health_score: int
+    health_label: str
+    healthy: int
+    needs_review: int
+    issues: int
+    metrics: Mapping[str, int]
+    action_key: str
+    action_title: str
+    action_detail: str
+
+
 def _is_recent(bookmark, cutoff: datetime) -> bool:
     created_at = getattr(bookmark, "created_at", "") or ""
     if not created_at:
@@ -135,6 +150,95 @@ def build_collection_summary(
         )
 
     return CollectionSummaryViewModel(title=title, detail=detail, metrics=metrics)
+
+
+def build_collection_pulse(
+    *, stats: Mapping, all_bookmarks: Sequence, health_score: int
+) -> CollectionPulseViewModel:
+    """Build a mutually exclusive health split and one useful next action."""
+    if not isinstance(stats, Mapping):
+        stats = {}
+    all_bookmarks = list(all_bookmarks or [])
+    total = _safe_int(stats.get("total_bookmarks", len(all_bookmarks)))
+    broken_ids = {
+        getattr(bookmark, "id", index)
+        for index, bookmark in enumerate(all_bookmarks)
+        if not bool(getattr(bookmark, "is_valid", True))
+    }
+    review_ids = {
+        getattr(bookmark, "id", index)
+        for index, bookmark in enumerate(all_bookmarks)
+        if (
+            bool(getattr(bookmark, "is_valid", True))
+            and (
+                not str(getattr(bookmark, "category", "") or "").strip()
+                or _is_untagged(bookmark)
+            )
+        )
+    }
+    issues = len(broken_ids)
+    needs_review = len(review_ids)
+    healthy = max(0, total - issues - needs_review)
+
+    category_counts = stats.get("category_counts", {})
+    if not isinstance(category_counts, Mapping):
+        category_counts = {}
+    metrics = {
+        "total": total,
+        "tagged": _safe_int(stats.get("with_tags", 0)),
+        "collections": sum(1 for value in category_counts.values() if _safe_int(value) > 0),
+        "broken": _safe_int(stats.get("broken", issues)),
+    }
+
+    score = max(0, min(100, _safe_int(health_score))) if total else 0
+    if total == 0:
+        health_label = "Ready"
+        action = (
+            "import",
+            "Import your bookmarks",
+            "Bring in your bookmarks to unlock collection insights and recommendations.",
+        )
+    elif metrics["broken"]:
+        health_label = "Needs review"
+        action = (
+            "broken",
+            "Review broken links",
+            f"Check {pluralize(metrics['broken'], 'link')} that could not be reached.",
+        )
+    elif _safe_int(stats.get("duplicate_bookmarks", 0)):
+        duplicates = _safe_int(stats.get("duplicate_bookmarks", 0))
+        health_label = "Needs review"
+        action = (
+            "duplicates",
+            "Resolve duplicate bookmarks",
+            f"Review {pluralize(duplicates, 'duplicate')} and keep the best copy.",
+        )
+    elif needs_review:
+        health_label = "Good"
+        action = (
+            "untagged",
+            "Organize unfinished items",
+            f"Add context to {pluralize(needs_review, 'bookmark')} that need tags or a collection.",
+        )
+    else:
+        health_label = "Healthy" if score >= 70 else "Good"
+        action = (
+            "search",
+            "Rediscover your library",
+            "Search by topic, domain, or tag to return to something useful.",
+        )
+
+    return CollectionPulseViewModel(
+        health_score=score,
+        health_label=health_label,
+        healthy=healthy,
+        needs_review=needs_review,
+        issues=issues,
+        metrics=metrics,
+        action_key=action[0],
+        action_title=action[1],
+        action_detail=action[2],
+    )
 
 
 def _safe_int(value: object) -> int:

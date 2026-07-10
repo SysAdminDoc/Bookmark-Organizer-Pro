@@ -86,6 +86,7 @@ class BookmarkViewMixin:
         self._refresh_filter_counts()
         total_bookmarks = len(self.bookmark_manager.get_all_bookmarks())
         self._set_collection_summary_visible(total_bookmarks > 0)
+        self._set_content_header_visible(total_bookmarks > 0)
         if total_bookmarks > 0:
             self._refresh_collection_summary(
                 visible_count=len(bookmarks),

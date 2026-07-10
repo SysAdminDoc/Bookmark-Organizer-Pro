@@ -119,7 +119,7 @@ Native messaging and offline category/tag suggestions remain on the roadmap.
 - **Multi-format Import**: HTML (Chrome, Firefox, Edge, Safari), Firefox bookmark backup JSON/JSONLZ4, JSON, CSV, OPML, TXT
 - **Nested Categories**: Hierarchical category organization with drag-and-drop
 - **Advanced Tagging**: User tags + AI-suggested tags with color coding
-- **Premium List Workspace**: Dense, searchable bookmark table with Studio Dark, refined states, command palette, polished empty states, and cohesive secondary dialogs
+- **Premium Library Workspace**: Guided first-run capture, organization, and rediscovery actions; compact collection health signals; dense searchable bookmark table; and cohesive empty, focus, selection, and assistant states
 - **Full-text Search**: Advanced syntax with filters, boolean operators, and highlighting
 - **Undo/Redo**: Full command history for all operations
 
