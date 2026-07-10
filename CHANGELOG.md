@@ -2,7 +2,9 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
-## [Unreleased]
+## [v6.10.0] - 2026-07-09
+
+Premium workspace redesign and interaction-quality release.
 
 ### Changed
 
