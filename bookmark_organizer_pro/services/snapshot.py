@@ -12,9 +12,11 @@ the Bookmark.
 from __future__ import annotations
 
 import base64
+import html as html_lib
 import importlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -23,11 +25,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Optional, Tuple
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 from bookmark_organizer_pro.constants import DATA_DIR, SNAPSHOTS_DIR
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.job_ledger import JobLedger
 from bookmark_organizer_pro.url_utils import URLUtilities
 
 SNAPSHOT_FAILURES_FILE = DATA_DIR / "snapshot_failures.json"
@@ -245,22 +248,28 @@ class SnapshotArchiver:
     """Capture a self-contained HTML snapshot of a page."""
 
     MAX_BYTES = 25_000_000  # 25MB hard ceiling per snapshot
+    MAX_BROWSER_CAPTURE_BYTES = 5_000_000
 
     def __init__(
         self,
         snapshots_dir: Path = SNAPSHOTS_DIR,
         failure_store: SnapshotFailureStore | None = None,
         egress_policy: SnapshotEgressPolicy | None = None,
+        job_ledger: JobLedger | None = None,
     ):
         self.snapshots_dir = Path(snapshots_dir)
         self.snapshots_dir.mkdir(parents=True, exist_ok=True)
         self.failure_store = failure_store or SnapshotFailureStore()
         self.egress_policy = egress_policy or SnapshotEgressPolicy.from_environment()
+        self.job_ledger = job_ledger or JobLedger()
 
     # --- public API ---------------------------------------------------------
 
     def snapshot(self, bookmark: Bookmark) -> Tuple[bool, str]:
         """Capture and persist a snapshot. Returns (success, path_or_error)."""
+        job = self.job_ledger.start(
+            "snapshot", bookmark_id=bookmark.id, url_or_domain=bookmark.url,
+        )
         allowed, reason = self.egress_policy.check_url(bookmark.url)
         if not allowed:
             self.failure_store.record_failure(
@@ -269,6 +278,7 @@ class SnapshotArchiver:
                 (),
                 retry_eligible=False,
             )
+            job.fail(reason, retryable=False)
             return False, f"Private or unsupported URL: {reason}"
         out_path = self.snapshots_dir / f"{bookmark.id}.html"
         attempts: list[SnapshotBackendAttempt] = []
@@ -289,17 +299,167 @@ class SnapshotArchiver:
                 bookmark.snapshot_at = datetime.now().isoformat()
                 bookmark.modified_at = bookmark.snapshot_at
                 self.failure_store.clear_for_bookmark(bookmark)
+                job.succeed(bytes_processed=size, backend=backend_name)
                 return True, str(out_path)
         details = "; ".join(f"{attempt.backend}: {attempt.message}" for attempt in attempts)
         error = "All snapshot backends failed"
         if details:
             error = f"{error}: {details}"
         self.failure_store.record_failure(bookmark, error, attempts, retry_eligible=True)
+        job.fail(error, retryable=True, backend=attempts[-1].backend if attempts else "")
         return False, error
 
     def archive(self, bookmark: Bookmark) -> Tuple[bool, str]:
         """Compatibility alias for snapshot()."""
         return self.snapshot(bookmark)
+
+    def import_browser_snapshot(
+        self,
+        bookmark: Bookmark,
+        html: str,
+        *,
+        source_url: str,
+        selection: str = "",
+        resource_summary: dict | None = None,
+    ) -> dict:
+        """Sanitize and atomically persist DOM captured by the browser extension.
+
+        Browser cookies, storage, and request headers are deliberately not part of
+        this contract. The stored document is inert and cannot fetch remote assets.
+        """
+        encoded = str(html or "").encode("utf-8")
+        if not encoded:
+            raise ValueError("Snapshot HTML is empty")
+        if len(encoded) > self.MAX_BROWSER_CAPTURE_BYTES:
+            raise ValueError("Snapshot HTML exceeds the 5 MB limit")
+        source_parts = urlsplit(source_url)
+        bookmark_parts = urlsplit(bookmark.url)
+        if (
+            source_parts.scheme.lower(), source_parts.netloc.lower()
+        ) != (
+            bookmark_parts.scheme.lower(), bookmark_parts.netloc.lower()
+        ):
+            raise ValueError("Snapshot source origin does not match the bookmark URL")
+
+        bs4 = _try_import("bs4")
+        if bs4 is None:
+            raise RuntimeError("BeautifulSoup is required to sanitize browser snapshots")
+        soup = bs4.BeautifulSoup(html, "html.parser")
+        removed_elements = 0
+        removed_attributes = 0
+
+        for element in list(soup.find_all((
+            "script", "iframe", "frame", "frameset", "object", "embed", "applet",
+            "portal", "base", "meta", "link", "form", "input", "button", "select",
+            "textarea",
+        ))):
+            element.decompose()
+            removed_elements += 1
+
+        remote_attr_names = {
+            "src", "srcset", "poster", "background", "action", "formaction", "ping",
+        }
+        dangerous_attr_names = {"srcdoc", "nonce", "integrity", "crossorigin"}
+        for element in soup.find_all(True):
+            for name, value in list(element.attrs.items()):
+                lower_name = str(name).lower()
+                rendered = " ".join(value) if isinstance(value, list) else str(value or "")
+                lowered = rendered.strip().lower()
+                remove = (
+                    lower_name.startswith("on")
+                    or lower_name in dangerous_attr_names
+                    or (lower_name in remote_attr_names and not lowered.startswith("data:"))
+                    or (lower_name.endswith("href") and element.name != "a" and not lowered.startswith("data:"))
+                    or (lower_name == "href" and lowered.startswith(("javascript:", "data:", "file:", "blob:")))
+                )
+                if remove:
+                    del element.attrs[name]
+                    removed_attributes += 1
+            if element.name == "a" and element.get("href"):
+                element["rel"] = "noopener noreferrer"
+                element["referrerpolicy"] = "no-referrer"
+
+        css_remote = re.compile(
+            r"@import\s+[^;]+;?|url\(\s*(['\"]?)(?!data:).*?\1\s*\)",
+            re.IGNORECASE,
+        )
+        for style in soup.find_all("style"):
+            original = style.string or style.get_text()
+            cleaned = css_remote.sub("", original)
+            if cleaned != original:
+                removed_attributes += 1
+            style.string = cleaned
+        for element in soup.find_all(style=True):
+            original = str(element.get("style") or "")
+            cleaned = css_remote.sub("", original)
+            if cleaned != original:
+                removed_attributes += 1
+            element["style"] = cleaned
+
+        if soup.html is None:
+            wrapper = bs4.BeautifulSoup("<!doctype html><html><head></head><body></body></html>", "html.parser")
+            wrapper.body.append(soup)
+            soup = wrapper
+        if soup.head is None:
+            soup.html.insert(0, soup.new_tag("head"))
+        csp = soup.new_tag("meta")
+        csp["http-equiv"] = "Content-Security-Policy"
+        csp["content"] = (
+            "default-src 'none'; img-src data:; style-src 'unsafe-inline' data:; "
+            "font-src data:; media-src data:; form-action 'none'; frame-src 'none'"
+        )
+        soup.head.insert(0, csp)
+        if soup.body is None:
+            soup.html.append(soup.new_tag("body"))
+        disclosure = soup.new_tag("aside")
+        disclosure["role"] = "note"
+        disclosure["style"] = (
+            "padding:12px;margin:0;background:#111827;color:#f9fafb;"
+            "font:14px/1.4 system-ui,sans-serif"
+        )
+        selection_note = f" Selection: {html_lib.escape(selection[:500])}" if selection else ""
+        disclosure.append(bs4.BeautifulSoup(
+            "Browser capture from " + html_lib.escape(source_url) +
+            ". Active content and remote resources were removed; cookies were never transferred." +
+            selection_note,
+            "html.parser",
+        ))
+        soup.body.insert(0, disclosure)
+
+        rendered = str(soup).encode("utf-8")
+        if len(rendered) > self.MAX_BROWSER_CAPTURE_BYTES:
+            raise ValueError("Sanitized snapshot exceeds the 5 MB limit")
+        out_path = self.snapshots_dir / f"{bookmark.id}.html"
+        fd, tmp_name = tempfile.mkstemp(prefix=f".{bookmark.id}.", suffix=".tmp", dir=self.snapshots_dir)
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(rendered)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp_name, out_path)
+        except Exception:
+            Path(tmp_name).unlink(missing_ok=True)
+            raise
+
+        now = datetime.now().isoformat()
+        bookmark.snapshot_path = str(out_path)
+        bookmark.snapshot_size = len(rendered)
+        bookmark.snapshot_at = now
+        bookmark.modified_at = now
+        summary = resource_summary if isinstance(resource_summary, dict) else {}
+        try:
+            resource_count = min(10_000, max(0, int(summary.get("count", 0) or 0)))
+        except (TypeError, ValueError):
+            resource_count = 0
+        return {
+            "stored": True,
+            "path": str(out_path),
+            "size": len(rendered),
+            "removed_elements": removed_elements,
+            "removed_attributes": removed_attributes,
+            "resource_count": resource_count,
+            "disclosure": "Active content and remote resources removed; cookies were never transferred.",
+        }
 
     def delete_snapshot(self, bookmark: Bookmark) -> bool:
         path = self.snapshots_dir / f"{bookmark.id}.html"

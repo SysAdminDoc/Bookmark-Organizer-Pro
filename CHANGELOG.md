@@ -2,6 +2,30 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.11.0] - 2026-07-12
+
+Portable research workflows and local observability release.
+
+### Added
+
+- Added opt-in browser-origin snapshots for signed-in pages: the extension sends bounded sanitized DOM without cookies, and the authenticated API re-sanitizes, applies CSP/disclosure metadata, and stores atomically.
+- Added template-driven Markdown/CSV/JSON reader-annotation export with stable source fragments, review fields, safe data-only templates, and deterministic changed-since mode.
+- Added dry-run migration fidelity reports and reversible/idempotent apply for Linkwarden, Karakeep, Raindrop, and Readwise exports.
+- Added a bounded local capture/index job ledger with redacted errors, retry/clear/filter CLI controls, aggregate dashboard health, and no telemetry or page-content persistence.
+- Added a standard `pylock.toml`, executable dependency/product-count audit, and locked vulnerability audit; release extras now derive from `pyproject.toml`.
+- Added Argon2id v3/v4 encrypted-store envelopes with authenticated bounded parameters, verified backup rotation, legacy PBKDF2 reads, and recovery-key continuity.
+
+### Changed
+
+- Consolidated extension CSS and shared runtime/storage helpers while preserving the background-owned credential vault.
+- Standardized primary dialog headers on `DesignTokens.HEADER_HEIGHT`.
+- Applied explicit embedding model names to model2vec and sentence-transformers fallbacks.
+- Replaced the stdlib RSS fallback's incomplete declaration stripping with fail-closed DTD/entity rejection.
+
+### Security
+
+- Removed the optional `tufup` release extra because its latest version pins vulnerable `tuf 4.0.*` on Windows; updater code remains dormant until upstream supports the fixed TUF release.
+
 ## [v6.10.2] - 2026-07-12
 
 Concurrent-storage, portable recovery, and accessibility release.

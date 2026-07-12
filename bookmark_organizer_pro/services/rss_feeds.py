@@ -15,23 +15,26 @@ from __future__ import annotations
 import importlib
 import json
 import os
+import re
 import tempfile
 import threading
+import xml.etree.ElementTree as ET
+
+
+_FORBIDDEN_XML_DECLARATION = re.compile(r"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
+
+
+def _stdlib_safe_xml_fromstring(text):
+    """Fail closed on every DTD/entity declaration before stdlib XML parsing."""
+    if _FORBIDDEN_XML_DECLARATION.search(text):
+        raise ValueError("RSS XML DTD and entity declarations are not allowed")
+    return ET.fromstring(text)
+
+
 try:
     from defusedxml.ElementTree import fromstring as _xml_fromstring
 except ImportError:
-    import xml.etree.ElementTree as _stdlib_ET
-    import re as _re
-
-    _DTD_RE = _re.compile(r'<!DOCTYPE[^>]*>', _re.IGNORECASE | _re.DOTALL)
-    _ENTITY_RE = _re.compile(r'<!ENTITY[^>]*>', _re.IGNORECASE | _re.DOTALL)
-
-    def _xml_fromstring(text):
-        """Safe XML fromstring that strips DTD/entities when defusedxml is unavailable."""
-        text = _DTD_RE.sub('', text)
-        text = _ENTITY_RE.sub('', text)
-        return _stdlib_ET.fromstring(text)
-import xml.etree.ElementTree as ET
+    _xml_fromstring = _stdlib_safe_xml_fromstring
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -41,6 +44,7 @@ from urllib.parse import urljoin
 from bookmark_organizer_pro.constants import FEEDS_FILE
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.job_ledger import JobLedger
 from bookmark_organizer_pro.url_utils import URLUtilities
 
 
@@ -213,11 +217,13 @@ class FeedIngestor:
     def __init__(self, registry: FeedRegistry,
                  add_bookmark_callable: Callable[[Bookmark], Optional[Bookmark]],
                  ai_tagger: Optional[Callable[[Bookmark, str], List[str]]] = None,
-                 existing_tags_provider: Optional[Callable[[], List[str]]] = None):
+                 existing_tags_provider: Optional[Callable[[], List[str]]] = None,
+                 job_ledger: JobLedger | None = None):
         self.registry = registry
         self.add_bookmark = add_bookmark_callable
         self.ai_tagger = ai_tagger
         self.existing_tags_provider = existing_tags_provider
+        self.job_ledger = job_ledger or JobLedger()
 
     def fetch_all(self) -> Dict[str, int]:
         """Fetch every enabled feed; return {feed_id: new_count}."""
@@ -233,6 +239,19 @@ class FeedIngestor:
         return out
 
     def fetch_one(self, feed_id: str) -> int:
+        cfg = self.registry.get(feed_id)
+        job = self.job_ledger.start(
+            "rss", url_or_domain=cfg.url if cfg else "", backend="requests",
+        )
+        try:
+            added = self._fetch_one(feed_id)
+        except Exception as exc:
+            job.fail(exc, retryable=True)
+            raise
+        job.succeed()
+        return added
+
+    def _fetch_one(self, feed_id: str) -> int:
         cfg = self.registry.get(feed_id)
         if cfg is None:
             return 0

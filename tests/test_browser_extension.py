@@ -94,6 +94,24 @@ class TestBrowserExtensionManifest(unittest.TestCase):
         self.assertIn('indexedDB.open(DATABASE_NAME, 1)', vault_js)
         self.assertNotIn("console.", background_js + vault_js)
 
+    def test_extension_assets_share_runtime_and_sidepanel_styles(self):
+        background_js = (EXT_DIR / "background.js").read_text(encoding="utf-8")
+        options_html = (EXT_DIR / "options.html").read_text(encoding="utf-8")
+        options_js = (EXT_DIR / "options.js").read_text(encoding="utf-8")
+        sidepanel_html = (EXT_DIR / "sidepanel.html").read_text(encoding="utf-8")
+        popup_css = (EXT_DIR / "popup.css").read_text(encoding="utf-8")
+
+        self.assertIn('importScripts("shared.js")', background_js)
+        self.assertLess(options_html.index('src="shared.js"'), options_html.index('src="options.js"'))
+        self.assertNotIn("<style", sidepanel_html)
+        self.assertIn('class="sidepanel-body"', sidepanel_html)
+        self.assertIn(".sidepanel-body", popup_css)
+        for source in (background_js, options_js):
+            self.assertNotIn("const DEFAULTS =", source)
+            self.assertNotIn("function storageGet(", source)
+            self.assertNotIn("function storageSet(", source)
+        self.assertNotIn("async function enqueuePendingSave(", background_js)
+
     def test_settings_popup_and_sidepanel_round_trip_through_background_vault(self):
         background_js = (EXT_DIR / "background.js").read_text(encoding="utf-8")
         shared_js = (EXT_DIR / "shared.js").read_text(encoding="utf-8")
@@ -112,6 +130,7 @@ class TestBrowserExtensionManifest(unittest.TestCase):
     def test_background_vault_migration_and_trusted_message_round_trip(self):
         harness = r"""
 const fs = require("fs");
+const path = require("path");
 const vm = require("vm");
 
 const state = { apiPort: 8765, defaultCategory: "Research", apiToken: "legacy-secret" };
@@ -155,15 +174,23 @@ const context = vm.createContext({
   clearTimeout
 });
 context.globalThis = context;
-context.importScripts = () => {
-  context.CredentialVault = {
-    async getToken() { return vaultToken; },
-    async setToken(value) {
-      const token = typeof value === "string" ? value.trim() : "";
-      if (!token) throw new Error("A token is required");
-      vaultToken = token;
+context.importScripts = (...names) => {
+  for (const name of names) {
+    if (name === "shared.js") {
+      vm.runInContext(fs.readFileSync(path.join(path.dirname(process.argv[1]), name), "utf8"), context);
+      continue;
     }
-  };
+    if (name === "credential-vault.js") {
+      context.CredentialVault = {
+        async getToken() { return vaultToken; },
+        async setToken(value) {
+          const token = typeof value === "string" ? value.trim() : "";
+          if (!token) throw new Error("A token is required");
+          vaultToken = token;
+        }
+      };
+    }
+  }
 };
 
 vm.runInContext(fs.readFileSync(process.argv[1], "utf8"), context);
@@ -201,6 +228,47 @@ function send(message, url = "chrome-extension://test-extension/popup.html") {
         self.assertEqual(result["roundTrip"]["config"]["apiToken"], "replacement-secret")
         self.assertTrue(result["untrusted"]["rejected"])
 
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for the shared extension harness")
+    def test_shared_pending_queue_normalizes_and_deduplicates(self):
+        harness = r"""
+const fs = require("fs");
+const vm = require("vm");
+const state = {};
+const local = {
+  async get(keys) {
+    const result = {};
+    for (const [key, fallback] of Object.entries(keys || {})) {
+      result[key] = Object.prototype.hasOwnProperty.call(state, key) ? state[key] : fallback;
+    }
+    return result;
+  },
+  async set(values) { Object.assign(state, values); }
+};
+const chrome = { storage: { local }, runtime: { sendMessage: async () => ({}), getURL: path => path } };
+const context = vm.createContext({ chrome, console, fetch: async () => ({ status: 201 }), Date, Math });
+context.globalThis = context;
+vm.runInContext(fs.readFileSync(process.argv[1], "utf8"), context);
+vm.runInContext(`(async () => {
+  await enqueuePendingSave({ url: "https://example.com", title: "First", tags: "one" }, "offline");
+  await enqueuePendingSave({ url: "https://example.com", title: "Updated", tags: ["two"] }, "HTTP 503");
+  globalThis.result = await getPendingSaves();
+})()`, context).then(() => process.stdout.write(JSON.stringify(context.result)));
+"""
+        completed = subprocess.run(
+            ["node", "-e", harness, str(EXT_DIR / "shared.js")],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        pending = json.loads(completed.stdout)
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0]["payload"]["title"], "Updated")
+        self.assertEqual(pending[0]["payload"]["tags"], ["two"])
+        self.assertEqual(pending[0]["reason"], "HTTP 503")
+        self.assertEqual(pending[0]["source"], "context_menu")
+
     def test_manifest_declares_sidepanel(self):
         manifest = json.loads((EXT_DIR / "manifest.json").read_text(encoding="utf-8"))
 
@@ -233,6 +301,28 @@ function send(message, url = "chrome-extension://test-extension/popup.html") {
         self.assertIn('read_later: document.getElementById("readLater").checked', popup_js)
         self.assertIn('read_later: document.getElementById("addReadLater").checked', sidepanel_js)
         self.assertIn("read_later: !item.hasBeenRead", sidepanel_js)
+
+    def test_optional_browser_snapshot_contract_is_sanitized_and_cookie_free(self):
+        shared_js = (EXT_DIR / "shared.js").read_text(encoding="utf-8")
+        popup_html = (EXT_DIR / "popup.html").read_text(encoding="utf-8")
+        sidepanel_html = (EXT_DIR / "sidepanel.html").read_text(encoding="utf-8")
+        popup_js = (EXT_DIR / "popup.js").read_text(encoding="utf-8")
+        sidepanel_js = (EXT_DIR / "sidepanel.js").read_text(encoding="utf-8")
+
+        self.assertIn("async function captureSanitizedPage", shared_js)
+        self.assertIn('headers["X-BOP-Capture-Version"] = "1"', shared_js)
+        self.assertIn('source_url: location.href', shared_js)
+        self.assertIn('selection,', shared_js)
+        self.assertIn('document.title.slice(0, 500)', shared_js)
+        self.assertIn('element.removeAttribute(attribute.name)', shared_js)
+        self.assertNotIn("document.cookie", shared_js)
+        self.assertNotIn("localStorage", shared_js)
+        self.assertIn('id="captureSnapshot"', popup_html)
+        self.assertIn('id="addCaptureSnapshot"', sidepanel_html)
+        self.assertIn("payload.browser_snapshot = await captureSanitizedPage(activeTab.id)", popup_js)
+        self.assertIn("payload.browser_snapshot = await captureSanitizedPage(tabs[0].id)", sidepanel_js)
+        for html in (popup_html, sidepanel_html):
+            self.assertIn("cookies are never sent", html)
 
     def test_popup_save_payload_contract_maps_form_fields(self):
         popup_js = (EXT_DIR / "popup.js").read_text(encoding="utf-8")
@@ -358,10 +448,11 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
         except Exception:
             return ""
 
-    def _post_json(self, base_url: str, payload, token: str = ""):
+    def _post_json(self, base_url: str, payload, token: str = "", extra_headers=None):
         headers = {"Content-Type": "application/json"}
         if token:
             headers["Authorization"] = f"Bearer {token}"
+        headers.update(extra_headers or {})
         request = urllib.request.Request(
             f"{base_url}/bookmarks",
             data=json.dumps(payload).encode("utf-8"),
@@ -478,6 +569,112 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
                 status, body = self._post_json(base_url, {"url": "file:///tmp/not-saveable"}, token=token)
                 self.assertEqual(status, 400)
                 self.assertIn("http", body["error"])
+            finally:
+                api.stop()
+
+    def test_authenticated_browser_snapshot_is_sanitized_and_stored(self):
+        import main
+
+        malicious_html = """<!doctype html><html><head>
+        <script>document.cookie='stolen=1'</script>
+        <style>@import url(https://tracker.example/a.css); body{color:red}</style>
+        </head><body onload="steal()">
+        <iframe src="https://private.example/account"></iframe>
+        <img src="https://private.example/avatar" onerror="steal()">
+        <a href="javascript:steal()">bad</a><a href="https://example.com/next">next</a>
+        <form action="https://evil.example"><input value="secret"></form>
+        <p>Authenticated account content</p></body></html>"""
+        url = "https://example.com/account?session-page=1"
+        payload = {
+            "url": url,
+            "title": "Account",
+            "browser_snapshot": {
+                "html": malicious_html,
+                "source_url": url,
+                "title": "Account",
+                "selection": "private selection",
+                "resources": {"count": 4},
+            },
+        }
+        capture_headers = {
+            "Origin": f"chrome-extension://{'a' * 32}",
+            "X-BOP-Capture-Version": "1",
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            api = main.BookmarkAPI(manager, port=0)
+            try:
+                api.start()
+                token = self._api_token()
+                status, body = self._post_json(
+                    f"http://127.0.0.1:{api.port}", payload, token, capture_headers,
+                )
+                self.assertEqual(status, 201, body)
+                self.assertTrue(body["browser_snapshot"]["stored"])
+                self.assertEqual(body["browser_snapshot"]["resource_count"], 4)
+                snapshot_path = Path(body["snapshot_path"])
+                self.assertTrue(snapshot_path.is_file())
+                self.assertEqual(snapshot_path.parent, Path(tmp) / "snapshots")
+                stored = snapshot_path.read_text(encoding="utf-8")
+                self.assertIn("Authenticated account content", stored)
+                self.assertIn("cookies were never transferred", stored)
+                self.assertIn("Content-Security-Policy", stored)
+                self.assertNotIn("<script", stored.lower())
+                self.assertNotIn("<iframe", stored.lower())
+                self.assertNotIn("onload=", stored.lower())
+                self.assertNotIn("javascript:", stored.lower())
+                self.assertNotIn("https://private.example/avatar", stored)
+                self.assertNotIn("tracker.example", stored)
+                self.assertFalse(list(snapshot_path.parent.glob(".*.tmp")))
+            finally:
+                api.stop()
+
+    def test_browser_snapshot_rejects_untrusted_origin_and_source_mismatch(self):
+        import main
+
+        payload = {
+            "url": "https://example.com/account",
+            "browser_snapshot": {
+                "html": "<html><body>account</body></html>",
+                "source_url": "https://example.com/account",
+            },
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            api = main.BookmarkAPI(manager, port=0)
+            try:
+                api.start()
+                token = self._api_token()
+                base_url = f"http://127.0.0.1:{api.port}"
+                status, body = self._post_json(
+                    base_url, payload, token, {"X-BOP-Capture-Version": "1"},
+                )
+                self.assertEqual(status, 403)
+                self.assertIn("Origin", body["error"])
+
+                payload["browser_snapshot"]["source_url"] = "https://evil.example/account"
+                status, body = self._post_json(
+                    base_url,
+                    payload,
+                    token,
+                    {"Origin": f"chrome-extension://{'b' * 32}", "X-BOP-Capture-Version": "1"},
+                )
+                self.assertEqual(status, 400)
+                self.assertIn("source URL", body["error"])
+                self.assertEqual(manager.get_all_bookmarks(), [])
+
+                payload["browser_snapshot"]["source_url"] = payload["url"]
+                payload["browser_snapshot"]["html"] = "x" * 5_000_001
+                status, body = self._post_json(
+                    base_url,
+                    payload,
+                    token,
+                    {"Origin": f"chrome-extension://{'b' * 32}", "X-BOP-Capture-Version": "1"},
+                )
+                self.assertEqual(status, 422)
+                self.assertIn("5 MB", body["error"])
+                self.assertEqual(manager.get_all_bookmarks(), [])
             finally:
                 api.stop()
 

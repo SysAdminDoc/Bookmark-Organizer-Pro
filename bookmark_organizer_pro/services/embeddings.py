@@ -60,6 +60,7 @@ class EmbeddingService:
 
     def __init__(self, model_name: Optional[str] = None,
                  cache_dir: Path = EMBEDDINGS_DIR):
+        self._model_name_explicit = model_name is not None
         self.model_name = model_name or DEFAULT_MODEL
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -124,11 +125,12 @@ class EmbeddingService:
         StaticModel = getattr(m2v, "StaticModel", None)
         if StaticModel is None:
             return False
-        self._embedder = StaticModel.from_pretrained(MODEL2VEC_DEFAULT)
+        selected_model = self.model_name if self._model_name_explicit else MODEL2VEC_DEFAULT
+        self._embedder = StaticModel.from_pretrained(selected_model)
         sample = self._embedder.encode(["probe"])
         self._dim = int(sample.shape[1])
         self._backend = "model2vec"
-        log.info(f"Embeddings: model2vec ({MODEL2VEC_DEFAULT}, dim={self._dim})")
+        log.info(f"Embeddings: model2vec ({selected_model}, dim={self._dim})")
         return True
 
     def _load_sentence_transformers(self) -> bool:
@@ -138,10 +140,11 @@ class EmbeddingService:
         SentenceTransformer = getattr(st, "SentenceTransformer", None)
         if SentenceTransformer is None:
             return False
-        self._embedder = SentenceTransformer(ST_DEFAULT)
+        selected_model = self.model_name if self._model_name_explicit else ST_DEFAULT
+        self._embedder = SentenceTransformer(selected_model)
         self._dim = int(self._embedder.get_sentence_embedding_dimension())
         self._backend = "sentence_transformers"
-        log.info(f"Embeddings: sentence_transformers ({ST_DEFAULT}, dim={self._dim})")
+        log.info(f"Embeddings: sentence_transformers ({selected_model}, dim={self._dim})")
         return True
 
     # ------------------------------------------------------------------

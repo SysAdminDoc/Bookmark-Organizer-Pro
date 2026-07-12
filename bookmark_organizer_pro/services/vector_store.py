@@ -20,6 +20,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 from bookmark_organizer_pro.constants import EMBEDDINGS_DIR
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.services.embeddings import EmbeddingService
+from bookmark_organizer_pro.services.job_ledger import JobLedger
 
 
 def _try_import(name: str):
@@ -44,7 +45,8 @@ class VectorStore:
     """Per-collection vector store keyed by bookmark_id + chunk_id."""
 
     def __init__(self, embedder: EmbeddingService,
-                 store_dir: Path = EMBEDDINGS_DIR):
+                 store_dir: Path = EMBEDDINGS_DIR,
+                 job_ledger: JobLedger | None = None):
         self.embedder = embedder
         self.store_dir = Path(store_dir)
         self.store_dir.mkdir(parents=True, exist_ok=True)
@@ -54,6 +56,7 @@ class VectorStore:
         self._lance_table = None
         self._memory: Dict[str, Dict] = {}
         self._memory_path = self.store_dir / "vectors.json"
+        self.job_ledger = job_ledger or JobLedger()
         self._init_backend()
 
     # ------------------------------------------------------------------
@@ -82,10 +85,19 @@ class VectorStore:
     # ------------------------------------------------------------------
     def upsert_bookmark(self, bookmark_id: int, chunks: List[dict]) -> int:
         """Replace any existing chunks for this bookmark with new ones."""
+        job = self.job_ledger.start(
+            "embedding", bookmark_id=bookmark_id,
+            backend=f"{self._backend}/{self.embedder.backend or 'unavailable'}",
+        )
         if not chunks or not self.embedder.available:
+            job.fail("No chunks or embedding backend available", retryable=not self.embedder.available)
             return 0
         texts = [c["text"] for c in chunks]
-        vectors = self.embedder.embed(texts)
+        try:
+            vectors = self.embedder.embed(texts)
+        except Exception as exc:
+            job.fail(exc, retryable=True)
+            raise
         rows = []
         for chunk, vec in zip(chunks, vectors):
             if not vec:
@@ -100,6 +112,7 @@ class VectorStore:
                 "added_at": datetime.now().isoformat(),
             })
         if not rows:
+            job.fail("Embedding backend returned no vectors", retryable=True)
             return 0
         with self._lock:
             self._delete_bookmark(bookmark_id)
@@ -115,6 +128,7 @@ class VectorStore:
                     key = f"{row['bookmark_id']}:{row['chunk_id']}"
                     self._memory[key] = row
                 self._persist_memory()
+        job.succeed(bytes_processed=sum(len(text.encode("utf-8", errors="replace")) for text in texts))
         return len(rows)
 
     def delete_bookmark(self, bookmark_id: int) -> int:

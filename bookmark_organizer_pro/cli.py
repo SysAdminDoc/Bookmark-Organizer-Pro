@@ -102,6 +102,13 @@ class BookmarkCLI:
         p.add_argument("file", help="File path to import")
         p.set_defaults(func=self._cmd_import)
 
+        p = sub.add_parser("migration", help="Preflight or apply a competitor export")
+        p.add_argument("action", choices=["preflight", "apply"], help="Parse only or import after preflight")
+        p.add_argument("source", choices=["linkwarden", "karakeep", "raindrop", "readwise"])
+        p.add_argument("file", help="Competitor export path")
+        p.add_argument("--report", help="Optional JSON report output path")
+        p.set_defaults(func=self._cmd_migration)
+
         p = sub.add_parser("export", help="Export bookmarks to file")
         p.add_argument("file", help="Output file path")
         p.set_defaults(func=self._cmd_export)
@@ -202,6 +209,17 @@ class BookmarkCLI:
                         help="Action: list, add, remove, fetch")
         p.add_argument("feed_args", nargs="*", help="Action-specific arguments")
         p.set_defaults(func=self._cmd_feed)
+
+        p = sub.add_parser("jobs", help="Inspect and manage local capture/index jobs")
+        p.add_argument("action", nargs="?", default="health",
+                       choices=["health", "list", "retry", "clear"])
+        p.add_argument("job_id", nargs="?", help="Job ID prefix for retry")
+        p.add_argument("--type", dest="job_type", default="", help="Filter by job type")
+        p.add_argument("--outcome", choices=["running", "success", "failure", "cancelled"])
+        p.add_argument("--retryable", action="store_true", help="Show retryable jobs only")
+        p.add_argument("--limit", type=int, default=50)
+        p.add_argument("--json", action="store_true", dest="as_json")
+        p.set_defaults(func=self._cmd_jobs)
 
         # ── Importers ──────────────────────────────────────────────
         _importer_usage = {
@@ -331,6 +349,10 @@ class BookmarkCLI:
                         help="Highlight color (default: yellow)")
         p.add_argument("--note", default="", help="Note text")
         p.add_argument("--output", help="Export output directory")
+        p.add_argument("--format", choices=["markdown", "csv", "json"], default="markdown",
+                        help="Reader export format (default: markdown)")
+        p.add_argument("--template", help="JSON annotation export template")
+        p.add_argument("--changed-since", help="Only export highlights modified at/after ISO timestamp")
         p.set_defaults(func=self._cmd_reader)
 
         # ── Servers ────────────────────────────────────────────────
@@ -441,6 +463,8 @@ Commands:
   delete <id>            Delete a bookmark by ID
   search <query>         Search bookmarks
   import <file>          Import bookmarks from file (HTML/JSON/Firefox JSONLZ4)
+  migration <preflight|apply> <linkwarden|karakeep|raindrop|readwise> <file>
+                         Report migration fidelity before a reversible import
   export <file>          Export bookmarks to file
   categories             List all categories
   tags                   List all tags
@@ -466,6 +490,7 @@ v6.0.0 commands:
   digest                        On-this-day + rediscover + read-later view
   flow {{list|new|add|show}}    Manage research-trail flows
   feed {{list|add|fetch|remove}} Manage RSS/Atom feeds
+  jobs {{health|list|retry|clear}} Inspect and manage local capture/index jobs
   import-pocket <file>          Import Pocket export (HTML or JSON)
   import-firefox-backup <file>  Import Firefox bookmarkbackups JSON
   import-readwise <csv>         Import Readwise Reader CSV
@@ -481,6 +506,7 @@ v6.0.0 commands:
   decrypt <pass> <src> [dst]    Decrypt an encrypted JSON file
   read-later {{add|next|done|list}} <id>   Manage the read-later queue
   reader {{list|add|note|delete|due|review|export}}   Manage reader highlights/notes
+    export <id|all> [--format markdown|csv|json] [--template FILE] [--changed-since ISO]
   api-server [--port N]          Run the local HTTP API for extensions/bookmarklet
   mcp-server                    Run the MCP server (stdio) for compatible clients.
   mcp-http-server [--host H] [--port N] [--path /mcp]
@@ -708,6 +734,39 @@ Examples:
         count = len(self.bookmark_manager.get_all_bookmarks())
         print(f"✓ Exported {count} bookmarks to {filepath}")
         return 0
+
+    def _cmd_migration(self, ns: argparse.Namespace):
+        from bookmark_organizer_pro.services.migration import apply_migration, preflight_migration
+
+        try:
+            plan = preflight_migration(
+                ns.source,
+                ns.file,
+                existing_urls=[bookmark.url for bookmark in self.bookmark_manager.get_all_bookmarks()],
+            )
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            print(f"Migration preflight failed: {exc}")
+            return
+        report = plan.report.to_dict()
+        rendered = json.dumps(report, indent=2, ensure_ascii=False, sort_keys=True)
+        print(rendered)
+        if ns.report:
+            report_path = Path(ns.report)
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(rendered + "\n", encoding="utf-8")
+            print(f"Migration report written: {report_path}")
+        if ns.action == "preflight":
+            print("Dry run only; library unchanged.")
+            return
+        try:
+            result = apply_migration(self.bookmark_manager, plan)
+        except RuntimeError as exc:
+            print(f"Migration blocked: {exc}")
+            return
+        print(
+            f"Migration applied: {result.added} added, {result.duplicates} duplicates skipped; "
+            f"restore safepoint {result.safepoint}"
+        )
 
     def _cmd_categories(self, ns: argparse.Namespace):
         """List categories"""
@@ -1093,6 +1152,143 @@ Top Domains:
                 cfg = reg.get(fid)
                 print(f"  {cfg.name if cfg else fid}: {n} new")
 
+    def _cmd_jobs(self, ns: argparse.Namespace):
+        """Inspect, retry, or clear the local-only capture/index ledger."""
+        from bookmark_organizer_pro.services.job_ledger import JobLedger
+
+        ledger = JobLedger()
+        if ns.action == "health":
+            health = ledger.health()
+            if ns.as_json:
+                print(json.dumps(health, indent=2))
+                return
+            print(
+                f"Jobs: {health['jobs']} completed, {health['running']} running, "
+                f"{health['failures']} failed ({health['failure_rate']:.1%})"
+            )
+            print(
+                f"Retryable: {health['retryable_failures']}; average: "
+                f"{health['average_duration_ms']} ms; 7d processed: "
+                f"{health['storage_growth_7d_bytes']} bytes"
+            )
+            for job_type, metrics in sorted(health["by_type"].items()):
+                print(
+                    f"  {job_type}: {metrics['jobs']} jobs, "
+                    f"{metrics['failures']} failed, {metrics['bytes']} bytes"
+                )
+            return
+
+        if ns.action == "list":
+            records = ledger.list_records(
+                job_type=ns.job_type,
+                outcome=ns.outcome or "",
+                retryable=True if ns.retryable else None,
+                limit=ns.limit,
+            )
+            if ns.as_json:
+                from dataclasses import asdict
+                print(json.dumps([asdict(record) for record in records], indent=2))
+                return
+            if not records:
+                print("No matching local jobs.")
+                return
+            for record in records:
+                subject = f"bookmark={record.bookmark_id}" if record.bookmark_id is not None else record.domain
+                retry = " retryable" if record.retryable else ""
+                print(
+                    f"{record.job_id} {record.job_type:<12} {record.outcome:<9} "
+                    f"{record.duration_ms:>6} ms {record.bytes_processed:>9} bytes "
+                    f"{subject or '-'}{retry}"
+                )
+                if record.error:
+                    print(f"  {record.error}")
+            return
+
+        if ns.action == "clear":
+            removed = ledger.clear(job_type=ns.job_type, outcome=ns.outcome or "")
+            print(f"Cleared {removed} local job record(s).")
+            return
+
+        if ns.action == "retry":
+            if not ns.job_id:
+                print("Usage: jobs retry <job-id>")
+                return
+            record = ledger.get(ns.job_id)
+            if record is None:
+                print("Job not found or ID prefix is ambiguous.")
+                return
+            if not record.retryable:
+                print("Job is not retryable.")
+                return
+            ok, detail = self._retry_local_job(record)
+            print(("Retried: " if ok else "Retry failed: ") + detail)
+
+    def _retry_local_job(self, record) -> tuple[bool, str]:
+        """Dispatch a durable job record without storing sensitive arguments."""
+        bookmark = (
+            self.bookmark_manager.get_bookmark(record.bookmark_id)
+            if record.bookmark_id is not None else None
+        )
+        if record.job_type in {"snapshot", "ingest", "embedding", "metadata", "link_check"} and not bookmark:
+            return False, "bookmark no longer exists"
+
+        if record.job_type == "snapshot":
+            from bookmark_organizer_pro.services.snapshot import SnapshotArchiver
+            ok, detail = SnapshotArchiver().snapshot(bookmark)
+            if ok:
+                self.bookmark_manager.save_bookmarks()
+            return ok, detail
+        if record.job_type == "ingest":
+            from bookmark_organizer_pro.services.ingest import ContentIngestor
+            result = ContentIngestor().ingest_bookmark(bookmark)
+            if result.success and result.apply_to(bookmark):
+                self.bookmark_manager.save_bookmarks()
+            return result.success, result.error or "content ingested"
+        if record.job_type == "embedding":
+            from bookmark_organizer_pro.services.embeddings import EmbeddingService
+            text = "\n".join(filter(None, [bookmark.title, bookmark.description]))
+            if bookmark.extracted_text_path:
+                try:
+                    text = Path(bookmark.extracted_text_path).read_text(encoding="utf-8")
+                except OSError:
+                    pass
+            chunks = EmbeddingService.chunk_text(text)
+            count = self._vector_store().upsert_bookmark(bookmark.id, chunks)
+            if count:
+                bookmark.embedding_model = self._embedder().backend
+                bookmark.embedding_dim = self._embedder().dim
+                self.bookmark_manager.save_bookmarks()
+            return bool(count), f"indexed {count} chunk(s)"
+        if record.job_type == "metadata":
+            from bookmark_organizer_pro.utils.metadata import fetch_page_metadata
+            metadata = fetch_page_metadata(bookmark.url)
+            changed = False
+            for field in ("title", "description", "favicon_url"):
+                value = metadata.get(field)
+                if value and getattr(bookmark, field, "") != value:
+                    setattr(bookmark, field, value)
+                    changed = True
+            if changed:
+                self.bookmark_manager.save_bookmarks()
+            return bool(metadata.get("title") or metadata.get("description")), "metadata refreshed"
+        if record.job_type == "link_check":
+            from bookmark_organizer_pro.link_checker import LinkChecker
+            valid, status = LinkChecker()._check_url(bookmark)
+            bookmark.is_valid = valid
+            bookmark.http_status = status
+            self.bookmark_manager.save_bookmarks()
+            return bool(status), f"HTTP {status}" if status else "no HTTP response"
+        if record.job_type == "rss":
+            from bookmark_organizer_pro.services.job_ledger import safe_domain
+            from bookmark_organizer_pro.services.rss_feeds import FeedIngestor, FeedRegistry
+            registry = FeedRegistry()
+            matches = [feed for feed in registry.list_feeds() if safe_domain(feed.url) == record.domain]
+            if len(matches) != 1:
+                return False, "feed no longer exists or domain is ambiguous"
+            count = FeedIngestor(registry, self.bookmark_manager.add_bookmark).fetch_one(matches[0].id)
+            return True, f"added {count} item(s)"
+        return False, f"retry is unavailable for {record.job_type} jobs"
+
     def _cmd_import_pocket(self, ns: argparse.Namespace):
         if not ns.file:
             print(f"Usage: {ns._usage_hint}")
@@ -1289,12 +1485,14 @@ Top Domains:
         from bookmark_organizer_pro.services.reader_annotations import (
             HIGHLIGHT_COLORS,
             ReaderAnnotationStore,
+            export_annotations,
             export_bookmark_highlights,
         )
         usage = (
             "usage: reader {list <bookmark-id>|add <bookmark-id> <start> <end> "
             "[--color yellow|green|blue|pink] [--note TEXT]|note <highlight-id> "
-            "<text>|delete <highlight-id>|export <bookmark-id> [--output DIR]}"
+            "<text>|delete <highlight-id>|export <bookmark-id|all> [--format markdown|csv|json] "
+            "[--template FILE] [--changed-since ISO] [--output PATH]}"
         )
         sub = ns.action
         reader_args = ns.reader_args or []
@@ -1385,18 +1583,50 @@ Top Domains:
             return
 
         if sub == "export" and reader_args:
-            try:
-                bid = int(reader_args[0])
-            except ValueError:
-                print("error: bookmark ID must be an integer")
-                return
-            output_dir = Path(ns.output) if ns.output else None
-            bm = self.bookmark_manager.get_bookmark(bid)
-            if not bm:
-                print("not found")
-                return
-            path = export_bookmark_highlights(
-                bm, store.list_for_bookmark(bid), output_dir=output_dir)
+            export_all = reader_args[0].lower() == "all"
+            if export_all:
+                bookmarks = self.bookmark_manager.get_all_bookmarks()
+                highlights = store.list_all()
+            else:
+                try:
+                    bid = int(reader_args[0])
+                except ValueError:
+                    print("error: bookmark ID must be an integer or 'all'")
+                    return
+                bm = self.bookmark_manager.get_bookmark(bid)
+                if not bm:
+                    print("not found")
+                    return
+                bookmarks = [bm]
+                highlights = store.list_for_bookmark(bid)
+
+            advanced = export_all or ns.format != "markdown" or ns.template or ns.changed_since
+            if not advanced:
+                path = export_bookmark_highlights(
+                    bookmarks[0], highlights,
+                    output_dir=Path(ns.output) if ns.output else None,
+                )
+            else:
+                suffix = {"markdown": ".md", "csv": ".csv", "json": ".json"}[ns.format]
+                output = Path(ns.output) if ns.output else (
+                    Path.cwd() / f"reader-annotations{suffix}"
+                )
+                if output.exists() and output.is_dir():
+                    output = output / f"reader-annotations{suffix}"
+                elif not output.suffix:
+                    output = output / f"reader-annotations{suffix}"
+                try:
+                    path = export_annotations(
+                        bookmarks,
+                        highlights,
+                        output,
+                        output_format=ns.format,
+                        template_path=ns.template,
+                        changed_since=ns.changed_since,
+                    )
+                except (OSError, ValueError, json.JSONDecodeError) as exc:
+                    print(f"error: {exc}")
+                    return
             print(f"reader highlights exported: {path}")
             return
 

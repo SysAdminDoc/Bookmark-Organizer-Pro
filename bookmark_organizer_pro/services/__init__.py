@@ -39,6 +39,7 @@ from .bookmark_graph import (
 from .hybrid_search import HybridResult, HybridSearch
 from .icons import AIIconSuggester, IconLibrary
 from .ingest import ContentIngestor, IngestResult
+from .job_ledger import JobLedger, JobRecord, JobRun
 from .extraction_templates import (
     STRUCTURED_METADATA_KEY,
     ExtractionField,
@@ -149,6 +150,7 @@ __all__ = [
     "apply_force_layout", "build_bookmark_graph", "export_bookmark_graph_json",
     "HybridResult", "HybridSearch",
     "ContentIngestor", "IngestResult",
+    "JobLedger", "JobRecord", "JobRun",
     "STRUCTURED_METADATA_KEY", "ExtractionField", "ExtractionTemplate",
     "StructuredExtractionResult", "extract_structured_metadata",
     "format_structured_value", "load_extraction_templates",

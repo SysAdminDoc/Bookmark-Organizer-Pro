@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import os
 import re
+from string import Formatter
 import tempfile
 import threading
 import uuid
-from dataclasses import asdict, dataclass
-from datetime import datetime
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Mapping, Optional, Sequence
+from urllib.parse import urlsplit, urlunsplit
 
 from bookmark_organizer_pro import constants as app_constants
 from bookmark_organizer_pro.logging_config import log
@@ -86,6 +90,7 @@ class ReaderHighlight:
     text: str
     color: str = DEFAULT_HIGHLIGHT_COLOR
     note: str = ""
+    tags: List[str] = field(default_factory=list)
     created_at: str = ""
     modified_at: str = ""
     sr_interval: int = 0
@@ -115,6 +120,8 @@ class ReaderHighlight:
             text=str(data.get("text") or ""),
             color=normalize_highlight_color(str(data.get("color") or "")),
             note=str(data.get("note") or ""),
+            tags=[str(tag).strip() for tag in data.get("tags", []) if str(tag).strip()]
+            if isinstance(data.get("tags", []), (list, tuple, set)) else [],
             created_at=str(data.get("created_at") or now),
             modified_at=str(data.get("modified_at") or data.get("created_at") or now),
             sr_interval=_clean_int(data.get("sr_interval")),
@@ -338,3 +345,224 @@ def export_bookmark_highlights(
     out_path = out_dir / f"{stem}.md"
     out_path.write_text(render_highlights_markdown(bookmark, highlights), encoding="utf-8")
     return out_path
+
+
+ANNOTATION_EXPORT_SCHEMA = "bookmark-organizer-pro/annotations-v1"
+DEFAULT_ANNOTATION_FIELDS = (
+    "document_id", "document_title", "document_url", "document_category",
+    "document_tags", "document_notes", "document_created_at", "document_modified_at",
+    "highlight_id", "highlight_text", "highlight_color", "highlight_tags", "highlight_note",
+    "highlight_created_at", "highlight_modified_at", "review_interval", "review_repetitions",
+    "review_ease", "review_next", "source_link",
+)
+
+
+@dataclass(frozen=True)
+class AnnotationExportTemplate:
+    """Validated, data-only annotation export template.
+
+    Templates are JSON documents; no expressions or code are evaluated. CSV and
+    JSON templates select/order fields. Markdown templates additionally support
+    ``document_header`` and ``highlight`` format strings using the same fields.
+    """
+
+    format: str = "markdown"
+    fields: tuple[str, ...] = DEFAULT_ANNOTATION_FIELDS
+    document_header: str = "# {document_title}\n\nSource: {document_url}\n"
+    highlight: str = (
+        "## {highlight_text}\n\n"
+        "- Color: {highlight_color}\n"
+        "- Tags: {highlight_tags}\n"
+        "- Review: {review_repetitions} repetitions; next {review_next}\n"
+        "- Stable source: {source_link}\n\n"
+        "{highlight_note}\n"
+    )
+
+    @classmethod
+    def load(cls, path: str | Path | None = None, *, output_format: str | None = None):
+        payload: dict = {}
+        if path is not None:
+            raw = json.loads(Path(path).read_text(encoding="utf-8"))
+            if not isinstance(raw, dict):
+                raise ValueError("annotation export template must be a JSON object")
+            payload = raw
+        fmt = str(output_format or payload.get("format") or "markdown").strip().lower()
+        if fmt not in {"markdown", "csv", "json"}:
+            raise ValueError("annotation export format must be markdown, csv, or json")
+        raw_fields = payload.get("fields", DEFAULT_ANNOTATION_FIELDS)
+        if not isinstance(raw_fields, list) and raw_fields is not DEFAULT_ANNOTATION_FIELDS:
+            raise ValueError("annotation export template fields must be a list")
+        fields = tuple(str(item) for item in raw_fields)
+        unknown = sorted(set(fields) - set(DEFAULT_ANNOTATION_FIELDS))
+        if unknown:
+            raise ValueError(f"unknown annotation export fields: {', '.join(unknown)}")
+        if not fields:
+            raise ValueError("annotation export template must select at least one field")
+        document_header = str(payload.get("document_header", cls.document_header))
+        highlight = str(payload.get("highlight", cls.highlight))
+        for value in (document_header, highlight):
+            if len(value) > 20_000:
+                raise ValueError("annotation template strings must be at most 20000 characters")
+            for _literal, field_name, format_spec, conversion in Formatter().parse(value):
+                if field_name and field_name not in DEFAULT_ANNOTATION_FIELDS:
+                    raise ValueError(f"unknown or unsafe annotation template field: {field_name}")
+                if format_spec or conversion:
+                    raise ValueError("annotation template conversions and format specifications are not allowed")
+        return cls(
+            format=fmt,
+            fields=fields,
+            document_header=document_header,
+            highlight=highlight,
+        )
+
+
+class _BlankFormatDict(dict):
+    def __missing__(self, key):
+        return ""
+
+
+def _parse_export_timestamp(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"invalid changed-since timestamp: {value}") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _is_changed_since(item: ReaderHighlight, cutoff: datetime | None) -> bool:
+    if cutoff is None:
+        return True
+    value = item.modified_at or item.created_at
+    try:
+        changed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (AttributeError, ValueError):
+        return False
+    if changed.tzinfo is None:
+        changed = changed.replace(tzinfo=timezone.utc)
+    return changed.astimezone(timezone.utc) >= cutoff
+
+
+def annotation_export_records(
+    bookmarks: Iterable[Bookmark],
+    highlights: Iterable[ReaderHighlight],
+    *,
+    changed_since: str | None = None,
+) -> List[dict]:
+    """Return deterministic, flat records suitable for Markdown/CSV/JSON."""
+    bookmark_map = {int(bookmark.id): bookmark for bookmark in bookmarks}
+    cutoff = _parse_export_timestamp(changed_since)
+    records: List[dict] = []
+    ordered = sorted(
+        highlights,
+        key=lambda item: (item.bookmark_id, item.char_start, item.created_at, item.id),
+    )
+    for item in ordered:
+        bookmark = bookmark_map.get(int(item.bookmark_id))
+        if bookmark is None or not _is_changed_since(item, cutoff):
+            continue
+        parsed_url = urlsplit(bookmark.url)
+        source_link = urlunsplit(parsed_url._replace(fragment=f"bop-highlight-{item.id}"))
+        records.append({
+            "document_id": int(bookmark.id),
+            "document_title": bookmark.title or bookmark.url,
+            "document_url": bookmark.url,
+            "document_category": bookmark.full_category_path,
+            "document_tags": list(bookmark.tags),
+            "document_notes": bookmark.notes,
+            "document_created_at": bookmark.created_at,
+            "document_modified_at": bookmark.modified_at,
+            "highlight_id": item.id,
+            "highlight_text": item.text,
+            "highlight_color": item.color,
+            "highlight_tags": list(item.tags),
+            "highlight_note": item.note,
+            "highlight_created_at": item.created_at,
+            "highlight_modified_at": item.modified_at,
+            "review_interval": item.sr_interval,
+            "review_repetitions": item.sr_repetitions,
+            "review_ease": item.sr_ease,
+            "review_next": item.sr_next_review,
+            "source_link": source_link,
+        })
+    return records
+
+
+def render_annotation_export(
+    records: Sequence[Mapping], template: AnnotationExportTemplate
+) -> str:
+    """Render records using a validated template, deterministically."""
+    if template.format == "json":
+        selected = [{field: record.get(field, "") for field in template.fields} for record in records]
+        return json.dumps({"schema": ANNOTATION_EXPORT_SCHEMA, "records": selected}, indent=2,
+                          ensure_ascii=False) + "\n"
+    if template.format == "csv":
+        stream = io.StringIO(newline="")
+        writer = csv.DictWriter(stream, fieldnames=list(template.fields), lineterminator="\n")
+        writer.writeheader()
+        for record in records:
+            row = {}
+            for field_name in template.fields:
+                value = record.get(field_name, "")
+                row[field_name] = ", ".join(map(str, value)) if isinstance(value, list) else value
+            writer.writerow(row)
+        return stream.getvalue()
+
+    chunks: List[str] = []
+    current_document = object()
+    for record in records:
+        values = _BlankFormatDict(record)
+        values["document_tags"] = ", ".join(record.get("document_tags", []))
+        values["highlight_tags"] = ", ".join(record.get("highlight_tags", []))
+        if record.get("document_id") != current_document:
+            current_document = record.get("document_id")
+            chunks.append(template.document_header.format_map(values).rstrip())
+        chunks.append(template.highlight.format_map(values).rstrip())
+    return "\n\n".join(chunk for chunk in chunks if chunk).rstrip() + ("\n" if chunks else "")
+
+
+def export_annotations(
+    bookmarks: Iterable[Bookmark],
+    highlights: Iterable[ReaderHighlight],
+    output_path: str | Path,
+    *,
+    output_format: str | None = None,
+    template_path: str | Path | None = None,
+    changed_since: str | None = None,
+) -> Path:
+    """Export annotations atomically using a built-in or user JSON template."""
+    template = AnnotationExportTemplate.load(template_path, output_format=output_format)
+    records = annotation_export_records(bookmarks, highlights, changed_since=changed_since)
+    destination = Path(output_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    rendered = render_annotation_export(records, template)
+    fd, tmp = tempfile.mkstemp(dir=destination.parent, suffix=".tmp", text=True)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
+            handle.write(rendered)
+        os.replace(tmp, destination)
+    except Exception:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
+    return destination
+
+
+def parse_annotation_export(path: str | Path) -> List[dict]:
+    """Read CSV/JSON annotation exports for round-trip validation/migration."""
+    source = Path(path)
+    if source.suffix.lower() == ".json":
+        payload = json.loads(source.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict) or payload.get("schema") != ANNOTATION_EXPORT_SCHEMA:
+            raise ValueError("unsupported annotation export schema")
+        records = payload.get("records", [])
+        if not isinstance(records, list) or any(not isinstance(item, dict) for item in records):
+            raise ValueError("annotation export records must be objects")
+        return records
+    if source.suffix.lower() == ".csv":
+        with source.open("r", encoding="utf-8", newline="") as handle:
+            return list(csv.DictReader(handle))
+    raise ValueError("round-trip parsing supports CSV and JSON annotation exports")

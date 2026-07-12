@@ -76,12 +76,64 @@ function authHeaders(config) {
 }
 
 async function saveBookmarkPayload(payload, config) {
+  const headers = authHeaders(config);
+  if (payload.browser_snapshot) headers["X-BOP-Capture-Version"] = "1";
   const response = await fetch(`${baseUrl(config)}/bookmarks`, {
     method: "POST",
-    headers: authHeaders(config),
+    headers,
     body: JSON.stringify(payload)
   });
-  return { status: response.status };
+  let body = {};
+  try { body = await response.json(); } catch { /* response body is optional */ }
+  return { status: response.status, body };
+}
+
+async function captureSanitizedPage(tabId) {
+  const frames = await executeScript(tabId, () => {
+    const clone = document.documentElement.cloneNode(true);
+    let removedElements = 0;
+    let removedAttributes = 0;
+    const blocked = "script,iframe,frame,frameset,object,embed,applet,portal,base,meta,link,form,input,button,select,textarea";
+    for (const element of clone.querySelectorAll(blocked)) {
+      element.remove();
+      removedElements += 1;
+    }
+    const remoteAttrs = new Set(["src", "srcset", "poster", "background", "action", "formaction", "ping"]);
+    for (const element of clone.querySelectorAll("*")) {
+      for (const attribute of [...element.attributes]) {
+        const name = attribute.name.toLowerCase();
+        const value = attribute.value.trim().toLowerCase();
+        if (name.startsWith("on") || name === "srcdoc" || name === "nonce" || name === "integrity" ||
+            (remoteAttrs.has(name) && !value.startsWith("data:")) ||
+            (name.endsWith("href") && element.localName !== "a" && !value.startsWith("data:")) ||
+            (name === "href" && /^(javascript:|data:|file:|blob:)/.test(value))) {
+          element.removeAttribute(attribute.name);
+          removedAttributes += 1;
+        }
+      }
+    }
+    const selection = String(window.getSelection() || "").slice(0, 500);
+    const html = "<!doctype html>\n" + clone.outerHTML;
+    const byteLength = new TextEncoder().encode(html).byteLength;
+    if (byteLength > 4500000) {
+      return { error: "This page is larger than the 4.5 MB browser capture limit." };
+    }
+    return {
+      html,
+      source_url: location.href,
+      title: document.title.slice(0, 500),
+      selection,
+      resources: {
+        count: document.images.length + document.styleSheets.length + document.querySelectorAll("video,audio").length,
+        removed_elements: removedElements,
+        removed_attributes: removedAttributes
+      }
+    };
+  });
+  const result = frames && frames[0] ? frames[0].result : null;
+  if (!result) throw new Error("The page did not allow browser capture.");
+  if (result.error) throw new Error(result.error);
+  return result;
 }
 
 function isSaveableUrl(url) {

@@ -5,187 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Bookmark Organizer Pro</title>
   <link rel="stylesheet" href="popup.css">
-  <style>
-    body {
-      width: 100%;
-      height: 100vh;
-      overflow-y: auto;
-    }
-
-    .panel {
-      padding: 14px;
-    }
-
-    .tabs {
-      display: flex;
-      gap: 4px;
-      padding: 4px;
-      border: 1px solid var(--border-soft);
-      background: var(--panel);
-      margin-bottom: 14px;
-    }
-
-    .tab-btn {
-      flex: 1;
-      border: 1px solid transparent;
-      border-radius: 6px;
-      background: transparent;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 750;
-      padding: 8px 4px;
-      cursor: pointer;
-    }
-
-    .tab-btn.active {
-      color: var(--text);
-      border-color: var(--border);
-      background: var(--surface);
-    }
-
-    .tab-content {
-      display: none;
-    }
-
-    .tab-content.active {
-      display: block;
-    }
-
-    .search-box {
-      display: flex;
-      gap: 6px;
-      margin-bottom: 12px;
-    }
-
-    .search-box input {
-      flex: 1;
-      padding: 7px 10px;
-      font-size: 13px;
-    }
-
-    .search-box button {
-      padding: 7px 10px;
-      font-size: 13px;
-    }
-
-    .bookmark-list {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-    }
-
-    .bookmark-item {
-      display: block;
-      padding: 8px 10px;
-      text-decoration: none;
-      color: var(--text);
-      margin-bottom: 4px;
-      border: 1px solid transparent;
-      cursor: pointer;
-    }
-
-    .bookmark-item:hover {
-      background: var(--panel);
-      border-color: var(--border);
-    }
-
-    .bookmark-title {
-      font-size: 13px;
-      font-weight: 600;
-      display: block;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .bookmark-meta {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin-top: 3px;
-      font-size: 11px;
-      color: var(--muted);
-    }
-
-    .bookmark-domain {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .badge {
-      display: inline-block;
-      padding: 1px 6px;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      font-size: 10px;
-      white-space: nowrap;
-    }
-
-    .section-title {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0;
-      color: var(--muted);
-      margin: 14px 0 6px;
-    }
-
-    .empty-state {
-      text-align: center;
-      color: var(--muted);
-      font-size: 13px;
-      padding: 24px 0;
-    }
-
-    .quick-add label {
-      margin: 8px 0;
-    }
-
-    .quick-add input,
-    .quick-add textarea {
-      padding: 7px 10px;
-      font-size: 13px;
-    }
-
-    .quick-add textarea {
-      min-height: 50px;
-    }
-
-    .api-status {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 8px 10px;
-      background: var(--panel);
-      font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 12px;
-    }
-
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      background: var(--warning);
-      flex-shrink: 0;
-    }
-
-    .status-dot.connected {
-      background: var(--success);
-    }
-
-    .status-dot.error {
-      background: var(--error);
-    }
-
-    .count-badge {
-      margin-left: auto;
-      font-weight: 700;
-      color: var(--text);
-    }
-  </style>
 </head>
-<body>
+<body class="sidepanel-body">
   <main class="panel">
     <header>
       <div class="brand-row">
@@ -252,6 +73,11 @@
           <input id="addReadLater" type="checkbox">
           <span>Read Later</span>
         </label>
+        <label class="checkbox-row">
+          <input id="addCaptureSnapshot" type="checkbox">
+          <span>Preserve this signed-in page</span>
+        </label>
+        <p class="field-hint">Uploads a sanitized page copy (up to 4.5 MB). Scripts, remote resources, and form fields are removed; cookies are never sent.</p>
         <div class="actions">
           <button id="addSaveBtn" type="button">Save Bookmark</button>
           <button id="importReadingListBtn" class="secondary" type="button" title="Import from Chrome Reading List">Reading List</button>

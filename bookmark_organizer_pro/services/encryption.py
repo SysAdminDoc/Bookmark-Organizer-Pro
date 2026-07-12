@@ -1,15 +1,9 @@
-"""Optional encrypted-storage layer (Buku-style toggle).
+"""Versioned AES-256-GCM encrypted storage with recovery-key support.
 
-Wraps `master_bookmarks.json` (and any other JSON the user picks) with
-authenticated AES-256-GCM. Uses PBKDF2-HMAC-SHA256 (480 000 iterations,
-NIST SP 800-132 floor) to derive the key from a passphrase.
-
-When enabled, the file on disk holds:
-    [4-byte magic 'BOPC'][4-byte version=1][16-byte salt][12-byte nonce]
-    [4-byte ciphertext length][ciphertext + 16-byte tag]
-
-If the `cryptography` package is unavailable we degrade gracefully: writes
-fail loudly so users can install the dep.
+Versions 1 and 2 use the historical PBKDF2-HMAC-SHA256 envelope.  New files
+use Argon2id and authenticate the serialized KDF parameters as part of the
+AES-GCM associated data.  Version 4 adds an independently encrypted recovery
+copy of the plaintext.
 """
 
 from __future__ import annotations
@@ -17,6 +11,7 @@ from __future__ import annotations
 import importlib
 import os
 import struct
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -26,11 +21,23 @@ from bookmark_organizer_pro.logging_config import log
 MAGIC = b"BOPC"
 VERSION = 1
 VERSION_RECOVERY = 2
+VERSION_ARGON2 = 3
+VERSION_ARGON2_RECOVERY = 4
 SALT_LEN = 16
 NONCE_LEN = 12
-KEY_LEN = 32  # 256-bit
+KEY_LEN = 32
 PBKDF2_ITERS = 480_000
 RECOVERY_KEY_BYTES = 32
+
+# Argon2 memory_cost is expressed in KiB.  Bounds are deliberately narrow so
+# attacker-controlled headers cannot turn decryption into resource exhaustion.
+ARGON2_MEMORY_KIB = 64 * 1024
+ARGON2_ITERATIONS = 3
+ARGON2_LANES = 4
+ARGON2_MIN_MEMORY_KIB = 19 * 1024
+ARGON2_MAX_MEMORY_KIB = 256 * 1024
+ARGON2_MAX_ITERATIONS = 10
+ARGON2_MAX_LANES = 16
 
 
 def _try_import(name: str):
@@ -41,12 +48,52 @@ def _try_import(name: str):
 
 
 def _fd_closed(fd: int) -> bool:
-    """Check if a file descriptor was already closed."""
     try:
         os.fstat(fd)
         return False
     except OSError:
         return True
+
+
+def _read_u32(blob: bytes, offset: int, label: str) -> tuple[int, int]:
+    if offset + 4 > len(blob):
+        raise ValueError(f"Truncated encrypted file: missing {label}")
+    return struct.unpack_from(">I", blob, offset)[0], offset + 4
+
+
+def _read_bytes(blob: bytes, offset: int, length: int, label: str) -> tuple[bytes, int]:
+    if length < 0 or offset + length > len(blob):
+        raise ValueError(f"Truncated encrypted file: missing {label}")
+    return blob[offset:offset + length], offset + length
+
+
+def _validate_argon2_params(memory_kib: int, iterations: int, lanes: int) -> None:
+    if not ARGON2_MIN_MEMORY_KIB <= memory_kib <= ARGON2_MAX_MEMORY_KIB:
+        raise ValueError("Invalid Argon2id memory cost")
+    if not 1 <= iterations <= ARGON2_MAX_ITERATIONS:
+        raise ValueError("Invalid Argon2id iteration count")
+    if not 1 <= lanes <= ARGON2_MAX_LANES:
+        raise ValueError("Invalid Argon2id lane count")
+    if memory_kib < 8 * lanes:
+        raise ValueError("Invalid Argon2id memory/lane combination")
+
+
+def _atomic_write(path: Path, payload: bytes) -> None:
+    import tempfile
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.resolve().parent, suffix=".tmp")
+    try:
+        os.write(fd, payload)
+        os.fsync(fd)
+        os.close(fd)
+        os.replace(tmp, path)
+    except Exception:
+        if not _fd_closed(fd):
+            os.close(fd)
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
 
 
 class CryptoUnavailable(RuntimeError):
@@ -56,19 +103,25 @@ class CryptoUnavailable(RuntimeError):
 def generate_recovery_key() -> str:
     """Generate a human-readable recovery key (base32-encoded, 256-bit)."""
     import base64
-    raw = os.urandom(RECOVERY_KEY_BYTES)
-    return base64.b32encode(raw).decode("ascii").rstrip("=")
+
+    return base64.b32encode(os.urandom(RECOVERY_KEY_BYTES)).decode("ascii").rstrip("=")
 
 
 def _recovery_key_to_bytes(key_str: str) -> bytes:
-    """Decode a base32 recovery key string back to raw bytes."""
     import base64
-    padded = key_str + "=" * (-len(key_str) % 8)
-    return base64.b32decode(padded)
+
+    try:
+        padded = key_str.strip().upper() + "=" * (-len(key_str.strip()) % 8)
+        decoded = base64.b32decode(padded, casefold=True)
+    except Exception as exc:
+        raise ValueError("Invalid recovery key") from exc
+    if len(decoded) != RECOVERY_KEY_BYTES:
+        raise ValueError("Invalid recovery key")
+    return decoded
 
 
 class EncryptedStore:
-    """Encrypt/decrypt arbitrary bytes with a passphrase."""
+    """Encrypt and decrypt arbitrary bytes with a passphrase."""
 
     def __init__(self, passphrase: str):
         if not passphrase:
@@ -76,7 +129,6 @@ class EncryptedStore:
         self._passphrase = bytearray(passphrase.encode("utf-8"))
 
     def close(self):
-        """Wipe the passphrase material from memory."""
         if hasattr(self, "_passphrase") and self._passphrase:
             for i in range(len(self._passphrase)):
                 self._passphrase[i] = 0
@@ -87,183 +139,238 @@ class EncryptedStore:
 
     @staticmethod
     def available() -> bool:
-        crypto = _try_import("cryptography")
-        return crypto is not None
+        return _try_import("cryptography") is not None
 
-    def _derive(self, salt: bytes) -> bytes:
-        crypto = _try_import("cryptography.hazmat.primitives.kdf.pbkdf2")
+    @staticmethod
+    def _derive_pbkdf2(secret: bytes | bytearray, salt: bytes) -> bytes:
+        pbkdf2 = _try_import("cryptography.hazmat.primitives.kdf.pbkdf2")
         hashes = _try_import("cryptography.hazmat.primitives.hashes")
-        if crypto is None or hashes is None:
+        if pbkdf2 is None or hashes is None:
             raise CryptoUnavailable("Install `cryptography` to use encrypted storage")
-        kdf = crypto.PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=KEY_LEN, salt=salt,
+        return pbkdf2.PBKDF2HMAC(
+            algorithm=hashes.SHA256(), length=KEY_LEN, salt=salt,
             iterations=PBKDF2_ITERS,
-        )
-        return kdf.derive(self._passphrase)
+        ).derive(secret)
 
-    def encrypt(self, plaintext: bytes) -> bytes:
+    @staticmethod
+    def _derive_argon2(
+        secret: bytes | bytearray,
+        salt: bytes,
+        memory_kib: int,
+        iterations: int,
+        lanes: int,
+    ) -> bytes:
+        _validate_argon2_params(memory_kib, iterations, lanes)
+        argon2 = _try_import("cryptography.hazmat.primitives.kdf.argon2")
+        if argon2 is None:
+            raise CryptoUnavailable("Install `cryptography>=44` to use Argon2id encrypted storage")
+        return argon2.Argon2id(
+            salt=salt,
+            length=KEY_LEN,
+            iterations=iterations,
+            lanes=lanes,
+            memory_cost=memory_kib,
+        ).derive(secret)
+
+    @staticmethod
+    def _ciphers():
         ciphers = _try_import("cryptography.hazmat.primitives.ciphers.aead")
         if ciphers is None:
             raise CryptoUnavailable("Install `cryptography` to use encrypted storage")
-        salt = os.urandom(SALT_LEN)
-        nonce = os.urandom(NONCE_LEN)
-        key = self._derive(salt)
-        aes = ciphers.AESGCM(key)
-        ct = aes.encrypt(nonce, plaintext, MAGIC)
-        return MAGIC + struct.pack(">I", VERSION) + salt + nonce + struct.pack(">I", len(ct)) + ct
+        return ciphers
 
-    def decrypt(self, blob: bytes) -> bytes:
-        ciphers = _try_import("cryptography.hazmat.primitives.ciphers.aead")
-        if ciphers is None:
-            raise CryptoUnavailable("Install `cryptography` to use encrypted storage")
+    @staticmethod
+    def format_version(blob: bytes) -> int:
         if not blob.startswith(MAGIC):
             raise ValueError("Not an encrypted bookmark file")
-        offset = len(MAGIC)
-        (version,) = struct.unpack(">I", blob[offset:offset + 4])
-        offset += 4
-        if version not in (VERSION, VERSION_RECOVERY):
-            raise ValueError(f"Unsupported encrypted file version {version}")
-        salt = blob[offset:offset + SALT_LEN]; offset += SALT_LEN
-        nonce = blob[offset:offset + NONCE_LEN]; offset += NONCE_LEN
-        (ct_len,) = struct.unpack(">I", blob[offset:offset + 4]); offset += 4
-        if offset + ct_len > len(blob):
-            raise ValueError("Truncated encrypted file: ciphertext length exceeds available data")
-        ct = blob[offset:offset + ct_len]
-        key = self._derive(salt)
-        aes = ciphers.AESGCM(key)
-        return aes.decrypt(nonce, ct, MAGIC)
+        version, _ = _read_u32(blob, len(MAGIC), "format version")
+        return version
 
-    def encrypt_with_recovery(self, plaintext: bytes, recovery_key: str) -> bytes:
-        """Encrypt with both passphrase and recovery key (version 2 format).
+    @staticmethod
+    def _argon_header(version: int, salt: bytes, nonce: bytes) -> bytes:
+        return (
+            MAGIC
+            + struct.pack(">IIII", version, ARGON2_MEMORY_KIB, ARGON2_ITERATIONS, ARGON2_LANES)
+            + salt
+            + nonce
+        )
 
-        Format: MAGIC + version(2) + salt + nonce + ct_len + ct +
-                recovery_salt + recovery_nonce + recovery_ct_len + recovery_ct
-        Both the passphrase and recovery key independently encrypt the same plaintext.
-        """
-        ciphers = _try_import("cryptography.hazmat.primitives.ciphers.aead")
-        if ciphers is None:
-            raise CryptoUnavailable("Install `cryptography` to use encrypted storage")
+    def encrypt(self, plaintext: bytes) -> bytes:
         salt = os.urandom(SALT_LEN)
         nonce = os.urandom(NONCE_LEN)
-        key = self._derive(salt)
-        aes = ciphers.AESGCM(key)
-        ct = aes.encrypt(nonce, plaintext, MAGIC)
+        header = self._argon_header(VERSION_ARGON2, salt, nonce)
+        key = self._derive_argon2(
+            self._passphrase, salt, ARGON2_MEMORY_KIB, ARGON2_ITERATIONS, ARGON2_LANES,
+        )
+        ct = self._ciphers().AESGCM(key).encrypt(nonce, plaintext, header)
+        return header + struct.pack(">I", len(ct)) + ct
 
-        rk_bytes = _recovery_key_to_bytes(recovery_key)
-        rk_salt = os.urandom(SALT_LEN)
-        rk_nonce = os.urandom(NONCE_LEN)
-        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-        from cryptography.hazmat.primitives.hashes import SHA256
-        rk_kdf = PBKDF2HMAC(algorithm=SHA256(), length=KEY_LEN, salt=rk_salt, iterations=PBKDF2_ITERS)
-        rk_derived = rk_kdf.derive(rk_bytes)
-        rk_aes = ciphers.AESGCM(rk_derived)
-        rk_ct = rk_aes.encrypt(rk_nonce, plaintext, MAGIC)
+    @staticmethod
+    def _parse_legacy_primary(blob: bytes, offset: int) -> tuple[bytes, bytes, bytes, int]:
+        salt, offset = _read_bytes(blob, offset, SALT_LEN, "salt")
+        nonce, offset = _read_bytes(blob, offset, NONCE_LEN, "nonce")
+        ct_len, offset = _read_u32(blob, offset, "ciphertext length")
+        ct, offset = _read_bytes(blob, offset, ct_len, "ciphertext")
+        return salt, nonce, ct, offset
 
-        header = MAGIC + struct.pack(">I", VERSION_RECOVERY)
-        primary = salt + nonce + struct.pack(">I", len(ct)) + ct
-        recovery = rk_salt + rk_nonce + struct.pack(">I", len(rk_ct)) + rk_ct
-        return header + primary + recovery
+    @staticmethod
+    def _parse_argon_primary(
+        blob: bytes, offset: int, version: int,
+    ) -> tuple[int, int, int, bytes, bytes, bytes, bytes, int]:
+        memory_kib, offset = _read_u32(blob, offset, "Argon2id memory cost")
+        iterations, offset = _read_u32(blob, offset, "Argon2id iteration count")
+        lanes, offset = _read_u32(blob, offset, "Argon2id lane count")
+        _validate_argon2_params(memory_kib, iterations, lanes)
+        salt, offset = _read_bytes(blob, offset, SALT_LEN, "salt")
+        nonce, offset = _read_bytes(blob, offset, NONCE_LEN, "nonce")
+        header = blob[:offset]
+        ct_len, offset = _read_u32(blob, offset, "ciphertext length")
+        ct, offset = _read_bytes(blob, offset, ct_len, "ciphertext")
+        expected = MAGIC + struct.pack(">I", version)
+        if not header.startswith(expected):
+            raise ValueError("Invalid encrypted file header")
+        return memory_kib, iterations, lanes, salt, nonce, header, ct, offset
+
+    def decrypt(self, blob: bytes) -> bytes:
+        version = self.format_version(blob)
+        offset = len(MAGIC) + 4
+        if version in (VERSION, VERSION_RECOVERY):
+            salt, nonce, ct, offset = self._parse_legacy_primary(blob, offset)
+            if version == VERSION and offset != len(blob):
+                raise ValueError("Invalid trailing data in encrypted file")
+            if version == VERSION_RECOVERY:
+                self._parse_recovery_record(blob, offset)
+            key = self._derive_pbkdf2(self._passphrase, salt)
+            return self._ciphers().AESGCM(key).decrypt(nonce, ct, MAGIC)
+        if version not in (VERSION_ARGON2, VERSION_ARGON2_RECOVERY):
+            raise ValueError(f"Unsupported encrypted file version {version}")
+        memory_kib, iterations, lanes, salt, nonce, header, ct, offset = self._parse_argon_primary(
+            blob, offset, version,
+        )
+        if version == VERSION_ARGON2 and offset != len(blob):
+            raise ValueError("Invalid trailing data in encrypted file")
+        if version == VERSION_ARGON2_RECOVERY:
+            self._parse_recovery_record(blob, offset)
+        key = self._derive_argon2(self._passphrase, salt, memory_kib, iterations, lanes)
+        return self._ciphers().AESGCM(key).decrypt(nonce, ct, header)
+
+    @staticmethod
+    def _parse_recovery_record(blob: bytes, offset: int) -> tuple[bytes, bytes, bytes]:
+        salt, offset = _read_bytes(blob, offset, SALT_LEN, "recovery salt")
+        nonce, offset = _read_bytes(blob, offset, NONCE_LEN, "recovery nonce")
+        ct_len, offset = _read_u32(blob, offset, "recovery ciphertext length")
+        ct, offset = _read_bytes(blob, offset, ct_len, "recovery ciphertext")
+        if offset != len(blob):
+            raise ValueError("Invalid trailing data in encrypted file")
+        return salt, nonce, ct
+
+    def encrypt_with_recovery(self, plaintext: bytes, recovery_key: str) -> bytes:
+        salt = os.urandom(SALT_LEN)
+        nonce = os.urandom(NONCE_LEN)
+        header = self._argon_header(VERSION_ARGON2_RECOVERY, salt, nonce)
+        params = (ARGON2_MEMORY_KIB, ARGON2_ITERATIONS, ARGON2_LANES)
+        key = self._derive_argon2(self._passphrase, salt, *params)
+        ct = self._ciphers().AESGCM(key).encrypt(nonce, plaintext, header)
+
+        recovery_salt = os.urandom(SALT_LEN)
+        recovery_nonce = os.urandom(NONCE_LEN)
+        recovery_secret = _recovery_key_to_bytes(recovery_key)
+        recovery_key_bytes = self._derive_argon2(recovery_secret, recovery_salt, *params)
+        recovery_aad = header + b"recovery" + recovery_salt + recovery_nonce
+        recovery_ct = self._ciphers().AESGCM(recovery_key_bytes).encrypt(
+            recovery_nonce, plaintext, recovery_aad,
+        )
+        return (
+            header + struct.pack(">I", len(ct)) + ct
+            + recovery_salt + recovery_nonce
+            + struct.pack(">I", len(recovery_ct)) + recovery_ct
+        )
 
     @staticmethod
     def decrypt_with_recovery_key(blob: bytes, recovery_key: str) -> bytes:
-        """Decrypt using a recovery key (version 2 format only)."""
-        ciphers = _try_import("cryptography.hazmat.primitives.ciphers.aead")
-        if ciphers is None:
-            raise CryptoUnavailable("Install `cryptography` to use encrypted storage")
-        if not blob.startswith(MAGIC):
-            raise ValueError("Not an encrypted bookmark file")
-        offset = len(MAGIC)
-        (version,) = struct.unpack(">I", blob[offset:offset + 4])
-        offset += 4
-        if version != VERSION_RECOVERY:
-            raise ValueError("File does not contain a recovery key (version 1 format)")
-        blob[offset:offset + SALT_LEN]; offset += SALT_LEN
-        blob[offset:offset + NONCE_LEN]; offset += NONCE_LEN
-        (ct_len,) = struct.unpack(">I", blob[offset:offset + 4]); offset += 4
-        offset += ct_len
+        version = EncryptedStore.format_version(blob)
+        offset = len(MAGIC) + 4
+        recovery_secret = _recovery_key_to_bytes(recovery_key)
+        if version == VERSION_RECOVERY:
+            _, _, _, offset = EncryptedStore._parse_legacy_primary(blob, offset)
+            salt, nonce, ct = EncryptedStore._parse_recovery_record(blob, offset)
+            key = EncryptedStore._derive_pbkdf2(recovery_secret, salt)
+            return EncryptedStore._ciphers().AESGCM(key).decrypt(nonce, ct, MAGIC)
+        if version != VERSION_ARGON2_RECOVERY:
+            raise ValueError("File does not contain a recovery key")
+        memory_kib, iterations, lanes, _, _, header, _, offset = EncryptedStore._parse_argon_primary(
+            blob, offset, version,
+        )
+        salt, nonce, ct = EncryptedStore._parse_recovery_record(blob, offset)
+        key = EncryptedStore._derive_argon2(
+            recovery_secret, salt, memory_kib, iterations, lanes,
+        )
+        recovery_aad = header + b"recovery" + salt + nonce
+        return EncryptedStore._ciphers().AESGCM(key).decrypt(nonce, ct, recovery_aad)
 
-        rk_salt = blob[offset:offset + SALT_LEN]; offset += SALT_LEN
-        rk_nonce = blob[offset:offset + NONCE_LEN]; offset += NONCE_LEN
-        (rk_ct_len,) = struct.unpack(">I", blob[offset:offset + 4]); offset += 4
-        rk_ct = blob[offset:offset + rk_ct_len]
-
-        rk_bytes = _recovery_key_to_bytes(recovery_key)
-        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-        from cryptography.hazmat.primitives.hashes import SHA256
-        rk_kdf = PBKDF2HMAC(algorithm=SHA256(), length=KEY_LEN, salt=rk_salt, iterations=PBKDF2_ITERS)
-        rk_derived = rk_kdf.derive(rk_bytes)
-        rk_aes = ciphers.AESGCM(rk_derived)
-        return rk_aes.decrypt(rk_nonce, rk_ct, MAGIC)
-
-    # ----- convenience file API -----
     def encrypt_file(self, src: Path, dst: Optional[Path] = None) -> Path:
-        import tempfile
         dst = dst or src.with_suffix(src.suffix + ".enc")
-        data = src.read_bytes()
-        encrypted = self.encrypt(data)
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=dst.resolve().parent, suffix=".tmp")
-        try:
-            os.write(fd, encrypted)
-            os.close(fd)
-            os.replace(tmp, dst)
-        except Exception:
-            os.close(fd) if not _fd_closed(fd) else None
-            if os.path.exists(tmp):
-                os.remove(tmp)
-            raise
+        _atomic_write(dst, self.encrypt(src.read_bytes()))
         return dst
 
     def decrypt_file(self, src: Path, dst: Optional[Path] = None) -> Path:
-        import tempfile
         dst = dst or src.with_suffix("")
         if dst.resolve() == src.resolve():
             raise ValueError("Destination must differ from source")
-        data = src.read_bytes()
-        decrypted = self.decrypt(data)
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=dst.resolve().parent, suffix=".tmp")
-        try:
-            os.write(fd, decrypted)
-            os.close(fd)
-            os.replace(tmp, dst)
-        except Exception:
-            os.close(fd) if not _fd_closed(fd) else None
-            if os.path.exists(tmp):
-                os.remove(tmp)
-            raise
+        _atomic_write(dst, self.decrypt(src.read_bytes()))
         return dst
 
     def is_encrypted(self, path: Path) -> bool:
         try:
-            with path.open("rb") as f:
-                return f.read(len(MAGIC)) == MAGIC
+            with path.open("rb") as handle:
+                return handle.read(len(MAGIC)) == MAGIC
         except OSError:
             return False
 
     @staticmethod
-    def rotate_passphrase(path: Path, old_passphrase: str,
-                          new_passphrase: str) -> bool:
-        """Re-encrypt a file with a new passphrase. Atomic write prevents corruption."""
-        import tempfile
+    def rotate_passphrase(
+        path: Path,
+        old_passphrase: str,
+        new_passphrase: str,
+        recovery_key: str | None = None,
+    ) -> bool:
+        """Rotate a passphrase only after creating and verifying a byte-exact backup.
+
+        Recovery-bearing files require their recovery key so rotation cannot
+        silently discard emergency access.
+        """
         try:
+            original = path.read_bytes()
+            version = EncryptedStore.format_version(original)
+            has_recovery = version in (VERSION_RECOVERY, VERSION_ARGON2_RECOVERY)
             old_store = EncryptedStore(old_passphrase)
-            data = old_store.decrypt(path.read_bytes())
+            plaintext = old_store.decrypt(original)
+            if has_recovery:
+                if not recovery_key:
+                    raise ValueError("Recovery key required to preserve recovery access")
+                recovered = EncryptedStore.decrypt_with_recovery_key(original, recovery_key)
+                if recovered != plaintext:
+                    raise ValueError("Recovery key verification failed")
+
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+            backup = path.with_name(f"{path.name}.pre-rotation-{stamp}.bak")
+            _atomic_write(backup, original)
+            if backup.read_bytes() != original:
+                raise OSError("Pre-rotation backup verification failed")
+
             new_store = EncryptedStore(new_passphrase)
-            new_blob = new_store.encrypt(data)
-            fd, tmp = tempfile.mkstemp(dir=path.resolve().parent, suffix=".tmp")
-            try:
-                os.write(fd, new_blob)
-                os.close(fd)
-                os.replace(tmp, path)
-            except Exception:
-                os.close(fd) if not _fd_closed(fd) else None
-                if os.path.exists(tmp):
-                    os.remove(tmp)
-                raise
-            log.info(f"Passphrase rotated for {path.name} at {__import__('datetime').datetime.now().isoformat()}")
+            new_blob = (
+                new_store.encrypt_with_recovery(plaintext, recovery_key)
+                if has_recovery and recovery_key
+                else new_store.encrypt(plaintext)
+            )
+            if new_store.decrypt(new_blob) != plaintext:
+                raise ValueError("Rotated encrypted file verification failed")
+            if has_recovery and EncryptedStore.decrypt_with_recovery_key(new_blob, recovery_key) != plaintext:
+                raise ValueError("Rotated recovery copy verification failed")
+            _atomic_write(path, new_blob)
+            log.info("Passphrase rotated for %s after verified backup %s", path.name, backup.name)
             return True
         except Exception as exc:
-            log.error(f"Passphrase rotation failed for {path.name}: {exc}")
+            log.error("Passphrase rotation failed for %s: %s", path.name, exc)
             return False

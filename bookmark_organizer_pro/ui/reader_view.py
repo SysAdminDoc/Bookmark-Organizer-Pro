@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+from pathlib import Path
 from typing import List
 
 from bookmark_organizer_pro.i18n import _
@@ -12,7 +13,7 @@ from bookmark_organizer_pro.services.reader_annotations import (
     HIGHLIGHT_COLORS,
     ReaderAnnotationStore,
     ReaderHighlight,
-    export_bookmark_highlights,
+    export_annotations,
     read_extracted_text,
 )
 
@@ -320,12 +321,26 @@ class ReaderViewDialog(tk.Toplevel):
         self.status.configure(text=_("Highlight deleted"))
 
     def _export_highlights(self) -> None:
-        output_dir = filedialog.askdirectory(parent=self, title=_("Export Reader Highlights"))
-        if not output_dir:
+        stem = f"{self.bookmark.id}-reader-highlights"
+        output_path = filedialog.asksaveasfilename(
+            parent=self,
+            title=_("Export Reader Highlights"),
+            initialfile=f"{stem}.md",
+            defaultextension=".md",
+            filetypes=[
+                (_("Markdown"), "*.md"),
+                (_("CSV"), "*.csv"),
+                (_("JSON"), "*.json"),
+            ],
+        )
+        if not output_path:
             return
-        path = export_bookmark_highlights(
-            self.bookmark,
+        suffix = Path(output_path).suffix.lower()
+        export_format = {".csv": "csv", ".json": "json"}.get(suffix, "markdown")
+        path = export_annotations(
+            [self.bookmark],
             self.store.list_for_bookmark(int(self.bookmark.id)),
-            output_dir=output_dir,
+            output_path,
+            output_format=export_format,
         )
         self.status.configure(text=_("Exported {name}").format(name=path.name))

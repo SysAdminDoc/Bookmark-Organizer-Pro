@@ -21,6 +21,7 @@ from typing import Dict, List, Optional
 from bookmark_organizer_pro.constants import EXTRACTED_DIR
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.job_ledger import JobLedger
 from bookmark_organizer_pro.services.extraction_templates import (
     STRUCTURED_METADATA_KEY,
     ExtractionTemplate,
@@ -288,17 +289,24 @@ class ContentIngestor:
         self,
         template_path: str | Path | None = None,
         templates: Optional[List[ExtractionTemplate]] = None,
+        job_ledger: JobLedger | None = None,
     ):
         self.templates = templates if templates is not None else load_extraction_templates(template_path)
+        self.job_ledger = job_ledger or JobLedger()
 
     def ingest_url(self, url: str, bookmark_id: Optional[int] = None,
                    html: Optional[str] = None,
                    store_text: bool = True) -> IngestResult:
+        job = self.job_ledger.start(
+            "ingest", bookmark_id=bookmark_id, url_or_domain=url,
+            backend="provided-html" if html is not None else "http",
+        )
         result = IngestResult()
         if html is None:
             html = _fetch_html(url)
         if not html:
             result.error = "Could not fetch page"
+            job.fail(result.error, retryable=True)
             return result
 
         structured = extract_structured_metadata(url, html, templates=self.templates)
@@ -310,8 +318,10 @@ class ContentIngestor:
             if result.structured_metadata:
                 result.content_type = structured.content_type or _detect_content_type_from_url(url)
                 result.success = True
+                job.succeed(bytes_processed=len(html.encode("utf-8", errors="replace")), backend="structured")
                 return result
             result.error = "No extraction backend available"
+            job.fail(result.error, retryable=False, bytes_processed=len(html.encode("utf-8", errors="replace")))
             return result
 
         text = extracted.get("text", "").strip()
@@ -330,6 +340,10 @@ class ContentIngestor:
 
         if store_text and bookmark_id is not None and text:
             result.extracted_path = _store_extracted(bookmark_id, text)
+        job.succeed(
+            bytes_processed=len(text.encode("utf-8", errors="replace")),
+            backend="content-extractor",
+        )
         return result
 
     def ingest_bookmark(self, bookmark: Bookmark, store_text: bool = True) -> IngestResult:

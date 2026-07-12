@@ -16,7 +16,6 @@ import urllib.parse
 from typing import Dict, Optional
 from urllib.parse import urlparse
 
-
 _USER_AGENT = (
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
@@ -48,6 +47,22 @@ def _is_safe_url(url: str) -> bool:
 
 
 def fetch_page_metadata(url: str, timeout: int = 10) -> Dict[str, str]:
+    from bookmark_organizer_pro.services.job_ledger import JobLedger
+
+    job = JobLedger().start("metadata", url_or_domain=url, backend="requests")
+    try:
+        result = _fetch_page_metadata(url, timeout)
+    except Exception as exc:
+        job.fail(exc, retryable=True)
+        raise
+    if any(result.values()):
+        job.succeed(bytes_processed=sum(len(value.encode("utf-8")) for value in result.values()))
+    else:
+        job.fail("Metadata unavailable", retryable=True)
+    return result
+
+
+def _fetch_page_metadata(url: str, timeout: int = 10) -> Dict[str, str]:
     """Fetch page title, description, and favicon URL from a live URL.
 
     Returns dict with keys: title, description, favicon_url.

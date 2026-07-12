@@ -10,6 +10,7 @@ from __future__ import annotations
 import hmac
 import json
 import os
+import re
 import secrets
 import threading
 import urllib.parse
@@ -27,6 +28,12 @@ if TYPE_CHECKING:
 _TOKEN_FILE = DATA_DIR / "api_token.txt"
 _KEYRING_SERVICE = "bookmark-organizer-pro"
 _KEYRING_KEY = "api_token"
+_MAX_BOOKMARK_BODY_BYTES = 65_536
+_MAX_BROWSER_SNAPSHOT_BODY_BYTES = 5_500_000
+_EXTENSION_ORIGIN_RE = re.compile(
+    r"^(?:chrome-extension://[a-p]{32}|moz-extension://[0-9a-f-]{8,64})$",
+    re.IGNORECASE,
+)
 
 
 def _coerce_bool(value, default: bool = False) -> bool:
@@ -123,13 +130,18 @@ class BookmarkAPI:
         api_token = _load_or_create_token()
 
         class APIHandler(BaseHTTPRequestHandler):
+            def _cors_origin(self) -> str:
+                origin = self.headers.get('Origin', '').strip()
+                return origin if _EXTENSION_ORIGIN_RE.fullmatch(origin) else 'null'
+
             def _send_json(self, data, status=200):
                 body = json.dumps(data, ensure_ascii=False, default=str).encode("utf-8")
                 self.send_response(status)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.send_header('X-Content-Type-Options', 'nosniff')
                 self.send_header('Content-Length', str(len(body)))
-                self.send_header('Access-Control-Allow-Origin', 'null')
+                self.send_header('Access-Control-Allow-Origin', self._cors_origin())
+                self.send_header('Vary', 'Origin')
                 self.end_headers()
                 self.wfile.write(body)
 
@@ -349,7 +361,7 @@ class BookmarkAPI:
                     except (TypeError, ValueError):
                         self._send_json({"error": "Invalid Content-Length"}, 400)
                         return
-                    if content_length <= 0 or content_length > 65_536:
+                    if content_length <= 0 or content_length > _MAX_BROWSER_SNAPSHOT_BODY_BYTES:
                         self._send_json({"error": "Request body is empty or too large"}, 413)
                         return
                     body = self.rfile.read(content_length)
@@ -358,6 +370,22 @@ class BookmarkAPI:
                         data = json.loads(body)
                         if not isinstance(data, dict):
                             self._send_json({"error": "JSON body must be an object"}, 400)
+                            return
+
+                        capture = data.get('browser_snapshot')
+                        if capture is not None:
+                            if not isinstance(capture, dict):
+                                self._send_json({"error": "browser_snapshot must be an object"}, 400)
+                                return
+                            if self.headers.get('X-BOP-Capture-Version') != '1':
+                                self._send_json({"error": "Unsupported browser snapshot contract"}, 400)
+                                return
+                            origin = self.headers.get('Origin', '').strip()
+                            if not _EXTENSION_ORIGIN_RE.fullmatch(origin):
+                                self._send_json({"error": "Browser snapshots require a trusted extension Origin"}, 403)
+                                return
+                        elif content_length > _MAX_BOOKMARK_BODY_BYTES:
+                            self._send_json({"error": "Request body is too large"}, 413)
                             return
 
                         raw_url = str(data.get('url') or '').strip()
@@ -369,6 +397,9 @@ class BookmarkAPI:
                             if not error:
                                 error = "URL must start with http:// or https://"
                             self._send_json({"error": error}, 400)
+                            return
+                        if capture is not None and str(capture.get('source_url') or '') != raw_url:
+                            self._send_json({"error": "Snapshot source URL does not match the request URL"}, 400)
                             return
                         if bookmark_manager.url_exists(raw_url):
                             self._send_json({"error": "Bookmark already exists"}, 409)
@@ -392,7 +423,37 @@ class BookmarkAPI:
                             status = 409 if bookmark_manager.url_exists(raw_url) else 400
                             self._send_json({"error": "Could not add bookmark"}, status)
                             return
-                        self._send_json(asdict(bookmark), 201)
+                        response = asdict(bookmark)
+                        if capture is not None:
+                            from pathlib import Path
+
+                            from bookmark_organizer_pro.services.snapshot import SnapshotArchiver
+
+                            try:
+                                snapshots_dir = Path(bookmark_manager.filepath).parent / "snapshots"
+                                report = SnapshotArchiver(snapshots_dir=snapshots_dir).import_browser_snapshot(
+                                    bookmark,
+                                    str(capture.get('html') or ''),
+                                    source_url=str(capture.get('source_url') or ''),
+                                    selection=str(capture.get('selection') or '')[:500],
+                                    resource_summary=capture.get('resources'),
+                                )
+                                bookmark_manager.save_bookmarks()
+                            except (ValueError, RuntimeError, OSError) as exc:
+                                snapshot_path = getattr(bookmark, 'snapshot_path', '')
+                                if snapshot_path:
+                                    Path(snapshot_path).unlink(missing_ok=True)
+                                bookmark_manager.delete_bookmark(bookmark.id)
+                                message = (
+                                    str(exc)
+                                    if isinstance(exc, ValueError)
+                                    else "Browser snapshot could not be stored"
+                                )
+                                self._send_json({"error": message}, 422)
+                                return
+                            response = asdict(bookmark)
+                            response['browser_snapshot'] = report
+                        self._send_json(response, 201)
                     
                     except json.JSONDecodeError:
                         self._send_json({"error": "Invalid JSON"}, 400)
@@ -420,9 +481,13 @@ class BookmarkAPI:
             
             def do_OPTIONS(self):
                 self.send_response(204)
-                self.send_header('Access-Control-Allow-Origin', 'null')
+                self.send_header('Access-Control-Allow-Origin', self._cors_origin())
+                self.send_header('Vary', 'Origin')
                 self.send_header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
-                self.send_header('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+                self.send_header(
+                    'Access-Control-Allow-Headers',
+                    'Authorization, Content-Type, X-BOP-Capture-Version',
+                )
                 self.send_header('Access-Control-Max-Age', '86400')
                 self.send_header('X-Content-Type-Options', 'nosniff')
                 self.end_headers()

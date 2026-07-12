@@ -1,5 +1,5 @@
 /* global DEFAULTS, api, storageGet, queryTabs, executeScript, getConfig,
-          isSaveableUrl, loadCategories, saveBookmarkPayload, getPendingSaves,
+          isSaveableUrl, loadCategories, saveBookmarkPayload, captureSanitizedPage, getPendingSaves,
           retryPendingSaves, clearPendingSaves */
 
 let activeTab = null;
@@ -111,9 +111,14 @@ async function saveBookmark() {
   };
 
   try {
+    if (document.getElementById("captureSnapshot").checked) {
+      setStatus("Sanitizing this page before upload...");
+      payload.browser_snapshot = await captureSanitizedPage(activeTab.id);
+    }
     const result = await saveBookmarkPayload(payload, values);
     if (result.status === 201) {
-      setStatus("Saved to your library.", "success");
+      const preserved = result.body && result.body.browser_snapshot;
+      setStatus(preserved ? "Saved with a sanitized offline copy. No cookies were sent." : "Saved to your library.", "success");
     } else if (result.status === 409) {
       setStatus("Already in your library.", "success");
     } else if (result.status === 401) {
@@ -121,8 +126,8 @@ async function saveBookmark() {
     } else {
       setStatus(`Save failed (${result.status}).`, "error");
     }
-  } catch {
-    setStatus("Cannot reach the local API. Start the app or run: bop api-server", "error");
+  } catch (error) {
+    setStatus(error?.message || "Cannot reach the local API. Start the app or run: bop api-server", "error");
   } finally {
     setBusy(false);
   }

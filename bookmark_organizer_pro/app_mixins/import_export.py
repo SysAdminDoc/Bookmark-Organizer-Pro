@@ -455,6 +455,9 @@ class ImportExportMixin:
             if handler:
                 handler()
                 return
+        if source.action_kind == "migration":
+            self._preflight_competitor_migration(source.action_arg, source.title)
+            return
         if source.action_kind == "reading_list_help":
             self._show_reading_list_import_help()
             return
@@ -540,6 +543,93 @@ class ImportExportMixin:
             dupes,
             _("Review imported items, then run duplicate and tag cleanup."),
         )
+
+    def _preflight_competitor_migration(self, source: str, label: str):
+        """Show field fidelity before a separately initiated, reversible apply."""
+        from tkinter import filedialog
+        from bookmark_organizer_pro.services.migration import apply_migration, preflight_migration
+
+        extension = "*.json" if source in {"linkwarden", "karakeep"} else "*.csv"
+        path = filedialog.askopenfilename(
+            title=_("Preflight {source} Migration").format(source=label),
+            filetypes=[(_("Export file"), extension), (_("All"), "*.*")],
+            parent=self.root,
+        )
+        if not path:
+            return
+        try:
+            plan = preflight_migration(
+                source,
+                path,
+                existing_urls=[bookmark.url for bookmark in self.bookmark_manager.get_all_bookmarks()],
+            )
+        except (OSError, ValueError) as exc:
+            self._show_toast(_("Migration preflight failed: {error}").format(error=str(exc)[:120]), "error")
+            return
+
+        report = plan.report
+        unsupported = ", ".join(
+            f"{name}: {count}" for name, count in sorted(report.unsupported.items())
+        ) or _("None detected")
+        transformed = ", ".join(
+            f"{name}: {count}" for name, count in sorted(report.transformed.items())
+        ) or _("None")
+        theme = get_theme()
+        dlg = tk.Toplevel(self.root)
+        dlg.title(_("Migration Preflight"))
+        dlg.configure(bg=theme.bg_primary)
+        dlg.geometry("560x390")
+        dlg.transient(self.root)
+        tk.Label(
+            dlg,
+            text=_("{source} migration preflight").format(source=label),
+            bg=theme.bg_primary,
+            fg=theme.text_primary,
+            font=FONTS.subtitle(bold=True),
+        ).pack(anchor="w", padx=22, pady=(22, 8))
+        summary = _(
+            "{total} source records\n{ready} ready to import\n{duplicates} duplicates\n"
+            "{invalid} invalid records\n\nTransformed: {transformed}\n\nUnsupported: {unsupported}"
+        ).format(
+            total=report.total_records,
+            ready=report.importable,
+            duplicates=report.duplicates,
+            invalid=report.invalid,
+            transformed=transformed,
+            unsupported=unsupported,
+        )
+        tk.Label(
+            dlg,
+            text=summary,
+            bg=theme.bg_primary,
+            fg=theme.text_secondary,
+            font=FONTS.body(),
+            justify=tk.LEFT,
+            anchor="nw",
+            wraplength=510,
+        ).pack(fill=tk.BOTH, expand=True, padx=22, pady=(0, 12))
+
+        def apply_plan():
+            try:
+                result = apply_migration(self.bookmark_manager, plan)
+            except RuntimeError as exc:
+                self._show_toast(str(exc), "error")
+                return
+            dlg.destroy()
+            self._on_import_done(result.added, result.duplicates)
+            self._show_import_result_summary(
+                label,
+                result.added,
+                result.duplicates,
+                _("Restore point: {name}").format(name=result.safepoint),
+            )
+
+        buttons = tk.Frame(dlg, bg=theme.bg_primary)
+        buttons.pack(fill=tk.X, padx=22, pady=(0, 18))
+        ModernButton(buttons, text=_("Apply Migration"), command=apply_plan,
+                     style="primary", padx=14, pady=7).pack(side=tk.RIGHT)
+        ModernButton(buttons, text=_("Close"), command=dlg.destroy,
+                     padx=14, pady=7).pack(side=tk.RIGHT, padx=(0, 8))
 
     def _show_import_result_summary(self, label: str, added: int, dupes: int, next_action: str):
         """Show a compact non-blocking import result with the next action."""

@@ -12,6 +12,7 @@ import re
 import tempfile
 import shutil
 import sys
+import tomllib
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -410,11 +411,14 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
     def test_mcp_dependency_floors_are_declared(self):
         pyproject_text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         requirements_text = (ROOT / "requirements.txt").read_text(encoding="utf-8")
+        lock = tomllib.loads((ROOT / "pylock.toml").read_text(encoding="utf-8"))
+        locked = {item.get("name"): item.get("version") for item in lock["packages"]}
 
         self.assertRegex(pyproject_text, re.compile(r'"mcp>=1\.28,<2\.0"'))
         self.assertRegex(pyproject_text, re.compile(r'"fastmcp>=3\.4\.1,<4\.0"'))
-        self.assertIn("mcp>=1.28,<2", requirements_text)
-        self.assertIn("fastmcp>=3.4.1,<4", requirements_text)
+        self.assertIn(".[ai,encryption,mcp,sunvalley,themedetect]", requirements_text)
+        self.assertRegex(locked["mcp"], r"^1\.28\.")
+        self.assertRegex(locked["fastmcp"], r"^3\.")
 
     def test_raw_mcp_tools_result_has_cache_hints_and_annotations(self):
         import mcp.types as types

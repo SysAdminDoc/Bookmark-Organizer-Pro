@@ -16,6 +16,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 
 def _make_bookmark(**overrides):
     """Helper — create a Bookmark with sensible defaults."""
@@ -1758,23 +1760,52 @@ class TestEmbeddingModels(_IsolatedTestBase):
         self.assertEqual(nomic["dims"], 768)
 
 
-# ── 19. Encryption recovery key (v2 format) ──────────────────────────
+# ── 19. Versioned encryption and recovery keys ──────────────────────
 
 class TestEncryptionRecoveryKey(_IsolatedTestBase):
-    """Tests for v2 encrypt/decrypt with recovery key."""
+    """Tests for Argon2id envelopes and PBKDF2 compatibility."""
 
     def _skip_if_no_crypto(self):
         from bookmark_organizer_pro.services.encryption import EncryptedStore
         if not EncryptedStore.available():
             self.skipTest("cryptography not installed")
 
-    def test_v2_round_trip_with_passphrase(self):
+    @staticmethod
+    def _legacy_blob(passphrase, plaintext, recovery_key=None):
+        """Build a historical v1/v2 envelope without calling current writers."""
+        import struct
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from cryptography.hazmat.primitives.hashes import SHA256
+        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+        from bookmark_organizer_pro.services.encryption import (
+            KEY_LEN, MAGIC, NONCE_LEN, PBKDF2_ITERS, SALT_LEN,
+            VERSION, VERSION_RECOVERY, _recovery_key_to_bytes,
+        )
+
+        def encrypt_copy(secret):
+            salt = os.urandom(SALT_LEN)
+            nonce = os.urandom(NONCE_LEN)
+            key = PBKDF2HMAC(
+                algorithm=SHA256(), length=KEY_LEN, salt=salt,
+                iterations=PBKDF2_ITERS,
+            ).derive(secret)
+            ciphertext = AESGCM(key).encrypt(nonce, plaintext, MAGIC)
+            return salt + nonce + struct.pack(">I", len(ciphertext)) + ciphertext
+
+        version = VERSION_RECOVERY if recovery_key else VERSION
+        blob = MAGIC + struct.pack(">I", version) + encrypt_copy(passphrase.encode("utf-8"))
+        if recovery_key:
+            blob += encrypt_copy(_recovery_key_to_bytes(recovery_key))
+        return blob
+
+    def test_argon2_recovery_round_trip_with_passphrase(self):
         self._skip_if_no_crypto()
         from bookmark_organizer_pro.services.encryption import EncryptedStore, generate_recovery_key
         store = EncryptedStore("test-passphrase")
         rk = generate_recovery_key()
         plaintext = b"secret bookmark data"
         blob = store.encrypt_with_recovery(plaintext, rk)
+        self.assertEqual(EncryptedStore.format_version(blob), 4)
         decrypted = store.decrypt(blob)
         self.assertEqual(decrypted, plaintext)
 
@@ -1788,20 +1819,36 @@ class TestEncryptionRecoveryKey(_IsolatedTestBase):
         decrypted = EncryptedStore.decrypt_with_recovery_key(blob, rk)
         self.assertEqual(decrypted, plaintext)
 
-    def test_v1_format_still_decrypts(self):
+    def test_new_primary_format_is_argon2id(self):
+        self._skip_if_no_crypto()
+        from bookmark_organizer_pro.services.encryption import EncryptedStore
+        store = EncryptedStore("argon-passphrase")
+        blob = store.encrypt(b"argon format data")
+        self.assertEqual(EncryptedStore.format_version(blob), 3)
+        self.assertEqual(store.decrypt(blob), b"argon format data")
+
+    def test_v1_pbkdf2_format_still_decrypts(self):
         self._skip_if_no_crypto()
         from bookmark_organizer_pro.services.encryption import EncryptedStore
         store = EncryptedStore("v1-passphrase")
         plaintext = b"v1 format data"
-        v1_blob = store.encrypt(plaintext)
+        v1_blob = self._legacy_blob("v1-passphrase", plaintext)
         decrypted = store.decrypt(v1_blob)
         self.assertEqual(decrypted, plaintext)
+
+    def test_v2_pbkdf2_format_still_decrypts_with_both_keys(self):
+        self._skip_if_no_crypto()
+        from bookmark_organizer_pro.services.encryption import EncryptedStore, generate_recovery_key
+        recovery_key = generate_recovery_key()
+        plaintext = b"v2 compatibility data"
+        blob = self._legacy_blob("v2-passphrase", plaintext, recovery_key)
+        self.assertEqual(EncryptedStore("v2-passphrase").decrypt(blob), plaintext)
+        self.assertEqual(EncryptedStore.decrypt_with_recovery_key(blob, recovery_key), plaintext)
 
     def test_recovery_key_on_v1_blob_raises(self):
         self._skip_if_no_crypto()
         from bookmark_organizer_pro.services.encryption import EncryptedStore, generate_recovery_key
-        store = EncryptedStore("v1-passphrase")
-        v1_blob = store.encrypt(b"v1 only")
+        v1_blob = self._legacy_blob("v1-passphrase", b"v1 only")
         with self.assertRaises(ValueError):
             EncryptedStore.decrypt_with_recovery_key(v1_blob, generate_recovery_key())
 
@@ -1824,6 +1871,71 @@ class TestEncryptionRecoveryKey(_IsolatedTestBase):
         wrong_rk = generate_recovery_key()
         with self.assertRaises(Exception):
             EncryptedStore.decrypt_with_recovery_key(blob, wrong_rk)
+
+    def test_tampered_argon2_parameters_fail_before_derivation(self):
+        self._skip_if_no_crypto()
+        from bookmark_organizer_pro.services.encryption import EncryptedStore
+        store = EncryptedStore("test")
+        blob = bytearray(store.encrypt(b"data"))
+        blob[8:12] = b"\x00\x00\x00\x01"
+        with self.assertRaisesRegex(ValueError, "memory cost"):
+            store.decrypt(bytes(blob))
+
+    def test_authenticated_argon2_parameter_tamper_fails_closed(self):
+        self._skip_if_no_crypto()
+        from bookmark_organizer_pro.services.encryption import EncryptedStore
+        store = EncryptedStore("test")
+        blob = bytearray(store.encrypt(b"data"))
+        # Change iterations from 3 to 4; it remains in bounds but invalidates AAD.
+        blob[12:16] = b"\x00\x00\x00\x04"
+        with self.assertRaises(Exception):
+            store.decrypt(bytes(blob))
+
+    def test_rotation_upgrades_after_byte_exact_backup(self):
+        self._skip_if_no_crypto()
+        from bookmark_organizer_pro.services.encryption import EncryptedStore
+        path = Path(self._tmp) / "library.enc"
+        original = self._legacy_blob("old-passphrase", b"library data")
+        path.write_bytes(original)
+
+        self.assertTrue(EncryptedStore.rotate_passphrase(path, "old-passphrase", "new-passphrase"))
+        backups = list(path.parent.glob("library.enc.pre-rotation-*.bak"))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(backups[0].read_bytes(), original)
+        self.assertEqual(EncryptedStore.format_version(path.read_bytes()), 3)
+        self.assertEqual(EncryptedStore("new-passphrase").decrypt(path.read_bytes()), b"library data")
+        with self.assertRaises(Exception):
+            EncryptedStore("old-passphrase").decrypt(path.read_bytes())
+
+    def test_rotation_preserves_recovery_access(self):
+        self._skip_if_no_crypto()
+        from bookmark_organizer_pro.services.encryption import EncryptedStore, generate_recovery_key
+        path = Path(self._tmp) / "library-recovery.enc"
+        recovery_key = generate_recovery_key()
+        original = self._legacy_blob("old-passphrase", b"recoverable", recovery_key)
+        path.write_bytes(original)
+
+        self.assertTrue(EncryptedStore.rotate_passphrase(
+            path, "old-passphrase", "new-passphrase", recovery_key,
+        ))
+        rotated = path.read_bytes()
+        self.assertEqual(EncryptedStore.format_version(rotated), 4)
+        self.assertEqual(EncryptedStore.decrypt_with_recovery_key(rotated, recovery_key), b"recoverable")
+
+    def test_rotation_refuses_to_discard_recovery_access(self):
+        self._skip_if_no_crypto()
+        from bookmark_organizer_pro.services.encryption import EncryptedStore, generate_recovery_key
+        path = Path(self._tmp) / "library-recovery.enc"
+        original = self._legacy_blob("old-passphrase", b"recoverable", generate_recovery_key())
+        path.write_bytes(original)
+        backups_before = set(path.parent.glob("library-recovery.enc.pre-rotation-*.bak"))
+
+        self.assertFalse(EncryptedStore.rotate_passphrase(path, "old-passphrase", "new-passphrase"))
+        self.assertEqual(path.read_bytes(), original)
+        self.assertEqual(
+            set(path.parent.glob("library-recovery.enc.pre-rotation-*.bak")),
+            backups_before,
+        )
 
 
 # ── 20. OPDS 2.0 export ──────────────────────────────────────────────
@@ -2146,6 +2258,63 @@ class TestStructuredExtractionTemplates(_IsolatedTestBase):
         self.assertIn("## Structured Metadata - Docs", text)
         self.assertIn("- **heading:** Install Guide", text)
         self.assertIn("- **topics:** alpha, beta", text)
+
+
+def test_explicit_embedding_model_applies_to_model2vec_and_sentence_transformers(
+    tmp_path, monkeypatch
+):
+    from types import SimpleNamespace
+
+    from bookmark_organizer_pro.services import embeddings
+
+    model2vec_calls = []
+    sentence_calls = []
+
+    class FakeArray:
+        shape = (1, 3)
+
+    class FakeStaticModel:
+        @classmethod
+        def from_pretrained(cls, name):
+            model2vec_calls.append(name)
+            return SimpleNamespace(encode=lambda _texts: FakeArray())
+
+    class FakeSentenceTransformer:
+        def __init__(self, name):
+            sentence_calls.append(name)
+
+        @staticmethod
+        def get_sentence_embedding_dimension():
+            return 3
+
+    service = embeddings.EmbeddingService("custom/embedding-model", tmp_path)
+    monkeypatch.setattr(
+        embeddings,
+        "_try_import",
+        lambda name: SimpleNamespace(StaticModel=FakeStaticModel)
+        if name == "model2vec"
+        else SimpleNamespace(SentenceTransformer=FakeSentenceTransformer),
+    )
+
+    assert service._load_model2vec()
+    service._backend = None
+    assert service._load_sentence_transformers()
+    assert model2vec_calls == ["custom/embedding-model"]
+    assert sentence_calls == ["custom/embedding-model"]
+
+
+def test_stdlib_rss_fallback_rejects_complex_dtd_and_entity_subsets():
+    from bookmark_organizer_pro.services.rss_feeds import _stdlib_safe_xml_fromstring
+
+    malicious = """<!DOCTYPE rss [
+      <!ENTITY % nested '<!ENTITY expanded "payload">'>
+      %nested;
+    ]><rss><channel><title>&expanded;</title></channel></rss>"""
+
+    with pytest.raises(ValueError, match="DTD and entity"):
+        _stdlib_safe_xml_fromstring(malicious)
+    root = _stdlib_safe_xml_fromstring("<rss><channel><title>Safe</title></channel></rss>")
+    assert root.tag == "rss"
 
 
 if __name__ == "__main__":

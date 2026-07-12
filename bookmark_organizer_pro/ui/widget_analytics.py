@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Any, Dict
 
-from .foundation import FONTS, truncate_middle
+from .foundation import FONTS, DesignTokens, truncate_middle
 from .widget_controls import ModernButton, ThemedWidget
 from .widget_runtime import apply_window_chrome, get_theme
 
@@ -32,18 +32,18 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         self.bind("<Escape>", lambda _event: self.destroy())
 
         # Header
-        header = tk.Frame(self, bg=theme.bg_dark, height=82)
+        header = tk.Frame(self, bg=theme.bg_dark, height=DesignTokens.HEADER_HEIGHT)
         header.pack(fill=tk.X)
         header.pack_propagate(False)
         
         tk.Label(
             header, text="Collection Analytics", bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.title(bold=True)
-        ).pack(anchor="w", padx=22, pady=(15, 2))
+        ).pack(anchor="w", padx=DesignTokens.PANEL_PAD, pady=(11, 1))
         tk.Label(
             header, text="Health, coverage, and cleanup signals for the current library.",
             bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small()
-        ).pack(anchor="w", padx=22)
+        ).pack(anchor="w", padx=DesignTokens.PANEL_PAD, pady=(0, 9))
         
         # Stats summary cards
         cards_frame = tk.Frame(self, bg=theme.bg_primary)

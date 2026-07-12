@@ -15,12 +15,12 @@ def test_release_artifact_smoke_accepts_expected_version(tmp_path: Path):
     artifact = _artifact(tmp_path)
 
     def runner(*args, **kwargs):
-        return subprocess.CompletedProcess(args[0], 0, stdout="Bookmark Organizer Pro v6.10.2\n", stderr="")
+        return subprocess.CompletedProcess(args[0], 0, stdout="Bookmark Organizer Pro v6.11.0\n", stderr="")
 
-    result = smoke.smoke_artifact(artifact, expected_version="6.10.2", runner=runner)
+    result = smoke.smoke_artifact(artifact, expected_version="6.11.0", runner=runner)
 
     assert result.returncode == 0
-    assert result.stdout == "Bookmark Organizer Pro v6.10.2"
+    assert result.stdout == "Bookmark Organizer Pro v6.11.0"
 
 
 def test_release_artifact_smoke_rejects_wrong_version(tmp_path: Path):
@@ -30,7 +30,7 @@ def test_release_artifact_smoke_rejects_wrong_version(tmp_path: Path):
         return subprocess.CompletedProcess(args[0], 0, stdout="Bookmark Organizer Pro v0.0.0\n", stderr="")
 
     try:
-        smoke.smoke_artifact(artifact, expected_version="6.10.2", runner=runner)
+        smoke.smoke_artifact(artifact, expected_version="6.11.0", runner=runner)
     except smoke.ReleaseArtifactSmokeError as exc:
         assert "unexpected version" in str(exc)
     else:

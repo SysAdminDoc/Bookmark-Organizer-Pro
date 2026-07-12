@@ -762,7 +762,7 @@ def fulfill_api(route) -> None:
     elif "/bookmarks" in url:
         payload = {"bookmarks": sample_bookmarks}
     else:
-        payload = {"name": "Bookmark Organizer Pro", "version": "6.10.2"}
+        payload = {"name": "Bookmark Organizer Pro", "version": "6.11.0"}
     route.fulfill(status=200, content_type="application/json", body=json.dumps(payload))
 
 

@@ -375,6 +375,12 @@ class DashboardActionsMixin:
             snapshot_failures = SnapshotFailureStore().list_failures()
         except Exception:
             snapshot_failures = []
+        try:
+            from bookmark_organizer_pro.services.job_ledger import JobLedger
+            job_health = JobLedger().health()
+        except Exception:
+            job_health = {"jobs": 0, "failures": 0, "failure_rate": 0.0,
+                          "retryable_failures": 0, "storage_growth_7d_bytes": 0}
         pulse_stats = dict(stats)
         pulse_stats["snapshot_failures"] = len(snapshot_failures)
         self._refresh_collection_pulse(pulse_stats, all_bookmarks)
@@ -383,6 +389,8 @@ class DashboardActionsMixin:
             stats,
             len(snapshot_failures),
             sum(1 for record in snapshot_failures if record.retry_eligible),
+            job_health.get("jobs", 0),
+            job_health.get("failures", 0),
         )
         if hasattr(self, '_last_analytics_stats') and self._last_analytics_stats == analytics_signature:
             return
@@ -624,6 +632,22 @@ class DashboardActionsMixin:
             snap_lbl.pack(side=tk.LEFT)
             make_keyboard_activatable(snap_row, self._view_snapshot_failures)
             snap_lbl.bind("<Button-1>", lambda e: self._view_snapshot_failures())
+
+        if job_health.get("jobs"):
+            section_label(_("Local Job Health"))
+            failures = int(job_health.get("failures", 0))
+            rate = float(job_health.get("failure_rate", 0.0))
+            retryable = int(job_health.get("retryable_failures", 0))
+            growth = int(job_health.get("storage_growth_7d_bytes", 0))
+            health_text = (
+                f"{job_health['jobs']} completed · {failures} failed ({rate:.0%})\n"
+                f"{retryable} retryable · {growth / 1024:.1f} KB processed in 7 days"
+            )
+            tk.Label(
+                self.analytics_frame, text=health_text, bg=theme.bg_secondary,
+                fg=theme.accent_error if failures else theme.accent_success,
+                font=FONTS.small(), justify=tk.LEFT, wraplength=235,
+            ).pack(anchor="w", pady=(1, 8))
 
         # Daily digest — rediscover forgotten bookmarks
         try:

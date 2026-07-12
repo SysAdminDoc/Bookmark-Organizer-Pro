@@ -2,8 +2,10 @@
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **single-file HTML snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
+Executable product contract: 61 CLI subcommands, 32 MCP tools, 6 AI providers, and 3 extension surfaces.
+
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
-![Version](https://img.shields.io/badge/Version-v6.10.2-2dd4bf.svg)
+![Version](https://img.shields.io/badge/Version-v6.11.0-2dd4bf.svg)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
@@ -61,13 +63,16 @@ extension smoke reports a missing Chromium runtime.
 The accessibility smoke verifies extension labels, status regions, tab roles,
 valid list/loading recovery structure, reduced-motion styling, Studio token
 parity, and Tk keyboard-focus activation contracts.
-The dependency audit resolves `requirements.txt` with `pip-audit`, reports
+The dependency audit checks the generated `pylock.toml` with `pip-audit --locked`, reports
 actionable vulnerability IDs and fix versions, and requires every suppression in
 `security/pip_audit_suppressions.json` to include package, version, ID, and
 rationale.
 The release artifact smoke runs the built executable with `--version` and fails
 if the artifact is missing, unexpectedly small, reports the wrong version, or
 leaves a process running.
+`python scripts/package_contract_audit.py` verifies the generated install input,
+standard lock, and live CLI/MCP/provider/extension counts. Regenerate the
+platform lock with `python scripts/package_contract_audit.py --update-lock`.
 
 ### v6 CLI quickstart
 
@@ -104,6 +109,14 @@ python -m bookmark_organizer_pro.cli recovery-bundle validate library-recovery.z
 # Restore is a dry run unless --apply is supplied
 python -m bookmark_organizer_pro.cli recovery-bundle restore library-recovery.zip
 python -m bookmark_organizer_pro.cli recovery-bundle restore library-recovery.zip --apply
+
+# Export changed annotations and preflight a competitor migration
+python -m bookmark_organizer_pro.cli reader export all --format json --changed-since 2026-07-01T00:00:00Z
+python -m bookmark_organizer_pro.cli migration preflight linkwarden linkwarden-export.json --report fidelity.json
+
+# Inspect bounded, local-only capture and indexing health
+python -m bookmark_organizer_pro.cli jobs health
+python -m bookmark_organizer_pro.cli jobs list --outcome failure --retryable
 ```
 
 Snapshot capture applies the same private/reserved-network, redirect, request,
@@ -132,6 +145,12 @@ file above when keyring storage is unavailable. The extension keeps its bearer
 token in a background-owned IndexedDB vault, restricts Chromium local storage
 to trusted extension contexts, and migrates older `storage.local` tokens on
 startup.
+
+The popup and side panel can optionally save a sanitized offline copy of the
+active signed-in page. Capture removes scripts, forms, event handlers, remote
+assets, cookies, and storage client-side; the authenticated API enforces an
+extension Origin, a versioned header, strict size/source checks, and a second
+sanitization pass before atomic storage. Only embedded `data:` assets survive.
 Native messaging and offline category/tag suggestions remain on the roadmap.
 
 ## Features
@@ -313,7 +332,7 @@ the detail panel.
 ### AI Configuration
 
 1. Open the **Ask** toolbar menu and choose **Assistant Settings**
-2. Select a provider (OpenAI, Anthropic, Google, Groq, or Ollama)
+2. Select a provider (OpenAI, Anthropic, Google, Groq, DeepSeek, or Ollama)
 3. Enter your API key if the provider requires one
 4. Select a model
 5. Click **Test Provider** to verify
@@ -328,6 +347,7 @@ the detail panel.
 
 - Network tools skip private, localhost, and unsupported URL schemes to avoid leaking or fetching internal resources.
 - AI API keys are stored in the OS keyring when available; `~/.bookmark_organizer/ai_config.json` stores provider settings and is used as a locked-down fallback if keyring storage is unavailable.
+- New encrypted stores use versioned Argon2id parameters authenticated with the ciphertext. Legacy PBKDF2 v1/v2 stores and recovery keys remain readable; rotation creates and verifies a byte-exact backup before upgrading.
 - Imports, exports, settings, and category files are written defensively with atomic writes where supported.
 
 ### Theme Customization

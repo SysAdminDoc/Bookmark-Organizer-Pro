@@ -1,26 +1,5 @@
+importScripts("shared.js");
 importScripts("credential-vault.js");
-
-const DEFAULTS = {
-  apiPort: 8765,
-  defaultCategory: "Uncategorized / Needs Review"
-};
-const PENDING_SAVES_KEY = "pendingSaves";
-
-const api = globalThis.browser ?? globalThis.chrome;
-
-function storageGet(keys) {
-  if (api.storage.local.get.length === 1) {
-    return api.storage.local.get(keys);
-  }
-  return new Promise(resolve => api.storage.local.get(keys, resolve));
-}
-
-function storageSet(values) {
-  if (api.storage.local.set.length === 1) {
-    return api.storage.local.set(values);
-  }
-  return new Promise(resolve => api.storage.local.set(values, resolve));
-}
 
 function storageRemove(keys) {
   if (api.storage.local.remove.length === 1) {
@@ -52,7 +31,11 @@ const credentialReady = initializeCredentialVault();
 
 async function getTrustedConfig() {
   await credentialReady;
-  const stored = await storageGet(DEFAULTS);
+  const publicDefaults = {
+    apiPort: DEFAULTS.apiPort,
+    defaultCategory: DEFAULTS.defaultCategory
+  };
+  const stored = await storageGet(publicDefaults);
   return { ...DEFAULTS, ...stored, apiToken: await CredentialVault.getToken() };
 }
 
@@ -79,32 +62,6 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
     .catch(() => sendResponse({ ok: false, error: "Credential operation failed" }));
   return true;
 });
-
-async function getPendingSaves() {
-  const stored = await storageGet({ [PENDING_SAVES_KEY]: [] });
-  return Array.isArray(stored[PENDING_SAVES_KEY]) ? stored[PENDING_SAVES_KEY] : [];
-}
-
-async function enqueuePendingSave(payload, reason) {
-  const pending = await getPendingSaves();
-  const normalized = {
-    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    source: "context_menu",
-    reason,
-    attempts: 0,
-    created_at: new Date().toISOString(),
-    payload
-  };
-  const duplicate = pending.find(item => item.payload && item.payload.url === payload.url);
-  if (duplicate) {
-    duplicate.payload = payload;
-    duplicate.reason = reason;
-    duplicate.created_at = normalized.created_at;
-  } else {
-    pending.push(normalized);
-  }
-  await storageSet({ [PENDING_SAVES_KEY]: pending.slice(-50) });
-}
 
 api.runtime.onInstalled.addListener(() => {
   api.contextMenus.create({

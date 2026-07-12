@@ -18,7 +18,10 @@ _USER_AGENT = f"BookmarkOrganizerPro/{APP_VERSION} LinkChecker"
 class LinkChecker:
     """Background link checker with threading and per-domain rate limiting."""
 
-    def __init__(self, callback: Callable = None, max_workers: int = 10):
+    def __init__(self, callback: Callable = None, max_workers: int = 10,
+                 job_ledger=None):
+        from .services.job_ledger import JobLedger
+
         self.callback = callback
         try:
             self.max_workers = max(1, min(32, int(max_workers)))
@@ -31,6 +34,7 @@ class LinkChecker:
         self._lock = threading.Lock()
         self._domain_locks: Dict[str, threading.Lock] = {}
         self._domain_last_request: Dict[str, float] = {}
+        self.job_ledger = job_ledger or JobLedger()
 
     def check_links(self, bookmarks: List[Bookmark],
                    progress_callback: Callable = None):
@@ -105,6 +109,18 @@ class LinkChecker:
             self._domain_last_request[domain] = time.monotonic()
 
     def _check_url(self, bookmark: Bookmark) -> Tuple[bool, int]:
+        job = self.job_ledger.start(
+            "link_check", bookmark_id=bookmark.id,
+            url_or_domain=bookmark.url, backend="requests",
+        )
+        valid, status = self._perform_check_url(bookmark)
+        if status:
+            job.succeed()
+        else:
+            job.fail("Link check did not receive an HTTP response", retryable=True)
+        return valid, status
+
+    def _perform_check_url(self, bookmark: Bookmark) -> Tuple[bool, int]:
         """Check a single URL. Detects redirects; returns (is_valid, status_code).
         Redirect metadata is stored on bookmark.custom_data under the lock."""
         try:

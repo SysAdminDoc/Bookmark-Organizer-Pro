@@ -105,6 +105,13 @@ def build_diagnostics_snapshot() -> Dict[str, Any]:
         if any(marker in line.upper() for marker in ("ERROR", "CRITICAL", "TRACEBACK", "EXCEPTION"))
     ][-50:]
 
+    try:
+        from bookmark_organizer_pro.services.job_ledger import JobLedger
+        job_health = JobLedger().health()
+    except Exception as exc:
+        log.debug("Could not summarize job ledger: %s", exc)
+        job_health = {"available": False}
+
     return {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "application": {
@@ -121,6 +128,7 @@ def build_diagnostics_snapshot() -> Dict[str, Any]:
             "log": _file_metadata(LOG_FILE),
         },
         "recent_errors": recent_errors,
+        "job_health": job_health,
         "privacy": {
             "bookmark_contents_included": False,
             "secrets_redacted": True,
@@ -154,6 +162,16 @@ def format_diagnostics(snapshot: Dict[str, Any] | None = None) -> str:
     lines.append(f"Recent Errors: {len(snapshot['recent_errors'])}")
     for line in snapshot["recent_errors"][-8:]:
         lines.append(f"- {line}")
+    jobs = snapshot.get("job_health", {})
+    if jobs.get("jobs") is not None:
+        lines.extend([
+            "",
+            "Local Job Health:",
+            f"- Completed: {jobs['jobs']}",
+            f"- Failures: {jobs['failures']} ({jobs['failure_rate']:.1%})",
+            f"- Retryable: {jobs['retryable_failures']}",
+            f"- Processed storage (7d): {jobs['storage_growth_7d_bytes']} bytes",
+        ])
     lines.append("")
     lines.append("Privacy: bookmark contents excluded; secrets redacted.")
     return "\n".join(lines)

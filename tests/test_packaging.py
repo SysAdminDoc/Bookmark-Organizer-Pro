@@ -31,6 +31,15 @@ def _load_nuitka_smoke():
     return module
 
 
+def _load_package_contract_audit():
+    path = ROOT / "scripts" / "package_contract_audit.py"
+    spec = importlib.util.spec_from_file_location("bop_package_contract_audit", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
 class TestNuitkaBuildHelper(unittest.TestCase):
     def test_command_includes_tk_assets_and_version_metadata(self):
         module = _load_nuitka_build()
@@ -94,10 +103,10 @@ class TestNuitkaBuildHelper(unittest.TestCase):
         pyproject_text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         self.assertIn('nuitka = ["Nuitka>=4.1,<5.0"]', pyproject_text)
 
-    def test_updates_extra_is_declared(self):
+    def test_vulnerable_updater_is_not_in_release_extras(self):
         pyproject_text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-        self.assertIn('updates = ["tufup>=0.10,<0.11"]', pyproject_text)
-        self.assertIn('"bookmark-organizer-pro[ai,encryption,mcp,updates,sunvalley]"', pyproject_text)
+        self.assertNotIn('updates = ["tufup', pyproject_text)
+        self.assertNotIn("mcp,updates,sunvalley", pyproject_text)
 
     def test_sunvalley_extra_is_declared(self):
         pyproject_text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
@@ -154,6 +163,24 @@ class TestNuitkaBuildHelper(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             self.assertNotIn("pystray", text, path)
             self.assertNotIn("System Tray", text, path)
+
+    def test_release_dependencies_are_generated_from_pyproject_and_locked(self):
+        module = _load_package_contract_audit()
+
+        report = module.validate_dependency_contract()
+
+        self.assertGreater(report["direct_dependencies"], 10)
+        install_lines = [
+            line.strip()
+            for line in (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.startswith("#")
+        ]
+        self.assertEqual(install_lines, [module.INSTALL_LINE])
+
+    def test_public_product_counts_match_live_surfaces(self):
+        module = _load_package_contract_audit()
+
+        self.assertEqual(module.validate_product_claims(), module.live_product_claims())
 
 
 if __name__ == "__main__":

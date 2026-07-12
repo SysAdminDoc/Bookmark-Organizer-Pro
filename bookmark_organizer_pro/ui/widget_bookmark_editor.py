@@ -11,7 +11,7 @@ from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.managers import TagManager
 from bookmark_organizer_pro.models import Bookmark
 
-from .foundation import FONTS, readable_text_on
+from .foundation import FONTS, DesignTokens, readable_text_on
 from .widget_controls import ModernButton, TagEditor, ThemedWidget
 from .widget_runtime import _open_external_url, apply_window_chrome, get_theme
 
@@ -43,7 +43,7 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
         apply_window_chrome(self)
         
         # Header
-        header = tk.Frame(self, bg=theme.bg_dark, height=86)
+        header = tk.Frame(self, bg=theme.bg_dark, height=DesignTokens.HEADER_HEIGHT)
         header.pack(fill=tk.X)
         header.pack_propagate(False)
 
@@ -51,12 +51,12 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
         tk.Label(
             header, text=title, bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.title(bold=True)
-        ).pack(anchor="w", padx=28, pady=(18, 2))
+        ).pack(anchor="w", padx=DesignTokens.PANEL_PAD, pady=(11, 1))
         tk.Label(
             header,
             text=_("Keep the URL, category, tags, and notes clear enough to find later."),
             bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small()
-        ).pack(anchor="w", padx=28, pady=(0, 14))
+        ).pack(anchor="w", padx=DesignTokens.PANEL_PAD, pady=(0, 9))
         
         # Content
         content = tk.Frame(self, bg=theme.bg_primary)

@@ -9,7 +9,7 @@ from typing import Callable
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services import FaviconWrapperGenerator
 
-from .foundation import FONTS, pluralize
+from .foundation import FONTS, DesignTokens, pluralize
 from .tk_interactions import make_keyboard_activatable
 from .widgets import ModernButton, Tooltip, apply_window_chrome, get_theme
 
@@ -39,18 +39,19 @@ class CategoryManagementDialog(tk.Toplevel):
         apply_window_chrome(self)
         
         # Header
-        header = tk.Frame(self, bg=theme.bg_dark)
+        header = tk.Frame(self, bg=theme.bg_dark, height=DesignTokens.HEADER_HEIGHT)
         header.pack(fill=tk.X)
+        header.pack_propagate(False)
         
         tk.Label(
             header, text="Manage Categories", bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.title(bold=True)
-        ).pack(anchor="w", padx=22, pady=(18, 4))
+        ).pack(anchor="w", padx=DesignTokens.PANEL_PAD, pady=(11, 1))
         
         tk.Label(
             header, text="Keep your collection structure clean and predictable.",
-            bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.body()
-        ).pack(anchor="w", padx=22, pady=(0, 18))
+            bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small()
+        ).pack(anchor="w", padx=DesignTokens.PANEL_PAD, pady=(0, 9))
         
         # Add category section
         add_frame = tk.LabelFrame(

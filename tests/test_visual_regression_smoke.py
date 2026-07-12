@@ -60,3 +60,24 @@ def test_windows_capture_resolves_top_level_hwnd_contract():
     source = inspect.getsource(smoke._get_toplevel_hwnd)
     assert "GetAncestor" in source
     assert "winfo_id" in source
+
+
+def test_desktop_viewport_gate_covers_supported_sizes_and_themes():
+    source = inspect.getsource(smoke.verify_desktop_viewports)
+    assert "(1280, 720)" in source
+    assert "(1540, 980)" in source
+    assert "(1920, 1080)" in source
+    assert '"github_dark"' in source
+    assert '"github_light"' in source
+    assert "assert_actionable_controls_inside" in source
+
+
+def test_primary_dialog_headers_share_design_token():
+    root = Path(__file__).resolve().parents[1]
+    for relative in (
+        "bookmark_organizer_pro/ui/widget_bookmark_editor.py",
+        "bookmark_organizer_pro/ui/widget_analytics.py",
+        "bookmark_organizer_pro/ui/management_dialogs.py",
+    ):
+        source = (root / relative).read_text(encoding="utf-8")
+        assert "height=DesignTokens.HEADER_HEIGHT" in source

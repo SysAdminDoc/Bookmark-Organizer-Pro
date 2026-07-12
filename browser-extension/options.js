@@ -1,36 +1,4 @@
-const DEFAULTS = {
-  apiPort: 8765,
-  defaultCategory: "Uncategorized / Needs Review"
-};
-
-const api = globalThis.browser ?? globalThis.chrome;
-
-function storageGet(keys) {
-  if (api.storage.local.get.length === 1) {
-    return api.storage.local.get(keys);
-  }
-  return new Promise(resolve => api.storage.local.get(keys, resolve));
-}
-
-function storageSet(values) {
-  if (api.storage.local.set.length === 1) {
-    return api.storage.local.set(values);
-  }
-  return new Promise(resolve => api.storage.local.set(values, resolve));
-}
-
-function runtimeMessage(message) {
-  if (api.runtime.sendMessage.length === 1) {
-    return api.runtime.sendMessage(message);
-  }
-  return new Promise((resolve, reject) => {
-    api.runtime.sendMessage(message, response => {
-      const error = api.runtime.lastError;
-      if (error) { reject(new Error("Extension service unavailable")); return; }
-      resolve(response);
-    });
-  });
-}
+/* global DEFAULTS, storageGet, storageSet, runtimeMessage */
 
 function setStatus(message, tone = "info") {
   const status = document.getElementById("status");
