@@ -2,6 +2,7 @@ import hashlib
 import json
 import sqlite3
 import threading
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -10,6 +11,7 @@ from bookmark_organizer_pro.core import (
     SQLiteStorageManager,
     StorageConflictError,
     StorageManager,
+    StorageRecoveryRequiredError,
     StorageVersionError,
 )
 from bookmark_organizer_pro.managers.bookmarks import BookmarkManager
@@ -182,9 +184,85 @@ def test_sqlite_future_schema_is_not_downgraded(tmp_path):
         conn.execute("CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
         conn.execute("INSERT INTO metadata VALUES('schema_version', '99')")
 
+    storage = SQLiteStorageManager(path)
+    assert storage.status.state == "future_version"
     with pytest.raises(StorageVersionError, match="newer than supported"):
-        SQLiteStorageManager(path)
+        storage.save([])
     with sqlite3.connect(path) as conn:
         assert conn.execute(
             "SELECT value FROM metadata WHERE key = 'schema_version'"
         ).fetchone()[0] == "99"
+
+
+def test_sqlite_corrupt_file_is_preserved_and_manager_stays_write_locked(tmp_path):
+    path = tmp_path / "bookmarks.sqlite"
+    recovery_dir = tmp_path / "recovery"
+    damaged = b"SQLite format 3\x00" + (b"damaged" * 50)
+    path.write_bytes(damaged)
+
+    with patch("bookmark_organizer_pro.core.sqlite_storage.RECOVERY_DIR", recovery_dir):
+        manager = BookmarkManager(object(), object(), filepath=path, storage_backend="sqlite")
+
+        assert manager.recovery_required
+        assert manager.get_all_bookmarks() == []
+        preserved = list(recovery_dir.glob("*.sqlite"))
+        assert len(preserved) == 1
+        assert preserved[0].read_bytes() == damaged
+        with pytest.raises(StorageRecoveryRequiredError, match="Restore a verified backup"):
+            manager.add_bookmark(_bookmark(9, "Blocked"))
+        assert path.read_bytes() == damaged
+
+
+def test_sqlite_malformed_row_requires_explicit_salvage(tmp_path):
+    path = tmp_path / "bookmarks.sqlite"
+    recovery_dir = tmp_path / "recovery"
+    storage = SQLiteStorageManager(path)
+    storage.save([_bookmark(1, "Valid").to_dict()])
+    conn = sqlite3.connect(path)
+    try:
+        conn.execute(
+            """
+            INSERT INTO bookmarks(id, position, url, title, payload_json)
+            VALUES('2', 2, 'https://bad.example', 'Bad', '{not json')
+            """
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    with patch("bookmark_organizer_pro.core.sqlite_storage.RECOVERY_DIR", recovery_dir):
+        assert storage.load() == []
+        assert storage.status.state == "corrupt"
+        recovered = storage.salvage()
+        assert [bookmark.id for bookmark in recovered] == [1]
+        preserved = Path(storage.commit_salvage(recovered))
+
+    assert preserved.is_file()
+    assert [bookmark.id for bookmark in storage.load()] == [1]
+    assert storage.status.state == "valid"
+
+
+def test_sqlite_restore_rejects_tampering_and_recovers_verified_backup(tmp_path):
+    path = tmp_path / "bookmarks.sqlite"
+    backup_dir = tmp_path / "backups"
+    recovery_dir = tmp_path / "recovery"
+    with (
+        patch("bookmark_organizer_pro.core.sqlite_storage.BACKUP_DIR", backup_dir),
+        patch("bookmark_organizer_pro.core.sqlite_storage.RECOVERY_DIR", recovery_dir),
+    ):
+        storage = SQLiteStorageManager(path)
+        storage.save([_bookmark(1, "First").to_dict()])
+        storage.save([_bookmark(2, "Second").to_dict()])
+        backup_name = storage.get_backups()[0][0]
+        backup_path = backup_dir / backup_name
+        original_backup = backup_path.read_bytes()
+
+        backup_path.write_bytes(original_backup + b"tampered")
+        assert not storage.restore_backup(backup_name)
+        backup_path.write_bytes(original_backup)
+
+        path.write_bytes(b"broken sqlite")
+        damaged = SQLiteStorageManager(path)
+        assert damaged.recovery_required
+        assert damaged.restore_backup(backup_name)
+        assert [bookmark.id for bookmark in damaged.load()] == [1]

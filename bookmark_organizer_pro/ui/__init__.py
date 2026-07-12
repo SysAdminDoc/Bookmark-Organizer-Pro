@@ -73,9 +73,11 @@ from .treeview import BookmarkListWidget, SortableTreeview, TKSHEET_AVAILABLE, V
 from .view_models import (
     CollectionPulseViewModel,
     CollectionSummaryViewModel,
+    DashboardStatisticsViewModel,
     FilterCountsViewModel,
     build_collection_pulse,
     build_collection_summary,
+    build_dashboard_statistics,
     build_filter_counts,
 )
 from .theme import ThemeColors, ThemeInfo, ThemeManager
@@ -170,9 +172,11 @@ __all__ = [
     "VirtualBookmarkSheet",
     "CollectionSummaryViewModel",
     "CollectionPulseViewModel",
+    "DashboardStatisticsViewModel",
     "FilterCountsViewModel",
     "build_collection_pulse",
     "build_collection_summary",
+    "build_dashboard_statistics",
     "build_filter_counts",
     "ThemeColors",
     "ThemeInfo",

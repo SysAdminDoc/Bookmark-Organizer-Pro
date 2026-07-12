@@ -5,7 +5,7 @@ A powerful, professional-grade bookmark manager with AI-powered categorization, 
 Executable product contract: 61 CLI subcommands, 32 MCP tools, 6 AI providers, and 3 extension surfaces.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
-![Version](https://img.shields.io/badge/Version-v6.11.0-2dd4bf.svg)
+![Version](https://img.shields.io/badge/Version-v6.11.1-2dd4bf.svg)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
@@ -220,7 +220,7 @@ python main.py
 
 On first run, the application will:
 1. Check for required dependencies
-2. Show a dialog to install missing packages
+2. Offer to install missing packages when running from Python; packaged builds instead provide deterministic reinstall guidance
 3. Create the data directory at `~/.bookmark_organizer/`
 
 ### Dependencies
@@ -236,7 +236,7 @@ On first run, the application will:
 ### Manual Installation
 
 ```bash
-pip install beautifulsoup4 requests tksheet Pillow
+pip install beautifulsoup4 requests tksheet "Pillow>=12.3.0"
 ```
 
 ## Usage
@@ -406,7 +406,7 @@ the detail panel.
 #### "Module not found" errors
 ```bash
 # Reinstall dependencies
-pip install --upgrade beautifulsoup4 requests Pillow
+pip install --upgrade beautifulsoup4 requests "Pillow>=12.3.0"
 ```
 
 #### Favicons not loading
@@ -598,7 +598,7 @@ GitHub-hosted build or release workflows.
 pip install pyinstaller
 
 # Install dependencies
-pip install beautifulsoup4 requests tksheet Pillow
+pip install beautifulsoup4 requests tksheet "Pillow>=12.3.0"
 ```
 
 ### Build Commands

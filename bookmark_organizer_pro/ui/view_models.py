@@ -7,9 +7,9 @@ unit test and reusable for a future Qt or web frontend.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Dict, Mapping, Optional, Sequence
+from typing import Dict, Mapping, Optional, Sequence, Tuple
 
 from .foundation import format_compact_count, pluralize, truncate_middle
 
@@ -56,6 +56,68 @@ class CollectionPulseViewModel:
     action_key: str
     action_title: str
     action_detail: str
+
+
+@dataclass(frozen=True)
+class DashboardStatisticsViewModel:
+    """Complete, safe statistics state consumed by the dashboard panel."""
+
+    total_bookmarks: int = 0
+    total_categories: int = 0
+    total_tags: int = 0
+    pinned: int = 0
+    uncategorized: int = 0
+    duplicate_bookmarks: int = 0
+    broken: int = 0
+    stale: int = 0
+    category_counts: Mapping[str, int] = field(default_factory=dict)
+    top_domains: Tuple[Tuple[str, int], ...] = ()
+    degraded_message: str = ""
+
+    @property
+    def is_degraded(self) -> bool:
+        return bool(self.degraded_message)
+
+
+def build_dashboard_statistics(
+    stats: Optional[Mapping] = None,
+    *,
+    degraded_message: str = "",
+) -> DashboardStatisticsViewModel:
+    """Normalize manager statistics into a complete dashboard contract."""
+    if not isinstance(stats, Mapping):
+        stats = {}
+
+    raw_categories = stats.get("category_counts", {})
+    category_counts = {
+        str(name): _safe_int(count)
+        for name, count in raw_categories.items()
+    } if isinstance(raw_categories, Mapping) else {}
+
+    top_domains = []
+    raw_domains = stats.get("top_domains", ())
+    if isinstance(raw_domains, (list, tuple)):
+        for item in raw_domains:
+            if not isinstance(item, (list, tuple)) or len(item) != 2:
+                continue
+            domain, count = item
+            domain = str(domain or "").strip()
+            if domain:
+                top_domains.append((domain, _safe_int(count)))
+
+    return DashboardStatisticsViewModel(
+        total_bookmarks=_safe_int(stats.get("total_bookmarks", 0)),
+        total_categories=_safe_int(stats.get("total_categories", 0)),
+        total_tags=_safe_int(stats.get("total_tags", 0)),
+        pinned=_safe_int(stats.get("pinned", 0)),
+        uncategorized=_safe_int(stats.get("uncategorized", 0)),
+        duplicate_bookmarks=_safe_int(stats.get("duplicate_bookmarks", 0)),
+        broken=_safe_int(stats.get("broken", 0)),
+        stale=_safe_int(stats.get("stale", 0)),
+        category_counts=category_counts,
+        top_domains=tuple(top_domains),
+        degraded_message=str(degraded_message or "").strip(),
+    )
 
 
 def _is_recent(bookmark, cutoff: datetime) -> bool:

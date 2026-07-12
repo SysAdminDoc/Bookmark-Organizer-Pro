@@ -10,6 +10,17 @@ from typing import Callable, Dict, List, Optional, Tuple
 from ..logging_config import log
 
 
+FROZEN_REPAIR_GUIDANCE = (
+    "This packaged build cannot install Python components at runtime. "
+    "Reinstall Bookmark Organizer Pro from the complete release package."
+)
+
+
+def is_frozen_runtime() -> bool:
+    """Return whether Python is running from a frozen application bundle."""
+    return bool(getattr(sys, "frozen", False) or hasattr(sys, "_MEIPASS"))
+
+
 class DependencyManager:
     """Manage optional and required runtime package dependencies."""
 
@@ -42,6 +53,17 @@ class DependencyManager:
 
     def _package_info(self, package: str) -> Optional[dict]:
         return self.REQUIRED_PACKAGES.get(package) or self.OPTIONAL_PACKAGES.get(package)
+
+    @property
+    def runtime_install_supported(self) -> bool:
+        """Return whether this interpreter can safely invoke ``python -m pip``."""
+        return not is_frozen_runtime()
+
+    def repair_guidance(self, package: str | None = None) -> str:
+        """Return deterministic recovery guidance for an incomplete frozen build."""
+        if package:
+            return f"Missing packaged component: {package}. {FROZEN_REPAIR_GUIDANCE}"
+        return FROZEN_REPAIR_GUIDANCE
 
     def check_all(self) -> Tuple[bool, List[str], List[str]]:
         """Check all dependencies and return required/optional missing lists."""
@@ -76,6 +98,14 @@ class DependencyManager:
             message = f"Unknown dependency: {package}"
             log.error(message)
             self.install_errors[package] = message
+            return False
+
+        if not self.runtime_install_supported:
+            message = self.repair_guidance(package)
+            log.error(message)
+            self.install_errors[package] = message
+            if progress_callback:
+                progress_callback(message)
             return False
 
         log.info(f"Installing package: {package}")

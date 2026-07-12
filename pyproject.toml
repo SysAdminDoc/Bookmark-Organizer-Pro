@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bookmark-organizer-pro"
-version = "6.11.0"
+version = "6.11.1"
 description = "Professional bookmark manager with AI categorization, semantic search, MCP server, and HTML snapshots"
 readme = "README.md"
 license = {text = "MIT"}
@@ -13,7 +13,7 @@ dependencies = [
     "beautifulsoup4>=4.12",
     "requests>=2.34.2",
     "idna>=3.15.0",
-    "Pillow>=12.2.0",
+    "Pillow>=12.3.0",
     "defusedxml>=0.7",
     "tksheet>=7.6,<8",
     "urllib3>=2.7.0",

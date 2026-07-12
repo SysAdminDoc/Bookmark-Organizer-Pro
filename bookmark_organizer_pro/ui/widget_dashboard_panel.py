@@ -7,6 +7,7 @@ import tkinter as tk
 from bookmark_organizer_pro.managers import BookmarkManager
 
 from .foundation import FONTS
+from .view_models import DashboardStatisticsViewModel, build_dashboard_statistics
 from .widget_controls import ThemedWidget
 from .widget_runtime import get_theme
 
@@ -54,22 +55,28 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         stats_frame = tk.Frame(self, bg=self.theme.bg_primary)
         stats_frame.pack(fill=tk.X, padx=20, pady=10)
         
-        try:
-            stats = self.manager.get_statistics()
-        except Exception:
-            stats = {"total_bookmarks": 0, "total_categories": 0, "total_tags": 0,
-                     "top_categories": [], "top_domains": []}
+        stats = self._load_statistics()
+
+        if stats.is_degraded:
+            tk.Label(
+                self,
+                text=stats.degraded_message,
+                bg=self.theme.bg_primary,
+                fg=self.theme.status_warning,
+                font=FONTS.small(),
+                anchor="w",
+            ).pack(fill=tk.X, padx=20, pady=(0, 4))
         
         # Stat cards
         stat_cards = [
-            ("All", "Total Bookmarks", stats["total_bookmarks"]),
-            ("Cat", "Categories", stats["total_categories"]),
-            ("Tag", "Tags Used", stats["total_tags"]),
-            ("Pin", "Pinned", stats["pinned"]),
-            ("New", "Uncategorized", stats["uncategorized"]),
-            ("Dup", "Duplicates", stats["duplicate_bookmarks"]),
-            ("Fix", "Broken Links", stats["broken"]),
-            ("Old", "Stale (90+ days)", stats["stale"]),
+            ("All", "Total Bookmarks", stats.total_bookmarks),
+            ("Cat", "Categories", stats.total_categories),
+            ("Tag", "Tags Used", stats.total_tags),
+            ("Pin", "Pinned", stats.pinned),
+            ("New", "Uncategorized", stats.uncategorized),
+            ("Dup", "Duplicates", stats.duplicate_bookmarks),
+            ("Fix", "Broken Links", stats.broken),
+            ("Old", "Stale (90+ days)", stats.stale),
         ]
         
         for i, (icon, label, value) in enumerate(stat_cards):
@@ -88,11 +95,11 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         )
         cat_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=15)
         
-        cat_counts = stats["category_counts"]
+        cat_counts = stats.category_counts
         sorted_cats = sorted(cat_counts.items(), key=lambda x: -x[1])[:10]
         
         for cat, count in sorted_cats:
-            self._create_bar(cat_frame, cat, count, stats["total_bookmarks"])
+            self._create_bar(cat_frame, cat, count, stats.total_bookmarks)
         
         # Top domains
         domain_frame = tk.LabelFrame(
@@ -101,7 +108,7 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         )
         domain_frame.pack(fill=tk.X, padx=20, pady=(0, 20))
         
-        for domain, count in stats["top_domains"][:5]:
+        for domain, count in stats.top_domains[:5]:
             row = tk.Frame(domain_frame, bg=self.theme.bg_primary)
             row.pack(fill=tk.X, padx=10, pady=3)
             
@@ -115,6 +122,17 @@ class DashboardPanel(tk.Frame, ThemedWidget):
                 row, text=str(count), bg=self.theme.bg_primary,
                 fg=self.theme.text_muted, font=FONTS.body()
             ).pack(side=tk.RIGHT)
+
+    def _load_statistics(self) -> DashboardStatisticsViewModel:
+        """Return a complete dashboard state even when statistics fail."""
+        try:
+            return build_dashboard_statistics(self.manager.get_statistics())
+        except Exception:
+            return build_dashboard_statistics(
+                degraded_message=(
+                    "Statistics are temporarily unavailable. Showing safe defaults."
+                )
+            )
     
     def _create_stat_card(self, parent, icon: str, label: str, value: int) -> tk.Frame:
         """Create a stat card widget"""

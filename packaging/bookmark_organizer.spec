@@ -23,7 +23,7 @@ import sys
 # =============================================================================
 
 APP_NAME = "Bookmark Organizer Pro"
-APP_VERSION = "6.11.0"
+APP_VERSION = "6.11.1"
 SCRIPT_NAME = "main.py"
 ICON_FILE = "bookmark_organizer.ico"
 PNG_ICON_FILE = "bookmark_organizer.png"
@@ -33,6 +33,7 @@ ROOT_DIR = SPEC_DIR.parent
 ASSETS_DIR = ROOT_DIR / "assets"
 SCRIPT_PATH = ROOT_DIR / SCRIPT_NAME
 VERSION_INFO_FILE = SPEC_DIR / "version_info.txt"
+RUNTIME_HOOK_MP = SPEC_DIR / "runtime_hook_multiprocessing.py"
 
 # =============================================================================
 # ANALYSIS
@@ -165,7 +166,7 @@ a = Analysis(
     hiddenimports=hidden_imports,
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=[str(RUNTIME_HOOK_MP)],
     excludes=excludes,
     win_no_prefer_redirects=False,
     win_private_assemblies=False,

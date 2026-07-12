@@ -177,6 +177,16 @@ class TestNuitkaBuildHelper(unittest.TestCase):
         ]
         self.assertEqual(install_lines, [module.INSTALL_LINE])
 
+    def test_pyinstaller_runtime_hook_guards_multiprocessing(self):
+        spec_text = (ROOT / "packaging" / "bookmark_organizer.spec").read_text(encoding="utf-8")
+        hook_text = (ROOT / "packaging" / "runtime_hook_multiprocessing.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('RUNTIME_HOOK_MP = SPEC_DIR / "runtime_hook_multiprocessing.py"', spec_text)
+        self.assertIn("runtime_hooks=[str(RUNTIME_HOOK_MP)]", spec_text)
+        self.assertIn("multiprocessing.freeze_support()", hook_text)
+
     def test_public_product_counts_match_live_surfaces(self):
         module = _load_package_contract_audit()
 

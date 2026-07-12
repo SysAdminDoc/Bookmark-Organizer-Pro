@@ -2,6 +2,17 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.11.1] - 2026-07-12
+
+Integrity and packaged-runtime safety release.
+
+### Fixed
+
+- Upgraded Pillow to 12.3.0 and hardened favicon decoding with byte, pixel, and format validation for untrusted image payloads.
+- Made SQLite integrity, schema, metadata, and row failures enter write-locked recovery mode with damaged-source preservation, verified backup restore, and explicit salvage.
+- Prevented frozen executables from relaunching themselves through runtime `pip`, added deterministic repair guidance, and installed an early multiprocessing runtime hook.
+- Replaced the dashboard's incomplete exception fallback with a typed safe-default view model and visible degraded-data state.
+
 ## [v6.11.0] - 2026-07-12
 
 Portable research workflows and local observability release.

@@ -41,6 +41,8 @@ class HighSpeedFaviconManager:
     
     CACHE_DIR = DATA_DIR / "favicons"
     FAILED_FILE = DATA_DIR / "failed_favicons.json"
+    MAX_FAVICON_BYTES = 1_000_000
+    MAX_FAVICON_PIXELS = 20_000_000
     
     # Fast favicon sources (ordered by speed/reliability)
     FAVICON_SOURCES = [
@@ -280,6 +282,14 @@ class HighSpeedFaviconManager:
                     allow_redirects=False,
                     stream=True
                 )
+
+                try:
+                    content_length = int(response.headers.get("content-length", 0) or 0)
+                except (TypeError, ValueError):
+                    content_length = 0
+                if content_length > self.MAX_FAVICON_BYTES:
+                    response.close()
+                    continue
                 
                 content = bytearray()
                 try:
@@ -287,16 +297,28 @@ class HighSpeedFaviconManager:
                         if not chunk:
                             continue
                         content.extend(chunk)
-                        if len(content) > 1_000_000:
+                        if len(content) > self.MAX_FAVICON_BYTES:
                             break
                 finally:
                     response.close()
 
-                if response.status_code == 200 and 100 < len(content) <= 1_000_000:
+                if response.status_code == 200 and 100 < len(content) <= self.MAX_FAVICON_BYTES:
                     # Try to open as image to validate
                     try:
-                        img_data = BytesIO(bytes(content))
-                        img = Image.open(img_data)
+                        if Image is None:
+                            continue
+                        raw_content = bytes(content)
+                        with Image.open(BytesIO(raw_content)) as probe:
+                            width, height = probe.size
+                            if width <= 0 or height <= 0:
+                                continue
+                            if width * height > self.MAX_FAVICON_PIXELS:
+                                continue
+                            probe.verify()
+
+                        with Image.open(BytesIO(raw_content)) as opened:
+                            opened.load()
+                            img = opened.copy()
                         
                         # Convert and save as PNG
                         if img.mode != 'RGBA':
@@ -309,21 +331,11 @@ class HighSpeedFaviconManager:
                         safe_domain = sanitize_filename(domain)
                         filepath = self.CACHE_DIR / f"{safe_domain}.png"
                         img.save(filepath, "PNG")
+                        img.close()
                         filepath = str(filepath)
                         break
                     except Exception:
-                        # If can't open as image, save raw content
-                        content_type = response.headers.get('content-type', '')
-                        if not content_type.lower().startswith('image/'):
-                            continue
-                        ext = 'png' if 'png' in content_type else 'ico'
-                        
-                        safe_domain = sanitize_filename(domain)
-                        filepath = self.CACHE_DIR / f"{safe_domain}.{ext}"
-                        with open(filepath, 'wb') as f:
-                            f.write(content)
-                        filepath = str(filepath)
-                        break
+                        continue
             except Exception:
                 continue
         

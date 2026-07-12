@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import threading
@@ -41,6 +42,7 @@ from bookmark_organizer_pro.ui import (
     ThemeManager,
     build_collection_pulse,
     build_collection_summary,
+    build_dashboard_statistics,
     build_filter_counts,
     contrast_ratio,
     format_compact_count,
@@ -53,7 +55,7 @@ from bookmark_organizer_pro.ui import (
 from bookmark_organizer_pro.utils.url import normalize_url
 from bookmark_organizer_pro.utils.safe import safe_get_domain, truncate_string
 from bookmark_organizer_pro.utils.runtime import run_with_timeout
-from bookmark_organizer_pro.utils.dependencies import DependencyManager
+from bookmark_organizer_pro.utils.dependencies import DependencyManager, is_frozen_runtime
 from bookmark_organizer_pro.utils.health import calculate_health_score, merge_duplicate_bookmarks
 from bookmark_organizer_pro.utils.validators import validate_path, validate_url
 from bookmark_organizer_pro.url_utils import URLUtilities
@@ -646,7 +648,7 @@ class TestStorageAndExportSafety(unittest.TestCase):
             self.assertEqual(len(loaded), 1)
             self.assertEqual(loaded[0].id, large_id)
 
-    def test_sqlite_storage_skips_corrupt_rows(self):
+    def test_sqlite_storage_fails_closed_on_corrupt_rows(self):
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "bookmarks.sqlite"
             manager = SQLiteStorageManager(target)
@@ -667,7 +669,10 @@ class TestStorageAndExportSafety(unittest.TestCase):
 
             loaded = manager.load()
 
-            self.assertEqual([bm.id for bm in loaded], [1])
+            self.assertEqual(loaded, [])
+            self.assertTrue(manager.status.recovery_required)
+            with self.assertRaisesRegex(Exception, "Restore a verified backup"):
+                manager.save([])
 
     def test_migrate_json_to_sqlite_copies_existing_storage(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1116,6 +1121,13 @@ class TestHealthHelpers(unittest.TestCase):
 class TestDependencyManager(unittest.TestCase):
     """Test runtime dependency discovery and install guardrails."""
 
+    def test_frozen_runtime_detects_pyinstaller_bundle_marker(self):
+        with (
+            patch.object(sys, "frozen", False, create=True),
+            patch.object(sys, "_MEIPASS", "bundle-root", create=True),
+        ):
+            self.assertTrue(is_frozen_runtime())
+
     def test_check_all_reports_required_and_optional_packages(self):
         manager = DependencyManager()
         manager.REQUIRED_PACKAGES = {
@@ -1142,6 +1154,41 @@ class TestDependencyManager(unittest.TestCase):
             run_mock.assert_not_called()
 
         self.assertIn("not-a-known-package", manager.install_errors)
+
+    def test_install_package_in_frozen_runtime_returns_repair_guidance_without_pip(self):
+        manager = DependencyManager()
+        progress = []
+
+        with (
+            patch("bookmark_organizer_pro.utils.dependencies.is_frozen_runtime", return_value=True),
+            patch("bookmark_organizer_pro.utils.dependencies.subprocess.run") as run_mock,
+        ):
+            self.assertFalse(manager.install_package("Pillow", progress.append))
+
+        run_mock.assert_not_called()
+        self.assertEqual(progress, [manager.install_errors["Pillow"]])
+        self.assertEqual(
+            manager.install_errors["Pillow"],
+            "Missing packaged component: Pillow. This packaged build cannot install Python "
+            "components at runtime. Reinstall Bookmark Organizer Pro from the complete release package.",
+        )
+
+    def test_install_package_source_runtime_retains_pip_path(self):
+        manager = DependencyManager()
+        completed = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+
+        with (
+            patch("bookmark_organizer_pro.utils.dependencies.is_frozen_runtime", return_value=False),
+            patch("bookmark_organizer_pro.utils.dependencies.subprocess.run", return_value=completed) as run_mock,
+        ):
+            self.assertTrue(manager.install_package("Pillow"))
+
+        run_mock.assert_called_once_with(
+            [sys.executable, "-m", "pip", "install", "Pillow", "--quiet"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
 
 
 class TestMainAppManagers(unittest.TestCase):
@@ -2365,6 +2412,40 @@ class TestUIFoundation(unittest.TestCase):
         self.assertEqual(summary.metrics["visible"], 0)
         self.assertEqual(summary.metrics["pinned"], 0)
         self.assertEqual(summary.metrics["broken"], 0)
+
+    def test_dashboard_statistics_view_model_is_complete_and_defensive(self):
+        stats = build_dashboard_statistics({
+            "total_bookmarks": "12",
+            "pinned": "bad",
+            "category_counts": {"Research": "3", "Broken": None},
+            "top_domains": [["example.com", "4"], ["", 2], ["invalid"]],
+        })
+
+        self.assertEqual(stats.total_bookmarks, 12)
+        self.assertEqual(stats.pinned, 0)
+        self.assertEqual(stats.duplicate_bookmarks, 0)
+        self.assertEqual(stats.category_counts, {"Research": 3, "Broken": 0})
+        self.assertEqual(stats.top_domains, (("example.com", 4),))
+        self.assertFalse(stats.is_degraded)
+
+    def test_dashboard_statistics_exception_returns_visible_degraded_state(self):
+        from bookmark_organizer_pro.ui.widget_dashboard_panel import DashboardPanel
+
+        class FailingManager:
+            def get_statistics(self):
+                raise RuntimeError("database unavailable")
+
+        panel = object.__new__(DashboardPanel)
+        panel.manager = FailingManager()
+        stats = panel._load_statistics()
+
+        self.assertTrue(stats.is_degraded)
+        self.assertIn("temporarily unavailable", stats.degraded_message)
+        self.assertEqual(stats.total_bookmarks, 0)
+        self.assertEqual(stats.total_categories, 0)
+        self.assertEqual(stats.total_tags, 0)
+        self.assertEqual(stats.category_counts, {})
+        self.assertEqual(stats.top_domains, ())
 
     def test_collection_pulse_prioritizes_recoverable_work(self):
         bookmarks = [

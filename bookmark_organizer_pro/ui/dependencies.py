@@ -44,6 +44,7 @@ class DependencyCheckDialog(tk.Toplevel):
         self.protocol("WM_DELETE_WINDOW", self._on_cancel)
 
     def _create_ui(self, theme) -> None:
+        install_supported = self.dep_manager.runtime_install_supported
         header = tk.Frame(self, bg=theme.bg_secondary, padx=20, pady=15)
         header.pack(fill=tk.X)
 
@@ -57,10 +58,16 @@ class DependencyCheckDialog(tk.Toplevel):
 
         tk.Label(
             header,
-            text="Install required packages now, or continue with optional features disabled.",
+            text=(
+                "Install required packages now, or continue with optional features disabled."
+                if install_supported
+                else self.dep_manager.repair_guidance()
+            ),
             font=FONTS.small(),
             bg=theme.bg_secondary,
             fg=theme.text_secondary,
+            wraplength=450,
+            justify=tk.LEFT,
         ).pack(anchor="w", pady=(5, 0))
 
         content = tk.Frame(self, bg=theme.bg_primary, padx=20, pady=15)
@@ -141,16 +148,18 @@ class DependencyCheckDialog(tk.Toplevel):
 
         self._theme = theme
 
-        self.install_btn = ModernButton(
-            btn_frame,
-            text="Install All",
-            font=FONTS.small(),
-            style="primary",
-            padx=20,
-            pady=8,
-            command=self._on_install,
-        )
-        self.install_btn.pack(side=tk.RIGHT)
+        self.install_btn = None
+        if install_supported:
+            self.install_btn = ModernButton(
+                btn_frame,
+                text="Install All",
+                font=FONTS.small(),
+                style="primary",
+                padx=20,
+                pady=8,
+                command=self._on_install,
+            )
+            self.install_btn.pack(side=tk.RIGHT)
 
         if not self.dep_manager.missing_required:
             self.skip_btn = ModernButton(
@@ -173,6 +182,12 @@ class DependencyCheckDialog(tk.Toplevel):
         ).pack(side=tk.LEFT)
 
     def _on_install(self) -> None:
+        if self.install_btn is None:
+            self.progress_label.configure(
+                text=self.dep_manager.repair_guidance(),
+                fg=self._theme.accent_error,
+            )
+            return
         self.install_btn.set_state("disabled")
         self.progress_bar.pack(fill=tk.X, pady=(5, 0))
         self.progress_bar.start(10)
