@@ -1,99 +1,104 @@
-# Research - Bookmark Organizer Pro
+# Research — Bookmark Organizer Pro
+
+Date: 2026-07-12 — replaces all prior research.
 
 ## Executive Summary
-Bookmark Organizer Pro is a local-first Python/Tk desktop bookmark manager with a broad CLI, optional semantic search and MCP surfaces, a loopback REST API, a Manifest V3 browser extension, HTML snapshots, reader highlights, OPDS export, and extensive importer/exporter coverage. Its strongest current shape is not raw feature count but private desktop continuity: a user can capture, classify, search, preserve, read, review, and export a large bookmark library without adopting a hosted service. The highest-value direction is trust under scale: close unauthenticated read surfaces, make browser/API behavior executable rather than statically asserted, keep local-only distribution docs accurate, page large libraries consistently, expose preservation failures as recoverable work, add high-fidelity migration paths, and let MCP clients operate on reader/review data.
 
-Top opportunities in priority order:
-- Require authentication or an explicit read-only catalog token for `/opds` and `/opds2`.
-- Add behavioral extension-to-API round-trip tests for save payloads, duplicates, and `read_later`.
-- Remove stale workflow/distribution documentation now that `.github/` is absent and releases are local-only.
-- Bring REST `/bookmarks` pagination/filter parity up to the MCP `list_bookmarks` contract.
-- Add archive/snapshot failure records with retry/report UI.
-- Add Firefox bookmark-backup JSON import to preserve tags/folders lost by HTML export.
-- Expose reader highlights, due reviews, and review recording through MCP.
+Bookmark Organizer Pro v6.10.0 is an unusually broad local-first Python/Tk desktop bookmark system: capture, cleanup, semantic/hybrid search, snapshots, reader annotations, SM-2 review, RSS, 17 import paths, portable exports, a loopback API, a Manifest V3 extension, and 32 MCP tools already form a credible private research workspace. Its strongest direction is therefore not more surface area; it is making the existing multi-process and preservation stack trustworthy under failure. Highest-value opportunities, in order: enforce MCP authentication on the FastMCP paths; close snapshot-backend SSRF gaps; prevent corrupt JSON from masquerading as an empty library; make SQLite saves all-or-nothing; prevent GUI/API/MCP lost updates; introduce explicit storage migrations and downgrade guards; ship a verified full-library recovery bundle; restrict extension token storage; provide an assistive-technology-compatible list mode; add responsive desktop clipping gates; then add browser-origin authenticated capture, portable annotation exports, migration fidelity reports, and local job diagnostics.
 
 ## Product Map
-- Core workflows: browser/profile/service import; local categorization with 7,550 patterns across 48 categories; tag, duplicate, smart-collection, and health cleanup; keyword, semantic, hybrid, and natural-language search; snapshots, extracted text, reader highlights, SM-2 review, OPDS/Atom/JSON Feed/EPUB/Obsidian/ZIP export.
-- User personas: local-first power organizer; researcher migrating from Pocket, Arc, Readwise, browser reading lists, or Wallabag; privacy-sensitive archivist; CLI/MCP user; browser-extension user who wants one-click capture into the desktop library.
-- Platforms and distribution: Python 3.10+ Tk desktop on Windows/macOS/Linux, `bop` CLI, loopback API, optional MCP stdio/HTTP server, unpacked MV3 extension, PyInstaller/Nuitka packaging helpers, disabled-by-default TUF/tufup staging.
-- Key integrations and data flows: extension and local tools call `BookmarkAPI`; CLI/MCP call manager/service modules; storage is JSON by default with optional SQLite; keyring-first token storage falls back to locked-down files; archives and support bundles stay under the app data directory.
+
+- Core workflows: import/capture; categorize/tag/clean; keyword/semantic/RAG retrieval; snapshot/read/highlight/review; export or expose through CLI, REST, OPDS, and MCP.
+- User personas: privacy-sensitive bookmark owner, research/PKM user, large-library curator, CLI/MCP operator, and browser-extension capture user.
+- Platforms and distribution: Python 3.10+; Windows-primary Tk desktop with claimed macOS/Linux support; PyInstaller/Nuitka helpers; unpacked Chrome/Firefox MV3 extension; local-only build and release verification.
+- Key data flows: JSON storage by default or opt-in SQLite; extension to bearer-authenticated loopback REST; CLI/MCP to shared manager/services; snapshots/extracted text/vectors/annotations as sidecar stores under the app data directory.
 
 ## Competitive Landscape
-- Karakeep: strong capture inbox, browser workflow, archiving, full-text search, and local/cloud model-assisted tagging. Learn from resilient capture and triage queues; avoid server/Docker as the default user journey.
-- Linkwarden: strong preservation posture with web capture, collections, reader/highlight flows, and team-ready UI. Learn from explicit archive state and polished collection workflows; avoid making collaboration central to a single-user desktop app.
-- Raindrop.io: commercial benchmark for calm UX, nested collections, duplicate/broken-link utilities, reminders, and broad platform coverage. Learn from consistent metadata and recovery affordances; avoid cloud lock-in and paywalled essentials.
-- Readwise Reader: commercial benchmark for read-later queues, highlights, review loops, feed ingestion, and migration. Learn from queue ergonomics and review states; avoid turning the app into a hosted content inbox.
-- Readeck and ArchiveBox: preservation-focused tools with clear capture artifacts, archive status, and portable exports. Learn from visible preservation failures and retryability; avoid heavy archival requirements that slow normal saves.
-- linkding, Shiori, buku, Shaarli, and Floccus: smaller OSS tools that value speed, simple deployment, CLI/browser capture, XBEL/WebDAV/Git sync, and durable export. Learn from low-friction interop; avoid hiding core list/search actions behind feature density.
-- Obsidian Web Clipper and adjacent note tools: strong site-specific extraction and template patterns. Learn from domain templates for richer metadata; avoid unbounded scraping rules that become hard to test.
+
+- Linkwarden: verified strength in preservation, reader annotations, mobile clients, offline background downloads, and reader controls. Learn explicit offline/archive state and reader polish; avoid accounts and collaboration as prerequisites.
+- Karakeep: verified strength in two-phase ingestion, retryable workers, rules, AI tagging, metrics, and crawler hardening. Learn idempotent jobs and security checks at every fetch hop; avoid its multi-service resource cost.
+- linkding: verified benchmark for speed, minimalism, REST simplicity, and browser-uploaded SingleFile snapshots. Learn authenticated browser-origin capture; avoid tags-only organization.
+- ArchiveBox: verified preservation benchmark for ordinary-file outputs, extractor manifests, checksums, WARC, and explicit authenticated-capture warnings. Learn provenance and recovery manifests; avoid default media/repository hoarding.
+- Floccus: verified synchronization benchmark with profiles, uni-/bidirectional modes, backend adapters, and conflict choices. Learn dry-run/conflict contracts; avoid automatic sync before BOP has durable revision checks and rollback.
+- Readwise Reader: verified benchmark for annotations, customizable exports, review, multiformat reading, API/CLI/MCP parity, and continuous parser repair. Learn export fidelity and deep links; avoid cloud dependence and metered ownership.
+- Raindrop.io: verified benchmark for calm organization, permanent copies, cleanup, semantic retrieval, and a unified assistant. Learn consistent recovery/cleanup affordances; avoid paywalling portability or archive integrity.
+- mymind/Cubox/Diigo: verified evidence that OCR/PDF intelligence, visual discovery, annotation portability, and research outlines carry commercial value. Learn selective local-first techniques later; avoid opaque filing and proprietary archive formats.
 
 ## Security, Privacy, and Reliability
-- Verified risk: `bookmark_organizer_pro/services/api.py:176` handles `/opds` and `/opds2` before `_check_auth()` at `bookmark_organizer_pro/services/api.py:214`, so local HTTP clients can read catalog data without the bearer token required for `/bookmarks`, `/search`, `/stats`, `/categories`, `/tags`, and `/digest`.
-- Verified gap: `tests/test_browser_extension.py` mostly asserts source strings, while the important boundary is behavioral: `browser-extension/popup.js`, `browser-extension/sidepanel.js`, and `browser-extension/background.js` payloads must round-trip through `BookmarkAPI.do_POST()` into persisted `Bookmark` fields.
-- Verified gap: `browser-extension/background.js:39` through `browser-extension/background.js:63` returns `false` on failed context-menu quick-save without a user-visible retry path. This is already represented by the existing roadmap item for extension pending-save queue and retry surface; do not duplicate it.
-- Verified drift: `.github/` is absent, but `docs/REPOSITORY_STRUCTURE.md:16` still documents `.github/workflows/` as durable release automation. Existing roadmap items also reference workflow paths that no longer exist; future implementation should update or close those items when touched.
-- Verified partial implementation: `scripts/visual_regression_smoke.py` and `tests/test_visual_regression_smoke.py` now exist, so the existing roadmap item for visual regression screenshots should be revalidated before further work.
-- Verified reliability gap: `bookmark_organizer_pro/services/snapshot.py:51` through `bookmark_organizer_pro/services/snapshot.py:70` tries multiple backends but collapses user-facing failure into `"All snapshot backends failed"`, losing backend-level diagnostics that preservation tools usually surface.
-- Existing guardrails to preserve: SSRF/private URL checks, request body caps, keyring-first secrets, locked-down token fallback files, `defusedxml`, safepoints, redacted support bundles, local-only MCP HTTP bind protection, and optional dependency degradation.
+
+- **Verified — FastMCP auth bypass:** `bookmark_organizer_pro/mcp_server.py:_build_fastmcp_server()` registers wrappers that call `t_*` functions directly; only the raw SDK `_call_tool()` invokes `_check_mcp_auth()`. `serve_http()` checks merely that a token exists before a non-loopback bind and passes neither FastMCP auth nor `host_origin_protection`; resources also bypass scope checks. FastMCP 3.x provides component/server authorization, and MCP requires Host/Origin defenses for local HTTP.
+- **Verified — snapshot egress gap:** `bookmark_organizer_pro/services/snapshot.py:_snapshot_playwright()` validates only the initial URL, then lets Chromium follow redirects and subresources; `monolith` and `single-file` subprocess backends similarly lack BOP's per-hop policy. The pure-Python path does validate redirect/resource URLs. Karakeep's recent redirect/favicon SSRF fixes and OWASP guidance confirm the threat model.
+- **Verified — corruption can look like deletion:** `bookmark_organizer_pro/core/storage_manager.py:load()` returns `[]` for malformed JSON or unexpected shapes. `bookmark_organizer_pro/managers/bookmarks.py:_load_bookmarks()` then clears memory and accepts that empty result, allowing a later save to replace the damaged library without a recovery-mode distinction.
+- **Verified — SQLite can report a partial save as success:** `bookmark_organizer_pro/core/sqlite_storage.py:save()` deletes all rows, catches individual serialization errors, skips those bookmarks, commits the remainder, and records the requested count. Validation must complete before mutation and any invalid record must roll back the whole replacement.
+- **Verified — extension token hardening missing:** `browser-extension/options.js`, `shared.js`, and `background.js` persist `apiToken` in `storage.local` but never call Chrome's `setAccessLevel({accessLevel: "TRUSTED_CONTEXTS"})`; Chrome documents that local storage is otherwise exposed to content scripts.
+- **Verified — current dependency audit clean:** `scripts/dependency_vulnerability_audit.py` resolved 116 packages on 2026-07-12 with zero known unsuppressed vulnerabilities. Keep this gate; no CVE-only roadmap item is justified today.
 
 ## Architecture Assessment
-- API boundary: `BookmarkAPI` should share request filtering/pagination semantics with MCP `t_list_bookmarks()` instead of maintaining a narrower `/bookmarks?limit=` contract. Touch `bookmark_organizer_pro/services/api.py`, extension list views, and API tests.
-- Extension boundary: static source checks should be backed by fixtures that exercise real POSTs and duplicate handling. Touch `tests/test_browser_extension.py`, `tests/test_core.py`, and possibly a small test helper for `BookmarkAPI`.
-- Preservation boundary: `SnapshotArchiver` should return structured backend attempts and persist last failure state on the bookmark or sidecar report. Touch `bookmark_organizer_pro/services/snapshot.py`, `bookmark_organizer_pro/services/auto_snapshot.py`, dashboard/tools UI, and service tests.
-- Reader/MCP boundary: `ReaderAnnotationStore` and SM-2 review state are mature in services/tests, but MCP lacks list/export/review operations for highlights. Touch `bookmark_organizer_pro/mcp_server.py`, `bookmark_organizer_pro/services/mcp_auth.py`, and `tests/test_mcp_tools.py`.
-- Migration boundary: import breadth is strong, but Firefox bookmark-backup JSON can preserve tags and folder metadata that Netscape HTML loses. Touch `bookmark_organizer_pro/importers.py`, import/export UI, CLI import routing, and importer tests.
-- Documentation boundary: docs should reflect local-only verification and release operations. Touch `docs/REPOSITORY_STRUCTURE.md`, README release/build sections, and any roadmap item evidence that points to removed workflow files.
+
+- **Verified — dormant coexistence feature:** `BookmarkManager.start_file_watcher()` has no caller. Even if started, mtime reload alone cannot prevent two processes from reading revision N and overwriting each other. Add persisted revisions/file locking or optimistic compare-and-retry, wire desktop/API/MCP lifecycle start/stop, and test two-manager interleavings.
+- **Verified — version metadata is not an upgrade strategy:** JSON writes `StorageManager.CURRENT_VERSION = 4` but load ignores it; SQLite writes `schema_version = 1` on every initialization and has one ad hoc table-ID repair. Add ordered migrations, pre-migration safepoints, and refusal of unknown future versions.
+- **Verified — portability is incomplete:** `bookmark_organizer_pro/services/zip_export.py` contains bookmark metadata, snapshot, extracted text, and notes, but omits annotations/reviews, flows, settings, category/tag configuration, sidecar manifests, checksums, and restore. Pocket's shutdown makes verified export and dry-run restore a trust feature, not a convenience.
+- **Verified — accessibility fallback is not user-selectable:** the required `tksheet` canvas is always selected when installed; `ttk.Treeview` is only a missing-dependency fallback. WCAG requires names, roles, states, and table relationships to be exposed to assistive technology. Provide a persistent accessible-list mode and verify it through the platform accessibility API.
+- **Needs live validation — responsive clipping:** `assets/screenshot.png` shows the right-rail Ask control clipped at the 1540×980 capture edge; desktop visual smoke checks image health and labels but only the extension path measures horizontal overflow. Add fixed desktop viewport/DPI geometry assertions before changing the shell.
+- **Verified — documentation/install drift:** `docs/ARCHITECTURE.md` still describes a legacy-large `main.py`; `ROADMAP.md` reports v6.8.4-era counts and no extension; README omits DeepSeek and contradicts bundled offline categories. `requirements.txt` lacks `pyproject.toml` upper bounds and optional extras, while `[all]` omits `themedetect`. Make manifests authoritative and add local drift tests.
+- **Verified test gaps:** the 502-test suite checks token-manager logic but not FastMCP authorization, checks snapshot backend outcomes but not browser subresource egress, and treats skipped SQLite rows as acceptable. Add adversarial transport, corruption, concurrent-writer, migration, and recovery-bundle tests.
 
 ## Rejected Ideas
-- Mandatory hosted sync or accounts from Linkwarden/Raindrop: rejected because they conflict with the local-first desktop posture; optional XBEL/WebDAV/Git interop remains the better path and is already under consideration.
-- Docker/server-first deployment from Karakeep, Linkwarden, and ArchiveBox: rejected because setup friction is the opposite of this app's native desktop advantage.
-- Native mobile/PWA work now: rejected because `Roadmap_Blocked.md` already gates web/PWA architecture decisions.
-- Native browser messaging now: rejected because `Roadmap_Blocked.md` already gates it on extension publication and host registration.
-- Full Electron/Tauri rewrite: rejected because the current Python/Tk codebase has working tests, packaging helpers, local storage, and service modules.
-- Chrome Prompt API integration now: rejected because `Roadmap_Blocked.md` already marks it gated by browser/API maturity and local hardware validation.
-- Multi-user/team workspaces: rejected because they would add auth, roles, sharing, and conflict-resolution complexity without improving the single-user local library.
-- Auto-delete duplicate bookmarks: rejected because destructive cleanup should remain reviewable with safepoints and explicit recovery.
+
+- Native mobile/PWA/offline client — Linkwarden and Karakeep validate demand, but `Roadmap_Blocked.md` already gates R-02/R-03; do not duplicate it.
+- Automatic two-way browser/cloud sync — Floccus proves value, but BOP lacks conflict journaling and the roadmap already considers Floccus/XBEL interop and browser-file monitoring.
+- Plugin/connector SDK now — Shaarli and ArchiveBox validate extensibility, but `ROADMAP.md` already lists `entry_points` under consideration pending contributor demand.
+- Teams, OIDC, RBAC, and hosted accounts — Linkwarden/LinkAce solve a different multi-user problem and would weaken BOP's single-user local-first advantage.
+- Public sharing by default — existing roadmap consideration covers static share exports; private local research remains the safe default.
+- General media hoarding — ArchiveBox/Karakeep support it, but video/audio/source mirroring adds storage, licensing, and maintenance costs unrelated to bookmark research.
+- TTS/Kindle automation now — Readwise, Matter, and Instapaper validate paid demand, but current data-safety, reader portability, and packaging work ranks higher.
+- OCR/PDF/image intelligence now — mymind/Diigo validate demand, but BOP needs a first-class asset model and migration contract before adding an XL multimodal store.
+- Academic semantic tag-cloud redesign — the tagging study supports clustered suggestions, but BOP already has hierarchy, linter, AI suggestions, and smart collections; evidence does not justify another organization surface.
 
 ## Sources
-OSS competitors:
-- https://github.com/karakeep-app/karakeep
-- https://github.com/linkwarden/linkwarden
+
+OSS competitors and adjacent projects:
+- https://github.com/linkwarden/linkwarden/releases/tag/v2.15.0
+- https://github.com/karakeep-app/karakeep/releases
 - https://github.com/sissbruecker/linkding
-- https://github.com/go-shiori/shiori
-- https://github.com/wallabag/wallabag
 - https://github.com/ArchiveBox/ArchiveBox
-- https://codeberg.org/readeck/readeck
 - https://github.com/floccusaddon/floccus
-- https://github.com/jarun/buku
-- https://github.com/shaarli/Shaarli
+- https://shaarli.readthedocs.io/en/master/Plugins.html
+- https://github.com/wallabag/wallabag/issues/1130
+- https://pkg.go.dev/codeberg.org/readeck/readeck
 
-Commercial, adjacent, and community:
-- https://raindrop.io/
-- https://readwise.io/read
-- https://obsidian.md/clipper
-- https://blog.mozilla.org/en/mozilla/update-on-pocket/
-- https://support.mozilla.org/en-US/kb/exporting-your-pocket-list
+Commercial and migration signals:
+- https://raindrop.io/pro
+- https://docs.readwise.io/reader/docs
+- https://docs.readwise.io/readwise/docs/exporting-highlights/markdown-csv
+- https://www.instapaper.com/docs/premium/overview
+- https://access.mymind.com/pricing
+- https://www.diigo.com/premium/pricing_table_details
+- https://support.mozilla.org/en-US/kb/future-of-pocket
+
+Community and discovery:
 - https://github.com/dogancelik/awesome-bookmarking
-- https://github.com/awesome-selfhosted/awesome-selfhosted
-- https://news.ycombinator.com/item?id=42648006
+- https://www.reddit.com/r/selfhosted/comments/1q3giqc/best_selfhosted_bookmark_manager/
+- https://www.reddit.com/r/selfhosted/comments/1raq3b0/selfhosted_bookmark_manager_with_android_app_that/
 
-Standards and platform:
-- https://developer.chrome.com/docs/extensions/reference/api/readingList
-- https://developer.chrome.com/docs/extensions/reference/api/sidePanel
+Standards and security:
+- https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices
+- https://modelcontextprotocol.io/specification/2025-06-18/basic/transports
+- https://gofastmcp.com/servers/authorization
 - https://developer.chrome.com/docs/extensions/reference/api/storage
-- https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_messaging
-- https://modelcontextprotocol.io/specification/
+- https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/bookmarks
 - https://www.w3.org/TR/WCAG22/
-- https://www.w3.org/WAI/ARIA/apg/
+- https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html
 
-Dependencies, security, and techniques:
+Dependencies and engineering:
+- https://docs.python.org/3/library/sqlite3.html
+- https://cryptography.io/_/downloads/en/latest/pdf/
 - https://github.com/pypa/pip-audit
-- https://requests.readthedocs.io/en/latest/community/updates/
-- https://gofastmcp.com/changelog
-- https://cryptography.io/en/latest/changelog/
-- https://lancedb.github.io/lancedb/
-- https://github.com/qdrant/fastembed
-- https://trafilatura.readthedocs.io/
+- https://github.com/lancedb/lancedb/releases
+
+Academic:
+- https://www.tandfonline.com/doi/abs/10.1080/10447318.2011.555309
 
 ## Open Questions
-None that block prioritization. Blocked platform and publication decisions are already tracked in `Roadmap_Blocked.md`.
+
+None block prioritization. Store publication, mobile/PWA, translation, code signing, updater apply, and sync choices are already isolated in `Roadmap_Blocked.md` or existing under-consideration entries.

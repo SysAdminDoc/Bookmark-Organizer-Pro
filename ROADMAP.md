@@ -886,3 +886,123 @@ All Later-tier items are either shipped or moved to `Roadmap_Blocked.md`.
 ### P2 - Preservation, migration, and MCP coverage
 
 ### P3 - Structured extraction
+
+### P0 — Trust and data safety
+
+- [ ] P0 — Enforce MCP authentication and local-HTTP origin protection on every transport
+  Why: FastMCP tools/resources bypass `_check_mcp_auth()`, and the HTTP server does not enable FastMCP Host/Origin protection.
+  Evidence: `bookmark_organizer_pro/mcp_server.py:_build_fastmcp_server`, `serve_http`; MCP security guidance; FastMCP authorization docs.
+  Touches: `bookmark_organizer_pro/mcp_server.py`, `bookmark_organizer_pro/services/mcp_auth.py`, `tests/test_mcp_tools.py`, `tests/test_hardening.py`
+  Acceptance: With tokens configured, unauthenticated HTTP catalog/resource/tool requests fail; read-only tokens cannot mutate; read-write tokens can; invalid Host/Origin requests fail; raw SDK and FastMCP paths have identical scope behavior.
+  Complexity: M
+
+- [ ] P0 — Apply one SSRF/egress policy to every snapshot backend and resource hop
+  Why: Playwright and external CLI backends can follow redirects or load subresources that bypass BOP's safe-URL checks.
+  Evidence: `bookmark_organizer_pro/services/snapshot.py:_snapshot_playwright`, `_snapshot_monolith`, `_snapshot_singlefile`; Karakeep release security fixes; OWASP SSRF guidance.
+  Touches: `bookmark_organizer_pro/services/snapshot.py`, `bookmark_organizer_pro/url_utils.py`, `tests/test_services.py`, `tests/test_hardening.py`
+  Acceptance: Redirects, frames, styles, images, fonts, and other requests to loopback/private/link-local/reserved targets are blocked and tested; unsafe external backends are sandboxed or explicit opt-in; byte/time/redirect caps apply consistently.
+  Complexity: L
+
+- [ ] P0 — Enter recovery mode instead of treating corrupt JSON as an empty library
+  Why: A parse failure returns `[]`, clears the in-memory library, and permits a later save to replace the damaged file.
+  Evidence: `bookmark_organizer_pro/core/storage_manager.py:load`, `bookmark_organizer_pro/managers/bookmarks.py:_load_bookmarks`
+  Touches: `bookmark_organizer_pro/core/storage_manager.py`, `bookmark_organizer_pro/managers/bookmarks.py`, `bookmark_organizer_pro/app_mixins/lifecycle.py`, backup/recovery UI, `tests/test_backup.py`
+  Acceptance: Corruption preserves the source file, blocks normal writes, reports the exact failure, offers verified backup restore or salvage, and cannot be mistaken for a valid zero-bookmark library.
+  Complexity: M
+
+- [ ] P0 — Make SQLite replacement saves reject partial success
+  Why: The current transaction deletes all rows, skips malformed bookmarks, commits the remainder, and records the requested count.
+  Evidence: `bookmark_organizer_pro/core/sqlite_storage.py:save` lines 105-164; Python sqlite3 transaction documentation.
+  Touches: `bookmark_organizer_pro/core/sqlite_storage.py`, `tests/test_core.py`, `tests/test_services.py`
+  Acceptance: All rows validate before deletion; one invalid row rolls back the full save; persisted row count equals the validated input count; callers receive an actionable error. Coordinate with the existing explicit-BEGIN item without duplicating it.
+  Complexity: S
+
+### P1 — Consistency, recovery, accessibility, and verification
+
+- [ ] P1 — Prevent GUI/API/MCP lost updates with persisted revisions and writer coordination
+  Why: `start_file_watcher()` has no caller, and mtime reload alone cannot prevent two processes from overwriting revision N.
+  Evidence: `bookmark_organizer_pro/managers/bookmarks.py:start_file_watcher`; no live call sites; completed R-74 claim.
+  Touches: `bookmark_organizer_pro/managers/bookmarks.py`, JSON/SQLite storage managers, desktop/API/MCP lifecycle, concurrency tests
+  Acceptance: Two independently constructed managers can interleave adds/edits without loss; stale writers compare revisions and merge/retry or surface a conflict; watchers start/stop cleanly and marshal GUI refreshes to Tk's thread.
+  Complexity: L
+
+- [ ] P1 — Add ordered storage migrations and unknown-version downgrade guards
+  Why: JSON writes version 4 but ignores it on load; SQLite overwrites schema metadata and relies on an ad hoc repair.
+  Evidence: `bookmark_organizer_pro/core/storage_manager.py:CURRENT_VERSION`, `bookmark_organizer_pro/core/sqlite_storage.py:CURRENT_SCHEMA`
+  Touches: both storage managers, `bookmark_organizer_pro/models/bookmark.py`, migration CLI/UI, backup tests
+  Acceptance: Each schema transition is explicit and idempotent, creates a verified pre-migration safepoint, preserves all fields, and refuses read-write access to unknown future versions with recovery guidance.
+  Complexity: M
+
+- [ ] P1 — Ship a checksummed full-library recovery bundle with dry-run restore
+  Why: Collection ZIP export omits annotations, reviews, flows, settings, sidecar stores, and a restore contract.
+  Evidence: `bookmark_organizer_pro/services/zip_export.py`; Pocket shutdown; ArchiveBox portable-output model.
+  Touches: `services/zip_export.py`, annotation/flow/settings stores, CLI, import center, backup UI, integration tests
+  Acceptance: A versioned bundle includes bookmarks, categories/tags, snapshots, extracted text, annotation/review state, flows, settings, and index-rebuild metadata; a manifest verifies every checksum; dry-run reports missing/unsupported data; restore round-trips a fixture without mutation until apply.
+  Complexity: L
+
+- [ ] P1 — Restrict browser-extension token storage to trusted extension contexts
+  Why: Chrome documents that `storage.local` is content-script-readable by default unless its access level is restricted.
+  Evidence: `browser-extension/options.js`, `shared.js`, `background.js`; Chrome Storage API.
+  Touches: `browser-extension/background.js`, `browser-extension/shared.js`, `browser-extension/options.js`, `tests/test_browser_extension.py`
+  Acceptance: Chromium calls `storage.local.setAccessLevel({accessLevel: "TRUSTED_CONTEXTS"})` at startup; Firefox degrades safely when unsupported; behavioral tests prove settings/popup/side-panel access still works and untrusted contexts cannot read the token.
+  Complexity: S
+
+- [ ] P1 — Provide an assistive-technology-compatible bookmark list mode
+  Why: Required `tksheet` uses a canvas and the semantic `ttk.Treeview` is only selected when the dependency is missing.
+  Evidence: `bookmark_organizer_pro/ui/treeview.py:BookmarkListWidget`; WCAG 2.2 programmatic name/role/state and table relationship requirements.
+  Touches: `bookmark_organizer_pro/ui/treeview.py`, settings/accessibility UI, table adapters, accessibility smoke
+  Acceptance: A persistent accessible mode exposes row/column names, selection, sort state, and actions through the platform accessibility API while preserving large-library paging; the background accessibility smoke verifies it without foreground UI control.
+  Complexity: M
+
+- [ ] P1 — Add desktop viewport and DPI clipping gates with a collapsible right rail
+  Why: The shipped screenshot clips the Ask control, while desktop visual smoke does not assert child bounds or horizontal overflow.
+  Evidence: `assets/screenshot.png`; `scripts/visual_regression_smoke.py` desktop versus extension checks.
+  Touches: desktop shell/layout mixins, `scripts/visual_regression_smoke.py`, `tests/test_visual_regression_smoke.py`
+  Acceptance: Empty and populated main views pass at 1280×720, 1540×980 at 125% DPI, and 1920×1080 in dark/light themes; every actionable control stays inside the client area; the right rail collapses or reflows instead of clipping.
+  Complexity: M
+
+### P2 — Capture, portability, migration, and local observability
+
+- [ ] P2 — Accept sanitized browser-origin snapshots for authenticated pages
+  Why: Background crawlers cannot faithfully preserve signed-in/paywalled content without handling cookies; linkding proves a browser-uploaded SingleFile contract.
+  Evidence: linkding snapshot upload; ArchiveBox authenticated-capture warnings; current extension/API save path.
+  Touches: browser extension capture flow, `bookmark_organizer_pro/services/api.py`, `services/snapshot.py`, snapshot preview, API/extension tests
+  Acceptance: The extension can optionally upload bounded HTML plus source URL/title/selection provenance; the API authenticates, size-checks, sanitizes scripts/events, writes atomically, previews disclosure, and never receives browser cookies.
+  Complexity: L
+
+- [ ] P2 — Add template-driven annotation export with incremental mode
+  Why: Reader export is fixed Markdown, while Readwise/Cubox and Wallabag demand show that portable highlights and notes are a core research workflow.
+  Evidence: `bookmark_organizer_pro/services/reader_annotations.py`; Readwise customizable export; Wallabag issue 1130.
+  Touches: reader annotations/export service, CLI, reader UI, Obsidian export, MCP, tests
+  Acceptance: Markdown/CSV/JSON templates can include document metadata, highlight text/color/tags, notes, review state, and stable source links; `changed since` export is deterministic and round-trip tested.
+  Complexity: M
+
+- [ ] P2 — Add migration preflight and fidelity reports for major competitor exports
+  Why: Broad importer count hides which source fields are preserved, transformed, or dropped, making migrations hard to trust.
+  Evidence: `bookmark_organizer_pro/ui/import_center.py`, existing importers; Pocket shutdown; Karakeep/Linkwarden/Readwise migration patterns.
+  Touches: importers, import center, CLI import routing, safepoints, importer fixtures
+  Acceptance: Linkwarden, Karakeep, Raindrop, and Readwise fixtures produce a dry-run report for folders/lists, tags, dates, read/archive state, notes, highlights, and source IDs; unsupported-field counts appear before apply; import is idempotent and reversible.
+  Complexity: L
+
+- [ ] P2 — Persist a local capture/index job ledger and health dashboard
+  Why: Snapshot failures are visible, but ingest, embedding, RSS, metadata, and link-check work lack one durable retry/latency/storage view.
+  Evidence: Karakeep worker diagnostics and OpenTelemetry; `services/snapshot.py:SnapshotFailureStore`; distributed service-specific logging.
+  Touches: ingest/snapshot/embedding/RSS/link-check services, local state, dashboard/tools UI, support bundle, tests
+  Acceptance: Each job records type, bookmark/domain, backend, timing, bytes, outcome, retryability, and redacted error; users can filter/retry/clear; dashboard aggregates failure rate and storage growth without telemetry or bookmark-content leakage.
+  Complexity: M
+
+- [ ] P2 — Make packaging dependencies and product claims executable contracts
+  Why: README, architecture, roadmap counts, `requirements.txt`, and `pyproject.toml` disagree despite repeated historical drift fixes.
+  Evidence: `README.md`, `docs/ARCHITECTURE.md`, `ROADMAP.md`, `requirements.txt`, `pyproject.toml`; 2026-07-12 audit.
+  Touches: manifests, README/architecture docs, packaging/dependency tests, local audit command
+  Acceptance: One authoritative dependency definition generates or validates install inputs and a locked release resolution; local tests catch missing bounds/extras and stale provider/CLI/MCP/extension claims; `pip-audit --locked` and the existing 116-package audit pass.
+  Complexity: S
+
+### P3 — Cryptographic upgrade
+
+- [ ] P3 — Add backward-compatible Argon2id encryption KDF migration
+  Why: Cryptography now exposes memory-hard Argon2id, while encrypted stores use fixed PBKDF2-HMAC-SHA256 parameters.
+  Evidence: `bookmark_organizer_pro/services/encryption.py`; cryptography Argon2id documentation.
+  Touches: encrypted-store format, rotation/recovery CLI, settings UI, packaging metadata, encryption tests
+  Acceptance: New encrypted stores use versioned Argon2id parameters; v1/v2 PBKDF2 data still decrypts; rotation upgrades after a verified backup; wrong keys and tampered parameters fail closed; recovery keys remain supported.
+  Complexity: M
