@@ -5,7 +5,7 @@ A powerful, professional-grade bookmark manager with AI-powered categorization, 
 Executable product contract: 61 CLI subcommands, 32 MCP tools, 6 AI providers, and 3 extension surfaces.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
-![Version](https://img.shields.io/badge/Version-v6.11.1-2dd4bf.svg)
+![Version](https://img.shields.io/badge/Version-v6.11.2-2dd4bf.svg)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
@@ -41,6 +41,10 @@ operations require a bearer token.
 The local REST API requires `Authorization: Bearer <token>` for bookmark data
 endpoints, including `/bookmarks`, `/search`, `/stats`, `/categories`, `/tags`,
 `/digest`, `/opds`, and `/opds2`. The root endpoint only reports API metadata.
+Browser-extension requests additionally require an approved extension Origin.
+Saving extension settings performs the authenticated first pairing; a reinstalled
+extension must use **Replace Pairing** explicitly so a different extension ID
+cannot silently inherit browser access.
 
 ### Local visual verification
 
@@ -349,6 +353,8 @@ the detail panel.
 - AI API keys are stored in the OS keyring when available; `~/.bookmark_organizer/ai_config.json` stores provider settings and is used as a locked-down fallback if keyring storage is unavailable.
 - New encrypted stores use versioned Argon2id parameters authenticated with the ciphertext. Legacy PBKDF2 v1/v2 stores and recovery keys remain readable; rotation creates and verifies a byte-exact backup before upgrading.
 - Imports, exports, settings, and category files are written defensively with atomic writes where supported.
+- Annotations, flows, feeds, smart collections, jobs, and MCP verifier records use checksummed, revisioned atomic documents with recovery backups and cross-process write coordination.
+- Public page, feed, favicon, metadata, link-check, snapshot, and archive fetches share DNS-pinned connections, validated redirects, deadlines, and response ceilings. Explicitly configured AI/Ollama provider transports remain separate so local providers continue to work.
 
 ### Theme Customization
 

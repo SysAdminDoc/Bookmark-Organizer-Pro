@@ -75,6 +75,17 @@ function authHeaders(config) {
   };
 }
 
+async function pairExtension(config, { replace = false } = {}) {
+  const response = await fetch(`${baseUrl(config)}/extension/pair`, {
+    method: "POST",
+    headers: authHeaders(config),
+    body: JSON.stringify({ replace })
+  });
+  let body = {};
+  try { body = await response.json(); } catch { /* response body is optional */ }
+  return { status: response.status, body };
+}
+
 async function saveBookmarkPayload(payload, config) {
   const headers = authHeaders(config);
   if (payload.browser_snapshot) headers["X-BOP-Capture-Version"] = "1";

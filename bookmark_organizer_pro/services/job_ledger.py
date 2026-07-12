@@ -6,10 +6,7 @@ URL, bookmark title, page content, query text, or credentials.
 
 from __future__ import annotations
 
-import json
-import os
 import re
-import tempfile
 import threading
 import time
 import uuid
@@ -20,7 +17,10 @@ from typing import Iterable
 from urllib.parse import urlparse
 
 from bookmark_organizer_pro.constants import DATA_DIR
-from bookmark_organizer_pro.logging_config import log
+from bookmark_organizer_pro.services.atomic_document_store import (
+    AtomicDocumentStore,
+    require_mapping_document,
+)
 
 
 JOB_LEDGER_FILE = DATA_DIR / "job_ledger.json"
@@ -29,6 +29,15 @@ _URL_RE = re.compile(r"(?i)\bhttps?://[^\s\]\[<>{}\"']+")
 
 def _now() -> str:
     return datetime.now().isoformat(timespec="milliseconds")
+
+
+def _migrate_job_ledger_v0(document):
+    """Drop the historical inline version in favor of the shared envelope."""
+    if not isinstance(document, dict):
+        return document
+    migrated = dict(document)
+    migrated.pop("version", None)
+    return migrated
 
 
 def safe_domain(url_or_domain: str | None) -> str:
@@ -169,6 +178,24 @@ class JobLedger:
     def __init__(self, path: Path = JOB_LEDGER_FILE, max_records: int = 500):
         self.path = Path(path)
         self.max_records = max(10, min(5000, int(max_records)))
+        self._store = AtomicDocumentStore(
+            self.path,
+            schema="bookmark-organizer-pro/job-ledger",
+            default_factory=lambda: {"jobs": []},
+            migrations={0: _migrate_job_ledger_v0},
+            validator=self._validate_document,
+        )
+
+    @property
+    def storage_status(self):
+        return self._store.status
+
+    @staticmethod
+    def _validate_document(document) -> None:
+        require_mapping_document(document)
+        jobs = document.get("jobs", [])
+        if not isinstance(jobs, list) or any(not isinstance(item, dict) for item in jobs):
+            raise ValueError("job ledger jobs must be an array of objects")
 
     def start(
         self,
@@ -226,7 +253,7 @@ class JobLedger:
             records = [item for item in records if item.domain == normalized]
         records.sort(key=lambda item: item.started_at, reverse=True)
         if limit is not None:
-            records = records[:max(0, int(limit))]
+            records = records[: max(0, int(limit))]
         return records
 
     def get(self, job_id: str) -> JobRecord | None:
@@ -236,14 +263,20 @@ class JobLedger:
 
     def clear(self, *, job_type: str = "", outcome: str = "") -> int:
         with self._lock:
-            records = self._read()
-            kept = [
-                item for item in records
-                if not ((not job_type or item.job_type == job_type) and (not outcome or item.outcome == outcome))
-            ]
-            removed = len(records) - len(kept)
-            if removed:
-                self._write(kept)
+            removed = 0
+
+            def mutate(document):
+                nonlocal removed
+                records = self._records_from_document(document)
+                kept = [
+                    item
+                    for item in records
+                    if not ((not job_type or item.job_type == job_type) and (not outcome or item.outcome == outcome))
+                ]
+                removed = len(records) - len(kept)
+                return self._document_for_records(kept)
+
+            self._store.update(mutate)
         return removed
 
     def health(self, records: Iterable[JobRecord] | None = None) -> dict:
@@ -287,44 +320,43 @@ class JobLedger:
 
     def _read(self) -> list[JobRecord]:
         with self._lock:
-            if not self.path.exists():
-                return []
-            try:
-                payload = json.loads(self.path.read_text(encoding="utf-8"))
-                raw = payload.get("jobs", []) if isinstance(payload, dict) else []
-                return [record for item in raw if isinstance(item, dict) if (record := JobRecord.from_dict(item))]
-            except (OSError, json.JSONDecodeError) as exc:
-                log.warning("Could not load local job ledger: %s", exc)
-                return []
+            return self._records_from_document(self._store.load())
+
+    @staticmethod
+    def _records_from_document(document) -> list[JobRecord]:
+        raw = document.get("jobs", []) if isinstance(document, dict) else []
+        return [record for item in raw if isinstance(item, dict) if (record := JobRecord.from_dict(item))]
+
+    def _document_for_records(self, records: list[JobRecord]) -> dict:
+        ordered = sorted(records, key=lambda item: item.started_at)[-self.max_records :]
+        return {"updated_at": _now(), "jobs": [asdict(item) for item in ordered]}
 
     def _append(self, record: JobRecord) -> None:
         with self._lock:
-            records = self._read()
-            records.append(record)
-            self._write(records)
+
+            def mutate(document):
+                records = self._records_from_document(document)
+                records.append(record)
+                return self._document_for_records(records)
+
+            self._store.update(mutate)
 
     def _replace(self, record: JobRecord) -> None:
         with self._lock:
-            records = self._read()
-            found = any(item.job_id == record.job_id for item in records)
-            records = [record if item.job_id == record.job_id else item for item in records]
-            if not found:
-                records.append(record)
-            self._write(records)
+
+            def mutate(document):
+                records = self._records_from_document(document)
+                found = any(item.job_id == record.job_id for item in records)
+                records = [record if item.job_id == record.job_id else item for item in records]
+                if not found:
+                    records.append(record)
+                return self._document_for_records(records)
+
+            self._store.update(mutate)
 
     def _write(self, records: list[JobRecord]) -> None:
         with self._lock:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            records = sorted(records, key=lambda item: item.started_at)[-self.max_records :]
-            payload = {"version": 1, "updated_at": _now(), "jobs": [asdict(item) for item in records]}
-            fd, tmp = tempfile.mkstemp(dir=self.path.parent, suffix=".tmp", text=True)
-            try:
-                with os.fdopen(fd, "w", encoding="utf-8") as handle:
-                    json.dump(payload, handle, indent=2)
-                    handle.flush()
-                    os.fsync(handle.fileno())
-                os.replace(tmp, self.path)
-            except Exception:
-                if os.path.exists(tmp):
-                    os.remove(tmp)
-                raise
+            self._store.save(
+                self._document_for_records(records),
+                expected_revision=self._store.revision,
+            )

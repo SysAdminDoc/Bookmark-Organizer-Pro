@@ -1,6 +1,5 @@
 """Background link checker with threading, redirect detection, and per-domain rate limiting."""
 
-import importlib
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -124,7 +123,7 @@ class LinkChecker:
         """Check a single URL. Detects redirects; returns (is_valid, status_code).
         Redirect metadata is stored on bookmark.custom_data under the lock."""
         try:
-            requests = importlib.import_module('requests')
+            from .services.egress import public_egress as requests
             headers = {'User-Agent': _USER_AGENT}
             current_url = bookmark.url
             redirects = []

@@ -66,10 +66,13 @@ def test_job_ledger_retention_is_bounded_and_corruption_is_safe(tmp_path: Path):
     assert len(ledger.list_records()) == 10
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["version"] == 1
-    assert len(payload["jobs"]) == 10
+    assert payload["schema"] == "bookmark-organizer-pro/job-ledger"
+    assert len(payload["document"]["jobs"]) == 10
 
     path.write_text("{broken", encoding="utf-8")
-    assert ledger.list_records() == []
+    assert len(ledger.list_records()) == 10
+    assert ledger.storage_status.state == "recovered"
+    assert ledger.storage_status.quarantine_path is not None
 
 
 def test_error_and_domain_helpers_do_not_leak_sensitive_inputs():
@@ -84,7 +87,10 @@ def test_ingest_records_content_bytes_without_storing_content(tmp_path: Path):
     ledger = JobLedger(tmp_path / "jobs.json")
     html = "<html><title>Private heading</title><body><p>alpha beta gamma delta</p></body></html>"
     result = ContentIngestor(job_ledger=ledger).ingest_url(
-        "https://example.com/research/private", bookmark_id=42, html=html, store_text=False,
+        "https://example.com/research/private",
+        bookmark_id=42,
+        html=html,
+        store_text=False,
     )
     assert result.success
     record = ledger.list_records()[0]

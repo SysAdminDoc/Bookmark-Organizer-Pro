@@ -2,6 +2,20 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.11.2] - 2026-07-12
+
+Shared trust-boundary release.
+
+### Added
+
+- Added a checksummed, revisioned atomic-document store with backups, corrupt-source quarantine, verified recovery, ordered migration, and cross-process locking for annotations, flows, feeds, smart collections, and job records.
+- Added authenticated browser-extension origin pairing, explicit replacement for reinstalled extension IDs, owner-private registry recovery, and fail-closed CORS enforcement.
+- Added one bounded public-resource egress client with DNS-pinned connections, Host/TLS-SNI preservation, per-hop redirect validation, deadlines, byte ceilings, and cross-origin credential stripping.
+
+### Security
+
+- Replaced plaintext MCP bearer-token keys with one-time tokens backed by salted verifier records, owner-only permissions, corruption lockout, transparent legacy migration, and cross-process revocation.
+
 ## [v6.11.1] - 2026-07-12
 
 Integrity and packaged-runtime safety release.

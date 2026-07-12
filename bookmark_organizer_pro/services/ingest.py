@@ -217,9 +217,7 @@ def _bs4_fallback(html: str) -> Optional[Dict[str, str]]:
 def _fetch_html(url: str, timeout: int = 15) -> Optional[str]:
     if not URLUtilities._is_safe_url(url):
         return None
-    requests = _try_import("requests")
-    if requests is None:
-        return None
+    from bookmark_organizer_pro.services.egress import public_egress as requests
     try:
         resp = requests.get(
             url,

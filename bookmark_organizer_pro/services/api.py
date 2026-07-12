@@ -15,6 +15,7 @@ import secrets
 import threading
 import urllib.parse
 from dataclasses import asdict
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION, DATA_DIR
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
     from bookmark_organizer_pro.managers import BookmarkManager
 
 _TOKEN_FILE = DATA_DIR / "api_token.txt"
+_EXTENSION_ORIGINS_FILE = DATA_DIR / "approved_extension_origins.json"
 _KEYRING_SERVICE = "bookmark-organizer-pro"
 _KEYRING_KEY = "api_token"
 _MAX_BOOKMARK_BODY_BYTES = 65_536
@@ -34,6 +36,132 @@ _EXTENSION_ORIGIN_RE = re.compile(
     r"^(?:chrome-extension://[a-p]{32}|moz-extension://[0-9a-f-]{8,64})$",
     re.IGNORECASE,
 )
+
+
+def _write_private_file(path: Path, payload: bytes) -> None:
+    """Atomically write a local credential-adjacent file with owner-only access."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{secrets.token_hex(8)}.tmp")
+    try:
+        with temporary.open("wb") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if os.name != "nt":
+            os.chmod(temporary, 0o600)
+        os.replace(temporary, path)
+        if os.name == "nt":
+            import subprocess
+
+            username = os.environ.get("USERNAME", "")
+            if username:
+                subprocess.run(
+                    ["icacls", str(path), "/inheritance:r", "/grant:r", f"{username}:(F)"],
+                    capture_output=True,
+                    check=False,
+                )
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+class ExtensionOriginRegistry:
+    """Persist the single browser-extension identity trusted by the local API."""
+
+    VERSION = 1
+
+    def __init__(self, path: Path = _EXTENSION_ORIGINS_FILE):
+        self.path = Path(path)
+        self.backup_path = self.path.with_suffix(f"{self.path.suffix}.bak")
+        self._lock = threading.RLock()
+        self._origins: set[str] = set()
+        self._integrity_error = ""
+        self._load()
+
+    @staticmethod
+    def _normalize(origin: str) -> str:
+        value = str(origin or "").strip().lower()
+        return value if _EXTENSION_ORIGIN_RE.fullmatch(value) else ""
+
+    @classmethod
+    def _decode(cls, payload: bytes) -> set[str]:
+        document = json.loads(payload.decode("utf-8"))
+        if not isinstance(document, dict) or document.get("version") != cls.VERSION:
+            raise ValueError("Unsupported extension-origin registry")
+        raw_origins = document.get("origins")
+        if not isinstance(raw_origins, list) or len(raw_origins) > 8:
+            raise ValueError("Invalid extension-origin registry")
+        origins = {cls._normalize(item) for item in raw_origins}
+        if "" in origins or len(origins) != len(raw_origins):
+            raise ValueError("Invalid extension-origin registry")
+        return origins
+
+    def _load(self) -> None:
+        if not self.path.exists():
+            return
+        try:
+            self._origins = self._decode(self.path.read_bytes())
+            return
+        except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+            self._integrity_error = str(exc) or "Extension-origin registry is unreadable"
+        try:
+            self._origins = self._decode(self.backup_path.read_bytes())
+            self._integrity_error = ""
+            log.warning("Recovered approved extension origins from the verified backup")
+        except (OSError, UnicodeError, ValueError, json.JSONDecodeError):
+            self._origins = set()
+            log.error("Approved extension-origin registry is corrupt; browser access is locked")
+
+    def _save(self, origins: set[str]) -> None:
+        payload = json.dumps(
+            {"version": self.VERSION, "origins": sorted(origins)},
+            ensure_ascii=True,
+            indent=2,
+        ).encode("utf-8") + b"\n"
+        if self.path.exists():
+            _write_private_file(self.backup_path, self.path.read_bytes())
+        _write_private_file(self.path, payload)
+        if self._decode(self.path.read_bytes()) != origins:
+            raise OSError("Approved extension-origin registry verification failed")
+
+    def is_approved(self, origin: str) -> bool:
+        normalized = self._normalize(origin)
+        with self._lock:
+            return bool(normalized and normalized in self._origins and not self._integrity_error)
+
+    def status(self, origin: str) -> dict[str, object]:
+        normalized = self._normalize(origin)
+        with self._lock:
+            return {
+                "paired": bool(normalized and normalized in self._origins and not self._integrity_error),
+                "pairing_count": len(self._origins),
+                "recovery_required": bool(self._integrity_error),
+            }
+
+    def pair(self, origin: str, *, replace: bool = False) -> bool:
+        normalized = self._normalize(origin)
+        if not normalized:
+            raise ValueError("Pairing requires a valid browser extension Origin")
+        with self._lock:
+            if self._integrity_error and not replace:
+                raise RuntimeError("Pairing registry recovery requires explicit replacement")
+            if normalized in self._origins and not self._integrity_error:
+                return False
+            if self._origins and not replace:
+                raise FileExistsError("The API is already paired with another extension identity")
+            origins = {normalized}
+            self._save(origins)
+            self._origins = origins
+            self._integrity_error = ""
+            return True
+
+    def clear(self) -> bool:
+        with self._lock:
+            if not self._origins and not self._integrity_error:
+                return False
+            self._save(set())
+            self._origins = set()
+            self._integrity_error = ""
+            return True
 
 
 def _coerce_bool(value, default: bool = False) -> bool:
@@ -116,11 +244,20 @@ def _load_or_create_token() -> str:
 class BookmarkAPI:
     """Local HTTP API server for bookmark CRUD operations."""
     
-    def __init__(self, bookmark_manager: BookmarkManager, port: int = 8765):
+    def __init__(
+        self,
+        bookmark_manager: BookmarkManager,
+        port: int = 8765,
+        *,
+        extension_origins_file: Path | None = None,
+    ):
         self.bookmark_manager = bookmark_manager
         self.port = port
         self._server = None
         self._thread = None
+        self.extension_origins = ExtensionOriginRegistry(
+            extension_origins_file or _EXTENSION_ORIGINS_FILE
+        )
     
     def start(self):
         """Start the API server"""
@@ -128,11 +265,19 @@ class BookmarkAPI:
         
         bookmark_manager = self.bookmark_manager
         api_token = _load_or_create_token()
+        extension_origins = self.extension_origins
 
         class APIHandler(BaseHTTPRequestHandler):
+            def _is_pairing_path(self) -> bool:
+                return urllib.parse.urlparse(self.path).path.rstrip('/') == '/extension/pair'
+
             def _cors_origin(self) -> str:
                 origin = self.headers.get('Origin', '').strip()
-                return origin if _EXTENSION_ORIGIN_RE.fullmatch(origin) else 'null'
+                if not _EXTENSION_ORIGIN_RE.fullmatch(origin):
+                    return 'null'
+                if self._is_pairing_path() or extension_origins.is_approved(origin):
+                    return origin
+                return 'null'
 
             def _send_json(self, data, status=200):
                 body = json.dumps(data, ensure_ascii=False, default=str).encode("utf-8")
@@ -165,6 +310,17 @@ class BookmarkAPI:
                 if discard_body:
                     self._discard_request_body()
                 self._send_json({"error": "Unauthorized. Provide Authorization: Bearer <token>"}, 401)
+                return False
+
+            def _check_browser_origin(self, *, discard_body: bool = False) -> bool:
+                origin = self.headers.get('Origin', '').strip()
+                if not origin:
+                    return True
+                if extension_origins.is_approved(origin):
+                    return True
+                if discard_body:
+                    self._discard_request_body()
+                self._send_json({"error": "Browser extension Origin is not paired with this API"}, 403)
                 return False
 
             def _discard_request_body(self) -> None:
@@ -201,12 +357,24 @@ class BookmarkAPI:
                             "GET /search?q=query",
                             "GET /digest",
                             "GET /opds",
-                            "GET /opds2"
+                            "GET /opds2",
+                            "GET|POST|DELETE /extension/pair"
                         ]
                     })
                     return
 
                 if not self._check_auth():
+                    return
+
+                if path_parts[0] == 'extension' and len(path_parts) > 1 and path_parts[1] == 'pair':
+                    origin = self.headers.get('Origin', '').strip()
+                    if not _EXTENSION_ORIGIN_RE.fullmatch(origin):
+                        self._send_json({"error": "Pairing requires a valid browser extension Origin"}, 403)
+                        return
+                    self._send_json(extension_origins.status(origin))
+                    return
+
+                if not self._check_browser_origin():
                     return
 
                 if path_parts[0] == 'opds':
@@ -355,6 +523,39 @@ class BookmarkAPI:
                     return
                 path_parts, _ = self._parse_path()
 
+                if path_parts[:2] == ['extension', 'pair']:
+                    origin = self.headers.get('Origin', '').strip()
+                    try:
+                        content_length = int(self.headers.get('Content-Length', 0))
+                    except (TypeError, ValueError):
+                        self._send_json({"error": "Invalid Content-Length"}, 400)
+                        return
+                    if content_length <= 0 or content_length > 4096:
+                        self._send_json({"error": "Pairing request body is empty or too large"}, 413)
+                        return
+                    try:
+                        data = json.loads(self.rfile.read(content_length))
+                        if not isinstance(data, dict):
+                            raise ValueError("Pairing request must be a JSON object")
+                        changed = extension_origins.pair(
+                            origin,
+                            replace=_coerce_bool(data.get('replace')),
+                        )
+                    except json.JSONDecodeError:
+                        self._send_json({"error": "Invalid JSON"}, 400)
+                        return
+                    except FileExistsError as exc:
+                        self._send_json({"error": str(exc), "replace_required": True}, 409)
+                        return
+                    except (ValueError, RuntimeError, OSError) as exc:
+                        self._send_json({"error": str(exc)}, 422)
+                        return
+                    self._send_json({**extension_origins.status(origin), "changed": changed})
+                    return
+
+                if not self._check_browser_origin(discard_body=True):
+                    return
+
                 if path_parts and path_parts[0] == 'bookmarks':
                     try:
                         content_length = int(self.headers.get('Content-Length', 0))
@@ -381,8 +582,8 @@ class BookmarkAPI:
                                 self._send_json({"error": "Unsupported browser snapshot contract"}, 400)
                                 return
                             origin = self.headers.get('Origin', '').strip()
-                            if not _EXTENSION_ORIGIN_RE.fullmatch(origin):
-                                self._send_json({"error": "Browser snapshots require a trusted extension Origin"}, 403)
+                            if not extension_origins.is_approved(origin):
+                                self._send_json({"error": "Browser snapshots require a paired extension Origin"}, 403)
                                 return
                         elif content_length > _MAX_BOOKMARK_BODY_BYTES:
                             self._send_json({"error": "Request body is too large"}, 413)
@@ -466,6 +667,16 @@ class BookmarkAPI:
                 if not self._check_auth():
                     return
                 path_parts, _ = self._parse_path()
+
+                if path_parts[:2] == ['extension', 'pair']:
+                    if not self._check_browser_origin():
+                        return
+                    changed = extension_origins.clear()
+                    self._send_json({"paired": False, "pairing_count": 0, "changed": changed})
+                    return
+
+                if not self._check_browser_origin():
+                    return
                 
                 if path_parts and path_parts[0] == 'bookmarks' and len(path_parts) > 1:
                     try:
@@ -480,6 +691,16 @@ class BookmarkAPI:
                     self._send_json({"error": "Not found"}, 404)
             
             def do_OPTIONS(self):
+                origin = self.headers.get('Origin', '').strip()
+                pairing = self._is_pairing_path()
+                approved = extension_origins.is_approved(origin)
+                if origin and not ((pairing and _EXTENSION_ORIGIN_RE.fullmatch(origin)) or approved):
+                    self.send_response(403)
+                    self.send_header('Access-Control-Allow-Origin', 'null')
+                    self.send_header('Vary', 'Origin')
+                    self.send_header('X-Content-Type-Options', 'nosniff')
+                    self.end_headers()
+                    return
                 self.send_response(204)
                 self.send_header('Access-Control-Allow-Origin', self._cors_origin())
                 self.send_header('Vary', 'Origin')

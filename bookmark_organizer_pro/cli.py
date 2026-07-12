@@ -810,7 +810,7 @@ Top Domains:
 
     def _cmd_check(self, ns: argparse.Namespace):
         """Check for broken links (multi-threaded)"""
-        import requests
+        from bookmark_organizer_pro.services.egress import public_egress as requests
         from concurrent.futures import ThreadPoolExecutor, as_completed
         bookmarks = self.bookmark_manager.get_all_bookmarks()
 

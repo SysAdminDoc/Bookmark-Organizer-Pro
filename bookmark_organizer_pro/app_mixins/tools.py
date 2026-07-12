@@ -8,7 +8,7 @@ from datetime import datetime
 from tkinter import filedialog, messagebox
 
 try:
-    import requests
+                from bookmark_organizer_pro.services.egress import public_egress as requests
 except ImportError:  # pragma: no cover - optional runtime dependency
     requests = None
 

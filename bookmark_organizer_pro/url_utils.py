@@ -3,7 +3,6 @@
 Redirect resolution, HTTPS upgrade, affiliate detection, canonical URL lookup.
 """
 
-import importlib
 import html as html_module
 import ipaddress
 import re
@@ -68,42 +67,49 @@ class URLUtilities:
         )
 
     @classmethod
+    def resolve_public_addresses(cls, url: str) -> Tuple[list[str], str]:
+        """Resolve an outbound URL once and return validated connection targets."""
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in ('http', 'https'):
+            return [], "unsupported URL scheme"
+        if parsed.username or parsed.password:
+            return [], "URL credentials are not allowed"
+        hostname = (parsed.hostname or '').strip().rstrip('.').lower()
+        if not hostname or hostname in ('localhost', '0.0.0.0', '::'):
+            return [], "local or missing hostname"
+        try:
+            ascii_host = hostname.encode("idna").decode("ascii")
+            addresses: list[str] = []
+            for info in socket.getaddrinfo(ascii_host, parsed.port, socket.AF_UNSPEC):
+                address = str(ipaddress.ip_address(info[4][0]))
+                ip = ipaddress.ip_address(address)
+                if cls._ip_is_blocked(ip):
+                    if cls.SSRF_ALLOW_LIST and any(
+                        pattern.search(hostname) for pattern in cls.SSRF_ALLOW_LIST
+                    ):
+                        addresses.append(address)
+                        continue
+                    return [], f"blocked network address: {ip}"
+                if address not in addresses:
+                    addresses.append(address)
+            if not addresses:
+                return [], "hostname did not resolve"
+            return addresses, "allowed public HTTP URL"
+        except Exception as exc:
+            return [], f"URL validation failed: {exc}"
+
+    @classmethod
     def check_safe_url(cls, url: str) -> Tuple[bool, str]:
         """Validate an outbound HTTP URL and return ``(allowed, reason)``.
 
         Domains matching SSRF_ALLOW_LIST regex patterns bypass the private-IP check.
 
-        Note: this validates the hostname's currently-resolved addresses. It is a
-        strong guard against accidental and most malicious SSRF, but it does not
-        by itself defeat a determined DNS-rebinding attacker (the subsequent
-        ``requests`` call re-resolves DNS independently). Callers handling fully
-        untrusted URLs in a hostile environment should additionally pin the
-        validated IP for the connection.
+        This validates the hostname's currently resolved addresses. Public network
+        callers use ``services.egress`` to connect to one of those exact addresses,
+        preserving Host and TLS SNI without a second DNS lookup.
         """
-        try:
-            parsed = urllib.parse.urlparse(url)
-            if parsed.scheme not in ('http', 'https'):
-                return False, "unsupported URL scheme"
-            hostname = (parsed.hostname or '').strip().rstrip('.').lower()
-            if not hostname or hostname in ('localhost', '0.0.0.0', '::'):
-                return False, "local or missing hostname"
-            ascii_host = hostname.encode("idna").decode("ascii")
-            resolved_any = False
-            for info in socket.getaddrinfo(ascii_host, None, socket.AF_UNSPEC):
-                resolved_any = True
-                ip = ipaddress.ip_address(info[4][0])
-                if cls._ip_is_blocked(ip):
-                    # Allow-listed domains may legitimately resolve to private IPs
-                    if cls.SSRF_ALLOW_LIST and any(
-                        pattern.search(hostname) for pattern in cls.SSRF_ALLOW_LIST
-                    ):
-                        continue
-                    return False, f"blocked network address: {ip}"
-            if not resolved_any:
-                return False, "hostname did not resolve"
-            return True, "allowed public HTTP URL"
-        except Exception as exc:
-            return False, f"URL validation failed: {exc}"
+        addresses, reason = cls.resolve_public_addresses(url)
+        return bool(addresses), reason
 
     @classmethod
     def _is_safe_url(cls, url: str) -> bool:
@@ -113,10 +119,7 @@ class URLUtilities:
     @staticmethod
     def resolve_redirect(url: str, max_redirects: int = 5) -> Tuple[str, int]:
         """Resolve URL redirects and return (final_url, redirect_count)."""
-        try:
-            requests = importlib.import_module('requests')
-        except ImportError:
-            return url, 0
+        from bookmark_organizer_pro.services.egress import public_egress as requests
 
         redirect_count = 0
         current_url = url
@@ -174,10 +177,7 @@ class URLUtilities:
         if url.startswith('https://'):
             return True
 
-        try:
-            requests = importlib.import_module('requests')
-        except ImportError:
-            return False
+        from bookmark_organizer_pro.services.egress import public_egress as requests
 
         https_url = URLUtilities.upgrade_to_https(url)
         if not URLUtilities._is_safe_url(https_url):
@@ -241,7 +241,7 @@ class URLUtilities:
     def get_canonical_url(url: str) -> Optional[str]:
         """Try to get canonical URL from page"""
         try:
-            requests = importlib.import_module('requests')
+            from bookmark_organizer_pro.services.egress import public_egress as requests
             if not URLUtilities._is_safe_url(url):
                 return None
             response = requests.get(

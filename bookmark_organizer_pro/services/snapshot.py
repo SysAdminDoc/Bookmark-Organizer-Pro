@@ -620,9 +620,10 @@ class SnapshotArchiver:
 
     def _snapshot_python(self, url: str, out_path: Path) -> Tuple[bool, str]:
         """Pure-Python fallback: inline CSS, images, and basic fonts."""
-        requests = _try_import("requests")
+        from bookmark_organizer_pro.services.egress import public_egress as requests
+
         bs4 = _try_import("bs4")
-        if requests is None or bs4 is None:
+        if bs4 is None:
             return False, "requests/bs4 not available"
         deadline = time.monotonic() + self.egress_policy.backend_timeout_seconds
         resp, current_url, error = self._fetch_response(

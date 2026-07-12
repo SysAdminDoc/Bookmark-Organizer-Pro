@@ -8,9 +8,6 @@ change. Powered by the same StructuredQuery evaluation used by nl_query.py.
 
 from __future__ import annotations
 
-import json
-import os
-import tempfile
 import threading
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -21,6 +18,10 @@ from typing import Dict, List, Optional
 from bookmark_organizer_pro.constants import DATA_DIR
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.atomic_document_store import (
+    AtomicDocumentStore,
+    require_list_document,
+)
 
 SMART_COLLECTIONS_FILE = DATA_DIR / "smart_collections.json"
 
@@ -106,9 +107,12 @@ class SmartCollection:
 
     def to_dict(self) -> dict:
         return {
-            "id": self.id, "name": self.name, "icon": self.icon,
+            "id": self.id,
+            "name": self.name,
+            "icon": self.icon,
             "filters": asdict(self.filters),
-            "created_at": self.created_at, "modified_at": self.modified_at,
+            "created_at": self.created_at,
+            "modified_at": self.modified_at,
         }
 
     @classmethod
@@ -141,17 +145,23 @@ class SmartCollectionManager:
     def __init__(self, filepath: Path = SMART_COLLECTIONS_FILE):
         self.filepath = Path(filepath)
         self._lock = threading.RLock()
+        self._store = AtomicDocumentStore(
+            self.filepath,
+            schema="bookmark-organizer-pro/smart-collections",
+            default_factory=list,
+            validator=require_list_document,
+        )
+        self._revision = 0
         self._collections: Dict[str, SmartCollection] = {}
         self._load()
 
+    @property
+    def storage_status(self):
+        return self._store.status
+
     def _load(self):
-        if not self.filepath.exists():
-            return
-        try:
-            data = json.loads(self.filepath.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            log.warning(f"Could not load smart collections: {exc}")
-            return
+        data = self._store.load()
+        self._revision = self._store.revision
         with self._lock:
             self._collections = {}
             for d in data if isinstance(data, list) else []:
@@ -164,23 +174,17 @@ class SmartCollectionManager:
     def _save(self):
         with self._lock:
             payload = [sc.to_dict() for sc in self._collections.values()]
-            self.filepath.parent.mkdir(parents=True, exist_ok=True)
-            fd, tmp = tempfile.mkstemp(dir=self.filepath.parent, suffix=".tmp", text=True)
-            try:
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    json.dump(payload, f, indent=2, ensure_ascii=False)
-                os.replace(tmp, self.filepath)
-            except Exception:
-                if os.path.exists(tmp):
-                    os.remove(tmp)
-                raise
+        self._revision = self._store.save(payload, expected_revision=self._revision)
 
-    def create(self, name: str, filters: SmartCollectionFilter,
-               icon: str = "") -> SmartCollection:
+    def create(self, name: str, filters: SmartCollectionFilter, icon: str = "") -> SmartCollection:
         now = datetime.now().isoformat()
         sc = SmartCollection(
-            id=uuid.uuid4().hex, name=name, icon=icon,
-            filters=filters, created_at=now, modified_at=now,
+            id=uuid.uuid4().hex,
+            name=name,
+            icon=icon,
+            filters=filters,
+            created_at=now,
+            modified_at=now,
         )
         with self._lock:
             self._collections[sc.id] = sc
@@ -203,8 +207,7 @@ class SmartCollectionManager:
         with self._lock:
             return list(self._collections.values())
 
-    def evaluate(self, collection_id: str,
-                 bookmarks: List[Bookmark]) -> List[Bookmark]:
+    def evaluate(self, collection_id: str, bookmarks: List[Bookmark]) -> List[Bookmark]:
         with self._lock:
             sc = self._collections.get(collection_id)
         if sc is None:
@@ -214,7 +217,4 @@ class SmartCollectionManager:
     def evaluate_all(self, bookmarks: List[Bookmark]) -> Dict[str, List[Bookmark]]:
         with self._lock:
             collections = list(self._collections.values())
-        return {
-            sc.id: sc.evaluate(bookmarks)
-            for sc in collections
-        }
+        return {sc.id: sc.evaluate(bookmarks) for sc in collections}

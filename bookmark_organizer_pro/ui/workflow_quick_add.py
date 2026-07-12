@@ -9,10 +9,7 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Callable, List, Optional
 from urllib.parse import urlparse
 
-try:
-    import requests
-except ImportError:  # pragma: no cover - optional runtime dependency
-    requests = None
+from bookmark_organizer_pro.services.egress import public_egress as requests
 
 try:
     from PIL import Image, ImageTk

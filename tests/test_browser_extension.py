@@ -74,6 +74,8 @@ class TestBrowserExtensionManifest(unittest.TestCase):
 
     def test_options_persists_public_settings_and_delegates_token_to_background(self):
         options_js = (EXT_DIR / "options.js").read_text(encoding="utf-8")
+        options_html = (EXT_DIR / "options.html").read_text(encoding="utf-8")
+        shared_js = (EXT_DIR / "shared.js").read_text(encoding="utf-8")
 
         self.assertIn("apiPort", options_js)
         self.assertIn("apiToken", options_js)
@@ -81,6 +83,51 @@ class TestBrowserExtensionManifest(unittest.TestCase):
         self.assertIn("storageSet({ apiPort: port, defaultCategory })", options_js)
         self.assertIn('{ type: "bop:set-api-token", apiToken }', options_js)
         self.assertNotIn("storageSet({ apiPort: port, apiToken", options_js)
+        self.assertIn("pairExtension", options_js)
+        self.assertIn('id="replacePairing"', options_html)
+        self.assertIn('`${baseUrl(config)}/extension/pair`', shared_js)
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for the pairing client harness")
+    def test_shared_pairing_client_sends_explicit_rotation_contract(self):
+        harness = r"""
+const fs = require("fs");
+const vm = require("vm");
+const calls = [];
+const chrome = {
+  storage: { local: { get: async values => values, set: async () => {} } },
+  runtime: { sendMessage: async () => ({}), getURL: path => path }
+};
+const context = vm.createContext({
+  chrome,
+  console,
+  fetch: async (url, options) => {
+    calls.push({ url, options });
+    return { status: 200, json: async () => ({ paired: true }) };
+  }
+});
+context.globalThis = context;
+vm.runInContext(fs.readFileSync(process.argv[1], "utf8"), context);
+vm.runInContext(`(async () => {
+  globalThis.result = await pairExtension({ apiPort: 9876, apiToken: "secret" }, { replace: true });
+})()`, context).then(() => {
+  process.stdout.write(JSON.stringify({ calls, result: context.result }));
+});
+"""
+        completed = subprocess.run(
+            ["node", "-e", harness, str(EXT_DIR / "shared.js")],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = json.loads(completed.stdout)
+        call = result["calls"][0]
+        self.assertEqual(call["url"], "http://127.0.0.1:9876/extension/pair")
+        self.assertEqual(call["options"]["method"], "POST")
+        self.assertEqual(json.loads(call["options"]["body"]), {"replace": True})
+        self.assertEqual(call["options"]["headers"]["Authorization"], "Bearer secret")
+        self.assertTrue(result["result"]["body"]["paired"])
 
     def test_token_vault_migrates_legacy_storage_and_restricts_untrusted_access(self):
         background_js = (EXT_DIR / "background.js").read_text(encoding="utf-8")
@@ -448,13 +495,20 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
         except Exception:
             return ""
 
-    def _post_json(self, base_url: str, payload, token: str = "", extra_headers=None):
+    def _post_json(
+        self,
+        base_url: str,
+        payload,
+        token: str = "",
+        extra_headers=None,
+        path: str = "/bookmarks",
+    ):
         headers = {"Content-Type": "application/json"}
         if token:
             headers["Authorization"] = f"Bearer {token}"
         headers.update(extra_headers or {})
         request = urllib.request.Request(
-            f"{base_url}/bookmarks",
+            f"{base_url}{path}",
             data=json.dumps(payload).encode("utf-8"),
             headers=headers,
             method="POST",
@@ -464,6 +518,96 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
                 return response.status, json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as error:
             return error.code, json.loads(error.read().decode("utf-8"))
+
+    def _pair_extension(self, base_url: str, token: str, origin: str, *, replace: bool = False):
+        return self._post_json(
+            base_url,
+            {"replace": replace},
+            token,
+            {"Origin": origin},
+            path="/extension/pair",
+        )
+
+    def test_extension_origin_pairing_rejects_unpaired_and_supports_explicit_rotation(self):
+        import main
+
+        first_origin = f"chrome-extension://{'a' * 32}"
+        second_origin = f"chrome-extension://{'b' * 32}"
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            api = main.BookmarkAPI(
+                manager,
+                port=0,
+                extension_origins_file=Path(tmp) / "approved-origins.json",
+            )
+            try:
+                api.start()
+                token = self._api_token()
+                base_url = f"http://127.0.0.1:{api.port}"
+
+                preflight = urllib.request.Request(
+                    f"{base_url}/bookmarks",
+                    headers={"Origin": first_origin, "Access-Control-Request-Method": "POST"},
+                    method="OPTIONS",
+                )
+                with self.assertRaises(urllib.error.HTTPError) as rejected_preflight:
+                    urllib.request.urlopen(preflight, timeout=3)
+                self.assertEqual(rejected_preflight.exception.code, 403)
+                self.assertEqual(rejected_preflight.exception.headers["Access-Control-Allow-Origin"], "null")
+
+                status, body = self._post_json(
+                    base_url,
+                    {"url": "https://example.com/unpaired"},
+                    token,
+                    {"Origin": first_origin},
+                )
+                self.assertEqual(status, 403)
+                self.assertIn("not paired", body["error"])
+
+                status, body = self._pair_extension(base_url, token, first_origin)
+                self.assertEqual(status, 200, body)
+                self.assertTrue(body["paired"])
+                self.assertTrue(body["changed"])
+
+                with urllib.request.urlopen(preflight, timeout=3) as allowed_preflight:
+                    self.assertEqual(allowed_preflight.status, 204)
+                    self.assertEqual(allowed_preflight.headers["Access-Control-Allow-Origin"], first_origin)
+
+                status, body = self._post_json(
+                    base_url,
+                    {"url": "https://example.com/paired"},
+                    token,
+                    {"Origin": first_origin},
+                )
+                self.assertEqual(status, 201, body)
+
+                status, body = self._pair_extension(base_url, token, second_origin)
+                self.assertEqual(status, 409)
+                self.assertTrue(body["replace_required"])
+
+                status, body = self._pair_extension(base_url, token, second_origin, replace=True)
+                self.assertEqual(status, 200, body)
+                self.assertTrue(body["paired"])
+
+                status, _ = self._post_json(
+                    base_url,
+                    {"url": "https://example.com/old-extension"},
+                    token,
+                    {"Origin": first_origin},
+                )
+                self.assertEqual(status, 403)
+
+                status, body = self._post_json(
+                    base_url,
+                    {"url": "https://example.com/non-browser-client"},
+                    token,
+                )
+                self.assertEqual(status, 201, body)
+
+                persisted = json.loads((Path(tmp) / "approved-origins.json").read_text(encoding="utf-8"))
+                self.assertEqual(persisted["origins"], [second_origin])
+            finally:
+                api.stop()
 
     def test_extension_save_paths_round_trip_through_local_api(self):
         import main
@@ -603,10 +747,18 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
-            api = main.BookmarkAPI(manager, port=0)
+            api = main.BookmarkAPI(
+                manager,
+                port=0,
+                extension_origins_file=Path(tmp) / "approved-origins.json",
+            )
             try:
                 api.start()
                 token = self._api_token()
+                status, body = self._pair_extension(
+                    f"http://127.0.0.1:{api.port}", token, capture_headers["Origin"],
+                )
+                self.assertEqual(status, 200, body)
                 status, body = self._post_json(
                     f"http://127.0.0.1:{api.port}", payload, token, capture_headers,
                 )
@@ -642,7 +794,11 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
-            api = main.BookmarkAPI(manager, port=0)
+            api = main.BookmarkAPI(
+                manager,
+                port=0,
+                extension_origins_file=Path(tmp) / "approved-origins.json",
+            )
             try:
                 api.start()
                 token = self._api_token()
@@ -653,12 +809,16 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
                 self.assertEqual(status, 403)
                 self.assertIn("Origin", body["error"])
 
+                paired_origin = f"chrome-extension://{'b' * 32}"
+                status, body = self._pair_extension(base_url, token, paired_origin)
+                self.assertEqual(status, 200, body)
+
                 payload["browser_snapshot"]["source_url"] = "https://evil.example/account"
                 status, body = self._post_json(
                     base_url,
                     payload,
                     token,
-                    {"Origin": f"chrome-extension://{'b' * 32}", "X-BOP-Capture-Version": "1"},
+                    {"Origin": paired_origin, "X-BOP-Capture-Version": "1"},
                 )
                 self.assertEqual(status, 400)
                 self.assertIn("source URL", body["error"])
@@ -670,7 +830,7 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
                     base_url,
                     payload,
                     token,
-                    {"Origin": f"chrome-extension://{'b' * 32}", "X-BOP-Capture-Version": "1"},
+                    {"Origin": paired_origin, "X-BOP-Capture-Version": "1"},
                 )
                 self.assertEqual(status, 422)
                 self.assertIn("5 MB", body["error"])

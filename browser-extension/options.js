@@ -1,4 +1,4 @@
-/* global DEFAULTS, storageGet, storageSet, runtimeMessage */
+/* global DEFAULTS, storageGet, storageSet, runtimeMessage, pairExtension */
 
 function setStatus(message, tone = "info") {
   const status = document.getElementById("status");
@@ -15,7 +15,7 @@ async function loadOptions() {
   document.getElementById("defaultCategory").value = values.defaultCategory;
 }
 
-async function saveOptions() {
+async function saveOptions({ replacePairing = false } = {}) {
   const port = Number.parseInt(document.getElementById("apiPort").value, 10);
   const apiToken = document.getElementById("apiToken").value.trim();
   const defaultCategory = document.getElementById("defaultCategory").value.trim() || DEFAULTS.defaultCategory;
@@ -33,7 +33,16 @@ async function saveOptions() {
   await storageSet({ apiPort: port, defaultCategory });
   const response = await runtimeMessage({ type: "bop:set-api-token", apiToken });
   if (!response || !response.ok) throw new Error("Credential operation failed");
-  setStatus("Settings saved.", "success");
+  const pairing = await pairExtension({ apiPort: port, apiToken }, { replace: replacePairing });
+  if (pairing.status === 200 && pairing.body.paired) {
+    setStatus(replacePairing ? "Settings saved and pairing replaced." : "Settings saved and extension paired.", "success");
+  } else if (pairing.status === 409 && pairing.body.replace_required) {
+    setStatus("This API is paired with another extension ID. Use Replace Pairing to recover this install.", "error");
+  } else if (pairing.status === 401) {
+    setStatus("Server reached but token is invalid.", "error");
+  } else {
+    setStatus(pairing.body.error || `Pairing failed: HTTP ${pairing.status}`, "error");
+  }
 }
 
 async function testConnection() {
@@ -55,12 +64,14 @@ async function testConnection() {
   button.textContent = "Testing...";
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/`, {
+    const response = await fetch(`http://127.0.0.1:${port}/extension/pair`, {
       headers: token ? { "Authorization": `Bearer ${token}` } : {}
     });
     const body = await response.json().catch(() => ({}));
-    if (response.ok && body.name) {
-      setStatus(`Connected to ${body.name} v${body.version}.`, "success");
+    if (response.ok && body.paired) {
+      setStatus("Connected and paired with this extension.", "success");
+    } else if (response.ok) {
+      setStatus("Connected, but this extension is not paired. Save Settings to pair it.", "error");
     } else if (response.status === 401) {
       setStatus("Server reached but token is invalid.", "error");
     } else {
@@ -81,5 +92,8 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   document.getElementById("testConnection").addEventListener("click", () => {
     testConnection().catch(() => setStatus("Connection test failed.", "error"));
+  });
+  document.getElementById("replacePairing").addEventListener("click", () => {
+    saveOptions({ replacePairing: true }).catch(() => setStatus("Could not replace pairing.", "error"));
   });
 });

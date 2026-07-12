@@ -12,11 +12,10 @@ from io import BytesIO
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse
 
-import requests
-
 from bookmark_organizer_pro.constants import APP_DIR, DATA_DIR
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.egress import public_egress as requests
 from bookmark_organizer_pro.url_utils import URLUtilities
 from bookmark_organizer_pro.utils import sanitize_filename
 from bookmark_organizer_pro.utils.runtime import atomic_json_write as _atomic_json_write

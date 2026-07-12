@@ -12,11 +12,7 @@ layer that AI tagging adds to rather than replaces.
 
 from __future__ import annotations
 
-import importlib
-import json
-import os
 import re
-import tempfile
 import threading
 import xml.etree.ElementTree as ET
 
@@ -45,6 +41,10 @@ from bookmark_organizer_pro.constants import FEEDS_FILE
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.job_ledger import JobLedger
+from bookmark_organizer_pro.services.atomic_document_store import (
+    AtomicDocumentStore,
+    require_list_document,
+)
 from bookmark_organizer_pro.url_utils import URLUtilities
 
 
@@ -58,7 +58,7 @@ class FeedConfig:
     name: str
     default_tags: List[str] = field(default_factory=list)
     default_category: str = ""
-    ai_mode: str = "DISABLED"   # one of AI_MODES
+    ai_mode: str = "DISABLED"  # one of AI_MODES
     last_fetched: str = ""
     last_seen_guids: List[str] = field(default_factory=list)
     enabled: bool = True
@@ -82,16 +82,23 @@ class FeedRegistry:
     def __init__(self, filepath: Path = FEEDS_FILE):
         self.filepath = Path(filepath)
         self._lock = threading.RLock()
+        self._store = AtomicDocumentStore(
+            self.filepath,
+            schema="bookmark-organizer-pro/rss-feeds",
+            default_factory=list,
+            validator=require_list_document,
+        )
+        self._revision = 0
         self._feeds: Dict[str, FeedConfig] = {}
         self._load()
 
+    @property
+    def storage_status(self):
+        return self._store.status
+
     def _load(self):
-        if not self.filepath.exists():
-            return
-        try:
-            data = json.loads(self.filepath.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return
+        data = self._store.load()
+        self._revision = self._store.revision
         with self._lock:
             for d in data if isinstance(data, list) else []:
                 try:
@@ -105,30 +112,29 @@ class FeedRegistry:
     def _save(self):
         with self._lock:
             payload = [f.to_dict() for f in self._feeds.values()]
-            self.filepath.parent.mkdir(parents=True, exist_ok=True)
-            fd, tmp = tempfile.mkstemp(dir=self.filepath.parent, suffix=".tmp", text=True)
-            try:
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    json.dump(payload, f, indent=2, ensure_ascii=False)
-                os.replace(tmp, self.filepath)
-            except Exception:
-                if os.path.exists(tmp):
-                    os.remove(tmp)
-                raise
+        self._revision = self._store.save(payload, expected_revision=self._revision)
 
-    def add(self, url: str, name: str = "",
-            default_tags: Optional[List[str]] = None,
-            default_category: str = "",
-            ai_mode: str = "DISABLED") -> FeedConfig:
+    def add(
+        self,
+        url: str,
+        name: str = "",
+        default_tags: Optional[List[str]] = None,
+        default_category: str = "",
+        ai_mode: str = "DISABLED",
+    ) -> FeedConfig:
         if not URLUtilities._is_safe_url(url):
             raise ValueError("Unsafe or unsupported feed URL")
         if ai_mode not in AI_MODES:
             ai_mode = "DISABLED"
         import uuid
+
         cfg = FeedConfig(
-            id=uuid.uuid4().hex, url=url, name=name or url,
+            id=uuid.uuid4().hex,
+            url=url,
+            name=name or url,
             default_tags=list(default_tags or []),
-            default_category=default_category, ai_mode=ai_mode,
+            default_category=default_category,
+            ai_mode=ai_mode,
         )
         with self._lock:
             self._feeds[cfg.id] = cfg
@@ -183,14 +189,15 @@ def parse_feed(xml_text: str, base_url: str = "") -> List[FeedItem]:
         link = (entry.findtext("link") or "").strip()
         if base_url and link and not link.startswith(("http://", "https://")):
             link = urljoin(base_url, link)
-        items.append(FeedItem(
-            title=(entry.findtext("title") or "").strip(),
-            link=link,
-            summary=(entry.findtext("description") or "").strip()[:500],
-            published=(entry.findtext("pubDate") or
-                       entry.findtext("dc:date", "", ns) or "").strip(),
-            guid=(entry.findtext("guid") or link).strip(),
-        ))
+        items.append(
+            FeedItem(
+                title=(entry.findtext("title") or "").strip(),
+                link=link,
+                summary=(entry.findtext("description") or "").strip()[:500],
+                published=(entry.findtext("pubDate") or entry.findtext("dc:date", "", ns) or "").strip(),
+                guid=(entry.findtext("guid") or link).strip(),
+            )
+        )
 
     # Atom 1.0
     for entry in root.findall("atom:entry", ns):
@@ -200,13 +207,15 @@ def parse_feed(xml_text: str, base_url: str = "") -> List[FeedItem]:
             href = (link_el.get("href") or "").strip()
             if base_url and href and not href.startswith(("http://", "https://")):
                 href = urljoin(base_url, href)
-        items.append(FeedItem(
-            title=(entry.findtext("atom:title", "", ns) or "").strip(),
-            link=href,
-            summary=(entry.findtext("atom:summary", "", ns) or "").strip()[:500],
-            published=(entry.findtext("atom:updated", "", ns) or "").strip(),
-            guid=(entry.findtext("atom:id", "", ns) or href).strip(),
-        ))
+        items.append(
+            FeedItem(
+                title=(entry.findtext("atom:title", "", ns) or "").strip(),
+                link=href,
+                summary=(entry.findtext("atom:summary", "", ns) or "").strip()[:500],
+                published=(entry.findtext("atom:updated", "", ns) or "").strip(),
+                guid=(entry.findtext("atom:id", "", ns) or href).strip(),
+            )
+        )
     return items
 
 
@@ -214,11 +223,14 @@ class FeedIngestor:
     """Fetch each feed, materialize new items into bookmarks, and apply
     static + AI tags according to the per-feed mode."""
 
-    def __init__(self, registry: FeedRegistry,
-                 add_bookmark_callable: Callable[[Bookmark], Optional[Bookmark]],
-                 ai_tagger: Optional[Callable[[Bookmark, str], List[str]]] = None,
-                 existing_tags_provider: Optional[Callable[[], List[str]]] = None,
-                 job_ledger: JobLedger | None = None):
+    def __init__(
+        self,
+        registry: FeedRegistry,
+        add_bookmark_callable: Callable[[Bookmark], Optional[Bookmark]],
+        ai_tagger: Optional[Callable[[Bookmark, str], List[str]]] = None,
+        existing_tags_provider: Optional[Callable[[], List[str]]] = None,
+        job_ledger: JobLedger | None = None,
+    ):
         self.registry = registry
         self.add_bookmark = add_bookmark_callable
         self.ai_tagger = ai_tagger
@@ -241,7 +253,9 @@ class FeedIngestor:
     def fetch_one(self, feed_id: str) -> int:
         cfg = self.registry.get(feed_id)
         job = self.job_ledger.start(
-            "rss", url_or_domain=cfg.url if cfg else "", backend="requests",
+            "rss",
+            url_or_domain=cfg.url if cfg else "",
+            backend="requests",
         )
         try:
             added = self._fetch_one(feed_id)
@@ -257,19 +271,21 @@ class FeedIngestor:
             return 0
         if not URLUtilities._is_safe_url(cfg.url):
             return 0
-        requests = importlib.import_module("requests")
+        from bookmark_organizer_pro.services.egress import public_egress as requests
+
         current_url = cfg.url
         resp = None
         for _ in range(5):
-            resp = requests.get(current_url, timeout=20,
-                                headers={"User-Agent": "BookmarkOrganizerPro/6.0"},
-                                allow_redirects=False)
+            resp = requests.get(
+                current_url, timeout=20, headers={"User-Agent": "BookmarkOrganizerPro/6.0"}, allow_redirects=False
+            )
             if resp.status_code in (301, 302, 303, 307, 308):
                 location = resp.headers.get("Location", "")
                 resp.close()
                 if not location:
                     break
                 from urllib.parse import urljoin as _urljoin
+
                 location = _urljoin(current_url, location)
                 if not URLUtilities._is_safe_url(location):
                     return 0
@@ -313,8 +329,7 @@ class FeedIngestor:
         # Cap memory of seen guids; keep most recent ~500
         cfg.last_seen_guids = (new_guids + cfg.last_seen_guids)[:500]
         cfg.last_fetched = datetime.now().isoformat()
-        self.registry.update(cfg.id, last_seen_guids=cfg.last_seen_guids,
-                              last_fetched=cfg.last_fetched)
+        self.registry.update(cfg.id, last_seen_guids=cfg.last_seen_guids, last_fetched=cfg.last_fetched)
         return added
 
     def _safe_ai_tag(self, item: FeedItem, cfg: FeedConfig) -> List[str]:

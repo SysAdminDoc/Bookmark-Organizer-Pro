@@ -8,13 +8,11 @@ Inspired by Linkding, Shiori, Hoarder, Linkwarden, ArchiveBox.
 """
 
 import html as html_module
-import importlib
-import ipaddress
 import re
-import socket
 import urllib.parse
 from typing import Dict, Optional
-from urllib.parse import urlparse
+
+from bookmark_organizer_pro.url_utils import URLUtilities
 
 _USER_AGENT = (
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
@@ -24,26 +22,7 @@ _USER_AGENT = (
 
 def _is_safe_url(url: str) -> bool:
     """Block requests to private/internal networks (SSRF protection)."""
-    try:
-        parsed = urlparse(url)
-        if parsed.scheme not in ('http', 'https'):
-            return False
-        hostname = (parsed.hostname or '').strip().rstrip('.').lower()
-        if not hostname:
-            return False
-        # Block obvious private names
-        if hostname in ('localhost', '0.0.0.0', '::'):
-            return False
-        # Resolve and check IP
-        ascii_host = hostname.encode("idna").decode("ascii")
-        for info in socket.getaddrinfo(ascii_host, None, socket.AF_UNSPEC):
-            addr = info[4][0]
-            ip = ipaddress.ip_address(addr)
-            if ip.is_multicast or ip.is_unspecified or not ip.is_global:
-                return False
-        return True
-    except Exception:
-        return False
+    return URLUtilities._is_safe_url(url)
 
 
 def fetch_page_metadata(url: str, timeout: int = 10) -> Dict[str, str]:
@@ -69,13 +48,9 @@ def _fetch_page_metadata(url: str, timeout: int = 10) -> Dict[str, str]:
     All values default to empty string on failure.
     """
     result = {'title': '', 'description': '', 'favicon_url': ''}
+    from bookmark_organizer_pro.services.egress import public_egress as requests
 
     if not _is_safe_url(url):
-        return result
-
-    try:
-        requests = importlib.import_module('requests')
-    except ImportError:
         return result
 
     resp = None
@@ -166,10 +141,7 @@ def wayback_check(url: str, timeout: int = 10) -> Optional[str]:
 
     Returns the latest snapshot URL, or None if not archived.
     """
-    try:
-        requests = importlib.import_module('requests')
-    except ImportError:
-        return None
+    from bookmark_organizer_pro.services.egress import public_egress as requests
 
     if not _is_safe_url(url):
         return None
@@ -195,10 +167,7 @@ def wayback_save(url: str, timeout: int = 30) -> Optional[str]:
 
     Returns the archive URL on success, or None on failure.
     """
-    try:
-        requests = importlib.import_module('requests')
-    except ImportError:
-        return None
+    from bookmark_organizer_pro.services.egress import public_egress as requests
 
     if not _is_safe_url(url):
         return None

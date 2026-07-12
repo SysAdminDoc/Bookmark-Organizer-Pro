@@ -20,6 +20,10 @@ from urllib.parse import urlsplit, urlunsplit
 from bookmark_organizer_pro import constants as app_constants
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.atomic_document_store import (
+    AtomicDocumentStore,
+    require_list_document,
+)
 
 
 HIGHLIGHT_COLORS = {
@@ -29,6 +33,13 @@ HIGHLIGHT_COLORS = {
     "pink": "#fbcfe8",
 }
 DEFAULT_HIGHLIGHT_COLOR = "yellow"
+
+
+def _migrate_reader_annotations_v0(document):
+    """Normalize both historical annotation layouts to the canonical array."""
+    if isinstance(document, dict):
+        return document.get("highlights", [])
+    return document
 
 
 def _now() -> str:
@@ -121,7 +132,8 @@ class ReaderHighlight:
             color=normalize_highlight_color(str(data.get("color") or "")),
             note=str(data.get("note") or ""),
             tags=[str(tag).strip() for tag in data.get("tags", []) if str(tag).strip()]
-            if isinstance(data.get("tags", []), (list, tuple, set)) else [],
+            if isinstance(data.get("tags", []), (list, tuple, set))
+            else [],
             created_at=str(data.get("created_at") or now),
             modified_at=str(data.get("modified_at") or data.get("created_at") or now),
             sr_interval=_clean_int(data.get("sr_interval")),
@@ -137,23 +149,25 @@ class ReaderAnnotationStore:
     def __init__(self, filepath: Path | None = None):
         self.filepath = Path(filepath) if filepath is not None else app_constants.READER_ANNOTATIONS_FILE
         self._lock = threading.RLock()
+        self._store = AtomicDocumentStore(
+            self.filepath,
+            schema="bookmark-organizer-pro/reader-annotations",
+            default_factory=list,
+            migrations={0: _migrate_reader_annotations_v0},
+            validator=require_list_document,
+        )
+        self._revision = 0
         self._highlights: Dict[str, ReaderHighlight] = {}
         self._load()
 
+    @property
+    def storage_status(self):
+        return self._store.status
+
     def _load(self) -> None:
-        if not self.filepath.exists():
-            return
-        try:
-            data = json.loads(self.filepath.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            log.warning(f"Could not load reader annotations: {exc}")
-            return
-        if isinstance(data, list):
-            items = data
-        elif isinstance(data, dict):
-            items = data.get("highlights", [])
-        else:
-            items = []
+        data = self._store.load()
+        self._revision = self._store.revision
+        items = data.get("highlights", []) if isinstance(data, dict) else data
         with self._lock:
             self._highlights = {}
             for item in items if isinstance(items, list) else []:
@@ -172,16 +186,7 @@ class ReaderAnnotationStore:
                 key=lambda item: (item.bookmark_id, item.char_start, item.created_at),
             )
             payload = [item.to_dict() for item in highlights]
-        self.filepath.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=self.filepath.parent, suffix=".tmp", text=True)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as handle:
-                json.dump(payload, handle, indent=2, ensure_ascii=False)
-            os.replace(tmp, self.filepath)
-        except Exception:
-            if os.path.exists(tmp):
-                os.remove(tmp)
-            raise
+        self._revision = self._store.save(payload, expected_revision=self._revision)
 
     def add_from_text(
         self,
@@ -295,6 +300,7 @@ class ReaderAnnotationStore:
                 h.sr_repetitions += 1
                 h.sr_ease = max(1.3, h.sr_ease + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
             from datetime import timedelta
+
             next_date = datetime.now() + timedelta(days=h.sr_interval)
             h.sr_next_review = next_date.date().isoformat()
             h.modified_at = _now()
@@ -319,13 +325,15 @@ def render_highlights_markdown(bookmark: Bookmark, highlights: Iterable[ReaderHi
         lines.append("(none)")
         return "\n".join(lines).rstrip() + "\n"
     for index, item in enumerate(items, start=1):
-        lines.extend([
-            f"### Highlight {index}",
-            "",
-            f"- Color: {item.color}",
-            f"- Range: {item.char_start}-{item.char_end}",
-            "",
-        ])
+        lines.extend(
+            [
+                f"### Highlight {index}",
+                "",
+                f"- Color: {item.color}",
+                f"- Range: {item.char_start}-{item.char_end}",
+                "",
+            ]
+        )
         lines.extend(_markdown_quote(item.text))
         lines.append("")
         if item.note:
@@ -349,11 +357,26 @@ def export_bookmark_highlights(
 
 ANNOTATION_EXPORT_SCHEMA = "bookmark-organizer-pro/annotations-v1"
 DEFAULT_ANNOTATION_FIELDS = (
-    "document_id", "document_title", "document_url", "document_category",
-    "document_tags", "document_notes", "document_created_at", "document_modified_at",
-    "highlight_id", "highlight_text", "highlight_color", "highlight_tags", "highlight_note",
-    "highlight_created_at", "highlight_modified_at", "review_interval", "review_repetitions",
-    "review_ease", "review_next", "source_link",
+    "document_id",
+    "document_title",
+    "document_url",
+    "document_category",
+    "document_tags",
+    "document_notes",
+    "document_created_at",
+    "document_modified_at",
+    "highlight_id",
+    "highlight_text",
+    "highlight_color",
+    "highlight_tags",
+    "highlight_note",
+    "highlight_created_at",
+    "highlight_modified_at",
+    "review_interval",
+    "review_repetitions",
+    "review_ease",
+    "review_next",
+    "source_link",
 )
 
 
@@ -466,39 +489,40 @@ def annotation_export_records(
             continue
         parsed_url = urlsplit(bookmark.url)
         source_link = urlunsplit(parsed_url._replace(fragment=f"bop-highlight-{item.id}"))
-        records.append({
-            "document_id": int(bookmark.id),
-            "document_title": bookmark.title or bookmark.url,
-            "document_url": bookmark.url,
-            "document_category": bookmark.full_category_path,
-            "document_tags": list(bookmark.tags),
-            "document_notes": bookmark.notes,
-            "document_created_at": bookmark.created_at,
-            "document_modified_at": bookmark.modified_at,
-            "highlight_id": item.id,
-            "highlight_text": item.text,
-            "highlight_color": item.color,
-            "highlight_tags": list(item.tags),
-            "highlight_note": item.note,
-            "highlight_created_at": item.created_at,
-            "highlight_modified_at": item.modified_at,
-            "review_interval": item.sr_interval,
-            "review_repetitions": item.sr_repetitions,
-            "review_ease": item.sr_ease,
-            "review_next": item.sr_next_review,
-            "source_link": source_link,
-        })
+        records.append(
+            {
+                "document_id": int(bookmark.id),
+                "document_title": bookmark.title or bookmark.url,
+                "document_url": bookmark.url,
+                "document_category": bookmark.full_category_path,
+                "document_tags": list(bookmark.tags),
+                "document_notes": bookmark.notes,
+                "document_created_at": bookmark.created_at,
+                "document_modified_at": bookmark.modified_at,
+                "highlight_id": item.id,
+                "highlight_text": item.text,
+                "highlight_color": item.color,
+                "highlight_tags": list(item.tags),
+                "highlight_note": item.note,
+                "highlight_created_at": item.created_at,
+                "highlight_modified_at": item.modified_at,
+                "review_interval": item.sr_interval,
+                "review_repetitions": item.sr_repetitions,
+                "review_ease": item.sr_ease,
+                "review_next": item.sr_next_review,
+                "source_link": source_link,
+            }
+        )
     return records
 
 
-def render_annotation_export(
-    records: Sequence[Mapping], template: AnnotationExportTemplate
-) -> str:
+def render_annotation_export(records: Sequence[Mapping], template: AnnotationExportTemplate) -> str:
     """Render records using a validated template, deterministically."""
     if template.format == "json":
         selected = [{field: record.get(field, "") for field in template.fields} for record in records]
-        return json.dumps({"schema": ANNOTATION_EXPORT_SCHEMA, "records": selected}, indent=2,
-                          ensure_ascii=False) + "\n"
+        return (
+            json.dumps({"schema": ANNOTATION_EXPORT_SCHEMA, "records": selected}, indent=2, ensure_ascii=False) + "\n"
+        )
     if template.format == "csv":
         stream = io.StringIO(newline="")
         writer = csv.DictWriter(stream, fieldnames=list(template.fields), lineterminator="\n")

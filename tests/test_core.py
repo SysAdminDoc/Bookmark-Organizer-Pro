@@ -816,8 +816,12 @@ class TestNetworkSafety(unittest.TestCase):
             def get(self, *args, **kwargs):
                 return self.responses.pop(0)
 
+        fake_requests = FakeRequests()
         with patch("bookmark_organizer_pro.utils.metadata._is_safe_url", return_value=True), \
-                patch("bookmark_organizer_pro.utils.metadata.importlib.import_module", return_value=FakeRequests()):
+                patch(
+                    "bookmark_organizer_pro.services.egress.public_egress.get",
+                    side_effect=fake_requests.get,
+                ):
             self.assertEqual(metadata.wayback_check("https://example.com"), "https://web.archive.org/web/x")
             self.assertEqual(
                 metadata.wayback_save("https://example.com"),

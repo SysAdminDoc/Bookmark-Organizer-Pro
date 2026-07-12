@@ -10,12 +10,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
-import requests
-
 from bookmark_organizer_pro.ai import AIConfigManager, create_ai_client
 from bookmark_organizer_pro.constants import DATA_DIR
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.egress import public_egress as requests
 from bookmark_organizer_pro.url_utils import URLUtilities
 from bookmark_organizer_pro.utils import sanitize_filename, truncate_string
 

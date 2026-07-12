@@ -8,9 +8,6 @@ folders, and fits naturally as a Tk tree-view.
 
 from __future__ import annotations
 
-import json
-import os
-import tempfile
 import threading
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -21,6 +18,10 @@ from typing import Dict, List, Optional
 from bookmark_organizer_pro.constants import FLOWS_FILE
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.atomic_document_store import (
+    AtomicDocumentStore,
+    require_list_document,
+)
 
 
 @dataclass
@@ -43,9 +44,13 @@ class Flow:
 
     def to_dict(self) -> dict:
         return {
-            "id": self.id, "name": self.name, "description": self.description,
-            "color": self.color, "icon": self.icon,
-            "created_at": self.created_at, "modified_at": self.modified_at,
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "color": self.color,
+            "icon": self.icon,
+            "created_at": self.created_at,
+            "modified_at": self.modified_at,
             "steps": [asdict(s) for s in self.steps],
         }
 
@@ -70,19 +75,24 @@ class FlowManager:
     def __init__(self, filepath: Path = FLOWS_FILE):
         self.filepath = Path(filepath)
         self._lock = threading.RLock()
-        self._save_lock = threading.Lock()
+        self._store = AtomicDocumentStore(
+            self.filepath,
+            schema="bookmark-organizer-pro/flows",
+            default_factory=list,
+            validator=require_list_document,
+        )
+        self._revision = 0
         self._flows: Dict[str, Flow] = {}
         self._load()
 
+    @property
+    def storage_status(self):
+        return self._store.status
+
     # ---------- IO ----------
     def _load(self):
-        if not self.filepath.exists():
-            return
-        try:
-            data = json.loads(self.filepath.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            log.warning(f"Could not load flows: {exc}")
-            return
+        data = self._store.load()
+        self._revision = self._store.revision
         with self._lock:
             self._flows = {}
             for d in data if isinstance(data, list) else []:
@@ -95,25 +105,19 @@ class FlowManager:
     def _save(self):
         with self._lock:
             payload = [f.to_dict() for f in self._flows.values()]
-        with self._save_lock:
-            self.filepath.parent.mkdir(parents=True, exist_ok=True)
-            fd, tmp = tempfile.mkstemp(dir=self.filepath.parent, suffix=".tmp", text=True)
-            try:
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    json.dump(payload, f, indent=2, ensure_ascii=False)
-                os.replace(tmp, self.filepath)
-            except Exception:
-                if os.path.exists(tmp):
-                    os.remove(tmp)
-                raise
+        self._revision = self._store.save(payload, expected_revision=self._revision)
 
     # ---------- CRUD ----------
-    def create(self, name: str, description: str = "",
-               color: str = "#58a6ff", icon: str = "") -> Flow:
+    def create(self, name: str, description: str = "", color: str = "#58a6ff", icon: str = "") -> Flow:
         now = datetime.now().isoformat()
         flow = Flow(
-            id=uuid.uuid4().hex, name=name, description=description,
-            color=color, icon=icon, created_at=now, modified_at=now,
+            id=uuid.uuid4().hex,
+            name=name,
+            description=description,
+            color=color,
+            icon=icon,
+            created_at=now,
+            modified_at=now,
         )
         with self._lock:
             self._flows[flow.id] = flow
@@ -147,8 +151,7 @@ class FlowManager:
             return list(self._flows.values())
 
     # ---------- steps ----------
-    def add_step(self, flow_id: str, bookmark_id: int, note: str = "",
-                 position: Optional[int] = None) -> bool:
+    def add_step(self, flow_id: str, bookmark_id: int, note: str = "", position: Optional[int] = None) -> bool:
         with self._lock:
             flow = self._flows.get(flow_id)
             if not flow:
@@ -156,8 +159,7 @@ class FlowManager:
             if any(s.bookmark_id == bookmark_id for s in flow.steps):
                 return False
             pos = position if position is not None else len(flow.steps)
-            flow.steps.insert(pos, FlowStep(bookmark_id=bookmark_id,
-                                            note=note, position=pos))
+            flow.steps.insert(pos, FlowStep(bookmark_id=bookmark_id, note=note, position=pos))
             self._renumber(flow)
             flow.modified_at = datetime.now().isoformat()
         self._save()

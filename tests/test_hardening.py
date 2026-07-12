@@ -8,9 +8,13 @@ CLI exit codes.
 from __future__ import annotations
 
 import ipaddress
+import json
+import os
+import stat
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 class TestXmlSafeText(unittest.TestCase):
@@ -109,6 +113,109 @@ class TestMcpTokenAuth(unittest.TestCase):
         self.assertTrue(mgr.validate(tok, "list_bookmarks"))
         self.assertTrue(mgr.revoke_token(tok))
         self.assertFalse(mgr.validate(tok, "list_bookmarks"))
+
+    def test_revocation_is_observed_by_an_existing_second_manager(self):
+        from bookmark_organizer_pro.services.mcp_auth import MCPTokenManager
+
+        owner = self._manager()
+        token = owner.create_token("shared", scope="read-write")
+        client = MCPTokenManager(filepath=owner.filepath)
+        self.assertTrue(client.validate(token, "list_bookmarks"))
+        self.assertTrue(owner.revoke_token(token))
+        self.assertFalse(client.validate(token, "list_bookmarks"))
+
+    def test_persists_only_salted_verifiers_and_reloads(self):
+        mgr = self._manager()
+        token = mgr.create_token("desktop client", scope="read-only")
+
+        persisted_text = mgr.filepath.read_text(encoding="utf-8")
+        persisted = json.loads(persisted_text)
+        self.assertEqual(persisted["schema"], "mcp-token-verifiers")
+        self.assertEqual(persisted["version"], 1)
+        self.assertNotIn(token, persisted_text)
+        self.assertEqual(len(persisted["document"]), 1)
+        record = next(iter(persisted["document"].values()))
+        self.assertEqual(len(bytes.fromhex(record["salt"])), 16)
+        self.assertEqual(len(record["verifier"]), 64)
+        self.assertNotIn("token", record)
+
+        from bookmark_organizer_pro.services.mcp_auth import MCPTokenManager
+        reloaded = MCPTokenManager(filepath=mgr.filepath)
+        self.assertTrue(reloaded.validate(token, "list_bookmarks"))
+        self.assertFalse(reloaded.validate(token, "delete_bookmark"))
+
+    def test_legacy_raw_tokens_migrate_without_lockout(self):
+        from bookmark_organizer_pro.services.mcp_auth import MCPTokenManager
+
+        path = Path(tempfile.mkdtemp()) / "mcp_tokens.json"
+        legacy_token = "legacy-bearer-secret"
+        path.write_text(json.dumps({
+            legacy_token: {
+                "name": "legacy client",
+                "scope": "read-only",
+                "created_at": "2026-01-01T00:00:00",
+            },
+        }), encoding="utf-8")
+
+        mgr = MCPTokenManager(filepath=path)
+        self.assertTrue(mgr.validate(legacy_token, "list_bookmarks"))
+        self.assertFalse(mgr.validate(legacy_token, "delete_bookmark"))
+        self.assertNotIn(legacy_token, path.read_text(encoding="utf-8"))
+        self.assertNotIn(legacy_token, Path(f"{path}.bak").read_text(encoding="utf-8"))
+        self.assertEqual(mgr.list_tokens()[0]["name"], "legacy client")
+        self.assertTrue(mgr.revoke_token(legacy_token))
+
+    def test_failed_legacy_migration_write_keeps_token_usable(self):
+        from bookmark_organizer_pro.services.mcp_auth import MCPTokenManager
+
+        path = Path(tempfile.mkdtemp()) / "mcp_tokens.json"
+        legacy_token = "legacy-token-with-read-write-scope"
+        path.write_text(json.dumps({legacy_token: {
+            "name": "legacy",
+            "scope": "read-write",
+        }}), encoding="utf-8")
+
+        with mock.patch(
+            "bookmark_organizer_pro.services.atomic_document_store.AtomicDocumentStore._write_locked",
+            side_effect=OSError("read only"),
+        ):
+            mgr = MCPTokenManager(filepath=path)
+            self.assertTrue(mgr.validate(legacy_token, "delete_bookmark"))
+
+    @unittest.skipIf(os.name == "nt", "POSIX mode assertion")
+    def test_token_file_is_user_only_on_posix(self):
+        mgr = self._manager()
+        mgr.create_token("permissions")
+        self.assertEqual(stat.S_IMODE(mgr.filepath.stat().st_mode), 0o600)
+
+    def test_windows_acl_restricts_inheritance_to_current_user(self):
+        from bookmark_organizer_pro.services.mcp_auth import MCPTokenManager
+
+        completed = mock.Mock(returncode=0)
+        with (
+            mock.patch.dict(os.environ, {"USERNAME": "TestUser"}),
+            mock.patch(
+                "bookmark_organizer_pro.services.mcp_auth.subprocess.run",
+                return_value=completed,
+            ) as run,
+        ):
+            MCPTokenManager._restrict_windows_acl(Path("mcp_tokens.tmp"))
+        self.assertEqual(
+            run.call_args.args[0],
+            [
+                "icacls", "mcp_tokens.tmp", "/inheritance:r",
+                "/grant:r", "TestUser:(F)",
+            ],
+        )
+
+    def test_corrupt_verifier_store_does_not_enable_open_mode(self):
+        from bookmark_organizer_pro.services.mcp_auth import MCPTokenManager
+
+        path = Path(tempfile.mkdtemp()) / "mcp_tokens.json"
+        path.write_text("{not-json", encoding="utf-8")
+        mgr = MCPTokenManager(filepath=path)
+        self.assertTrue(mgr.list_tokens())
+        self.assertFalse(mgr.validate("anything", "list_bookmarks"))
 
 
 class TestCliExitCodes(unittest.TestCase):
