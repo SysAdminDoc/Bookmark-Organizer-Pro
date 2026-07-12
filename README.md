@@ -3,7 +3,7 @@
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **single-file HTML snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
-![Version](https://img.shields.io/badge/Version-v6.10.0-2dd4bf.svg)
+![Version](https://img.shields.io/badge/Version-v6.10.1-2dd4bf.svg)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
@@ -30,7 +30,9 @@ The server exposes bookmark search, semantic/hybrid retrieval, snapshots,
 research flows, reader highlights, due SM-2 reviews, per-bookmark highlight
 Markdown export, and scoped reader review/note updates. Read-only MCP tokens can
 list and export reader data; review recording and note edits require read-write
-scope.
+scope. Streamable HTTP MCP also validates the request Host and requires same-host
+browser Origins; when MCP tokens exist, catalog, prompt, resource, and tool
+operations require a bearer token.
 
 ### Local API authentication
 
@@ -95,6 +97,12 @@ python -m bookmark_organizer_pro.cli digest
 # Run the MCP server
 python -m bookmark_organizer_pro.cli mcp-server
 ```
+
+Snapshot capture applies the same private/reserved-network, redirect, request,
+time, and byte limits to Python and Playwright fetches. Monolith and SingleFile
+executables cannot expose every internal request, so they are disabled by
+default; set `BOOKMARK_SNAPSHOT_ALLOW_UNSAFE_EXTERNAL=1` only in a trusted
+network environment to opt in.
 
 ### Browser extension MVP
 
@@ -427,6 +435,9 @@ Log file location: `~/.bookmark_organizer/logs/bookmark_organizer.log`
 **Restore from backup:**
 - **Tools > Restore from Backup**
 - Select a backup file from the list
+- Corrupt libraries enter a write-locked recovery mode instead of appearing
+  empty. Restore validates a backup before unlocking; Salvage recovers complete
+  records and archives the exact damaged source first.
 
 **Restore recent maintenance changes:**
 - Bulk cleanup tools create a safepoint before changing bookmark data

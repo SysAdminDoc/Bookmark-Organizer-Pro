@@ -349,9 +349,34 @@ class ImportExportMixin:
             elif hasattr(self, "_show_toast"):
                 self._show_toast(_("Restore failed — see logs"), "error")
 
+        def do_salvage():
+            try:
+                count, preserved = self.bookmark_manager.salvage_corrupt_file()
+            except Exception as exc:
+                log.error("Library salvage failed: %s", exc)
+                if hasattr(self, "_show_toast"):
+                    self._show_toast(str(exc), "error")
+                return
+            self._refresh_all()
+            if hasattr(self, "_show_toast"):
+                self._show_toast(
+                    _("Recovered {count} bookmark(s); damaged source preserved at {path}").format(
+                        count=count,
+                        path=preserved,
+                    ),
+                    "success",
+                )
+            dlg.destroy()
+
         ModernButton(btns, text=_("Cancel"), command=dlg.destroy).pack(side=tk.RIGHT, padx=(10, 0))
         ModernButton(btns, text=_("Restore selected"), command=do_restore,
                      style="primary").pack(side=tk.RIGHT)
+        if self.bookmark_manager.recovery_required:
+            ModernButton(
+                btns,
+                text=_("Salvage recoverable entries"),
+                command=do_salvage,
+            ).pack(side=tk.LEFT)
         lb.bind("<Double-Button-1>", lambda e: do_restore())
         dlg.bind("<Escape>", lambda e: dlg.destroy())
 

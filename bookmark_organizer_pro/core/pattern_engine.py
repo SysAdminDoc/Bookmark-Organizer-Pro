@@ -14,45 +14,31 @@ keyword/title/regex (broader). This prevents generic keywords from
 overriding exact domain matches.
 """
 
-import re
-import signal
-import sys
+import regex as re
 from collections.abc import Iterable
 from typing import Dict, List, Optional
 from urllib.parse import urlparse
 
-_IS_WINDOWS = sys.platform == "win32"
 _REGEX_TIMEOUT_SECONDS = 2
 
 # Maximum text length fed to a user-supplied regex. Catastrophic backtracking
-# scales with input length, and on Windows there is no signal-based timeout to
-# fall back on (SIGALRM is Unix-only). URLs/titles longer than this are not
-# meaningfully more matchable, so truncating bounds the worst case cheaply on
-# every platform without spawning a watchdog thread per match.
+# scales with input length. URLs/titles longer than this are not meaningfully
+# more matchable, so truncating also bounds the work submitted to the regex
+# engine on every platform.
 _MAX_REGEX_TEXT = 2000
 
 
 def _safe_regex_search(pattern, text: str):
-    """Run regex search with a timeout/length guard (Unix signal + length cap)."""
+    """Run regex search with thread-local timeout and length guards."""
     if text and len(text) > _MAX_REGEX_TEXT:
         text = text[:_MAX_REGEX_TEXT]
-    if _IS_WINDOWS:
-        try:
-            return pattern.search(text)
-        except (RecursionError, MemoryError):
-            return None
-    else:
-        def _alarm_handler(signum, frame):
-            raise TimeoutError("Regex match timed out")
-        old = signal.signal(signal.SIGALRM, _alarm_handler)
-        signal.alarm(_REGEX_TIMEOUT_SECONDS)
-        try:
-            return pattern.search(text)
-        except (TimeoutError, RecursionError, MemoryError):
-            return None
-        finally:
-            signal.alarm(0)
-            signal.signal(signal.SIGALRM, old)
+    try:
+        # ``regex`` enforces this per call rather than mutating process-global
+        # signal state. ``concurrent=True`` also releases the GIL while matching,
+        # so categorization workers cannot serialize behind a pathological rule.
+        return pattern.search(text, timeout=_REGEX_TIMEOUT_SECONDS, concurrent=True)
+    except (TimeoutError, RecursionError, MemoryError):
+        return None
 
 
 class PatternEngine:

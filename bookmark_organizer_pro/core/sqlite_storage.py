@@ -41,7 +41,10 @@ class SQLiteStorageManager:
 
     def _connect(self) -> sqlite3.Connection:
         self.filepath.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(str(self.filepath), timeout=30)
+        # Autocommit mode keeps transaction ownership explicit. In particular,
+        # save() can always issue BEGIN before its replacement transaction
+        # instead of colliding with an implicit sqlite3 transaction.
+        conn = sqlite3.connect(str(self.filepath), timeout=30, isolation_level=None)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys=ON")
         conn.execute("PRAGMA journal_mode=WAL")
@@ -104,52 +107,66 @@ class SQLiteStorageManager:
 
     def save(self, data: List[Dict], metadata: Dict = None) -> None:
         """Replace bookmark rows in a single transaction."""
-        payload_meta = metadata or {
-            "saved_at": datetime.now().isoformat(),
-            "count": len(data),
-        }
+        if not isinstance(data, list):
+            raise ValueError("SQLite replacement save requires a list of bookmark objects")
+
+        prepared = []
+        seen_ids = set()
+        for position, item in enumerate(data):
+            if not isinstance(item, dict):
+                raise ValueError(f"SQLite save rejected bookmark at index {position}: not an object")
+            try:
+                bookmark = Bookmark.from_dict(item)
+                payload = bookmark.to_dict()
+                encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+            except Exception as exc:
+                raise ValueError(
+                    f"SQLite save rejected bookmark at index {position} "
+                    f"(id={item.get('id', '?')}): {exc}"
+                ) from exc
+            bookmark_id = str(bookmark.id)
+            if bookmark_id in seen_ids:
+                raise ValueError(
+                    f"SQLite save rejected duplicate bookmark id {bookmark_id} at index {position}"
+                )
+            seen_ids.add(bookmark_id)
+            prepared.append((position, bookmark, encoded))
+
+        payload_meta = dict(metadata or {})
+        payload_meta.setdefault("saved_at", datetime.now().isoformat())
+        payload_meta["count"] = len(prepared)
         with self._lock, closing(self._connect()) as conn:
             try:
                 conn.execute("BEGIN")
                 conn.execute("DELETE FROM bookmarks")
-                for position, item in enumerate(data):
-                    if not isinstance(item, dict):
-                        log.warning("Skipping non-object bookmark entry during SQLite save")
-                        continue
-                    # Skip-and-log a single malformed row rather than letting it
-                    # roll back the entire save. Without this, one bad in-memory
-                    # record (e.g. an empty URL from a buggy mutation) would lose
-                    # every bookmark the user has — the JSON backend never does.
-                    try:
-                        bookmark = Bookmark.from_dict(item)
-                        payload = bookmark.to_dict()
-                        conn.execute(
-                            """
-                            INSERT OR REPLACE INTO bookmarks(
-                                id, position, url, title, category, parent_category,
-                                created_at, modified_at, is_pinned, read_later, payload_json
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """,
-                            (
-                                str(bookmark.id),
-                                position,
-                                bookmark.url,
-                                bookmark.title,
-                                bookmark.category,
-                                bookmark.parent_category,
-                                bookmark.created_at,
-                                bookmark.modified_at,
-                                int(bookmark.is_pinned),
-                                int(bookmark.read_later),
-                                json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
-                            ),
-                        )
-                    except Exception as exc:
-                        log.error(
-                            f"Skipping unsaveable bookmark row "
-                            f"(id={item.get('id', '?')}, url={str(item.get('url', ''))[:80]}): {exc}"
-                        )
-                        continue
+                for position, bookmark, encoded in prepared:
+                    conn.execute(
+                        """
+                        INSERT INTO bookmarks(
+                            id, position, url, title, category, parent_category,
+                            created_at, modified_at, is_pinned, read_later, payload_json
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            str(bookmark.id),
+                            position,
+                            bookmark.url,
+                            bookmark.title,
+                            bookmark.category,
+                            bookmark.parent_category,
+                            bookmark.created_at,
+                            bookmark.modified_at,
+                            int(bookmark.is_pinned),
+                            int(bookmark.read_later),
+                            encoded,
+                        ),
+                    )
+                persisted_count = conn.execute("SELECT COUNT(*) FROM bookmarks").fetchone()[0]
+                if persisted_count != len(prepared):
+                    raise sqlite3.IntegrityError(
+                        f"SQLite replacement count mismatch: expected {len(prepared)}, "
+                        f"persisted {persisted_count}"
+                    )
                 conn.execute(
                     "INSERT OR REPLACE INTO metadata(key, value) VALUES(?, ?)",
                     ("saved_at", str(payload_meta.get("saved_at", ""))),

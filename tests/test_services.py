@@ -1296,6 +1296,28 @@ class TestBookmarkManagerSQLiteStorage(_IsolatedTestBase):
         self.assertEqual(mgr.storage_backend, "sqlite")
         self.assertEqual(mgr.filepath, fp.with_suffix(".sqlite"))
 
+    def test_corrupt_reload_preserves_memory_and_blocks_writes_until_restore(self):
+        from bookmark_organizer_pro.core.storage_manager import StorageRecoveryRequiredError
+
+        fp = Path(self._tmp) / "library.json"
+        mgr = self._manager(fp, storage_backend="json")
+        mgr.add_bookmark(_make_bookmark(id=7, url="https://safe.example", title="Safe"))
+        original = fp.read_text(encoding="utf-8")
+        fp.write_text('{"data": [', encoding="utf-8")
+
+        mgr.reload()
+
+        self.assertTrue(mgr.recovery_required)
+        self.assertIn("invalid JSON at line 1", mgr.recovery_message)
+        self.assertEqual([bookmark.id for bookmark in mgr.get_all_bookmarks()], [7])
+        with self.assertRaises(StorageRecoveryRequiredError):
+            mgr.save_bookmarks()
+        with self.assertRaises(StorageRecoveryRequiredError):
+            mgr.add_bookmark(_make_bookmark(id=8, url="https://blocked.example"))
+        self.assertEqual([bookmark.id for bookmark in mgr.get_all_bookmarks()], [7])
+        self.assertNotEqual(fp.read_text(encoding="utf-8"), original)
+        self.assertEqual(fp.read_text(encoding="utf-8"), '{"data": [')
+
 
 # ── 15. Bookmark graph ──────────────────────────────────────────────
 
@@ -1505,6 +1527,217 @@ class TestSnapshotArchiver(_IsolatedTestBase):
             self.assertEqual(Path(path), Path(bookmark.snapshot_path))
             self.assertGreater(bookmark.snapshot_size, 0)
             self.assertEqual(store.list_failures(), [])
+
+    def _run_fake_playwright(self, archiver, request, body=b"resource"):
+        captured = {}
+
+        class FakeResponse:
+            def body(self):
+                return body
+
+        class FakeRoute:
+            def fetch(self, **kwargs):
+                captured["fetch_kwargs"] = kwargs
+                return FakeResponse()
+
+            def fulfill(self, **kwargs):
+                captured["fulfilled"] = kwargs
+
+            def abort(self, reason):
+                captured.setdefault("aborts", []).append(reason)
+
+        class FakePage:
+            def route(self, pattern, handler):
+                captured["route_pattern"] = pattern
+                self.handler = handler
+
+            def goto(self, *_args, **kwargs):
+                captured["goto_kwargs"] = kwargs
+                self.handler(FakeRoute(), request)
+
+            @staticmethod
+            def content():
+                return "<html><body>" + ("safe" * 30) + "</body></html>"
+
+        class FakeContext:
+            @staticmethod
+            def new_page():
+                return FakePage()
+
+        class FakeBrowser:
+            def new_context(self, **kwargs):
+                captured["context_kwargs"] = kwargs
+                return FakeContext()
+
+            @staticmethod
+            def close():
+                captured["closed"] = True
+
+        class FakeChromium:
+            @staticmethod
+            def launch(**kwargs):
+                captured["launch_kwargs"] = kwargs
+                return FakeBrowser()
+
+        class FakePlaywright:
+            chromium = FakeChromium()
+
+        class FakeManager:
+            def __enter__(self):
+                return FakePlaywright()
+
+            def __exit__(self, *_args):
+                return False
+
+        class FakeModule:
+            @staticmethod
+            def sync_playwright():
+                return FakeManager()
+
+        out_path = Path(self._tmp) / "playwright.html"
+        with patch(
+            "bookmark_organizer_pro.services.snapshot._try_import",
+            return_value=FakeModule(),
+        ):
+            result = archiver._snapshot_playwright("https://example.com", out_path)
+        return result, captured
+
+    def test_playwright_blocks_unsafe_subresource_and_service_workers(self):
+        from bookmark_organizer_pro.services.snapshot import SnapshotArchiver
+
+        class Request:
+            url = "http://169.254.169.254/latest/meta-data"
+            redirected_from = None
+
+        archiver = SnapshotArchiver(Path(self._tmp) / "snapshots")
+        (ok, message), captured = self._run_fake_playwright(archiver, Request())
+
+        self.assertFalse(ok)
+        self.assertIn("blocked network address", message)
+        self.assertEqual(captured["aborts"], ["blockedbyclient"])
+        self.assertEqual(captured["route_pattern"], "**/*")
+        self.assertEqual(captured["context_kwargs"], {"service_workers": "block"})
+
+    def test_playwright_enforces_redirect_cap_on_every_request(self):
+        from bookmark_organizer_pro.services.snapshot import (
+            SnapshotArchiver,
+            SnapshotEgressPolicy,
+        )
+
+        class Request:
+            url = "https://example.com/final"
+
+            def __init__(self):
+                previous = None
+                for _ in range(3):
+                    previous = type("Previous", (), {"redirected_from": previous})()
+                self.redirected_from = previous
+
+        policy = SnapshotEgressPolicy(max_redirects=2)
+        archiver = SnapshotArchiver(Path(self._tmp) / "snapshots", egress_policy=policy)
+        with patch(
+            "bookmark_organizer_pro.url_utils.URLUtilities.check_safe_url",
+            return_value=(True, "allowed"),
+        ):
+            (ok, message), captured = self._run_fake_playwright(archiver, Request())
+
+        self.assertFalse(ok)
+        self.assertIn("redirect limit exceeded", message)
+        self.assertEqual(captured["aborts"], ["blockedbyclient"])
+
+    def test_playwright_enforces_network_byte_cap(self):
+        from bookmark_organizer_pro.services.snapshot import (
+            SnapshotArchiver,
+            SnapshotEgressPolicy,
+        )
+
+        class Request:
+            url = "https://example.com/large.png"
+            redirected_from = None
+
+        policy = SnapshotEgressPolicy(max_bytes=4)
+        archiver = SnapshotArchiver(Path(self._tmp) / "snapshots", egress_policy=policy)
+        with patch(
+            "bookmark_organizer_pro.url_utils.URLUtilities.check_safe_url",
+            return_value=(True, "allowed"),
+        ):
+            (ok, message), captured = self._run_fake_playwright(
+                archiver, Request(), body=b"12345",
+            )
+
+        self.assertFalse(ok)
+        self.assertIn("resource byte limit exceeded", message)
+        self.assertEqual(captured["aborts"], ["blockedbyclient"])
+
+    def test_playwright_enforces_backend_time_cap(self):
+        from bookmark_organizer_pro.services.snapshot import (
+            SnapshotArchiver,
+            SnapshotEgressPolicy,
+        )
+
+        class Request:
+            url = "https://example.com/slow"
+            redirected_from = None
+
+        policy = SnapshotEgressPolicy(backend_timeout_seconds=0)
+        archiver = SnapshotArchiver(Path(self._tmp) / "snapshots", egress_policy=policy)
+        with patch(
+            "bookmark_organizer_pro.url_utils.URLUtilities.check_safe_url",
+            return_value=(True, "allowed"),
+        ):
+            (ok, message), captured = self._run_fake_playwright(archiver, Request())
+
+        self.assertFalse(ok)
+        self.assertIn("time limit exceeded", message)
+        self.assertEqual(captured["aborts"], ["timedout"])
+
+    def test_external_backends_require_explicit_unsafe_opt_in(self):
+        from bookmark_organizer_pro.services.snapshot import SnapshotArchiver
+
+        archiver = SnapshotArchiver(Path(self._tmp) / "snapshots")
+        out_path = Path(self._tmp) / "unsafe.html"
+        with patch("bookmark_organizer_pro.services.snapshot._has_binary", return_value=True), \
+                patch("bookmark_organizer_pro.services.snapshot.subprocess.run") as run:
+            monolith = archiver._snapshot_monolith("https://example.com", out_path)
+            singlefile = archiver._snapshot_singlefile("https://example.com", out_path)
+
+        self.assertFalse(monolith[0])
+        self.assertFalse(singlefile[0])
+        self.assertIn("BOOKMARK_SNAPSHOT_ALLOW_UNSAFE_EXTERNAL=1", monolith[1])
+        self.assertIn("BOOKMARK_SNAPSHOT_ALLOW_UNSAFE_EXTERNAL=1", singlefile[1])
+        run.assert_not_called()
+
+    def test_python_fetch_rejects_unsafe_redirect_before_second_request(self):
+        from bookmark_organizer_pro.services.snapshot import SnapshotArchiver
+
+        class RedirectResponse:
+            status_code = 302
+            headers = {"Location": "http://127.0.0.1/admin"}
+            closed = False
+
+            def close(self):
+                self.closed = True
+
+        response = RedirectResponse()
+
+        class FakeRequests:
+            calls = []
+
+            @classmethod
+            def get(cls, url, **_kwargs):
+                cls.calls.append(url)
+                return response
+
+        archiver = SnapshotArchiver(Path(self._tmp) / "snapshots")
+        fetched, final_url, error = archiver._fetch_response(
+            FakeRequests, "https://example.com/start", float("inf"), 100,
+        )
+
+        self.assertIsNone(fetched)
+        self.assertEqual(final_url, "http://127.0.0.1/admin")
+        self.assertIn("blocked network address", error)
+        self.assertEqual(FakeRequests.calls, ["https://example.com/start"])
+        self.assertTrue(response.closed)
 
 
 # ── 18. Embedding model config ──────────────────────────────────────

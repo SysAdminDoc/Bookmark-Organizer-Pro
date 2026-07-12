@@ -18,6 +18,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -41,6 +42,28 @@ def _try_import(name: str):
         return importlib.import_module(name)
     except Exception:
         return None
+
+
+@dataclass(frozen=True)
+class SnapshotEgressPolicy:
+    """Shared network and resource limits for every snapshot backend."""
+
+    max_redirects: int = 5
+    max_bytes: int = 25_000_000
+    request_timeout_seconds: float = 15.0
+    backend_timeout_seconds: float = 120.0
+    allow_unsafe_external_backends: bool = False
+
+    @classmethod
+    def from_environment(cls) -> "SnapshotEgressPolicy":
+        opt_in = os.environ.get("BOOKMARK_SNAPSHOT_ALLOW_UNSAFE_EXTERNAL", "")
+        return cls(allow_unsafe_external_backends=opt_in.strip().lower() in {
+            "1", "true", "yes", "on",
+        })
+
+    @staticmethod
+    def check_url(url: str) -> tuple[bool, str]:
+        return URLUtilities.check_safe_url(url)
 
 
 @dataclass(frozen=True)
@@ -227,23 +250,26 @@ class SnapshotArchiver:
         self,
         snapshots_dir: Path = SNAPSHOTS_DIR,
         failure_store: SnapshotFailureStore | None = None,
+        egress_policy: SnapshotEgressPolicy | None = None,
     ):
         self.snapshots_dir = Path(snapshots_dir)
         self.snapshots_dir.mkdir(parents=True, exist_ok=True)
         self.failure_store = failure_store or SnapshotFailureStore()
+        self.egress_policy = egress_policy or SnapshotEgressPolicy.from_environment()
 
     # --- public API ---------------------------------------------------------
 
     def snapshot(self, bookmark: Bookmark) -> Tuple[bool, str]:
         """Capture and persist a snapshot. Returns (success, path_or_error)."""
-        if not URLUtilities._is_safe_url(bookmark.url):
+        allowed, reason = self.egress_policy.check_url(bookmark.url)
+        if not allowed:
             self.failure_store.record_failure(
                 bookmark,
-                "Private or unsupported URL",
+                f"Private or unsupported URL: {reason}",
                 (),
                 retry_eligible=False,
             )
-            return False, "Private or unsupported URL"
+            return False, f"Private or unsupported URL: {reason}"
         out_path = self.snapshots_dir / f"{bookmark.id}.html"
         attempts: list[SnapshotBackendAttempt] = []
         for backend in (self._snapshot_monolith, self._snapshot_singlefile,
@@ -302,12 +328,17 @@ class SnapshotArchiver:
     def _snapshot_monolith(self, url: str, out_path: Path) -> Tuple[bool, str]:
         if not _has_binary("monolith"):
             return False, "monolith not installed"
+        if not self.egress_policy.allow_unsafe_external_backends:
+            return False, (
+                "monolith disabled: cannot enforce snapshot egress policy; set "
+                "BOOKMARK_SNAPSHOT_ALLOW_UNSAFE_EXTERNAL=1 to opt in"
+            )
         try:
             subprocess.run(
                 ["monolith", "--isolate", "--silent",
                  "--no-audio", "--no-video",
                  "-o", str(out_path), "--", url],
-                check=True, timeout=120,
+                check=True, timeout=self.egress_policy.backend_timeout_seconds,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -315,7 +346,7 @@ class SnapshotArchiver:
             return False, f"monolith failed: {exc}"
         if not out_path.exists() or out_path.stat().st_size == 0:
             return False, "monolith produced no output"
-        if out_path.stat().st_size > self.MAX_BYTES:
+        if out_path.stat().st_size > self.egress_policy.max_bytes:
             out_path.unlink(missing_ok=True)
             return False, "snapshot too large"
         return True, str(out_path)
@@ -328,10 +359,15 @@ class SnapshotArchiver:
                 break
         if cli is None:
             return False, "single-file CLI not installed"
+        if not self.egress_policy.allow_unsafe_external_backends:
+            return False, (
+                "single-file disabled: cannot enforce snapshot egress policy; set "
+                "BOOKMARK_SNAPSHOT_ALLOW_UNSAFE_EXTERNAL=1 to opt in"
+            )
         try:
             subprocess.run(
                 [cli, "--", url, str(out_path)],
-                check=True, timeout=180,
+                check=True, timeout=self.egress_policy.backend_timeout_seconds,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -339,7 +375,7 @@ class SnapshotArchiver:
             return False, f"single-file failed: {exc}"
         if not out_path.exists() or out_path.stat().st_size == 0:
             return False, "single-file produced no output"
-        if out_path.stat().st_size > self.MAX_BYTES:
+        if out_path.stat().st_size > self.egress_policy.max_bytes:
             out_path.unlink(missing_ok=True)
             return False, "snapshot too large"
         return True, str(out_path)
@@ -349,19 +385,73 @@ class SnapshotArchiver:
         pw_sync = _try_import("playwright.sync_api")
         if pw_sync is None:
             return False, "playwright not installed"
+        deadline = time.monotonic() + self.egress_policy.backend_timeout_seconds
+        violations: list[str] = []
+        transferred_bytes = 0
+
+        def _redirect_count(request) -> int:
+            count = 0
+            previous = getattr(request, "redirected_from", None)
+            while previous is not None:
+                count += 1
+                previous = getattr(previous, "redirected_from", None)
+            return count
+
+        def _route_request(route, request) -> None:
+            nonlocal transferred_bytes
+            allowed, reason = self.egress_policy.check_url(request.url)
+            if not allowed:
+                violations.append(f"blocked {request.url}: {reason}")
+                route.abort("blockedbyclient")
+                return
+            if _redirect_count(request) > self.egress_policy.max_redirects:
+                violations.append(f"redirect limit exceeded for {request.url}")
+                route.abort("blockedbyclient")
+                return
+            remaining_ms = int(max(0, deadline - time.monotonic()) * 1000)
+            if remaining_ms <= 0:
+                violations.append("snapshot time limit exceeded")
+                route.abort("timedout")
+                return
+            try:
+                response = route.fetch(max_redirects=0, timeout=remaining_ms)
+                body = response.body()
+            except Exception as exc:
+                violations.append(f"request failed for {request.url}: {exc}")
+                route.abort("failed")
+                return
+            transferred_bytes += len(body)
+            if len(body) > self.egress_policy.max_bytes:
+                violations.append(f"resource byte limit exceeded for {request.url}")
+                route.abort("blockedbyclient")
+                return
+            if transferred_bytes > self.egress_policy.max_bytes:
+                violations.append("snapshot byte limit exceeded")
+                route.abort("blockedbyclient")
+                return
+            route.fulfill(response=response, body=body)
+
         try:
             with pw_sync.sync_playwright() as p:
                 browser = p.chromium.launch(headless=True)
                 try:
-                    page = browser.new_page()
-                    page.goto(url, wait_until="networkidle", timeout=60_000)
+                    context = browser.new_context(service_workers="block")
+                    page = context.new_page()
+                    page.route("**/*", _route_request)
+                    page.goto(
+                        url,
+                        wait_until="networkidle",
+                        timeout=int(self.egress_policy.backend_timeout_seconds * 1000),
+                    )
+                    if violations:
+                        return False, violations[0]
                     content = page.content()
                 finally:
                     browser.close()
             if not content or len(content) < 100:
                 return False, "playwright produced empty page"
             data = content.encode("utf-8")
-            if len(data) > self.MAX_BYTES:
+            if len(data) > self.egress_policy.max_bytes:
                 return False, "snapshot too large"
             out_path.write_bytes(data)
             return True, str(out_path)
@@ -374,34 +464,22 @@ class SnapshotArchiver:
         bs4 = _try_import("bs4")
         if requests is None or bs4 is None:
             return False, "requests/bs4 not available"
+        deadline = time.monotonic() + self.egress_policy.backend_timeout_seconds
+        resp, current_url, error = self._fetch_response(
+            requests, url, deadline, self.egress_policy.max_bytes,
+        )
+        if resp is None:
+            return False, f"fetch failed: {error}"
         try:
-            current_url = url
-            for _ in range(5):
-                resp = requests.get(
-                    current_url,
-                    headers={"User-Agent": "Mozilla/5.0 (BookmarkOrganizerPro/6.0)"},
-                    timeout=30, allow_redirects=False,
-                )
-                if resp.status_code in (301, 302, 303, 307, 308):
-                    location = resp.headers.get("Location", "")
-                    if not location:
-                        return False, "redirect with no Location header"
-                    # Resolve relative redirect against current URL
-                    location = urljoin(current_url, location)
-                    if not URLUtilities._is_safe_url(location):
-                        return False, "redirect to unsafe URL"
-                    current_url = location
-                    continue
-                resp.raise_for_status()
-                break
-            else:
-                return False, "too many redirects"
-            html = resp.text
-        except Exception as exc:
-            return False, f"fetch failed: {exc}"
+            raw = self._read_bounded(resp, self.egress_policy.max_bytes)
+            if raw is None:
+                return False, "snapshot too large"
+            html = raw.decode(resp.encoding or "utf-8", errors="replace")
+        finally:
+            resp.close()
 
         soup = bs4.BeautifulSoup(html, "html.parser")
-        base = url
+        base = current_url
 
         # Inline external stylesheets
         for link in soup.find_all("link", rel=lambda v: v and "stylesheet" in v):
@@ -409,7 +487,7 @@ class SnapshotArchiver:
             if not href:
                 continue
             css_url = urljoin(base, href)
-            css = self._fetch_text(requests, css_url)
+            css = self._fetch_text(requests, css_url, deadline)
             if css is None:
                 continue
             style = soup.new_tag("style")
@@ -421,7 +499,7 @@ class SnapshotArchiver:
             src = img.get("src")
             if not src or src.startswith("data:"):
                 continue
-            data_url = self._fetch_data_url(requests, urljoin(base, src))
+            data_url = self._fetch_data_url(requests, urljoin(base, src), deadline)
             if data_url:
                 img["src"] = data_url
 
@@ -442,7 +520,7 @@ class SnapshotArchiver:
 
         try:
             data = str(soup).encode("utf-8")
-            if len(data) > self.MAX_BYTES:
+            if len(data) > self.egress_policy.max_bytes:
                 return False, "snapshot too large"
             out_path.write_bytes(data)
         except OSError as exc:
@@ -451,71 +529,86 @@ class SnapshotArchiver:
 
     _MAX_TEXT_BYTES = 2_000_000
 
-    def _fetch_text(self, requests, url: str) -> Optional[str]:
-        if not URLUtilities._is_safe_url(url):
-            return None
+    def _fetch_response(self, requests, url: str, deadline: float, max_bytes: int):
+        """Fetch one URL with bounded, policy-checked redirects."""
+        current_url = url
         try:
-            r = requests.get(url, timeout=15, stream=True, allow_redirects=False)
-            for _ in range(5):
-                if r.status_code not in (301, 302, 303, 307, 308):
-                    break
-                location = r.headers.get("Location", "")
-                r.close()
+            for redirect_count in range(self.egress_policy.max_redirects + 1):
+                allowed, reason = self.egress_policy.check_url(current_url)
+                if not allowed:
+                    return None, current_url, reason
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return None, current_url, "snapshot time limit exceeded"
+                response = requests.get(
+                    current_url,
+                    headers={"User-Agent": "Mozilla/5.0 (BookmarkOrganizerPro/6.0)"},
+                    timeout=min(self.egress_policy.request_timeout_seconds, remaining),
+                    stream=True,
+                    allow_redirects=False,
+                )
+                if response.status_code not in (301, 302, 303, 307, 308):
+                    response.raise_for_status()
+                    try:
+                        content_len = int(response.headers.get("content-length", 0) or 0)
+                    except (TypeError, ValueError):
+                        content_len = 0
+                    if content_len > max_bytes:
+                        response.close()
+                        return None, current_url, "response byte limit exceeded"
+                    return response, current_url, ""
+                location = response.headers.get("Location", "")
+                response.close()
                 if not location:
-                    return None
-                location = urljoin(url, location)
-                if not URLUtilities._is_safe_url(location):
-                    return None
-                r = requests.get(location, timeout=15, stream=True, allow_redirects=False)
-            if r.status_code != 200:
-                r.close()
-                return None
-            try:
-                content_len = int(r.headers.get("content-length", 0) or 0)
-            except (TypeError, ValueError):
-                content_len = 0
-            if content_len > self._MAX_TEXT_BYTES:
-                r.close()
-                return None
-            chunks = bytearray()
-            for chunk in r.iter_content(chunk_size=8192):
-                chunks.extend(chunk)
-                if len(chunks) >= self._MAX_TEXT_BYTES:
-                    break
-            r.close()
-            encoding = r.encoding or "utf-8"
-            return bytes(chunks[:self._MAX_TEXT_BYTES]).decode(encoding, errors="replace")
-        except Exception:
-            return None
+                    return None, current_url, "redirect with no Location header"
+                if redirect_count >= self.egress_policy.max_redirects:
+                    return None, current_url, "redirect limit exceeded"
+                current_url = urljoin(current_url, location)
+        except Exception as exc:
+            return None, current_url, str(exc)
+        return None, current_url, "redirect limit exceeded"
 
-    def _fetch_data_url(self, requests, url: str) -> Optional[str]:
-        if not URLUtilities._is_safe_url(url):
+    @staticmethod
+    def _read_bounded(response, max_bytes: int) -> bytes | None:
+        chunks = bytearray()
+        for chunk in response.iter_content(chunk_size=65_536):
+            if not chunk:
+                continue
+            chunks.extend(chunk)
+            if len(chunks) > max_bytes:
+                return None
+        return bytes(chunks)
+
+    def _fetch_text(self, requests, url: str, deadline: float | None = None) -> Optional[str]:
+        deadline = deadline or (time.monotonic() + self.egress_policy.backend_timeout_seconds)
+        response, _final_url, _error = self._fetch_response(
+            requests, url, deadline, self._MAX_TEXT_BYTES,
+        )
+        if response is None:
             return None
         try:
-            r = requests.get(url, timeout=15, stream=True, allow_redirects=False)
-            # Follow redirects manually with SSRF check on each hop
-            for _ in range(5):
-                if r.status_code not in (301, 302, 303, 307, 308):
-                    break
-                location = r.headers.get("Location", "")
-                r.close()
-                if not location:
-                    return None
-                location = urljoin(url, location)
-                if not URLUtilities._is_safe_url(location):
-                    return None
-                r = requests.get(location, timeout=15, stream=True, allow_redirects=False)
-            if r.status_code != 200:
+            data = self._read_bounded(response, self._MAX_TEXT_BYTES)
+            if data is None:
                 return None
-            # Read up to limit via streaming to avoid loading unbounded response
-            chunks = bytearray()
-            for chunk in r.iter_content(chunk_size=65536):
-                chunks.extend(chunk)
-                if len(chunks) > 2_000_000:
-                    return None
-            data = bytes(chunks)
-            mime = r.headers.get("content-type", "application/octet-stream").split(";")[0].strip()
+            return data.decode(response.encoding or "utf-8", errors="replace")
+        finally:
+            response.close()
+
+    def _fetch_data_url(self, requests, url: str, deadline: float | None = None) -> Optional[str]:
+        deadline = deadline or (time.monotonic() + self.egress_policy.backend_timeout_seconds)
+        response, _final_url, _error = self._fetch_response(
+            requests, url, deadline, self._MAX_TEXT_BYTES,
+        )
+        if response is None:
+            return None
+        try:
+            data = self._read_bounded(response, self._MAX_TEXT_BYTES)
+            if data is None:
+                return None
+            mime = response.headers.get(
+                "content-type", "application/octet-stream",
+            ).split(";")[0].strip()
             b64 = base64.b64encode(data).decode("ascii")
             return f"data:{mime};base64,{b64}"
-        except Exception:
-            return None
+        finally:
+            response.close()

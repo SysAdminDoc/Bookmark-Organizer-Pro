@@ -21,7 +21,10 @@ from bookmark_organizer_pro.ai import AIClient, AIConfigManager
 from bookmark_organizer_pro.constants import IS_WINDOWS
 from bookmark_organizer_pro.core.category_manager import CategoryManager
 from bookmark_organizer_pro.core.sqlite_storage import SQLiteStorageManager, migrate_json_to_sqlite
-from bookmark_organizer_pro.core.storage_manager import StorageManager
+from bookmark_organizer_pro.core.storage_manager import (
+    StorageManager,
+    StorageRecoveryRequiredError,
+)
 from bookmark_organizer_pro.core.pattern_engine import PatternEngine
 from bookmark_organizer_pro.importers import OPMLExporter, OPMLImporter, RaindropImporter, TextURLImporter
 from bookmark_organizer_pro.io_formats import XBELHandler
@@ -271,6 +274,21 @@ class TestPatternEngine(unittest.TestCase):
         engine = PatternEngine({"Cat": ["keyword:example"]})
         self.assertIsNone(engine.match(None, None))
 
+    def test_regex_timeout_is_safe_across_worker_threads(self):
+        from concurrent.futures import ThreadPoolExecutor
+
+        engine = PatternEngine({"Cat": ["regex:(a+)+$"]})
+        adversarial_url = f"https://example.test/{'a' * 1900}!"
+
+        with patch(
+            "bookmark_organizer_pro.core.pattern_engine._REGEX_TIMEOUT_SECONDS",
+            0.01,
+        ):
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                results = list(executor.map(engine.match, [adversarial_url] * 16))
+
+        self.assertEqual(results, [None] * 16)
+
     def test_default_category_patterns_have_no_implicit_string_concatenation(self):
         path = Path(__file__).resolve().parents[1] / "bookmark_organizer_pro" / "core" / "default_categories.py"
         previous_string = None
@@ -504,7 +522,52 @@ class TestStorageAndExportSafety(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "bookmarks.json"
             target.write_text('{"data": {"url": "https://example.com"}}', encoding="utf-8")
-            self.assertEqual(StorageManager(target).load(), [])
+            manager = StorageManager(target)
+            self.assertEqual(manager.load(), [])
+            self.assertEqual(manager.status.state, "corrupt")
+
+    def test_storage_distinguishes_absent_valid_empty_and_corrupt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "bookmarks.json"
+            manager = StorageManager(target)
+
+            self.assertEqual(manager.load(), [])
+            self.assertEqual(manager.status.state, "absent")
+
+            manager.save([])
+            self.assertEqual(manager.load(), [])
+            self.assertEqual(manager.status.state, "valid_empty")
+
+            damaged = '{"data": ['
+            target.write_text(damaged, encoding="utf-8")
+            self.assertEqual(manager.load(), [])
+            self.assertEqual(manager.status.state, "corrupt")
+            self.assertIn("line 1, column", manager.status.error)
+            with self.assertRaisesRegex(StorageRecoveryRequiredError, "Restore a verified backup"):
+                manager.save([])
+            self.assertEqual(target.read_text(encoding="utf-8"), damaged)
+
+    def test_storage_salvage_preserves_corrupt_source(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "bookmarks.json"
+            recovery_dir = Path(tmp) / "backups" / "recovery"
+            damaged = (
+                '{"data":['
+                '{"id":1,"url":"https://one.example","title":"One"},'
+                '{"id":2,"url":"https://two.example","title":"Two"}'
+            )
+            target.write_text(damaged, encoding="utf-8")
+            manager = StorageManager(target)
+            self.assertEqual(manager.load(), [])
+
+            with patch("bookmark_organizer_pro.core.storage_manager.RECOVERY_DIR", recovery_dir):
+                recovered = manager.salvage()
+                preserved = Path(manager.commit_salvage(recovered))
+
+            self.assertEqual([bookmark.id for bookmark in recovered], [1, 2])
+            self.assertEqual(preserved.read_text(encoding="utf-8"), damaged)
+            self.assertEqual([bookmark.id for bookmark in manager.load()], [1, 2])
+            self.assertEqual(manager.status.state, "valid")
 
     def test_sqlite_storage_round_trips_bookmarks_with_wal(self):
         import sqlite3
@@ -536,6 +599,40 @@ class TestStorageAndExportSafety(unittest.TestCase):
                 self.assertEqual(conn.execute("PRAGMA journal_mode").fetchone()[0].lower(), "wal")
             finally:
                 conn.close()
+
+            explicit_conn = manager._connect()
+            try:
+                self.assertIsNone(explicit_conn.isolation_level)
+            finally:
+                explicit_conn.close()
+
+    def test_sqlite_replacement_rejects_invalid_row_without_changing_library(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "bookmarks.sqlite"
+            manager = SQLiteStorageManager(target)
+            original = Bookmark(id=1, url="https://original.example", title="Original")
+            manager.save([original.to_dict()])
+
+            replacement = Bookmark(id=2, url="https://replacement.example", title="Replacement")
+            with self.assertRaisesRegex(ValueError, "index 1.*URL is required"):
+                manager.save([replacement.to_dict(), {"id": 3, "url": "", "title": "Bad"}])
+
+            self.assertEqual([bookmark.id for bookmark in manager.load()], [1])
+            self.assertEqual(manager.get_metadata()["count"], "1")
+
+    def test_sqlite_replacement_rejects_duplicate_ids_and_records_validated_count(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "bookmarks.sqlite"
+            manager = SQLiteStorageManager(target)
+            first = Bookmark(id=1, url="https://first.example", title="First")
+            second = Bookmark(id=1, url="https://second.example", title="Second")
+
+            with self.assertRaisesRegex(ValueError, "duplicate bookmark id 1"):
+                manager.save([first.to_dict(), second.to_dict()])
+            self.assertEqual(manager.load(), [])
+
+            manager.save([first.to_dict()], metadata={"count": 999, "saved_at": "test"})
+            self.assertEqual(manager.get_metadata()["count"], "1")
 
     def test_sqlite_storage_preserves_unsigned_bookmark_ids(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1075,6 +1172,47 @@ class TestMainAppManagers(unittest.TestCase):
             self.assertEqual(len(set(manager.bookmarks.keys())), 2)
             self.assertIn(7, manager.bookmarks)
             self.assertNotEqual(second.id, 7)
+
+    def test_statistics_use_one_consistent_bookmark_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            manager.add_bookmark(
+                Bookmark(
+                    id=1,
+                    url="https://example.com/page?utm_source=one",
+                    title="First",
+                    tags=["Research"],
+                    notes="Note",
+                    is_pinned=True,
+                ),
+                save=False,
+            )
+            manager.add_bookmark(
+                Bookmark(
+                    id=2,
+                    url="https://example.com/page",
+                    title="Duplicate",
+                    tags=["Research", "Later"],
+                    is_archived=True,
+                    is_valid=False,
+                ),
+                save=False,
+            )
+
+            with patch.object(manager, "_iter_snapshot", wraps=manager._iter_snapshot) as snapshot:
+                stats = manager.get_statistics()
+
+            snapshot.assert_called_once_with()
+            self.assertEqual(stats["total_bookmarks"], 2)
+            self.assertEqual(stats["tag_counts"], {"Research": 2, "Later": 1})
+            self.assertEqual(stats["top_domains"], [("example.com", 2)])
+            self.assertEqual(stats["duplicate_groups"], 1)
+            self.assertEqual(stats["duplicate_bookmarks"], 1)
+            self.assertEqual(stats["pinned"], 1)
+            self.assertEqual(stats["archived"], 1)
+            self.assertEqual(stats["broken"], 1)
+            self.assertEqual(stats["with_notes"], 1)
+            self.assertEqual(stats["with_tags"], 2)
 
     def test_import_json_uses_canonical_duplicate_detection_without_id_overwrite(self):
         with tempfile.TemporaryDirectory() as tmp:

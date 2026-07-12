@@ -459,6 +459,8 @@ class FaviconStatusDisplay(tk.Frame, ThemedWidget):
 # =============================================================================
 class ScrollableFrame(tk.Frame):
     """A scrollable frame widget that properly handles content overflow"""
+
+    _WHEEL_EVENTS = ("<MouseWheel>", "<Button-4>", "<Button-5>")
     
     def __init__(self, parent, bg=None, **kwargs):
         theme = get_theme()
@@ -506,9 +508,14 @@ class ScrollableFrame(tk.Frame):
     def _activate_mousewheel(self, event=None):
         """Capture the wheel globally while the pointer is over this frame."""
         try:
-            self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+            for sequence in self._WHEEL_EVENTS:
+                self.canvas.bind_all(sequence, self._on_mousewheel)
         except Exception:
             pass
+
+    def _unbind_mousewheel_events(self):
+        for sequence in self._WHEEL_EVENTS:
+            self.canvas.unbind_all(sequence)
 
     def _deactivate_mousewheel(self, event=None):
         """Release the global wheel binding once the pointer truly leaves.
@@ -524,9 +531,9 @@ class ScrollableFrame(tk.Frame):
                 if w is self:
                     return  # pointer is still over a descendant; keep active
                 w = w.master
-            self.canvas.unbind_all("<MouseWheel>")
+            self._unbind_mousewheel_events()
         except Exception:
-            self.canvas.unbind_all("<MouseWheel>")
+            self._unbind_mousewheel_events()
 
     def _on_frame_configure(self, event):
         """Update scroll region when inner frame changes"""
@@ -538,7 +545,19 @@ class ScrollableFrame(tk.Frame):
 
     def _on_mousewheel(self, event):
         """Handle mouse wheel scrolling"""
-        self.canvas.yview_scroll(-1 * (event.delta // 120), "units")
+        button = getattr(event, "num", None)
+        if button == 4:
+            units = -1
+        elif button == 5:
+            units = 1
+        else:
+            delta = getattr(event, "delta", 0)
+            if not delta:
+                return "break"
+            units = int(-delta / 120)
+            if units == 0:
+                units = -1 if delta > 0 else 1
+        self.canvas.yview_scroll(units, "units")
         return "break"
 
     def _on_key_scroll(self, event):

@@ -21,6 +21,45 @@ from .widget_controls import ModernButton
 from .widgets import apply_window_chrome, get_theme
 
 
+_DIRECTION_VECTORS = {
+    "Left": (-1, 0),
+    "Right": (1, 0),
+    "Up": (0, -1),
+    "Down": (0, 1),
+}
+
+
+def _directional_node_id(
+    nodes: Iterable[GraphNode],
+    current_node_id: str | None,
+    keysym: str,
+) -> str | None:
+    """Return the nearest graph node lying in the requested direction."""
+    ordered = list(nodes)
+    if not ordered:
+        return None
+    current = next((node for node in ordered if node.id == current_node_id), None)
+    if current is None:
+        return ordered[0].id
+    direction = _DIRECTION_VECTORS.get(keysym)
+    if direction is None:
+        return current.id
+    dx_sign, dy_sign = direction
+    candidates = []
+    for node in ordered:
+        if node.id == current.id:
+            continue
+        dx = node.x - current.x
+        dy = node.y - current.y
+        forward = (dx * dx_sign) + (dy * dy_sign)
+        if forward <= 0:
+            continue
+        sideways = abs((dx * dy_sign) - (dy * dx_sign))
+        distance = (dx * dx) + (dy * dy)
+        candidates.append((sideways / forward, distance, node.id))
+    return min(candidates)[2] if candidates else current.id
+
+
 def _node_colors():
     theme = get_theme()
     return {
@@ -103,8 +142,10 @@ class GraphViewDialog(tk.Toplevel):
         self.canvas = tk.Canvas(
             canvas_frame,
             bg=theme.bg_primary,
+            takefocus=1,
             highlightthickness=1,
             highlightbackground=theme.border_muted,
+            highlightcolor=theme.accent_primary,
             scrollregion=(0, 0, 1040, 700),
         )
         xbar = tk.Scrollbar(canvas_frame, orient=tk.HORIZONTAL, command=self.canvas.xview)
@@ -170,7 +211,7 @@ class GraphViewDialog(tk.Toplevel):
 
         self.status = tk.Label(
             side,
-            text=_("Select a node. Double-click bookmark nodes to open them."),
+            text=_("Select a node. Use Tab or arrow keys to navigate; Enter opens bookmarks."),
             bg=theme.bg_secondary,
             fg=theme.text_muted,
             font=FONTS.small(),
@@ -182,6 +223,14 @@ class GraphViewDialog(tk.Toplevel):
         self.canvas.bind("<B1-Motion>", self._on_canvas_drag)
         self.canvas.bind("<Double-Button-1>", self._on_canvas_double_click)
         self.canvas.bind("<MouseWheel>", self._on_mousewheel)
+        self.canvas.bind("<Tab>", self._on_tab_navigation)
+        self.canvas.bind("<Shift-Tab>", self._on_tab_navigation)
+        if self.canvas.tk.call("tk", "windowingsystem") == "x11":
+            self.canvas.bind("<ISO_Left_Tab>", self._on_tab_navigation)
+        for key in ("<Left>", "<Right>", "<Up>", "<Down>"):
+            self.canvas.bind(key, self._on_arrow_navigation)
+        self.canvas.bind("<Return>", self._on_keyboard_activate)
+        self.canvas.bind("<space>", self._on_keyboard_activate)
 
     def _draw_graph(self) -> None:
         theme = get_theme()
@@ -230,7 +279,7 @@ class GraphViewDialog(tk.Toplevel):
             fill=color,
             outline=theme.bg_primary,
             width=2,
-            tags=("graph", "node", tag),
+            tags=("graph", "node", "node-shape", f"node-shape:{node.id}", tag),
         )
         self.canvas.create_text(
             node.x + size + 5,
@@ -276,11 +325,40 @@ class GraphViewDialog(tk.Toplevel):
         self.canvas.scale("graph", self.canvas.canvasx(event.x), self.canvas.canvasy(event.y), factor, factor)
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
+    def _on_tab_navigation(self, event) -> str:
+        node_ids = [node.id for node in self.graph.nodes]
+        if not node_ids:
+            return "break"
+        step = -1 if getattr(event, "state", 0) & 0x0001 else 1
+        try:
+            index = node_ids.index(self.selected_node_id)
+        except ValueError:
+            index = -1 if step > 0 else 0
+        self._select_node(node_ids[(index + step) % len(node_ids)])
+        return "break"
+
+    def _on_arrow_navigation(self, event) -> str:
+        node_id = _directional_node_id(self.graph.nodes, self.selected_node_id, event.keysym)
+        if node_id is not None:
+            self._select_node(node_id)
+        return "break"
+
+    def _on_keyboard_activate(self, _event=None) -> str:
+        node_id = self.selected_node_id
+        if node_id and node_id.startswith("bookmark:") and self.on_open_bookmark:
+            bookmark = self.bookmarks_by_node.get(node_id)
+            if bookmark is not None:
+                self.on_open_bookmark(bookmark)
+        return "break"
+
     def _select_node(self, node_id: str) -> None:
-        self.selected_node_id = node_id
         node = self.node_lookup.get(node_id)
         if node is None:
             return
+        self.selected_node_id = node_id
+        theme = get_theme()
+        self.canvas.itemconfigure("node-shape", outline=theme.bg_primary, width=2)
+        self.canvas.itemconfigure(f"node-shape:{node_id}", outline=theme.accent_primary, width=4)
         connected = [
             edge for edge in self.graph.edges
             if edge.source == node_id or edge.target == node_id

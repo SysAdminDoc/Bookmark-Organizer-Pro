@@ -46,6 +46,7 @@ class MCPToolTestBase(unittest.TestCase):
 
     def setUp(self):
         self.ms.SERVICES = None
+        self.ms.AUTH = None
 
 
 class TestListBookmarks(MCPToolTestBase):
@@ -745,6 +746,101 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
         asyncio.run(middleware(scope, receive, send))
 
         self.assertEqual(sent, [{"type": "downstream"}])
+
+    def _run_http_middleware(self, middleware, payload, headers):
+        sent = []
+        body = json.dumps(payload).encode("utf-8")
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "headers": [(key.encode("ascii"), value.encode("ascii"))
+                        for key, value in headers.items()],
+        }
+
+        async def receive():
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        async def send(message):
+            sent.append(message)
+
+        asyncio.run(middleware(scope, receive, send))
+        return sent
+
+    def test_http_auth_protects_catalog_resources_and_tools_with_raw_parity(self):
+        from bookmark_organizer_pro.services.mcp_auth import MCPTokenManager
+
+        manager = MCPTokenManager(Path(self._tmp) / "mcp_http_tokens.json")
+        read_token = manager.create_token("reader", scope="read-only")
+        write_token = manager.create_token("writer", scope="read-write")
+        self.ms.AUTH = manager
+
+        async def app(scope, receive, send):
+            await receive()
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+            await send({"type": "http.response.body", "body": b"", "more_body": False})
+
+        middleware = self.ms.MCPHTTPHeaderValidationMiddleware(
+            app, allowed_hosts={"127.0.0.1", "localhost"},
+        )
+        base_headers = {"host": "127.0.0.1:8766"}
+        operations = [
+            ("tools/list", {}),
+            ("resources/list", {}),
+            ("resources/read", {"uri": "bookmarks://library"}),
+        ]
+        for method, params in operations:
+            payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+            self.assertEqual(
+                self._run_http_middleware(middleware, payload, base_headers)[0]["status"],
+                401,
+            )
+            authorized = dict(base_headers, authorization=f"Bearer {read_token}")
+            self.assertEqual(
+                self._run_http_middleware(middleware, payload, authorized)[0]["status"],
+                200,
+            )
+
+        mutation = {
+            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+            "params": {"name": "delete_bookmark", "arguments": {"bookmark_id": 1}},
+        }
+        read_headers = dict(base_headers, authorization=f"Bearer {read_token}")
+        write_headers = dict(base_headers, authorization=f"Bearer {write_token}")
+        self.assertEqual(
+            self._run_http_middleware(middleware, mutation, read_headers)[0]["status"],
+            403,
+        )
+        self.assertEqual(
+            self._run_http_middleware(middleware, mutation, write_headers)[0]["status"],
+            200,
+        )
+        self.assertIsNotNone(self.ms._check_mcp_auth(read_token, "delete_bookmark"))
+        self.assertIsNone(self.ms._check_mcp_auth(write_token, "delete_bookmark"))
+
+    def test_http_boundary_rejects_untrusted_host_and_cross_origin(self):
+        async def app(scope, receive, send):
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+
+        middleware = self.ms.MCPHTTPHeaderValidationMiddleware(
+            app, allowed_hosts={"127.0.0.1", "localhost"},
+        )
+        initialize = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}
+
+        untrusted = self._run_http_middleware(
+            middleware, initialize, {"host": "attacker.example"},
+        )
+        cross_origin = self._run_http_middleware(
+            middleware, initialize,
+            {"host": "127.0.0.1:8766", "origin": "https://attacker.example"},
+        )
+        same_origin = self._run_http_middleware(
+            middleware, initialize,
+            {"host": "127.0.0.1:8766", "origin": "http://127.0.0.1:8766"},
+        )
+
+        self.assertEqual(untrusted[0]["status"], 421)
+        self.assertEqual(cross_origin[0]["status"], 403)
+        self.assertEqual(same_origin[0]["status"], 200)
 
 
 class TestMCPResources(MCPToolTestBase):

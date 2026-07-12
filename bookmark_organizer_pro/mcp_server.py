@@ -37,6 +37,7 @@ import importlib
 import json
 import sys
 import threading
+from urllib.parse import urlsplit
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -151,6 +152,29 @@ def _check_mcp_auth(token: Optional[str], tool_name: str) -> Optional[str]:
     if not mgr.validate(token, tool_name):
         return "Invalid token or insufficient permissions for this tool."
     return None
+
+
+def _authorize_mcp_operation(token: Optional[str], method: str,
+                             name: Optional[str] = None) -> tuple[int, Optional[str]]:
+    """Authorize an MCP protocol operation using the raw-server token policy."""
+    mgr = _auth()
+    if not mgr.list_tokens():
+        return 200, None
+    if not token:
+        return 401, "Authentication required. Provide a Bearer token."
+    scope = mgr.get_scope(token)
+    if scope is None:
+        return 401, "Invalid or revoked Bearer token."
+    if method == "tools/call":
+        if not name or not mgr.validate(token, name):
+            return 403, "Token scope does not permit this tool."
+        return 200, None
+    if method in {
+        "tools/list", "resources/list", "resources/templates/list",
+        "resources/read", "prompts/list", "prompts/get",
+    }:
+        return 200, None
+    return 200, None
 
 
 MCP_TOOL_LIST_TTL_MS = 300_000
@@ -379,15 +403,28 @@ def _patch_fastmcp_list_tools_cache(mcp_app: Any) -> None:
 
 
 class MCPHTTPHeaderValidationMiddleware:
-    """Validate Streamable HTTP mirrored headers before MCP body handling."""
+    """Protect Streamable HTTP origin, host, mirrored headers, and auth."""
 
     NAMED_METHODS = {"tools/call", "resources/read", "prompts/get"}
 
-    def __init__(self, app: Any):
+    def __init__(self, app: Any, allowed_hosts: Optional[set[str]] = None):
         self.app = app
+        self.allowed_hosts = {
+            host.strip("[]").lower() for host in (allowed_hosts or set()) if host
+        }
 
     async def __call__(self, scope: Dict[str, Any], receive: Any, send: Any) -> None:
-        if scope.get("type") != "http" or scope.get("method") != "POST":
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+
+        headers = self._headers(scope)
+        boundary_error = self._validate_request_boundary(headers)
+        if boundary_error:
+            await self._send_error(send, boundary_error[0], boundary_error[1])
+            return
+
+        if scope.get("method") != "POST":
             await self.app(scope, receive, send)
             return
 
@@ -398,9 +435,9 @@ class MCPHTTPHeaderValidationMiddleware:
             body += message.get("body", b"")
             more_body = bool(message.get("more_body", False))
 
-        error = self._validate(scope, body)
+        error = self._validate(scope, body, headers)
         if error:
-            await self._send_error(send, error)
+            await self._send_error(send, error[0], error[1])
             return
 
         sent = False
@@ -414,7 +451,45 @@ class MCPHTTPHeaderValidationMiddleware:
 
         await self.app(scope, replay_receive, send)
 
-    def _validate(self, scope: Dict[str, Any], body: bytes) -> Optional[str]:
+    @staticmethod
+    def _headers(scope: Dict[str, Any]) -> Dict[str, str]:
+        return {
+            key.decode("latin-1").lower(): value.decode("latin-1").strip()
+            for key, value in scope.get("headers", [])
+        }
+
+    @staticmethod
+    def _host_name(value: str) -> str:
+        try:
+            parsed = urlsplit(f"//{value}")
+            return (parsed.hostname or "").lower()
+        except ValueError:
+            return ""
+
+    def _validate_request_boundary(self, headers: Dict[str, str]) -> Optional[tuple[int, str]]:
+        host = self._host_name(headers.get("host", ""))
+        if self.allowed_hosts and host not in self.allowed_hosts:
+            return 421, "Host header is not allowed for this MCP endpoint"
+        origin = headers.get("origin")
+        if origin:
+            try:
+                origin_host = (urlsplit(origin).hostname or "").lower()
+            except ValueError:
+                origin_host = ""
+            if not origin_host or origin_host != host:
+                return 403, "Cross-origin MCP requests are not allowed"
+        return None
+
+    @staticmethod
+    def _bearer_token(headers: Dict[str, str]) -> Optional[str]:
+        authorization = headers.get("authorization", "")
+        scheme, separator, token = authorization.partition(" ")
+        if not separator or scheme.lower() != "bearer" or not token.strip():
+            return None
+        return token.strip()
+
+    def _validate(self, scope: Dict[str, Any], body: bytes,
+                  headers: Optional[Dict[str, str]] = None) -> Optional[tuple[int, str]]:
         try:
             payload = json.loads(body.decode("utf-8") if body else "{}")
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -426,13 +501,10 @@ class MCPHTTPHeaderValidationMiddleware:
         if not isinstance(method, str) or not method:
             return None
 
-        headers = {
-            key.decode("latin-1").lower(): value.decode("latin-1")
-            for key, value in scope.get("headers", [])
-        }
+        headers = headers or self._headers(scope)
         header_method = headers.get("mcp-method")
         if header_method is not None and header_method != method:
-            return "Mcp-Method header must match JSON-RPC method"
+            return 400, "Mcp-Method header must match JSON-RPC method"
 
         expected_name = None
         params = payload.get("params")
@@ -444,25 +516,38 @@ class MCPHTTPHeaderValidationMiddleware:
                     break
         header_name = headers.get("mcp-name")
         if expected_name and header_name is not None and header_name != expected_name:
-            return "Mcp-Name header must match JSON-RPC params.name or params.uri"
-        return None
+            return 400, "Mcp-Name header must match JSON-RPC params.name or params.uri"
 
-    async def _send_error(self, send: Any, message: str) -> None:
+        status, auth_error = _authorize_mcp_operation(
+            self._bearer_token(headers), method, expected_name,
+        )
+        return (status, auth_error) if auth_error else None
+
+    async def _send_error(self, send: Any, status: int, message: str) -> None:
         body = message.encode("utf-8")
+        response_headers = [
+            (b"content-type", b"text/plain; charset=utf-8"),
+            (b"content-length", str(len(body)).encode("ascii")),
+        ]
+        if status == 401:
+            response_headers.append((b"www-authenticate", b"Bearer"))
         await send({
             "type": "http.response.start",
-            "status": 400,
-            "headers": [
-                (b"content-type", b"text/plain; charset=utf-8"),
-                (b"content-length", str(len(body)).encode("ascii")),
-            ],
+            "status": status,
+            "headers": response_headers,
         })
         await send({"type": "http.response.body", "body": body, "more_body": False})
 
 
-def _mcp_http_middleware() -> List[Any]:
+def _mcp_http_middleware(host: str = "127.0.0.1") -> List[Any]:
     from starlette.middleware import Middleware
-    return [Middleware(MCPHTTPHeaderValidationMiddleware)]
+    allowed_hosts = {host}
+    if _is_loopback_bind(host):
+        allowed_hosts.update({"127.0.0.1", "::1", "localhost"})
+    return [Middleware(
+        MCPHTTPHeaderValidationMiddleware,
+        allowed_hosts=allowed_hosts,
+    )]
 
 
 # --- pure tool implementations ---------------------------------------------
@@ -1708,7 +1793,7 @@ def serve_http(host: str = "127.0.0.1", port: int = 8766, path: str = "/mcp") ->
             port=port,
             path=endpoint,
             stateless_http=True,
-            middleware=_mcp_http_middleware(),
+            middleware=_mcp_http_middleware(host),
         )
     except KeyboardInterrupt:
         pass

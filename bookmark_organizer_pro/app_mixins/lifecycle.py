@@ -20,19 +20,29 @@ class LifecycleActionsMixin:
         self._refresh_bookmark_list()
         self._refresh_analytics()
 
-        # Capture a startup safepoint in the background so the pre-session state
-        # is always recoverable (deletes are immediate / unconfirmed by design).
-        import threading
-        threading.Thread(
-            target=lambda: self.bookmark_manager.create_safepoint("startup"),
-            daemon=True,
-        ).start()
+        recovery_required = self.bookmark_manager.recovery_required
+        if not recovery_required:
+            # Capture a startup safepoint in the background so the pre-session state
+            # is always recoverable (deletes are immediate / unconfirmed by design).
+            import threading
+            threading.Thread(
+                target=lambda: self.bookmark_manager.create_safepoint("startup"),
+                daemon=True,
+            ).start()
 
         # Queue favicon downloads
         bookmarks = self.bookmark_manager.get_all_bookmarks()
         self.favicon_manager.queue_bookmarks(bookmarks)
 
-        if bookmarks:
+        if recovery_required:
+            self._set_status(self.bookmark_manager.recovery_message)
+            if hasattr(self, "_show_toast"):
+                self._show_toast(
+                    "Library writes are blocked. Use Tools > Restore from Backup, "
+                    "or salvage recoverable records there.",
+                    "error",
+                )
+        elif bookmarks:
             self._set_status(f"Loaded {pluralize(len(bookmarks), 'bookmark')}")
         else:
             self._set_status("Library ready")

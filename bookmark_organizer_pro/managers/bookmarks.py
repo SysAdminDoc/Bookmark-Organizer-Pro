@@ -140,10 +140,38 @@ class BookmarkManager:
     def _load_bookmarks(self):
         """Load all bookmarks from storage"""
         with self._lock:
+            loaded = self.storage.load()
+            if self.recovery_required:
+                return
             self.bookmarks.clear()
-            for bm in self.storage.load():
+            for bm in loaded:
                 self._assign_unique_id(bm)
                 self.bookmarks[bm.id] = bm
+
+    @property
+    def storage_status(self):
+        """Backend storage status; JSON exposes absent/valid-empty/corrupt states."""
+        return getattr(self.storage, "status", None)
+
+    @property
+    def recovery_required(self) -> bool:
+        status = self.storage_status
+        return bool(status and status.recovery_required)
+
+    @property
+    def recovery_message(self) -> str:
+        status = self.storage_status
+        if not status or not status.recovery_required:
+            return ""
+        return (
+            f"Library recovery required for {status.path}: {status.error}. "
+            "Restore a verified backup or salvage complete records before editing."
+        )
+
+    def _ensure_storage_writable(self) -> None:
+        check = getattr(self.storage, "assert_writable", None)
+        if callable(check):
+            check()
 
     def reload(self):
         """Reload bookmarks from disk"""
@@ -180,6 +208,18 @@ class BookmarkManager:
                 return False
             self._load_bookmarks()
         return True
+
+    def salvage_corrupt_file(self) -> Tuple[int, str]:
+        """Explicitly salvage complete records while preserving the damaged source."""
+        salvage = getattr(self.storage, "salvage", None)
+        commit = getattr(self.storage, "commit_salvage", None)
+        if not callable(salvage) or not callable(commit):
+            return 0, ""
+        with self._lock:
+            bookmarks = salvage()
+            preserved_path = commit(bookmarks)
+            self._load_bookmarks()
+        return len(bookmarks), preserved_path
 
     # --- File-change watching (R-74) ----------------------------------------
 
@@ -226,6 +266,7 @@ class BookmarkManager:
 
     def save_bookmarks(self):
         """Save all bookmarks to storage (thread-safe — holds lock through write)."""
+        self._ensure_storage_writable()
         with self._lock:
             if getattr(self, "_batch_depth", 0) > 0:
                 self._batch_dirty = True
@@ -256,6 +297,7 @@ class BookmarkManager:
                     manager.add_bookmark_clean(url=url, ...)
             # single save happens here
         """
+        self._ensure_storage_writable()
         with self._lock:
             self._batch_depth = getattr(self, "_batch_depth", 0) + 1
             self._batch_dirty = getattr(self, "_batch_dirty", False)
@@ -271,6 +313,8 @@ class BookmarkManager:
 
     def add_bookmark(self, bookmark: Bookmark, save: bool = True) -> Bookmark:
         """Add a new bookmark. Set save=False for batch operations."""
+        if save:
+            self._ensure_storage_writable()
         with self._lock:
             self._assign_unique_id(bookmark)
             self.bookmarks[bookmark.id] = bookmark
@@ -281,6 +325,7 @@ class BookmarkManager:
     
     def update_bookmark(self, bookmark_or_id, **kwargs) -> Optional[Bookmark]:
         """Update a bookmark's attributes. Can accept Bookmark object or bookmark_id."""
+        self._ensure_storage_writable()
         # Handle both Bookmark object and ID
         if isinstance(bookmark_or_id, Bookmark):
             bookmark = bookmark_or_id
@@ -310,6 +355,7 @@ class BookmarkManager:
     
     def delete_bookmark(self, bookmark_id: int) -> bool:
         """Delete a bookmark"""
+        self._ensure_storage_writable()
         bookmark_id = self._coerce_bookmark_id(bookmark_id)
         if bookmark_id is None:
             return False
@@ -567,6 +613,8 @@ class BookmarkManager:
                     bookmarks_removed += len(bm_list) - 1
             return groups_merged, bookmarks_removed
 
+        self._ensure_storage_writable()
+
         # Mutating the dict (keeper update + removals) must happen under the
         # lock so a concurrent reader/watcher can't observe a half-merged state
         # or raise "dictionary changed size during iteration".
@@ -606,6 +654,7 @@ class BookmarkManager:
 
         Returns True if any field was updated.
         """
+        self._ensure_storage_writable()
         bm = self.get_bookmark(bookmark_id)
         if not bm:
             return False
@@ -658,6 +707,7 @@ class BookmarkManager:
         Sets is_archived=True and adds a '_deleted_at' timestamp to custom_data.
         Use restore_from_trash() to recover, or empty_trash() to purge.
         """
+        self._ensure_storage_writable()
         with self._lock:
             bm = self.bookmarks.get(bookmark_id)
             if not bm:
@@ -671,6 +721,7 @@ class BookmarkManager:
 
     def restore_from_trash(self, bookmark_id: int) -> bool:
         """Restore a bookmark from trash."""
+        self._ensure_storage_writable()
         with self._lock:
             bm = self.bookmarks.get(bookmark_id)
             if not bm:
@@ -689,6 +740,7 @@ class BookmarkManager:
 
     def empty_trash(self) -> int:
         """Permanently delete all bookmarks in the trash."""
+        self._ensure_storage_writable()
         with self._lock:
             trash_ids = [bm.id for bm in self.bookmarks.values()
                          if bm.is_archived and '_deleted_at' in bm.custom_data]
@@ -719,6 +771,7 @@ class BookmarkManager:
         If bookmark_ids is None, refreshes all bookmarks.
         Returns count of bookmarks updated.
         """
+        self._ensure_storage_writable()
         try:
             max_workers = max(1, min(32, int(max_workers)))
         except (TypeError, ValueError):
@@ -863,6 +916,7 @@ class BookmarkManager:
     
     def clean_tracking_params(self) -> int:
         """Clean tracking parameters from all URLs"""
+        self._ensure_storage_writable()
         with self._lock:
             cleaned = 0
             for bm in self.bookmarks.values():
@@ -878,6 +932,7 @@ class BookmarkManager:
     
     def merge_tags(self, source_tag: str, target_tag: str) -> int:
         """Merge one tag into another across all bookmarks"""
+        self._ensure_storage_writable()
         source_tag = str(source_tag or "").strip()
         target_tag = str(target_tag or "").strip()
         if not source_tag or not target_tag:
@@ -1082,17 +1137,26 @@ class BookmarkManager:
         return str(url or "").replace("\\", "%5C").replace("(", "\\(").replace(")", "\\)")
     
     def get_statistics(self) -> Dict[str, Any]:
-        """Get comprehensive statistics"""
+        """Get comprehensive statistics from one consistent snapshot."""
         snapshot = self._iter_snapshot()
         total = len(snapshot)
-        category_counts = self.get_category_counts()
-        tag_counts = self.get_tag_counts()
-        domain_stats = self.get_domain_stats()[:10]
-        duplicates = self.find_duplicates()
-
-        # Calculate age distribution
+        category_counts = {cat: 0 for cat in self.category_manager.categories}
+        tag_counts: Dict[str, int] = {}
+        domain_counts: Dict[str, int] = {}
+        duplicate_candidates: Dict[str, List[Bookmark]] = {}
         age_dist = {"<7 days": 0, "7-30 days": 0, "1-6 months": 0, ">6 months": 0}
+        pinned = archived = stale = broken = with_notes = with_tags = 0
+
         for bm in snapshot:
+            category_counts[bm.category] = category_counts.get(bm.category, 0) + 1
+            for tag in bm.tags:
+                tag_counts[tag] = tag_counts.get(tag, 0) + 1
+
+            domain = bm.domain
+            if domain:
+                domain_counts[domain] = domain_counts.get(domain, 0) + 1
+            duplicate_candidates.setdefault(normalize_url(bm.url), []).append(bm)
+
             age = bm.age_days
             if age < 7:
                 age_dist["<7 days"] += 1
@@ -1102,6 +1166,16 @@ class BookmarkManager:
                 age_dist["1-6 months"] += 1
             else:
                 age_dist[">6 months"] += 1
+
+            pinned += bool(bm.is_pinned)
+            archived += bool(bm.is_archived)
+            stale += age > 90 or bm.is_stale
+            broken += not bm.is_valid
+            with_notes += bool(bm.notes)
+            with_tags += bool(bm.tags)
+
+        duplicates = [bms for bms in duplicate_candidates.values() if len(bms) > 1]
+        domain_stats = sorted(domain_counts.items(), key=lambda item: -item[1])[:10]
         
         return {
             "total_bookmarks": total,
@@ -1111,13 +1185,13 @@ class BookmarkManager:
             "tag_counts": dict(sorted(tag_counts.items(), key=lambda x: -x[1])[:20]),
             "top_domains": domain_stats,
             "duplicate_groups": len(duplicates),
-            "duplicate_bookmarks": sum(len(bms) - 1 for bms in duplicates.values()),
+            "duplicate_bookmarks": sum(len(bms) - 1 for bms in duplicates),
             "uncategorized": category_counts.get("Uncategorized / Needs Review", 0),
-            "pinned": len(self.get_pinned_bookmarks()),
-            "archived": len(self.get_archived_bookmarks()),
-            "stale": len(self.get_stale_bookmarks()),
-            "broken": len(self.find_broken_links()),
+            "pinned": pinned,
+            "archived": archived,
+            "stale": stale,
+            "broken": broken,
             "age_distribution": age_dist,
-            "with_notes": sum(1 for bm in snapshot if bm.notes),
-            "with_tags": sum(1 for bm in snapshot if bm.tags),
+            "with_notes": with_notes,
+            "with_tags": with_tags,
         }

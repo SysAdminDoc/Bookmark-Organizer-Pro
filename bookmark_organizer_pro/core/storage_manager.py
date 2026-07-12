@@ -7,6 +7,7 @@ import re
 import shutil
 import tempfile
 import threading
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -19,6 +20,25 @@ from ..models import Bookmark
 # subdirectory so the rolling per-save backup rotation never deletes them.
 SAFEPOINT_DIR = BACKUP_DIR / "safepoints"
 MAX_SAFEPOINTS = 30
+RECOVERY_DIR = BACKUP_DIR / "recovery"
+
+
+class StorageRecoveryRequiredError(RuntimeError):
+    """Raised when a damaged library must be recovered before it can be saved."""
+
+
+@dataclass(frozen=True)
+class StorageStatus:
+    """Current JSON library state, including an actionable parse failure."""
+
+    state: str
+    path: Path
+    count: int = 0
+    error: str = ""
+
+    @property
+    def recovery_required(self) -> bool:
+        return self.state == "corrupt"
 
 
 class StorageManager:
@@ -33,11 +53,27 @@ class StorageManager:
     CURRENT_VERSION = 4
 
     def __init__(self, filepath: Path):
-        self.filepath = filepath
+        self.filepath = Path(filepath)
         self._lock = threading.Lock()
+        self.status = StorageStatus(
+            "absent" if not self.filepath.exists() else "unread",
+            self.filepath,
+        )
+
+    def _require_writable(self) -> None:
+        if self.status.recovery_required:
+            raise StorageRecoveryRequiredError(
+                f"Cannot save {self.filepath}: {self.status.error}. "
+                "Restore a verified backup or explicitly salvage the damaged file first."
+            )
+
+    def assert_writable(self) -> None:
+        """Fail before callers mutate in-memory state during recovery mode."""
+        self._require_writable()
 
     def save(self, data: List[Dict], metadata: Dict = None):
         """Save data atomically."""
+        self._require_writable()
         payload = {
             "version": self.CURRENT_VERSION,
             "metadata": metadata or {
@@ -61,6 +97,11 @@ class StorageManager:
                     json.dump(payload, f, indent=2, ensure_ascii=False)
 
                 os.replace(temp_path, self.filepath)
+                self.status = StorageStatus(
+                    "valid_empty" if not data else "valid",
+                    self.filepath,
+                    count=len(data),
+                )
             except Exception:
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
@@ -156,43 +197,109 @@ class StorageManager:
             log.warning(f"Safepoint creation failed: {e}")
             return None
 
+    def _decode_bookmarks(self, raw) -> List[Bookmark]:
+        """Validate a complete JSON document without accepting partial data loss."""
+        if isinstance(raw, list):
+            items = raw
+        elif isinstance(raw, dict):
+            if "data" not in raw:
+                raise ValueError("bookmark library object is missing the data array")
+            items = raw["data"]
+        else:
+            raise ValueError("top-level JSON value must be an object or array")
+        if not isinstance(items, list):
+            raise ValueError("bookmark data must be an array")
+
+        bookmarks = []
+        for position, item in enumerate(items):
+            if not isinstance(item, dict):
+                raise ValueError(f"bookmark at index {position} is not an object")
+            try:
+                bookmarks.append(Bookmark.from_dict(item))
+            except Exception as exc:
+                raise ValueError(f"bookmark at index {position} is invalid: {exc}") from exc
+        return bookmarks
+
+    def _mark_corrupt(self, error: Exception | str) -> None:
+        detail = str(error)
+        self.status = StorageStatus("corrupt", self.filepath, error=detail)
+        log.error(f"Recovery required for {self.filepath}: {detail}")
+
     def load(self) -> List[Bookmark]:
-        """Load bookmarks, skipping individual corrupt entries."""
+        """Load bookmarks or enter fail-closed recovery mode on corruption."""
         with self._lock:
             if not self.filepath.exists():
+                self.status = StorageStatus("absent", self.filepath)
                 return []
 
             try:
                 with open(self.filepath, 'r', encoding='utf-8') as f:
                     raw = json.load(f)
-
-                if isinstance(raw, list):
-                    items = raw
-                elif isinstance(raw, dict):
-                    items = raw.get("data", [])
-                else:
-                    log.warning(f"Unexpected data format in {self.filepath}")
-                    return []
-                if not isinstance(items, list):
-                    log.warning(f"Unexpected bookmark data shape in {self.filepath}")
-                    return []
-
-                bookmarks = []
-                for item in items:
-                    if not isinstance(item, dict):
-                        log.warning("Skipping non-object bookmark entry")
-                        continue
-                    try:
-                        bookmarks.append(Bookmark.from_dict(item))
-                    except Exception as e:
-                        log.warning(f"Skipping corrupt bookmark entry: {e}")
+                bookmarks = self._decode_bookmarks(raw)
+                self.status = StorageStatus(
+                    "valid_empty" if not bookmarks else "valid",
+                    self.filepath,
+                    count=len(bookmarks),
+                )
                 return bookmarks
             except json.JSONDecodeError as e:
-                log.error(f"Corrupt JSON in {self.filepath}: {e}")
+                self._mark_corrupt(
+                    f"invalid JSON at line {e.lineno}, column {e.colno}: {e.msg}"
+                )
                 return []
             except Exception as e:
-                log.error(f"Could not load data from {self.filepath}: {e}")
+                self._mark_corrupt(e)
                 return []
+
+    def salvage(self) -> List[Bookmark]:
+        """Extract complete bookmark objects from damaged JSON without writing it."""
+        if not self.status.recovery_required:
+            raise StorageRecoveryRequiredError("Salvage is only available in recovery mode")
+        text = self.filepath.read_text(encoding="utf-8", errors="replace")
+        decoder = json.JSONDecoder()
+        recovered: Dict[Tuple[Optional[int], str], Bookmark] = {}
+        cursor = 0
+        while True:
+            start = text.find("{", cursor)
+            if start < 0:
+                break
+            cursor = start + 1
+            try:
+                candidate, end = decoder.raw_decode(text[start:])
+            except json.JSONDecodeError:
+                continue
+            cursor = start + max(end, 1)
+            if not isinstance(candidate, dict) or "url" not in candidate:
+                continue
+            if not any(key in candidate for key in ("id", "title", "category", "tags", "created_at")):
+                continue
+            try:
+                bookmark = Bookmark.from_dict(candidate)
+            except Exception:
+                continue
+            recovered[(bookmark.id, bookmark.url)] = bookmark
+        return list(recovered.values())
+
+    def commit_salvage(self, bookmarks: List[Bookmark]) -> str:
+        """Preserve the damaged source, then replace it with explicit salvage results."""
+        if not self.status.recovery_required:
+            raise StorageRecoveryRequiredError("Salvage is only available in recovery mode")
+        if not bookmarks:
+            raise StorageRecoveryRequiredError(
+                "No complete bookmark records could be recovered; restore a backup instead"
+            )
+        RECOVERY_DIR.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        preserved = RECOVERY_DIR / f"{self.filepath.stem}_corrupt_{timestamp}{self.filepath.suffix}"
+        shutil.copy2(self.filepath, preserved)
+        previous_status = self.status
+        self.status = StorageStatus("absent", self.filepath)
+        try:
+            self.save([bookmark.to_dict() for bookmark in bookmarks])
+        except Exception:
+            self.status = previous_status
+            raise
+        return str(preserved)
 
     def get_backups(self) -> List[Tuple[str, datetime, int]]:
         """List available backups + safepoints, newest first.
@@ -229,6 +336,12 @@ class StorageManager:
         if not backup_path.is_file():
             log.error(f"Backup not found: {backup_name}")
             return False
+        try:
+            with open(backup_path, "r", encoding="utf-8") as backup_file:
+                restored = self._decode_bookmarks(json.load(backup_file))
+        except Exception as exc:
+            log.error(f"Backup validation failed for {backup_name}: {exc}")
+            return False
         hash_path = backup_path.with_suffix(".sha256")
         if hash_path.is_file():
             try:
@@ -248,6 +361,11 @@ class StorageManager:
                     shutil.copy2(self.filepath, pre_restore)
                     log.info(f"Pre-restore backup saved: {pre_restore.name}")
                 shutil.copy2(backup_path, self.filepath)
+                self.status = StorageStatus(
+                    "valid_empty" if not restored else "valid",
+                    self.filepath,
+                    count=len(restored),
+                )
             return True
         except Exception as e:
             log.error(f"Failed to restore backup {backup_name}: {e}")

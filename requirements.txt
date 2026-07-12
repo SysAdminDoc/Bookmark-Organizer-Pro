@@ -7,6 +7,7 @@ defusedxml>=0.7
 tksheet>=7.6,<8
 urllib3>=2.7.0
 lxml>=6.1.1
+regex>=2024.11.6
 
 # v6.0.0 — recommended for the full feature set. Each package is optional;
 # missing packages degrade individual features gracefully without breaking

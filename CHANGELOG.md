@@ -2,6 +2,22 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.10.1] - 2026-07-12
+
+Trust, recovery, and runtime reliability release.
+
+### Fixed
+
+- Enforced bearer scopes plus Host/Origin validation across FastMCP HTTP catalogs, resources, prompts, and tool calls so HTTP and raw MCP transports share one authorization policy.
+- Applied one fail-closed egress policy to snapshot redirects and subresources, with request, redirect, time, and byte caps; external snapshot executables now require explicit unsafe opt-in.
+- Added corrupt-library recovery mode that preserves the damaged source and live memory, blocks writes, validates restores, and provides explicit salvage with source archival.
+- Made SQLite replacement saves validate every row before deletion, own their transaction explicitly, reject duplicate IDs, verify persisted counts, and roll back atomically.
+- Replaced process-global `SIGALRM` regex guards with concurrent per-call timeouts and reduced statistics generation to one bookmark snapshot.
+
+### Changed
+
+- Added keyboard node traversal and activation to graph view and cross-platform wheel handling for scrollable frames.
+
 ## [v6.10.0] - 2026-07-09
 
 Premium workspace redesign and interaction-quality release.

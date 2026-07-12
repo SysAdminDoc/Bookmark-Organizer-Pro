@@ -68,8 +68,8 @@ class URLUtilities:
         )
 
     @classmethod
-    def _is_safe_url(cls, url: str) -> bool:
-        """Block requests to private/internal networks (SSRF protection).
+    def check_safe_url(cls, url: str) -> Tuple[bool, str]:
+        """Validate an outbound HTTP URL and return ``(allowed, reason)``.
 
         Domains matching SSRF_ALLOW_LIST regex patterns bypass the private-IP check.
 
@@ -83,10 +83,10 @@ class URLUtilities:
         try:
             parsed = urllib.parse.urlparse(url)
             if parsed.scheme not in ('http', 'https'):
-                return False
+                return False, "unsupported URL scheme"
             hostname = (parsed.hostname or '').strip().rstrip('.').lower()
             if not hostname or hostname in ('localhost', '0.0.0.0', '::'):
-                return False
+                return False, "local or missing hostname"
             ascii_host = hostname.encode("idna").decode("ascii")
             resolved_any = False
             for info in socket.getaddrinfo(ascii_host, None, socket.AF_UNSPEC):
@@ -98,10 +98,17 @@ class URLUtilities:
                         pattern.search(hostname) for pattern in cls.SSRF_ALLOW_LIST
                     ):
                         continue
-                    return False
-            return resolved_any
-        except Exception:
-            return False
+                    return False, f"blocked network address: {ip}"
+            if not resolved_any:
+                return False, "hostname did not resolve"
+            return True, "allowed public HTTP URL"
+        except Exception as exc:
+            return False, f"URL validation failed: {exc}"
+
+    @classmethod
+    def _is_safe_url(cls, url: str) -> bool:
+        """Block requests to private/internal networks (SSRF protection)."""
+        return cls.check_safe_url(url)[0]
 
     @staticmethod
     def resolve_redirect(url: str, max_redirects: int = 5) -> Tuple[str, int]:
