@@ -174,6 +174,10 @@ class FinalBookmarkOrganizerApp(
 
         # Load data
         self._load_and_display_data()
+        self.bookmark_manager.start_file_watcher(
+            on_reload=self._refresh_all,
+            callback_scheduler=lambda callback: self.root.after(0, callback),
+        )
         
         # Keyboard shortcuts - comprehensive set
         self.root.bind("<Control-f>", lambda e: self._focus_search())

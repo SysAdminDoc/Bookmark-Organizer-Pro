@@ -1,6 +1,5 @@
 const DEFAULTS = {
   apiPort: 8765,
-  apiToken: "",
   defaultCategory: "Uncategorized / Needs Review"
 };
 
@@ -20,6 +19,19 @@ function storageSet(values) {
   return new Promise(resolve => api.storage.local.set(values, resolve));
 }
 
+function runtimeMessage(message) {
+  if (api.runtime.sendMessage.length === 1) {
+    return api.runtime.sendMessage(message);
+  }
+  return new Promise((resolve, reject) => {
+    api.runtime.sendMessage(message, response => {
+      const error = api.runtime.lastError;
+      if (error) { reject(new Error("Extension service unavailable")); return; }
+      resolve(response);
+    });
+  });
+}
+
 function setStatus(message, tone = "info") {
   const status = document.getElementById("status");
   status.textContent = message;
@@ -27,7 +39,9 @@ function setStatus(message, tone = "info") {
 }
 
 async function loadOptions() {
-  const values = { ...DEFAULTS, ...(await storageGet(DEFAULTS)) };
+  const stored = { ...DEFAULTS, ...(await storageGet(DEFAULTS)) };
+  const response = await runtimeMessage({ type: "bop:get-config" });
+  const values = response && response.ok ? { ...stored, ...response.config } : stored;
   document.getElementById("apiPort").value = values.apiPort;
   document.getElementById("apiToken").value = values.apiToken;
   document.getElementById("defaultCategory").value = values.defaultCategory;
@@ -48,7 +62,9 @@ async function saveOptions() {
     return;
   }
 
-  await storageSet({ apiPort: port, apiToken, defaultCategory });
+  await storageSet({ apiPort: port, defaultCategory });
+  const response = await runtimeMessage({ type: "bop:set-api-token", apiToken });
+  if (!response || !response.ok) throw new Error("Credential operation failed");
   setStatus("Settings saved.", "success");
 }
 

@@ -353,6 +353,15 @@ class BookmarkCLI:
         p.add_argument("--dest", help="Destination SQLite DB")
         p.set_defaults(func=self._cmd_sqlite_migrate)
 
+        p = sub.add_parser("recovery-bundle", help="Create or restore a full-library backup")
+        p.add_argument("action", choices=["create", "validate", "restore"])
+        p.add_argument("path", help="Recovery bundle ZIP path")
+        p.add_argument(
+            "--apply", action="store_true",
+            help="Apply a verified restore (restore is validation-only by default)",
+        )
+        p.set_defaults(func=self._cmd_recovery_bundle)
+
         p = sub.add_parser("updates", help="Manage update policy")
         p.add_argument("action", nargs="?", default="status",
                         choices=["status", "check", "configure", "download",
@@ -1413,6 +1422,48 @@ Top Domains:
         dest = Path(ns.dest).expanduser() if ns.dest else MASTER_BOOKMARKS_FILE.with_suffix(".sqlite")
         count = migrate_json_to_sqlite(source, dest)
         print(f"Migrated {count} bookmarks to {dest}")
+
+    def _cmd_recovery_bundle(self, ns: argparse.Namespace):
+        from bookmark_organizer_pro.services.recovery_bundle import (
+            create_recovery_bundle,
+            restore_recovery_bundle,
+            validate_recovery_bundle,
+        )
+
+        path = Path(ns.path).expanduser()
+        if ns.action == "create":
+            created = create_recovery_bundle(path)
+            report = validate_recovery_bundle(created)
+            print(f"Recovery bundle created: {created}")
+            print(f"Verified: {report.file_count} files, {report.total_bytes} bytes")
+            return 0
+        if ns.action == "validate":
+            report = validate_recovery_bundle(path)
+            self._print_recovery_bundle_report(report)
+            return 0 if report.valid else 1
+        result = restore_recovery_bundle(path, dry_run=not ns.apply)
+        self._print_recovery_bundle_report(result.report)
+        if not result.report.valid:
+            return 1
+        if result.applied:
+            print("Restore applied.")
+            print(f"Rollback bundle: {result.rollback_bundle}")
+        else:
+            print("Dry run only; no files were changed. Re-run with --apply to restore.")
+        return 0
+
+    @staticmethod
+    def _print_recovery_bundle_report(report):
+        state = "valid" if report.valid else "invalid"
+        print(f"Recovery bundle: {state}")
+        print(f"Files: {report.file_count}; uncompressed bytes: {report.total_bytes}")
+        for warning in report.warnings:
+            print(f"Warning: {warning}")
+        for error in report.errors:
+            print(f"Error: {error}")
+        for index_name, required in sorted(report.rebuild.items()):
+            if required is True:
+                print(f"Rebuild after restore: {index_name}")
 
     def _cmd_updates(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.services.updates import UpdateManager

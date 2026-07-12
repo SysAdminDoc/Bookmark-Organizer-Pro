@@ -61,6 +61,12 @@ class AppShellMixin:
         # View menu
         view_menu = tk.Menu(menubar, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary)
         view_menu.add_command(label=_("List View"), command=lambda: self._set_view_mode(ViewMode.LIST))
+        self._right_rail_var = tk.BooleanVar(value=True)
+        view_menu.add_checkbutton(
+            label=_("Insights and assistant rail"),
+            variable=self._right_rail_var,
+            command=self._toggle_right_rail,
+        )
         view_menu.add_separator()
         view_menu.add_command(label=_("Command Palette"), accelerator="Ctrl+P", command=self._show_command_palette)
         view_menu.add_separator()
@@ -597,6 +603,8 @@ class AppShellMixin:
         )
         right_sidebar.pack(side=tk.RIGHT, fill=tk.Y, before=self.content_area)
         right_sidebar.pack_propagate(False)
+        self._right_sidebar = right_sidebar
+        self._right_rail_user_hidden = False
         
         # Scrollable container for right sidebar
         self.right_scroll = ScrollableFrame(right_sidebar, bg=theme.bg_dark)
@@ -612,6 +620,39 @@ class AppShellMixin:
             on_bookmark_click=self._on_chat_bookmark_click,
         )
         self.chat_panel.pack(fill=tk.X, pady=(DesignTokens.SPACE_SM, DesignTokens.SPACE_MD))
+        self.root.bind("<Configure>", self._on_shell_viewport_configure, add="+")
+        self.root.after_idle(lambda: self._apply_right_rail_visibility(
+            self.root.winfo_width() >= 1400
+        ))
+
+    def _apply_right_rail_visibility(self, visible: bool) -> None:
+        """Show or hide the fixed rail without constraining the library viewport."""
+        rail = getattr(self, "_right_sidebar", None)
+        if rail is None:
+            return
+        if visible:
+            if not rail.winfo_manager():
+                rail.pack(side=tk.RIGHT, fill=tk.Y, before=self.content_area)
+        elif rail.winfo_manager():
+            rail.pack_forget()
+        if hasattr(self, "_right_rail_var"):
+            self._right_rail_var.set(bool(visible))
+
+    def _toggle_right_rail(self) -> None:
+        """Honor an explicit View-menu rail preference for the current viewport."""
+        visible = bool(self._right_rail_var.get())
+        self._right_rail_user_hidden = not visible
+        self._apply_right_rail_visibility(visible)
+
+    def _on_shell_viewport_configure(self, event) -> None:
+        """Collapse the rail at laptop widths and restore it when room returns."""
+        if event.widget is not self.root:
+            return
+        width = int(event.width)
+        if width < 1400:
+            self._apply_right_rail_visibility(False)
+        elif not getattr(self, "_right_rail_user_hidden", False):
+            self._apply_right_rail_visibility(True)
 
     def _set_content_header_visible(self, visible: bool):
         """Keep list chrome out of the first-run workspace."""

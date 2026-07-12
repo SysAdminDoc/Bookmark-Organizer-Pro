@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import json
+import os
 import tkinter as tk
+from pathlib import Path
 from tkinter import ttk
 from typing import Dict, Iterable, List, Sequence
 
+from bookmark_organizer_pro.constants import SETTINGS_FILE
 from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens
 
 try:  # pragma: no cover - exercised when the optional GUI dependency exists
@@ -15,6 +19,31 @@ except Exception:  # pragma: no cover - fallback keeps the app usable
 
 
 TKSHEET_AVAILABLE = Sheet is not None
+
+
+def accessible_list_mode_enabled(settings_file: Path = SETTINGS_FILE) -> bool:
+    """Return the persisted preference for the native semantic table."""
+    try:
+        data = json.loads(Path(settings_file).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        return False
+    return bool(data.get("accessible_bookmark_list", False)) if isinstance(data, dict) else False
+
+
+def save_accessible_list_mode(enabled: bool, settings_file: Path = SETTINGS_FILE) -> None:
+    """Persist accessible table selection without discarding other settings."""
+    path = Path(settings_file)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            data = {}
+    except (OSError, json.JSONDecodeError, TypeError):
+        data = {}
+    data["accessible_bookmark_list"] = bool(enabled)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    os.replace(temporary, path)
 
 
 # =============================================================================
@@ -659,4 +688,10 @@ class VirtualBookmarkSheet(tk.Frame):
         return col_index - 1
 
 
-BookmarkListWidget = VirtualBookmarkSheet if TKSHEET_AVAILABLE else SortableTreeview
+def BookmarkListWidget(parent, columns: Sequence[str], **kwargs):
+    """Build the virtual table or the native accessibility-compatible table."""
+    accessible_mode = kwargs.pop("accessible_mode", None)
+    if accessible_mode is None:
+        accessible_mode = accessible_list_mode_enabled()
+    widget_class = SortableTreeview if accessible_mode or not TKSHEET_AVAILABLE else VirtualBookmarkSheet
+    return widget_class(parent, columns=columns, **kwargs)

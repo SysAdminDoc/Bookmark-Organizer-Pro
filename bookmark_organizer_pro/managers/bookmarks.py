@@ -143,6 +143,7 @@ class BookmarkManager:
             loaded = self.storage.load()
             if self.recovery_required:
                 return
+            self._storage_revision = getattr(self.storage, "revision", 0)
             self.bookmarks.clear()
             for bm in loaded:
                 self._assign_unique_id(bm)
@@ -172,6 +173,21 @@ class BookmarkManager:
         check = getattr(self.storage, "assert_writable", None)
         if callable(check):
             check()
+
+    def _sync_before_write(self) -> None:
+        """Reload a newer persisted revision before applying a local mutation."""
+        self._ensure_storage_writable()
+        get_revision = getattr(self.storage, "current_revision", None)
+        if not callable(get_revision):
+            return
+        persisted = get_revision()
+        loaded = getattr(self, "_storage_revision", 0)
+        if persisted != loaded:
+            log.info(
+                f"Library advanced from revision {loaded} to {persisted}; "
+                "reloading before write"
+            )
+            self._load_bookmarks()
 
     def reload(self):
         """Reload bookmarks from disk"""
@@ -223,15 +239,22 @@ class BookmarkManager:
 
     # --- File-change watching (R-74) ----------------------------------------
 
-    def start_file_watcher(self, interval: float = 5.0,
-                           on_reload: callable = None):
+    def start_file_watcher(
+        self,
+        interval: float = 5.0,
+        on_reload: callable = None,
+        callback_scheduler: callable = None,
+    ):
         """Poll the bookmark file's mtime and reload on external changes.
 
         ``on_reload`` is called (no args) after a successful reload so the
         GUI can refresh its views.
         """
+        self.stop_file_watcher()
         self._watch_mtime = self._get_mtime()
+        self._watch_revision = getattr(self, "_storage_revision", 0)
         self._watch_callback = on_reload
+        self._watch_scheduler = callback_scheduler
         self._watch_interval = interval
         self._watch_stop = threading.Event()
         self._watch_thread = threading.Thread(
@@ -243,6 +266,9 @@ class BookmarkManager:
         stop = getattr(self, "_watch_stop", None)
         if stop:
             stop.set()
+        thread = getattr(self, "_watch_thread", None)
+        if thread and thread is not threading.current_thread() and thread.is_alive():
+            thread.join(timeout=max(getattr(self, "_watch_interval", 0.1) * 2, 0.2))
 
     def _get_mtime(self) -> float:
         try:
@@ -253,16 +279,25 @@ class BookmarkManager:
     def _file_watch_loop(self):
         while not self._watch_stop.wait(self._watch_interval):
             current = self._get_mtime()
-            if current != self._watch_mtime and current > 0:
+            get_revision = getattr(self.storage, "current_revision", None)
+            try:
+                revision = get_revision() if callable(get_revision) else None
+            except Exception as exc:
+                log.warning(f"Could not poll library revision: {exc}")
+                continue
+            revision_changed = revision is not None and revision != self._watch_revision
+            if revision_changed or (current != self._watch_mtime and current > 0):
                 self._watch_mtime = current
+                self._watch_revision = revision
                 log.info("Bookmark file changed externally — reloading")
                 self._load_bookmarks()
                 cb = self._watch_callback
                 if cb:
                     try:
-                        cb()
-                    except Exception:
-                        pass
+                        scheduler = self._watch_scheduler
+                        scheduler(cb) if scheduler else cb()
+                    except Exception as exc:
+                        log.warning(f"Library reload callback failed: {exc}")
 
     def save_bookmarks(self):
         """Save all bookmarks to storage (thread-safe — holds lock through write)."""
@@ -282,7 +317,10 @@ class BookmarkManager:
         if getattr(self, "_batch_depth", 0) > 0:
             self._batch_dirty = True
             return
-        self.storage.save([bm.to_dict() for bm in snapshot])
+        self._storage_revision = self.storage.save(
+            [bm.to_dict() for bm in snapshot],
+            expected_revision=getattr(self, "_storage_revision", 0),
+        )
         if hasattr(self, "_watch_mtime"):
             self._watch_mtime = self._get_mtime()
 
@@ -297,7 +335,7 @@ class BookmarkManager:
                     manager.add_bookmark_clean(url=url, ...)
             # single save happens here
         """
-        self._ensure_storage_writable()
+        self._sync_before_write()
         with self._lock:
             self._batch_depth = getattr(self, "_batch_depth", 0) + 1
             self._batch_dirty = getattr(self, "_batch_dirty", False)
@@ -309,12 +347,15 @@ class BookmarkManager:
                 if self._batch_depth == 0 and self._batch_dirty:
                     self._batch_dirty = False
                     snapshot = list(self.bookmarks.values())
-                    self.storage.save([bm.to_dict() for bm in snapshot])
+                    self._storage_revision = self.storage.save(
+                        [bm.to_dict() for bm in snapshot],
+                        expected_revision=getattr(self, "_storage_revision", 0),
+                    )
 
     def add_bookmark(self, bookmark: Bookmark, save: bool = True) -> Bookmark:
         """Add a new bookmark. Set save=False for batch operations."""
         if save:
-            self._ensure_storage_writable()
+            self._sync_before_write()
         with self._lock:
             self._assign_unique_id(bookmark)
             self.bookmarks[bookmark.id] = bookmark
@@ -325,7 +366,7 @@ class BookmarkManager:
     
     def update_bookmark(self, bookmark_or_id, **kwargs) -> Optional[Bookmark]:
         """Update a bookmark's attributes. Can accept Bookmark object or bookmark_id."""
-        self._ensure_storage_writable()
+        self._sync_before_write()
         # Handle both Bookmark object and ID
         if isinstance(bookmark_or_id, Bookmark):
             bookmark = bookmark_or_id
@@ -355,7 +396,7 @@ class BookmarkManager:
     
     def delete_bookmark(self, bookmark_id: int) -> bool:
         """Delete a bookmark"""
-        self._ensure_storage_writable()
+        self._sync_before_write()
         bookmark_id = self._coerce_bookmark_id(bookmark_id)
         if bookmark_id is None:
             return False

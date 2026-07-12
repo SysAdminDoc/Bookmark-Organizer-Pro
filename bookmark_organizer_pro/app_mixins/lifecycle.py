@@ -223,6 +223,10 @@ class LifecycleActionsMixin:
             except Exception:
                 log.debug("Error stopping dead-link scanner", exc_info=True)
 
+        bookmark_manager = getattr(self, "bookmark_manager", None)
+        if bookmark_manager is not None:
+            bookmark_manager.stop_file_watcher()
+
         for manager in (getattr(self, "favicon_manager", None),
                         getattr(self, "task_runner", None)):
             if manager is not None:

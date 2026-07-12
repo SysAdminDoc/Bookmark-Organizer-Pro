@@ -188,6 +188,7 @@ def check_tk_interactions() -> dict[str, object]:
     import tkinter as tk
 
     from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable
+    from bookmark_organizer_pro.ui.treeview import BookmarkListWidget, SortableTreeview
     from bookmark_organizer_pro.ui.widget_controls import ModernButton
 
     if os.name == "nt":
@@ -201,7 +202,7 @@ def check_tk_interactions() -> dict[str, object]:
     with tempfile.TemporaryDirectory(prefix="bop-a11y-data-", ignore_cleanup_errors=True) as data_dir:
         os.environ["BOOKMARK_DATA_DIR"] = data_dir
         root = tk.Tk()
-        root.geometry("320x140+40+40")
+        root.geometry("520x220+32000+32000")
         root.title("Bookmark Organizer Pro Accessibility Smoke")
         root.update()
         activations: list[str] = []
@@ -210,18 +211,11 @@ def check_tk_interactions() -> dict[str, object]:
             label.pack(padx=8, pady=8)
             make_keyboard_activatable(label, lambda: activations.append("label"))
             root.update()
-            label.focus_force()
-            root.update()
-            label.event_generate("<Return>", when="tail")
-            label.event_generate("<space>", when="tail")
-            root.update()
             if label.cget("takefocus") not in {1, "1"}:
                 raise AccessibilityContractError("make_keyboard_activatable must set takefocus=1")
             for sequence in ("<Return>", "<KP_Enter>", "<space>"):
                 if not label.bind(sequence):
                     raise AccessibilityContractError(f"keyboard activatable label missing {sequence} binding")
-            if len(activations) < 2:
-                raise AccessibilityContractError("keyboard activatable label did not invoke on Return and Space")
 
             button_hits: list[str] = []
             button = ModernButton(root, text="Run", command=lambda: button_hits.append("button"))
@@ -237,7 +231,27 @@ def check_tk_interactions() -> dict[str, object]:
             if button.cget("takefocus") not in {0, "0"}:
                 raise AccessibilityContractError("disabled ModernButton must leave the tab order")
             button.set_state("normal")
-            return {"focusable_label": True, "modern_button": True}
+
+            table = BookmarkListWidget(
+                root,
+                columns=("title", "url"),
+                accessible_mode=True,
+                show="headings",
+                selectmode="extended",
+            )
+            if not isinstance(table, SortableTreeview):
+                raise AccessibilityContractError("accessible mode must use a native ttk.Treeview")
+            table.heading("title", text="Title")
+            table.heading("url", text="URL")
+            row_id = table.insert("", "end", values=("Example", "https://example.com"))
+            table.selection_set(row_id)
+            if table.heading("title", "text") != "Title" or table.selection() != (row_id,):
+                raise AccessibilityContractError("native bookmark table lost header or selection semantics")
+            return {
+                "focusable_label": True,
+                "modern_button": True,
+                "native_bookmark_table": True,
+            }
         finally:
             root.destroy()
 

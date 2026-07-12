@@ -267,7 +267,7 @@ async function saveBookmark() {
     } else if (result.status === 401) {
       setAddStatus("Invalid token. Check Options.", "error");
     } else {
-      setAddStatus(result.body.error || `Save failed (${result.status}).`, "error");
+      setAddStatus(`Save failed (${result.status}).`, "error");
     }
   } catch {
     setAddStatus("Cannot reach the local API. Start the app or run: bop api-server", "error");

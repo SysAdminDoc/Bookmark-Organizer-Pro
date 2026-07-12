@@ -369,6 +369,59 @@ def destroy_window(window) -> None:
         pass
 
 
+def assert_actionable_controls_inside(window) -> None:
+    """Fail when a visible actionable widget is partially clipped by the client area."""
+    window.update_idletasks()
+    left = window.winfo_rootx()
+    top = window.winfo_rooty()
+    right = left + window.winfo_width()
+    bottom = top + window.winfo_height()
+    failures: list[str] = []
+    stack = list(window.winfo_children())
+    while stack:
+        widget = stack.pop()
+        stack.extend(widget.winfo_children())
+        if not widget.winfo_ismapped() or widget.winfo_width() <= 1 or widget.winfo_height() <= 1:
+            continue
+        widget_left = widget.winfo_rootx()
+        widget_top = widget.winfo_rooty()
+        widget_right = widget_left + widget.winfo_width()
+        widget_bottom = widget_top + widget.winfo_height()
+        if widget_right <= left or widget_left >= right or widget_bottom <= top or widget_top >= bottom:
+            continue
+        takefocus = str(widget.cget("takefocus")) if "takefocus" in widget.keys() else ""
+        cursor = str(widget.cget("cursor")) if "cursor" in widget.keys() else ""
+        actionable = takefocus not in {"", "0", "false"} or cursor == "hand2"
+        if not actionable:
+            continue
+        chrome_tolerance = 8
+        if (
+            widget_left < left - chrome_tolerance
+            or widget_top < top - chrome_tolerance
+            or widget_right > right + chrome_tolerance
+            or widget_bottom > bottom + chrome_tolerance
+        ):
+            text = str(widget.cget("text")) if "text" in widget.keys() else ""
+            failures.append(
+                f"{widget.winfo_class()}:{widget.winfo_name()}:{text!r} "
+                f"({widget_left - left},{widget_top - top},{widget.winfo_width()}x{widget.winfo_height()})"
+            )
+    if failures:
+        raise VisualSmokeError("actionable controls clipped: " + ", ".join(failures[:8]))
+
+
+def verify_desktop_viewports(root, theme_manager) -> None:
+    """Exercise supported desktop sizes and themes without foreground activation."""
+    _prepare_background_window(root)
+    for width, height in ((1280, 720), (1540, 980), (1920, 1080)):
+        for theme_name in ("github_dark", "github_light"):
+            theme_manager.set_theme(theme_name)
+            root.geometry(f"{width}x{height}")
+            root.update()
+            assert_actionable_controls_inside(root)
+    root.withdraw()
+
+
 def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
     set_process_dpi_aware()
     os.environ["BOOKMARK_DATA_DIR"] = str(data_dir)
@@ -394,6 +447,11 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
     root.geometry("1540x980")
     root.title("Bookmark Organizer Pro Visual Smoke")
     app = FinalBookmarkOrganizerApp(root)
+    root.update()
+    theme_manager = get_theme_manager()
+    verify_desktop_viewports(root, theme_manager)
+    root.geometry("1540x980")
+    theme_manager.set_theme("github_dark")
     root.update()
 
     results: list[CaptureResult] = []
@@ -444,7 +502,8 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
         app.bookmark_manager.save_bookmarks()
         app._refresh_all()
 
-        theme_manager = get_theme_manager()
+        verify_desktop_viewports(root, theme_manager)
+        root.geometry("1540x980")
         theme_manager.set_theme("github_light")
         root.update()
         results.append(
@@ -650,6 +709,16 @@ def extension_init_script() -> str:
     runtime: {
       lastError: null,
       getURL(path) { return `http://127.0.0.1:8765/__extension/${path}`; },
+      sendMessage(message) {
+        if (message && message.type === "bop:get-config") {
+          return Promise.resolve({ ok: true, config: { ...config } });
+        }
+        if (message && message.type === "bop:set-api-token") {
+          config.apiToken = String(message.apiToken || "");
+          return Promise.resolve({ ok: true });
+        }
+        return Promise.resolve({ ok: false });
+      },
       openOptionsPage(callback) {
         if (typeof callback === "function") callback();
         return Promise.resolve();
@@ -693,7 +762,7 @@ def fulfill_api(route) -> None:
     elif "/bookmarks" in url:
         payload = {"bookmarks": sample_bookmarks}
     else:
-        payload = {"name": "Bookmark Organizer Pro", "version": "6.10.1"}
+        payload = {"name": "Bookmark Organizer Pro", "version": "6.10.2"}
     route.fulfill(status=200, content_type="application/json", body=json.dumps(payload))
 
 

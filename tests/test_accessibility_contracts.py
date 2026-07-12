@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from bookmark_organizer_pro.services.bookmark_graph import BookmarkGraph, GraphNode
 from bookmark_organizer_pro.ui.components import ScrollableFrame
 from bookmark_organizer_pro.ui.graph_view import GraphViewDialog, _directional_node_id
+from bookmark_organizer_pro.ui import treeview
 from scripts import accessibility_contract_smoke as a11y
 
 
@@ -17,6 +18,7 @@ def test_extension_accessibility_contracts_cover_all_extension_pages():
     assert checked == {"popup.html", "options.html", "sidepanel.html"}
     assert report["tk"]["focusable_label"] is True
     assert report["tk"]["modern_button"] is True
+    assert report["tk"]["native_bookmark_table"] is True
 
 
 def test_accessibility_contract_rejects_unlabelled_controls(tmp_path: Path):
@@ -130,3 +132,31 @@ def test_scrollable_frame_handles_linux_buttons_and_small_macos_deltas():
         (-1, "units"),
         (1, "units"),
     ]
+
+
+def test_accessible_bookmark_list_preference_is_persistent_and_non_destructive(tmp_path: Path):
+    settings = tmp_path / "settings.json"
+    settings.write_text('{"theme": "Studio Dark"}', encoding="utf-8")
+
+    treeview.save_accessible_list_mode(True, settings)
+
+    assert treeview.accessible_list_mode_enabled(settings) is True
+    assert '"theme": "Studio Dark"' in settings.read_text(encoding="utf-8")
+    treeview.save_accessible_list_mode(False, settings)
+    assert treeview.accessible_list_mode_enabled(settings) is False
+
+
+def test_accessible_mode_selects_native_semantic_treeview(monkeypatch):
+    calls = []
+
+    def fake_tree(parent, columns, **kwargs):
+        calls.append((parent, tuple(columns), kwargs))
+        return "native-tree"
+
+    monkeypatch.setattr(treeview, "SortableTreeview", fake_tree)
+    result = treeview.BookmarkListWidget(
+        "parent", columns=("title", "url"), accessible_mode=True, show="headings"
+    )
+
+    assert result == "native-tree"
+    assert calls == [("parent", ("title", "url"), {"show": "headings"})]

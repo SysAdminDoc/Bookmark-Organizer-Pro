@@ -81,6 +81,13 @@ from .reader_annotations import (
     read_extracted_text,
     render_highlights_markdown,
 )
+from .recovery_bundle import (
+    BundleReport,
+    RestoreResult,
+    create_recovery_bundle,
+    restore_recovery_bundle,
+    validate_recovery_bundle,
+)
 from .rss_feeds import (
     AI_MODES as RSS_AI_MODES,
     FeedConfig,
@@ -153,6 +160,8 @@ __all__ = [
     "HIGHLIGHT_COLORS", "ReaderAnnotationStore", "ReaderHighlight",
     "export_bookmark_highlights", "normalize_highlight_color",
     "read_extracted_text", "render_highlights_markdown",
+    "BundleReport", "RestoreResult", "create_recovery_bundle",
+    "restore_recovery_bundle", "validate_recovery_bundle",
     "RSS_AI_MODES", "FeedConfig", "FeedIngestor", "FeedItem",
     "FeedRegistry", "parse_feed",
     "SnapshotArchiver", "SnapshotBackendAttempt", "SnapshotFailureRecord",

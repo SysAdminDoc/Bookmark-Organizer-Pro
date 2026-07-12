@@ -195,7 +195,7 @@ class DashboardActionsMixin:
         refresh_btn = tk.Label(
             header, text="↻", bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.subtitle(),
-            cursor="hand2", padx=DesignTokens.PANEL_PAD,
+            cursor="hand2", padx=DesignTokens.SPACE_SM,
         )
         refresh_btn.pack(side=tk.RIGHT)
         make_keyboard_activatable(refresh_btn, self._refresh_analytics)

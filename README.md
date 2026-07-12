@@ -3,7 +3,7 @@
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **single-file HTML snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
-![Version](https://img.shields.io/badge/Version-v6.10.1-2dd4bf.svg)
+![Version](https://img.shields.io/badge/Version-v6.10.2-2dd4bf.svg)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
@@ -96,6 +96,14 @@ python -m bookmark_organizer_pro.cli digest
 
 # Run the MCP server
 python -m bookmark_organizer_pro.cli mcp-server
+
+# Create and verify a portable full-library recovery bundle
+python -m bookmark_organizer_pro.cli recovery-bundle create library-recovery.zip
+python -m bookmark_organizer_pro.cli recovery-bundle validate library-recovery.zip
+
+# Restore is a dry run unless --apply is supplied
+python -m bookmark_organizer_pro.cli recovery-bundle restore library-recovery.zip
+python -m bookmark_organizer_pro.cli recovery-bundle restore library-recovery.zip --apply
 ```
 
 Snapshot capture applies the same private/reserved-network, redirect, request,
@@ -120,7 +128,10 @@ Get-Content "$env:USERPROFILE\.bookmark_organizer\api_token.txt"
 Load `browser-extension/` as an unpacked extension, open its Options page, enter
 the API token and port, then use the toolbar popup to save the current tab. The
 API stores tokens in the OS keyring when available and only writes the fallback
-file above when keyring storage is unavailable.
+file above when keyring storage is unavailable. The extension keeps its bearer
+token in a background-owned IndexedDB vault, restricts Chromium local storage
+to trusted extension contexts, and migrates older `storage.local` tokens on
+startup.
 Native messaging and offline category/tag suggestions remain on the roadmap.
 
 ## Features
@@ -448,6 +459,19 @@ Log file location: `~/.bookmark_organizer/logs/bookmark_organizer.log`
 - Created on every save (if enabled)
 - Stored in `~/.bookmark_organizer/backups/`
 - Named with timestamp: `bookmarks_backup_20260107_143052.json`
+
+**Portable recovery bundles:**
+- Include the library, categories/tags, settings, annotations/reviews, flows,
+  feeds, snapshots, and extracted text with a SHA-256 manifest.
+- Validation and restore dry runs do not mutate the library; applied restores
+  create a rollback bundle and report indexes that must be rebuilt.
+
+### Accessibility and responsive layout
+
+- **Settings > Accessible bookmark table** persists a native semantic table
+  mode for screen readers; the choice takes effect on the next launch.
+- The insights/assistant rail collapses automatically at laptop widths and can
+  be shown or hidden from **View > Insights and assistant rail**.
 
 ### Reset to Defaults
 

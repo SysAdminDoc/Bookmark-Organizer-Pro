@@ -2,6 +2,25 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.10.2] - 2026-07-12
+
+Concurrent-storage, portable recovery, and accessibility release.
+
+### Added
+
+- Added persisted JSON/SQLite revisions, cross-process writer coordination, stale-write conflict handling, and lifecycle-managed file watching so independent GUI/API/MCP managers do not silently lose updates.
+- Added explicit, idempotent JSON/SQLite schema migrations with verified pre-migration safepoints and read-only guards for unknown future versions.
+- Added checksummed full-library recovery bundles with safe-path validation, non-mutating dry-run restore, rollback bundles, portable snapshot/extraction paths, and CLI create/validate/restore commands.
+- Added a persistent native `ttk.Treeview` bookmark-table mode for assistive technologies, including semantic headings, selection, and sorting behavior.
+
+### Security
+
+- Moved the browser-extension bearer token from content-accessible local storage into a background-owned IndexedDB vault, restricted Chromium local storage to trusted contexts, and rejected untrusted credential messages.
+
+### Changed
+
+- Added responsive right-rail collapse and desktop action-bound checks across 1280×720, 1540×980, and 1920×1080 in both shipped themes.
+
 ## [v6.10.1] - 2026-07-12
 
 Trust, recovery, and runtime reliability release.

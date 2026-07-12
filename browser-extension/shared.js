@@ -21,6 +21,19 @@ function storageSet(values) {
   return new Promise(resolve => api.storage.local.set(values, resolve));
 }
 
+function runtimeMessage(message) {
+  if (api.runtime.sendMessage.length === 1) {
+    return api.runtime.sendMessage(message);
+  }
+  return new Promise((resolve, reject) => {
+    api.runtime.sendMessage(message, response => {
+      const error = api.runtime.lastError;
+      if (error) { reject(new Error("Extension service unavailable")); return; }
+      resolve(response);
+    });
+  });
+}
+
 function queryTabs(queryInfo) {
   if (api.tabs.query.length === 1) {
     return api.tabs.query(queryInfo);
@@ -43,8 +56,12 @@ function executeScript(tabId, func) {
   });
 }
 
-function getConfig() {
-  return storageGet(DEFAULTS).then(stored => ({ ...DEFAULTS, ...stored }));
+async function getConfig() {
+  const response = await runtimeMessage({ type: "bop:get-config" });
+  if (!response || !response.ok || !response.config) {
+    throw new Error("Extension credential service unavailable");
+  }
+  return { ...DEFAULTS, ...response.config };
 }
 
 function baseUrl(config) {
@@ -64,8 +81,7 @@ async function saveBookmarkPayload(payload, config) {
     headers: authHeaders(config),
     body: JSON.stringify(payload)
   });
-  const body = await response.json().catch(() => ({}));
-  return { status: response.status, body };
+  return { status: response.status };
 }
 
 function isSaveableUrl(url) {
@@ -138,7 +154,7 @@ async function retryPendingSaves() {
       if (result.status === 201 || result.status === 409) {
         resolved += 1;
       } else {
-        remaining.push({ ...item, attempts: (item.attempts || 0) + 1, reason: result.body.error || `HTTP ${result.status}` });
+        remaining.push({ ...item, attempts: (item.attempts || 0) + 1, reason: `HTTP ${result.status}` });
       }
     } catch {
       remaining.push({ ...item, attempts: (item.attempts || 0) + 1, reason: "API unavailable" });

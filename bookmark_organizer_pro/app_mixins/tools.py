@@ -31,6 +31,10 @@ from bookmark_organizer_pro.ui.management_dialogs import CategoryManagementDialo
 from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog
 from bookmark_organizer_pro.ui.read_later_queue import ReadLaterQueueDialog
 from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable
+from bookmark_organizer_pro.ui.treeview import (
+    accessible_list_mode_enabled,
+    save_accessible_list_mode,
+)
 from bookmark_organizer_pro.ui.widgets import AnalyticsDashboard, Tooltip, get_theme
 from bookmark_organizer_pro.ui.widget_runtime import _open_external_url
 from bookmark_organizer_pro.url_utils import URLUtilities
@@ -47,6 +51,12 @@ class ToolsActionsMixin:
                        activeforeground=theme.text_primary, bd=0)
         menu.add_command(label=_("Assistant Provider Settings"), command=self._show_ai_settings)
         menu.add_command(label=_("Theme Settings"), command=lambda: ThemeSelectorDialog(self.root, self.theme_manager))
+        self._accessible_list_var = tk.BooleanVar(value=accessible_list_mode_enabled())
+        menu.add_checkbutton(
+            label=_("Accessible bookmark table"),
+            variable=self._accessible_list_var,
+            command=self._save_accessible_list_preference,
+        )
         menu.add_command(label=_("Manage Categories"), command=self._show_category_manager)
         menu.add_separator()
         menu.add_command(label=_("Flatten All Folders"), command=self._flatten_all_folders)
@@ -58,6 +68,16 @@ class ToolsActionsMixin:
         x = self.settings_btn.winfo_rootx()
         y = self.settings_btn.winfo_rooty() + self.settings_btn.winfo_height()
         menu.tk_popup(x, y)
+
+    def _save_accessible_list_preference(self):
+        """Persist the semantic table preference for the next app launch."""
+        enabled = bool(self._accessible_list_var.get())
+        save_accessible_list_mode(enabled)
+        mode = _("enabled") if enabled else _("disabled")
+        self._show_toast(
+            _("Accessible bookmark table {mode}; applies on next launch").format(mode=mode),
+            "success",
+        )
 
     def _show_tools_menu(self):
         """Show tools menu"""

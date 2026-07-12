@@ -2,6 +2,8 @@
 
 import json
 import re
+import shutil
+import subprocess
 import tempfile
 import unittest
 import urllib.error
@@ -70,13 +72,134 @@ class TestBrowserExtensionManifest(unittest.TestCase):
         self.assertIn("api.scripting.executeScript", shared_js)
         self.assertNotIn("apiToken: \"secret", combined)
 
-    def test_options_persists_port_token_and_default_category(self):
+    def test_options_persists_public_settings_and_delegates_token_to_background(self):
         options_js = (EXT_DIR / "options.js").read_text(encoding="utf-8")
 
         self.assertIn("apiPort", options_js)
         self.assertIn("apiToken", options_js)
         self.assertIn("defaultCategory", options_js)
-        self.assertIn("storageSet({ apiPort: port, apiToken, defaultCategory })", options_js)
+        self.assertIn("storageSet({ apiPort: port, defaultCategory })", options_js)
+        self.assertIn('{ type: "bop:set-api-token", apiToken }', options_js)
+        self.assertNotIn("storageSet({ apiPort: port, apiToken", options_js)
+
+    def test_token_vault_migrates_legacy_storage_and_restricts_untrusted_access(self):
+        background_js = (EXT_DIR / "background.js").read_text(encoding="utf-8")
+        vault_js = (EXT_DIR / "credential-vault.js").read_text(encoding="utf-8")
+
+        self.assertIn('importScripts("credential-vault.js")', background_js)
+        self.assertIn('setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" })', background_js)
+        self.assertIn('storageGet({ apiToken: "" })', background_js)
+        self.assertIn('CredentialVault.setToken(legacyToken)', background_js)
+        self.assertIn('storageRemove("apiToken")', background_js)
+        self.assertIn('indexedDB.open(DATABASE_NAME, 1)', vault_js)
+        self.assertNotIn("console.", background_js + vault_js)
+
+    def test_settings_popup_and_sidepanel_round_trip_through_background_vault(self):
+        background_js = (EXT_DIR / "background.js").read_text(encoding="utf-8")
+        shared_js = (EXT_DIR / "shared.js").read_text(encoding="utf-8")
+        options_js = (EXT_DIR / "options.js").read_text(encoding="utf-8")
+
+        self.assertIn('message.type === "bop:get-config"', background_js)
+        self.assertIn('message.type === "bop:set-api-token"', background_js)
+        self.assertIn("sender.id !== api.runtime.id", background_js)
+        self.assertIn('String(sender.url || "").startsWith(trustedRoot)', background_js)
+        self.assertIn('apiToken: await CredentialVault.getToken()', background_js)
+        self.assertIn('runtimeMessage({ type: "bop:get-config" })', shared_js)
+        self.assertIn('runtimeMessage({ type: "bop:get-config" })', options_js)
+        self.assertIn('{ ...DEFAULTS, ...response.config }', shared_js)
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for the extension service-worker harness")
+    def test_background_vault_migration_and_trusted_message_round_trip(self):
+        harness = r"""
+const fs = require("fs");
+const vm = require("vm");
+
+const state = { apiPort: 8765, defaultCategory: "Research", apiToken: "legacy-secret" };
+let vaultToken = "";
+let accessLevel = "";
+let messageListener;
+const noopEvent = { addListener() {} };
+
+const local = {
+  async get(keys) {
+    if (Array.isArray(keys)) return Object.fromEntries(keys.map(key => [key, state[key]]));
+    if (typeof keys === "string") return { [keys]: state[keys] };
+    const result = {};
+    for (const [key, fallback] of Object.entries(keys || {})) {
+      result[key] = Object.prototype.hasOwnProperty.call(state, key) ? state[key] : fallback;
+    }
+    return result;
+  },
+  async set(values) { Object.assign(state, values); },
+  async remove(keys) { for (const key of [].concat(keys)) delete state[key]; },
+  async setAccessLevel(details) { accessLevel = details.accessLevel; }
+};
+
+const chrome = {
+  storage: { local },
+  runtime: {
+    id: "test-extension",
+    getURL(path) { return `chrome-extension://test-extension/${path}`; },
+    onInstalled: noopEvent,
+    onMessage: { addListener(listener) { messageListener = listener; } }
+  },
+  contextMenus: { create() {}, onClicked: noopEvent },
+  sidePanel: { setPanelBehavior: async () => {}, open: async () => {} }
+};
+
+const context = vm.createContext({
+  chrome,
+  fetch: async () => ({ status: 201 }),
+  console,
+  setTimeout,
+  clearTimeout
+});
+context.globalThis = context;
+context.importScripts = () => {
+  context.CredentialVault = {
+    async getToken() { return vaultToken; },
+    async setToken(value) {
+      const token = typeof value === "string" ? value.trim() : "";
+      if (!token) throw new Error("A token is required");
+      vaultToken = token;
+    }
+  };
+};
+
+vm.runInContext(fs.readFileSync(process.argv[1], "utf8"), context);
+
+function send(message, url = "chrome-extension://test-extension/popup.html") {
+  return new Promise(resolve => {
+    const accepted = messageListener(message, { id: "test-extension", url }, resolve);
+    if (!accepted) resolve({ rejected: true });
+  });
+}
+
+(async () => {
+  await new Promise(resolve => setImmediate(resolve));
+  const migrated = await send({ type: "bop:get-config" });
+  const updated = await send({ type: "bop:set-api-token", apiToken: "replacement-secret" }, "chrome-extension://test-extension/options.html");
+  const roundTrip = await send({ type: "bop:get-config" }, "chrome-extension://test-extension/sidepanel.html");
+  const untrusted = await send({ type: "bop:get-config" }, "https://example.com/page");
+  process.stdout.write(JSON.stringify({ accessLevel, state, vaultToken, migrated, updated, roundTrip, untrusted }));
+})().catch(error => { process.stderr.write(error.message); process.exit(1); });
+"""
+        completed = subprocess.run(
+            ["node", "-e", harness, str(EXT_DIR / "background.js")],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = json.loads(completed.stdout)
+        self.assertEqual(result["accessLevel"], "TRUSTED_CONTEXTS")
+        self.assertNotIn("apiToken", result["state"])
+        self.assertEqual(result["migrated"]["config"]["apiToken"], "legacy-secret")
+        self.assertTrue(result["updated"]["ok"])
+        self.assertEqual(result["vaultToken"], "replacement-secret")
+        self.assertEqual(result["roundTrip"]["config"]["apiToken"], "replacement-secret")
+        self.assertTrue(result["untrusted"]["rejected"])
 
     def test_manifest_declares_sidepanel(self):
         manifest = json.loads((EXT_DIR / "manifest.json").read_text(encoding="utf-8"))
@@ -184,6 +307,7 @@ class TestBrowserExtensionManifest(unittest.TestCase):
             "options.html",
             "options.js",
             "shared.js",
+            "credential-vault.js",
             "sidepanel.html",
             "sidepanel.js",
         ]:

@@ -7,6 +7,7 @@ import re
 import shutil
 import tempfile
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -27,6 +28,44 @@ class StorageRecoveryRequiredError(RuntimeError):
     """Raised when a damaged library must be recovered before it can be saved."""
 
 
+class StorageConflictError(RuntimeError):
+    """Raised when a writer attempts to replace a newer library revision."""
+
+
+class StorageVersionError(StorageRecoveryRequiredError):
+    """Raised when a library was written by a newer, unsupported schema."""
+
+
+@contextmanager
+def _exclusive_file_lock(path: Path):
+    """Hold a small sidecar file lock across revision check and replacement."""
+    lock_path = Path(f"{path}.lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock_path, "a+b") as handle:
+        handle.seek(0, os.SEEK_END)
+        if handle.tell() == 0:
+            handle.write(b"\0")
+            handle.flush()
+        handle.seek(0)
+        if os.name == "nt":
+            import msvcrt
+
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            try:
+                yield
+            finally:
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:  # pragma: no cover - exercised on Linux/macOS packages
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
 @dataclass(frozen=True)
 class StorageStatus:
     """Current JSON library state, including an actionable parse failure."""
@@ -38,7 +77,7 @@ class StorageStatus:
 
     @property
     def recovery_required(self) -> bool:
-        return self.state == "corrupt"
+        return self.state in {"corrupt", "future_version"}
 
 
 class StorageManager:
@@ -54,7 +93,8 @@ class StorageManager:
 
     def __init__(self, filepath: Path):
         self.filepath = Path(filepath)
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
+        self.revision = 0
         self.status = StorageStatus(
             "absent" if not self.filepath.exists() else "unread",
             self.filepath,
@@ -62,7 +102,12 @@ class StorageManager:
 
     def _require_writable(self) -> None:
         if self.status.recovery_required:
-            raise StorageRecoveryRequiredError(
+            error_type = (
+                StorageVersionError
+                if self.status.state == "future_version"
+                else StorageRecoveryRequiredError
+            )
+            raise error_type(
                 f"Cannot save {self.filepath}: {self.status.error}. "
                 "Restore a verified backup or explicitly salvage the damaged file first."
             )
@@ -71,37 +116,88 @@ class StorageManager:
         """Fail before callers mutate in-memory state during recovery mode."""
         self._require_writable()
 
-    def save(self, data: List[Dict], metadata: Dict = None):
-        """Save data atomically."""
+    def _read_header(self) -> Tuple[int, int]:
+        """Return persisted (schema version, revision) without decoding records."""
+        if not self.filepath.exists():
+            return self.CURRENT_VERSION, 0
+        with open(self.filepath, "r", encoding="utf-8") as handle:
+            raw = json.load(handle)
+        if isinstance(raw, list):
+            return 0, 0
+        if not isinstance(raw, dict):
+            raise ValueError("top-level JSON value must be an object or array")
+        version = raw.get("version", 1)
+        revision = raw.get("revision", 0)
+        if not isinstance(version, int) or version < 0:
+            raise ValueError("storage version must be a non-negative integer")
+        if not isinstance(revision, int) or revision < 0:
+            raise ValueError("storage revision must be a non-negative integer")
+        return version, revision
+
+    def current_revision(self) -> int:
+        """Read the revision currently persisted by another process."""
+        try:
+            version, revision = self._read_header()
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            raise StorageRecoveryRequiredError(
+                f"Cannot read the current revision for {self.filepath}: {exc}"
+            ) from exc
+        if version > self.CURRENT_VERSION:
+            raise StorageVersionError(
+                f"Library schema {version} is newer than supported schema "
+                f"{self.CURRENT_VERSION}; upgrade the application before editing"
+            )
+        return revision
+
+    def save(
+        self,
+        data: List[Dict],
+        metadata: Dict = None,
+        expected_revision: Optional[int] = None,
+    ) -> int:
+        """Save data atomically, rejecting replacement of a newer revision."""
         self._require_writable()
-        payload = {
-            "version": self.CURRENT_VERSION,
-            "metadata": metadata or {
-                "saved_at": datetime.now().isoformat(),
-                "count": len(data),
-            },
-            "data": data,
-        }
-
-        with self._lock:
+        with self._lock, _exclusive_file_lock(self.filepath):
+            version, persisted_revision = self._read_header()
+            if version > self.CURRENT_VERSION:
+                raise StorageVersionError(
+                    f"Library schema {version} is newer than supported schema "
+                    f"{self.CURRENT_VERSION}; upgrade the application before editing"
+                )
+            if expected_revision is not None and expected_revision != persisted_revision:
+                raise StorageConflictError(
+                    f"Stale library revision {expected_revision}; current revision is "
+                    f"{persisted_revision}. Reload and retry the change."
+                )
+            next_revision = persisted_revision + 1
+            payload = {
+                "version": self.CURRENT_VERSION,
+                "revision": next_revision,
+                "metadata": metadata or {
+                    "saved_at": datetime.now().isoformat(),
+                    "count": len(data),
+                },
+                "data": data,
+            }
             self.filepath.parent.mkdir(parents=True, exist_ok=True)
-
             if self.filepath.exists():
                 self._create_backup()
-
             fd, temp_path = tempfile.mkstemp(
                 dir=self.filepath.resolve().parent, suffix='.tmp', text=True
             )
             try:
                 with os.fdopen(fd, 'w', encoding='utf-8') as f:
                     json.dump(payload, f, indent=2, ensure_ascii=False)
-
+                    f.flush()
+                    os.fsync(f.fileno())
                 os.replace(temp_path, self.filepath)
+                self.revision = next_revision
                 self.status = StorageStatus(
                     "valid_empty" if not data else "valid",
                     self.filepath,
                     count=len(data),
                 )
+                return next_revision
             except Exception:
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
@@ -197,6 +293,105 @@ class StorageManager:
             log.warning(f"Safepoint creation failed: {e}")
             return None
 
+    @staticmethod
+    def _migrate_v0_to_v1(raw):
+        if not isinstance(raw, list):
+            raise ValueError("legacy schema 0 must be a bookmark array")
+        return {"version": 1, "metadata": {"count": len(raw)}, "data": raw}
+
+    @staticmethod
+    def _migrate_v1_to_v2(raw):
+        migrated = dict(raw)
+        data = migrated.get("data")
+        if not isinstance(data, list):
+            raise ValueError("schema 1 bookmark data must be an array")
+        metadata = migrated.get("metadata")
+        migrated["metadata"] = dict(metadata) if isinstance(metadata, dict) else {}
+        migrated["metadata"].setdefault("count", len(data))
+        migrated["version"] = 2
+        return migrated
+
+    @staticmethod
+    def _migrate_v2_to_v3(raw):
+        migrated = dict(raw)
+        if not isinstance(migrated.get("data"), list):
+            raise ValueError("schema 2 bookmark data must be an array")
+        migrated["version"] = 3
+        return migrated
+
+    @staticmethod
+    def _migrate_v3_to_v4(raw):
+        migrated = dict(raw)
+        if not isinstance(migrated.get("data"), list):
+            raise ValueError("schema 3 bookmark data must be an array")
+        migrated.setdefault("revision", 0)
+        migrated["version"] = 4
+        return migrated
+
+    MIGRATIONS = {
+        0: "_migrate_v0_to_v1",
+        1: "_migrate_v1_to_v2",
+        2: "_migrate_v2_to_v3",
+        3: "_migrate_v3_to_v4",
+    }
+
+    def _upgrade_payload(self, raw):
+        """Apply every ordered schema transition and preserve a verified source."""
+        if isinstance(raw, list):
+            version = 0
+        elif isinstance(raw, dict):
+            version = raw.get("version", 1)
+        else:
+            raise ValueError("top-level JSON value must be an object or array")
+        if not isinstance(version, int) or version < 0:
+            raise ValueError("storage version must be a non-negative integer")
+        if version > self.CURRENT_VERSION:
+            raise StorageVersionError(
+                f"Library schema {version} is newer than supported schema "
+                f"{self.CURRENT_VERSION}; upgrade the application before editing"
+            )
+        if version == self.CURRENT_VERSION:
+            return raw, False
+
+        safepoint = self.create_safepoint(
+            f"pre-migration-v{version}-to-v{self.CURRENT_VERSION}"
+        )
+        if not safepoint:
+            raise StorageRecoveryRequiredError(
+                f"Could not create a pre-migration safepoint for {self.filepath}"
+            )
+        migrated = raw
+        while version < self.CURRENT_VERSION:
+            transition_name = self.MIGRATIONS.get(version)
+            if transition_name is None:
+                raise StorageVersionError(
+                    f"No migration is registered from JSON schema {version}"
+                )
+            migrated = getattr(self, transition_name)(migrated)
+            version += 1
+            if migrated.get("version") != version:
+                raise RuntimeError(f"JSON migration to schema {version} did not advance")
+        return migrated, True
+
+    def _write_payload_atomic(self, payload: Dict) -> None:
+        fd, temp_path = tempfile.mkstemp(
+            dir=self.filepath.resolve().parent, suffix=".migration.tmp", text=True
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, indent=2, ensure_ascii=False)
+                handle.flush()
+                os.fsync(handle.fileno())
+            with open(temp_path, "r", encoding="utf-8") as handle:
+                verified = json.load(handle)
+            if verified.get("version") != self.CURRENT_VERSION:
+                raise ValueError("migrated library verification failed")
+            os.replace(temp_path, self.filepath)
+        except Exception:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise
+
     def _decode_bookmarks(self, raw) -> List[Bookmark]:
         """Validate a complete JSON document without accepting partial data loss."""
         if isinstance(raw, list):
@@ -233,9 +428,14 @@ class StorageManager:
                 return []
 
             try:
-                with open(self.filepath, 'r', encoding='utf-8') as f:
-                    raw = json.load(f)
+                with _exclusive_file_lock(self.filepath):
+                    with open(self.filepath, 'r', encoding='utf-8') as f:
+                        raw = json.load(f)
+                    raw, migrated = self._upgrade_payload(raw)
+                    if migrated:
+                        self._write_payload_atomic(raw)
                 bookmarks = self._decode_bookmarks(raw)
+                self.revision = raw.get("revision", 0) if isinstance(raw, dict) else 0
                 self.status = StorageStatus(
                     "valid_empty" if not bookmarks else "valid",
                     self.filepath,
@@ -246,6 +446,10 @@ class StorageManager:
                 self._mark_corrupt(
                     f"invalid JSON at line {e.lineno}, column {e.colno}: {e.msg}"
                 )
+                return []
+            except StorageVersionError as e:
+                self.status = StorageStatus("future_version", self.filepath, error=str(e))
+                log.error(f"Recovery required for {self.filepath}: {e}")
                 return []
             except Exception as e:
                 self._mark_corrupt(e)
@@ -295,8 +499,11 @@ class StorageManager:
         previous_status = self.status
         self.status = StorageStatus("absent", self.filepath)
         try:
+            self.filepath.unlink()
             self.save([bookmark.to_dict() for bookmark in bookmarks])
         except Exception:
+            if not self.filepath.exists():
+                shutil.copy2(preserved, self.filepath)
             self.status = previous_status
             raise
         return str(preserved)
