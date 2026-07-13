@@ -31,6 +31,7 @@ from bookmark_organizer_pro.services.local_state import (
 )
 
 from .foundation import FONTS, readable_text_on
+from .window_geometry import apply_screen_aware_geometry
 from .widgets import ModernButton, get_theme
 
 
@@ -61,19 +62,14 @@ class AboutDialog(tk.Toplevel):
         self.status_var = tk.StringVar(value="")
         
         self.title(f"About {APP_NAME}")
-        self.geometry("700x640")
-        self.resizable(False, False)
+        apply_screen_aware_geometry(self, 700, 640)
+        self.minsize(520, 420)
+        self.resizable(True, True)
         self.configure(bg=theme.bg_primary)
         
         # Make modal
         self.transient(parent)
         self.grab_set()
-        
-        # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - 700) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - 640) // 2
-        self.geometry(f"+{max(0, x)}+{max(0, y)}")
         
         self._create_ui(theme)
         

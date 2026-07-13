@@ -5,7 +5,7 @@ A powerful, professional-grade bookmark manager with AI-powered categorization, 
 Executable product contract: 61 CLI subcommands, 32 MCP tools, 6 AI providers, and 3 extension surfaces.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
-![Version](https://img.shields.io/badge/Version-v6.11.2-2dd4bf.svg)
+![Version](https://img.shields.io/badge/Version-v6.11.3-2dd4bf.svg)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
@@ -38,7 +38,7 @@ operations require a bearer token.
 
 ### Local API authentication
 
-The local REST API requires `Authorization: Bearer <token>` for bookmark data
+The bounded-concurrency local REST API requires `Authorization: Bearer <token>` for bookmark data
 endpoints, including `/bookmarks`, `/search`, `/stats`, `/categories`, `/tags`,
 `/digest`, `/opds`, and `/opds2`. The root endpoint only reports API metadata.
 Browser-extension requests additionally require an approved extension Origin.
@@ -480,6 +480,9 @@ Log file location: `~/.bookmark_organizer/logs/bookmark_organizer.log`
 - Bulk cleanup tools create a safepoint before changing bookmark data
 - **Tools > Restore Last Maintenance Safepoint** reverses the latest bulk cleanup action
 - Category deletion can be restored immediately from **Manage Categories > Restore Last Delete**
+- Restore and salvage operations run in the background with visible progress,
+  validated terminal results, and rollback to a verified destructive safepoint.
+- Category-delete safepoints survive restarts until restored or replaced.
 
 **Automatic backups:**
 - Created on every save (if enabled)
@@ -498,6 +501,9 @@ Log file location: `~/.bookmark_organizer/logs/bookmark_organizer.log`
   mode for screen readers; the choice takes effect on the next launch.
 - The insights/assistant rail collapses automatically at laptop widths and can
   be shown or hidden from **View > Insights and assistant rail**.
+- The AI-search and AI-tag controls expose standard keyboard activation and
+  visible focus. Major fixed dialogs fit the supported 1280x720 viewport with
+  scrollable content and persistent action buttons.
 
 ### Reset to Defaults
 

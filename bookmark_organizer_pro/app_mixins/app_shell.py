@@ -235,6 +235,7 @@ class AppShellMixin:
         )
         self._nl_toggle_btn.pack(side=tk.RIGHT, padx=(4, 4))
         self._nl_toggle_btn.bind("<Button-1>", lambda e: self._toggle_nl_search())
+        make_keyboard_activatable(self._nl_toggle_btn, self._toggle_nl_search)
         Tooltip(self._nl_toggle_btn, _("Interpret the query as natural language"))
 
         search_help = tk.Label(

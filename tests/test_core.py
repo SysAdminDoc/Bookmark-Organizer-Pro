@@ -23,6 +23,7 @@ from bookmark_organizer_pro.constants import IS_WINDOWS
 from bookmark_organizer_pro.core.category_manager import CategoryManager
 from bookmark_organizer_pro.core.sqlite_storage import SQLiteStorageManager, migrate_json_to_sqlite
 from bookmark_organizer_pro.core.storage_manager import (
+    StorageConflictError,
     StorageManager,
     StorageRecoveryRequiredError,
 )
@@ -678,15 +679,166 @@ class TestStorageAndExportSafety(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / "bookmarks.json"
             target = Path(tmp) / "bookmarks.sqlite"
+            backups = Path(tmp) / "backups"
             bookmark = Bookmark(id=7, url="https://migrate.example", title="Migrate")
-            StorageManager(source).save([bookmark.to_dict()])
+            source_manager = StorageManager(source)
+            source_manager.save([bookmark.to_dict()])
+            source_manager.save([bookmark.to_dict()], expected_revision=1)
 
-            count = migrate_json_to_sqlite(source, target)
+            with (
+                patch("bookmark_organizer_pro.core.sqlite_storage.BACKUP_DIR", backups),
+                patch("bookmark_organizer_pro.core.storage_manager.BACKUP_DIR", backups),
+                patch(
+                    "bookmark_organizer_pro.core.storage_manager.SAFEPOINT_DIR",
+                    backups / "safepoints",
+                ),
+            ):
+                count = migrate_json_to_sqlite(source, target)
 
             self.assertEqual(count, 1)
-            loaded = SQLiteStorageManager(target).load()
+            destination = SQLiteStorageManager(target)
+            loaded = destination.load()
             self.assertEqual(len(loaded), 1)
             self.assertEqual(loaded[0].url, "https://migrate.example")
+            self.assertEqual(destination.current_revision(), 2)
+            safepoints = list((backups / "safepoints").glob("*.json"))
+            self.assertEqual(len(safepoints), 1)
+            self.assertTrue(safepoints[0].with_suffix(".sha256").is_file())
+
+    def test_migrate_json_to_sqlite_rejects_corrupt_and_future_sources(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            backups = root / "backups"
+            cases = {
+                "corrupt": b'{"version": 4, "data": [',
+                "future": json.dumps(
+                    {"version": StorageManager.CURRENT_VERSION + 1, "revision": 9, "data": []}
+                ).encode("utf-8"),
+            }
+            for label, original in cases.items():
+                with self.subTest(label=label):
+                    source = root / f"{label}.json"
+                    target = root / f"{label}.sqlite"
+                    source.write_bytes(original)
+                    with (
+                        patch("bookmark_organizer_pro.core.sqlite_storage.BACKUP_DIR", backups),
+                        patch("bookmark_organizer_pro.core.storage_manager.BACKUP_DIR", backups),
+                        patch(
+                            "bookmark_organizer_pro.core.storage_manager.SAFEPOINT_DIR",
+                            backups / "safepoints",
+                        ),
+                        self.assertRaises(StorageRecoveryRequiredError),
+                    ):
+                        migrate_json_to_sqlite(source, target)
+                    self.assertEqual(source.read_bytes(), original)
+                    self.assertFalse(target.exists())
+
+    def test_migrate_json_to_sqlite_verification_failure_never_activates_target(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "bookmarks.json"
+            target = root / "bookmarks.sqlite"
+            backups = root / "backups"
+            bookmark = Bookmark(id=17, url="https://authoritative.example", title="Source")
+            StorageManager(source).save([bookmark.to_dict()])
+            original = source.read_bytes()
+
+            from bookmark_organizer_pro.core import sqlite_storage
+
+            real_identity = sqlite_storage._migration_identity
+            calls = 0
+
+            def mismatched_destination(bookmarks, revision):
+                nonlocal calls
+                calls += 1
+                identity = real_identity(bookmarks, revision)
+                if calls == 3:
+                    return (*identity[:-1], "mismatched-digest")
+                return identity
+
+            with (
+                patch("bookmark_organizer_pro.core.sqlite_storage.BACKUP_DIR", backups),
+                patch("bookmark_organizer_pro.core.storage_manager.BACKUP_DIR", backups),
+                patch(
+                    "bookmark_organizer_pro.core.storage_manager.SAFEPOINT_DIR",
+                    backups / "safepoints",
+                ),
+                patch(
+                    "bookmark_organizer_pro.core.sqlite_storage._migration_identity",
+                    side_effect=mismatched_destination,
+                ),
+                self.assertRaisesRegex(StorageRecoveryRequiredError, "verification failed"),
+            ):
+                migrate_json_to_sqlite(source, target)
+
+            self.assertEqual(source.read_bytes(), original)
+            self.assertFalse(target.exists())
+            self.assertEqual(list(root.glob(".*.migration-*.tmp*")), [])
+
+    def test_migrate_json_to_sqlite_does_not_replace_existing_destination(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "bookmarks.json"
+            target = root / "bookmarks.sqlite"
+            StorageManager(source).save(
+                [Bookmark(id=1, url="https://source.example", title="Source").to_dict()]
+            )
+            destination = SQLiteStorageManager(target)
+            destination.save(
+                [Bookmark(id=2, url="https://existing.example", title="Existing").to_dict()]
+            )
+            original = target.read_bytes()
+
+            with self.assertRaises(FileExistsError):
+                migrate_json_to_sqlite(source, target)
+
+            self.assertEqual(target.read_bytes(), original)
+            self.assertEqual(
+                [bookmark.id for bookmark in SQLiteStorageManager(target).load()],
+                [2],
+            )
+
+    def test_migrate_json_to_sqlite_rejects_source_change_before_activation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "bookmarks.json"
+            target = root / "bookmarks.sqlite"
+            backups = root / "backups"
+            StorageManager(source).save(
+                [Bookmark(id=1, url="https://first.example", title="First").to_dict()]
+            )
+            replacement = Bookmark(id=2, url="https://newer.example", title="Newer")
+            real_validate = SQLiteStorageManager._validate_database_file
+
+            def validate_then_change_source(path):
+                migrated = real_validate(path)
+                StorageManager(source).save(
+                    [replacement.to_dict()],
+                    expected_revision=1,
+                )
+                return migrated
+
+            with (
+                patch("bookmark_organizer_pro.core.sqlite_storage.BACKUP_DIR", backups),
+                patch("bookmark_organizer_pro.core.storage_manager.BACKUP_DIR", backups),
+                patch(
+                    "bookmark_organizer_pro.core.storage_manager.SAFEPOINT_DIR",
+                    backups / "safepoints",
+                ),
+                patch.object(
+                    SQLiteStorageManager,
+                    "_validate_database_file",
+                    side_effect=validate_then_change_source,
+                ),
+                self.assertRaisesRegex(StorageConflictError, "source changed"),
+            ):
+                migrate_json_to_sqlite(source, target)
+
+            self.assertFalse(target.exists())
+            self.assertEqual(
+                [bookmark.id for bookmark in StorageManager(source).load()],
+                [2],
+            )
 
     def test_xbel_export_creates_parent_dirs_and_imports_own_doctype(self):
         with tempfile.TemporaryDirectory() as tmp:

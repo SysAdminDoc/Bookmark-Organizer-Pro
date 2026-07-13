@@ -20,9 +20,32 @@ from bookmark_organizer_pro.core.storage_manager import (
     StorageRecoveryRequiredError,
     StorageStatus,
     StorageVersionError,
+    _exclusive_file_lock,
 )
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+
+
+def _canonical_bookmark_digest(bookmarks: List[Bookmark]) -> str:
+    """Return a stable digest over the complete, ordered bookmark payload."""
+    payload = [bookmark.to_dict() for bookmark in bookmarks]
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _migration_identity(bookmarks: List[Bookmark], revision: int) -> tuple:
+    """Describe the fields that must survive a backend migration exactly."""
+    return (
+        len(bookmarks),
+        tuple(str(bookmark.id) for bookmark in bookmarks),
+        int(revision),
+        _canonical_bookmark_digest(bookmarks),
+    )
 
 
 class SQLiteStorageManager:
@@ -704,9 +727,130 @@ class SQLiteStorageManager:
 
 
 def migrate_json_to_sqlite(json_path: Path, sqlite_path: Path) -> int:
-    """Copy bookmarks from the existing JSON storage file into SQLite."""
+    """Stage and verify a JSON library before atomically activating SQLite.
+
+    The JSON library remains untouched and authoritative throughout.  A
+    verified JSON safepoint is required before any destination is staged, and
+    the destination is only made visible after count, ordered IDs, revision,
+    and canonical bookmark content all match.
+    """
     from bookmark_organizer_pro.core.storage_manager import StorageManager
 
-    bookmarks = StorageManager(Path(json_path)).load()
-    SQLiteStorageManager(Path(sqlite_path)).save([bm.to_dict() for bm in bookmarks])
-    return len(bookmarks)
+    source_path = Path(json_path)
+    destination_path = Path(sqlite_path)
+    if source_path.resolve() == destination_path.resolve():
+        raise ValueError("JSON source and SQLite destination must be different files")
+    destination_files = (
+        destination_path,
+        Path(f"{destination_path}-wal"),
+        Path(f"{destination_path}-shm"),
+    )
+    if any(path.exists() for path in destination_files):
+        raise FileExistsError(
+            f"SQLite destination or a sidecar already exists: {destination_path}. "
+            "Move or remove it before starting a verified migration."
+        )
+
+    source = StorageManager(source_path)
+    bookmarks = source.load()
+    if source.status.recovery_required:
+        raise StorageRecoveryRequiredError(
+            f"Cannot migrate {source_path}: {source.status.error}. "
+            "Restore or salvage the JSON library before migrating."
+        )
+    if source.status.state not in {"valid", "valid_empty"}:
+        raise StorageRecoveryRequiredError(
+            f"Cannot migrate {source_path}: a valid JSON library is required"
+        )
+
+    source_identity = _migration_identity(bookmarks, source.revision)
+    safepoint_name = source.create_safepoint("pre-sqlite-migration")
+    if not safepoint_name:
+        raise StorageRecoveryRequiredError(
+            f"Could not create a pre-migration safepoint for {source_path}"
+        )
+    safepoint_path = (BACKUP_DIR / safepoint_name).resolve()
+    safepoint_hash = safepoint_path.with_suffix(".sha256")
+    if not safepoint_path.is_file() or not safepoint_hash.is_file():
+        raise StorageRecoveryRequiredError(
+            f"Pre-migration safepoint could not be verified: {safepoint_path}"
+        )
+    expected_hash = safepoint_hash.read_text(encoding="utf-8").split()[0]
+    if hashlib.sha256(safepoint_path.read_bytes()).hexdigest() != expected_hash:
+        raise StorageRecoveryRequiredError(
+            f"Pre-migration safepoint hash mismatch: {safepoint_path}"
+        )
+    safepoint = StorageManager(safepoint_path)
+    safepoint_bookmarks = safepoint.load()
+    if (
+        safepoint.status.recovery_required
+        or _migration_identity(safepoint_bookmarks, safepoint.revision) != source_identity
+    ):
+        raise StorageRecoveryRequiredError(
+            f"Pre-migration safepoint does not match the JSON source: {safepoint_path}"
+        )
+
+    destination_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination_path.with_name(
+        f".{destination_path.name}.migration-{os.getpid()}-{threading.get_ident()}.tmp"
+    )
+    temporary_files = (temporary, Path(f"{temporary}-wal"), Path(f"{temporary}-shm"))
+    for candidate in temporary_files:
+        candidate.unlink(missing_ok=True)
+
+    try:
+        staged = SQLiteStorageManager(temporary)
+        staged.save([bookmark.to_dict() for bookmark in bookmarks])
+        with closing(staged._connect()) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            conn.execute(
+                "INSERT OR REPLACE INTO metadata(key, value) VALUES('revision', ?)",
+                (str(source.revision),),
+            )
+            conn.commit()
+        staged.revision = source.revision
+        staged._close_wal_for_replacement()
+
+        migrated = staged._validate_database_file(temporary)
+        uri = f"file:{temporary.resolve().as_posix()}?mode=ro"
+        with closing(sqlite3.connect(uri, uri=True)) as conn:
+            conn.row_factory = sqlite3.Row
+            destination_revision = staged._validate_schema(conn)
+        destination_identity = _migration_identity(migrated, destination_revision)
+        if destination_identity != source_identity:
+            raise StorageRecoveryRequiredError(
+                "SQLite migration verification failed: source and destination "
+                "count, IDs, revision, or canonical digest differ"
+            )
+
+        # Keep the cross-process JSON writer lock through the final source
+        # comparison and activation, closing the last race between verification
+        # and os.replace().  The first load upgraded any supported legacy schema,
+        # so a different version here is necessarily a concurrent replacement.
+        with _exclusive_file_lock(source_path):
+            with open(source_path, "r", encoding="utf-8") as handle:
+                current_raw = json.load(handle)
+            if not isinstance(current_raw, dict):
+                raise StorageConflictError(
+                    "JSON source changed during SQLite migration; no destination was activated"
+                )
+            current_version = current_raw.get("version", 1)
+            current_revision = current_raw.get("revision", 0)
+            if (
+                current_version != StorageManager.CURRENT_VERSION
+                or not isinstance(current_revision, int)
+                or current_revision < 0
+            ):
+                raise StorageConflictError(
+                    "JSON source changed during SQLite migration; no destination was activated"
+                )
+            current_bookmarks = source._decode_bookmarks(current_raw)
+            if _migration_identity(current_bookmarks, current_revision) != source_identity:
+                raise StorageConflictError(
+                    "JSON source changed during SQLite migration; no destination was activated"
+                )
+            os.replace(temporary, destination_path)
+        return len(bookmarks)
+    finally:
+        for candidate in temporary_files:
+            candidate.unlink(missing_ok=True)

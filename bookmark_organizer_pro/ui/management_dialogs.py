@@ -8,6 +8,7 @@ from typing import Callable
 
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services import FaviconWrapperGenerator
+from bookmark_organizer_pro.services.category_delete_recovery import CategoryDeleteRecovery
 
 from .foundation import FONTS, DesignTokens, pluralize
 from .tk_interactions import make_keyboard_activatable
@@ -29,7 +30,10 @@ class CategoryManagementDialog(tk.Toplevel):
         self.on_change = on_change
         self._category_placeholder = "New category name…"
         self._category_placeholder_active = True
-        self._last_deleted_category = None
+        self._category_delete_recovery = CategoryDeleteRecovery(
+            category_manager, bookmark_manager
+        )
+        self._last_deleted_category = self._category_delete_recovery.pending()
         
         self.title("Manage Categories")
         self.configure(bg=theme.bg_primary)
@@ -304,6 +308,24 @@ class CategoryManagementDialog(tk.Toplevel):
             self._set_status("The default review category cannot be deleted.")
             return
 
+        recovery = getattr(self, "_category_delete_recovery", None)
+        if recovery is not None:
+            try:
+                record = recovery.delete(name)
+            except Exception as exc:
+                self._set_status(str(exc))
+                return
+            self._last_deleted_category = record
+            count = len(record["bookmark_ids"])
+            self._populate_categories()
+            if self.on_change:
+                self.on_change()
+            moved = f"; moved {pluralize(count, 'bookmark')}" if count else ""
+            self._set_status(
+                f"Deleted '{name}'{moved}. Restore Last Delete remains available after restart."
+            )
+            return
+
         bookmarks = list(self.bookmark_manager.get_bookmarks_by_category(name))
         count = len(bookmarks)
         self._last_deleted_category = {
@@ -327,6 +349,20 @@ class CategoryManagementDialog(tk.Toplevel):
         self._set_status(f"Deleted '{name}'{moved}. Restore Last Delete is available.")
 
     def _restore_last_deleted_category(self):
+        recovery = getattr(self, "_category_delete_recovery", None)
+        if recovery is not None:
+            try:
+                name, restored = recovery.restore()
+            except Exception as exc:
+                self._set_status(str(exc))
+                return False
+            self._last_deleted_category = None
+            self._populate_categories()
+            if self.on_change:
+                self.on_change()
+            self._set_status(f"Restored '{name}' and {pluralize(restored, 'bookmark')}.")
+            return True
+
         record = self._last_deleted_category
         if not record:
             self._set_status("No deleted category is available to restore.")

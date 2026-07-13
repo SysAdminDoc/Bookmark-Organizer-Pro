@@ -2,6 +2,21 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.11.3] - 2026-07-12
+
+Concurrent recovery and accessible-dialog release.
+
+### Added
+
+- Added a bounded eight-worker loopback API with admission control, request deadlines, exact body limits, disconnect-safe responses, and an unauthenticated health endpoint.
+- Added background restore and salvage workflows with visible terminal validation, verified rollback safepoints, and restart-durable category-delete recovery.
+- Added screen-aware dialog geometry and offscreen 1280x720 regression coverage for the bookmark editor, About, and dependency setup surfaces.
+
+### Changed
+
+- Made AI-search and AI-tag actions keyboard-operable semantic controls with visible focus and announced state.
+- Hardened JSON-to-SQLite migration with source-version rejection, verified safepoints, staged activation, canonical source/destination equivalence checks, and source revalidation under lock.
+
 ## [v6.11.2] - 2026-07-12
 
 Shared trust-boundary release.

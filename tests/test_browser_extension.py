@@ -1,14 +1,19 @@
 """Static checks for the bundled browser extension scaffold."""
 
+import concurrent.futures
 import json
 import re
 import shutil
+import socket
 import subprocess
 import tempfile
+import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from unittest import mock
 
 from bookmark_organizer_pro.constants import APP_VERSION
 
@@ -527,6 +532,162 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
             {"Origin": origin},
             path="/extension/pair",
         )
+
+    def _get_json(self, base_url: str, path: str, token: str = ""):
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        request = urllib.request.Request(f"{base_url}{path}", headers=headers)
+        with urllib.request.urlopen(request, timeout=3) as response:
+            return response.status, json.loads(response.read().decode("utf-8"))
+
+    def test_bounded_server_keeps_health_and_save_responsive_during_snapshot(self):
+        import main
+        from bookmark_organizer_pro.services.snapshot import SnapshotArchiver
+
+        origin = f"chrome-extension://{'c' * 32}"
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            api = main.BookmarkAPI(
+                manager,
+                port=0,
+                extension_origins_file=Path(tmp) / "approved-origins.json",
+                max_workers=4,
+            )
+            slow_client = socket.socket()
+            release_snapshot = threading.Event()
+            snapshot_entered = threading.Event()
+            original_import = SnapshotArchiver.import_browser_snapshot
+
+            def delayed_import(archiver, *args, **kwargs):
+                snapshot_entered.set()
+                if not release_snapshot.wait(2):
+                    raise RuntimeError("test snapshot release timed out")
+                return original_import(archiver, *args, **kwargs)
+
+            try:
+                api.start()
+                token = self._api_token()
+                base_url = f"http://127.0.0.1:{api.port}"
+                status, body = self._pair_extension(base_url, token, origin)
+                self.assertEqual(status, 200, body)
+
+                slow_client.connect(("127.0.0.1", api.port))
+                slow_client.sendall(b"GET /health HTTP/1.1\r\nHost: 127.0.0.1")
+                capture = {
+                    "url": "https://example.com/concurrent-capture",
+                    "title": "Concurrent capture",
+                    "browser_snapshot": {
+                        "html": "<html><body>captured</body></html>",
+                        "source_url": "https://example.com/concurrent-capture",
+                    },
+                }
+                headers = {"Origin": origin, "X-BOP-Capture-Version": "1"}
+                with mock.patch.object(SnapshotArchiver, "import_browser_snapshot", delayed_import):
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                        snapshot_future = executor.submit(
+                            self._post_json, base_url, capture, token, headers,
+                        )
+                        self.assertTrue(snapshot_entered.wait(1))
+                        health_future = executor.submit(self._get_json, base_url, "/health")
+                        save_future = executor.submit(
+                            self._post_json,
+                            base_url,
+                            {"url": "https://example.com/concurrent-save"},
+                            token,
+                        )
+                        self.assertEqual(health_future.result(timeout=1)[1]["status"], "ok")
+                        self.assertEqual(save_future.result(timeout=1)[0], 201)
+                        release_snapshot.set()
+                        snapshot_status, snapshot_body = snapshot_future.result(timeout=2)
+                self.assertEqual(snapshot_status, 201, snapshot_body)
+                self.assertTrue(snapshot_body["browser_snapshot"]["stored"])
+                self.assertEqual(len(manager.get_all_bookmarks()), 2)
+            finally:
+                release_snapshot.set()
+                slow_client.close()
+                api.stop()
+
+    def test_slow_headers_and_bodies_expire_and_release_the_worker(self):
+        import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            api = main.BookmarkAPI(
+                manager,
+                port=0,
+                max_workers=1,
+                header_deadline_seconds=0.2,
+                request_deadline_seconds=0.2,
+                io_timeout_seconds=0.2,
+            )
+            header_client = socket.socket()
+            body_client = socket.socket()
+            try:
+                api.start()
+                token = self._api_token()
+                base_url = f"http://127.0.0.1:{api.port}"
+
+                header_client.connect(("127.0.0.1", api.port))
+                header_client.sendall(b"GET /health HTTP/1.1\r\nHost: 127.0.0.1")
+                time.sleep(0.05)
+                with self.assertRaises(urllib.error.HTTPError) as busy:
+                    self._get_json(base_url, "/health")
+                self.assertEqual(busy.exception.code, 503)
+                time.sleep(0.3)
+                self.assertEqual(self._get_json(base_url, "/health")[0], 200)
+
+                body_client.connect(("127.0.0.1", api.port))
+                request_headers = (
+                    "POST /bookmarks HTTP/1.1\r\n"
+                    "Host: 127.0.0.1\r\n"
+                    f"Authorization: Bearer {token}\r\n"
+                    "Content-Type: application/json\r\n"
+                    "Content-Length: 100\r\n\r\n"
+                ).encode("ascii")
+                body_client.sendall(request_headers + b"{")
+                time.sleep(0.3)
+                self.assertEqual(self._get_json(base_url, "/health")[1]["status"], "ok")
+                self.assertEqual(manager.get_all_bookmarks(), [])
+            finally:
+                header_client.close()
+                body_client.close()
+                api.stop()
+
+    def test_handler_deadline_disconnects_a_stalled_request_without_blocking_health(self):
+        import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            api = main.BookmarkAPI(
+                manager,
+                port=0,
+                max_workers=2,
+                request_deadline_seconds=0.2,
+                io_timeout_seconds=0.2,
+            )
+            release_handler = threading.Event()
+            handler_entered = threading.Event()
+            original_stats = manager.get_statistics
+
+            def delayed_stats():
+                handler_entered.set()
+                release_handler.wait(2)
+                return original_stats()
+
+            try:
+                api.start()
+                token = self._api_token()
+                base_url = f"http://127.0.0.1:{api.port}"
+                with mock.patch.object(manager, "get_statistics", delayed_stats):
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                        stalled = executor.submit(self._get_json, base_url, "/stats", token)
+                        self.assertTrue(handler_entered.wait(1))
+                        self.assertEqual(self._get_json(base_url, "/health")[1]["status"], "ok")
+                        with self.assertRaises((OSError, urllib.error.URLError)):
+                            stalled.result(timeout=1)
+                        release_handler.set()
+            finally:
+                release_handler.set()
+                api.stop()
 
     def test_extension_origin_pairing_rejects_unpaired_and_supports_explicit_rotation(self):
         import main

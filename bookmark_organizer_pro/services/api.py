@@ -12,9 +12,13 @@ import json
 import os
 import re
 import secrets
+import socket
+import socketserver
 import threading
+import time
 import urllib.parse
 from dataclasses import asdict
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -32,6 +36,10 @@ _KEYRING_SERVICE = "bookmark-organizer-pro"
 _KEYRING_KEY = "api_token"
 _MAX_BOOKMARK_BODY_BYTES = 65_536
 _MAX_BROWSER_SNAPSHOT_BODY_BYTES = 5_500_000
+_DEFAULT_API_WORKERS = 8
+_DEFAULT_HEADER_DEADLINE_SECONDS = 5.0
+_DEFAULT_REQUEST_DEADLINE_SECONDS = 30.0
+_DEFAULT_IO_TIMEOUT_SECONDS = 5.0
 _EXTENSION_ORIGIN_RE = re.compile(
     r"^(?:chrome-extension://[a-p]{32}|moz-extension://[0-9a-f-]{8,64})$",
     re.IGNORECASE,
@@ -238,6 +246,58 @@ def _load_or_create_token() -> str:
     return token
 
 
+class _BoundedThreadingHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
+    """Thread-per-request HTTP server with a hard admission ceiling."""
+
+    daemon_threads = True
+    block_on_close = False
+    request_queue_size = 32
+
+    def __init__(self, server_address, handler_class, *, max_workers: int):
+        self.max_workers = max(1, int(max_workers))
+        self._worker_slots = threading.BoundedSemaphore(self.max_workers)
+        super().__init__(server_address, handler_class)
+
+    def process_request(self, request, client_address):
+        if not self._worker_slots.acquire(blocking=False):
+            self._reject_busy(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self._worker_slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._worker_slots.release()
+
+    def _reject_busy(self, request) -> None:
+        body = b'{"error":"Local API is busy; retry shortly"}'
+        response = (
+            b"HTTP/1.1 503 Service Unavailable\r\n"
+            b"Content-Type: application/json; charset=utf-8\r\n"
+            b"X-Content-Type-Options: nosniff\r\n"
+            b"Connection: close\r\n"
+            b"Retry-After: 1\r\n"
+            + f"Content-Length: {len(body)}\r\n\r\n".encode("ascii")
+            + body
+        )
+        try:
+            request.settimeout(0.25)
+            request.sendall(response)
+        except OSError:
+            pass
+        finally:
+            self.shutdown_request(request)
+
+    def handle_error(self, request, client_address) -> None:
+        _ = request, client_address
+        log.debug("Local API client disconnected before the request completed")
+
+
 # =============================================================================
 # REST API (Simple Flask-like API using built-in http.server)
 # =============================================================================
@@ -250,24 +310,128 @@ class BookmarkAPI:
         port: int = 8765,
         *,
         extension_origins_file: Path | None = None,
+        max_workers: int = _DEFAULT_API_WORKERS,
+        header_deadline_seconds: float = _DEFAULT_HEADER_DEADLINE_SECONDS,
+        request_deadline_seconds: float = _DEFAULT_REQUEST_DEADLINE_SECONDS,
+        io_timeout_seconds: float = _DEFAULT_IO_TIMEOUT_SECONDS,
     ):
         self.bookmark_manager = bookmark_manager
         self.port = port
         self._server = None
         self._thread = None
+        self.max_workers = max(1, int(max_workers))
+        self.header_deadline_seconds = max(0.1, float(header_deadline_seconds))
+        self.request_deadline_seconds = max(0.1, float(request_deadline_seconds))
+        self.io_timeout_seconds = max(0.1, float(io_timeout_seconds))
         self.extension_origins = ExtensionOriginRegistry(
             extension_origins_file or _EXTENSION_ORIGINS_FILE
         )
     
     def start(self):
         """Start the API server"""
-        from http.server import HTTPServer, BaseHTTPRequestHandler
-        
         bookmark_manager = self.bookmark_manager
         api_token = _load_or_create_token()
         extension_origins = self.extension_origins
+        header_deadline_seconds = self.header_deadline_seconds
+        request_deadline_seconds = self.request_deadline_seconds
+        io_timeout_seconds = self.io_timeout_seconds
 
         class APIHandler(BaseHTTPRequestHandler):
+            def setup(self) -> None:
+                super().setup()
+                self._deadline_lock = threading.Lock()
+                self._deadline_generation = 0
+                self._deadline_timer: threading.Timer | None = None
+                self._request_deadline = time.monotonic() + header_deadline_seconds
+                self.connection.settimeout(io_timeout_seconds)
+                self._arm_deadline(header_deadline_seconds)
+
+            def finish(self) -> None:
+                self._cancel_deadline()
+                try:
+                    super().finish()
+                except OSError:
+                    pass
+
+            def parse_request(self) -> bool:
+                parsed = super().parse_request()
+                if parsed:
+                    self._request_deadline = time.monotonic() + request_deadline_seconds
+                    self._arm_deadline(request_deadline_seconds)
+                return parsed
+
+            def _arm_deadline(self, seconds: float) -> None:
+                with self._deadline_lock:
+                    self._deadline_generation += 1
+                    generation = self._deadline_generation
+                    previous = self._deadline_timer
+                    timer = threading.Timer(seconds, self._expire_deadline, args=(generation,))
+                    timer.daemon = True
+                    self._deadline_timer = timer
+                if previous is not None:
+                    previous.cancel()
+                timer.start()
+
+            def _cancel_deadline(self) -> None:
+                with self._deadline_lock:
+                    self._deadline_generation += 1
+                    timer = self._deadline_timer
+                    self._deadline_timer = None
+                if timer is not None:
+                    timer.cancel()
+
+            def _expire_deadline(self, generation: int) -> None:
+                with self._deadline_lock:
+                    if generation != self._deadline_generation:
+                        return
+                try:
+                    self.connection.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+
+            def _read_request_body(self, maximum: int, *, label: str) -> bytes | None:
+                if self.headers.get("Transfer-Encoding"):
+                    self._send_json({"error": "Transfer-Encoding is not supported"}, 400)
+                    return None
+                try:
+                    content_length = int(self.headers.get("Content-Length", 0))
+                except (TypeError, ValueError):
+                    self._send_json({"error": "Invalid Content-Length"}, 400)
+                    return None
+                if content_length <= 0 or content_length > maximum:
+                    self.close_connection = True
+                    self._send_json({"error": f"{label} is empty or too large"}, 413)
+                    return None
+
+                body = bytearray()
+                remaining = content_length
+                try:
+                    while remaining:
+                        deadline_remaining = self._request_deadline - time.monotonic()
+                        if deadline_remaining <= 0:
+                            raise TimeoutError
+                        self.connection.settimeout(min(io_timeout_seconds, deadline_remaining))
+                        chunk = self.rfile.read(min(remaining, 65_536))
+                        if not chunk:
+                            self.close_connection = True
+                            self._send_json({"error": "Request body ended before Content-Length"}, 400)
+                            return None
+                        body.extend(chunk)
+                        remaining -= len(chunk)
+                except (socket.timeout, TimeoutError):
+                    self.close_connection = True
+                    try:
+                        self._send_json({"error": "Request body deadline exceeded"}, 408)
+                    except OSError:
+                        pass
+                    return None
+                finally:
+                    try:
+                        self.connection.settimeout(io_timeout_seconds)
+                    except OSError:
+                        pass
+                return bytes(body)
+
             def _is_pairing_path(self) -> bool:
                 return urllib.parse.urlparse(self.path).path.rstrip('/') == '/extension/pair'
 
@@ -288,7 +452,10 @@ class BookmarkAPI:
                 self.send_header('Access-Control-Allow-Origin', self._cors_origin())
                 self.send_header('Vary', 'Origin')
                 self.end_headers()
-                self.wfile.write(body)
+                try:
+                    self.wfile.write(body)
+                except OSError:
+                    self.close_connection = True
 
             def _send_xml(self, xml: str, status=200):
                 body = xml.encode("utf-8")
@@ -301,7 +468,10 @@ class BookmarkAPI:
                 self.send_header('Content-Length', str(len(body)))
                 self.send_header('Access-Control-Allow-Origin', 'null')
                 self.end_headers()
-                self.wfile.write(body)
+                try:
+                    self.wfile.write(body)
+                except OSError:
+                    self.close_connection = True
 
             def _check_auth(self, *, discard_body: bool = False) -> bool:
                 auth = self.headers.get('Authorization', '')
@@ -361,6 +531,10 @@ class BookmarkAPI:
                             "GET|POST|DELETE /extension/pair"
                         ]
                     })
+                    return
+
+                if path_parts[0] == 'health':
+                    self._send_json({"status": "ok", "version": APP_VERSION})
                     return
 
                 if not self._check_auth():
@@ -525,16 +699,11 @@ class BookmarkAPI:
 
                 if path_parts[:2] == ['extension', 'pair']:
                     origin = self.headers.get('Origin', '').strip()
-                    try:
-                        content_length = int(self.headers.get('Content-Length', 0))
-                    except (TypeError, ValueError):
-                        self._send_json({"error": "Invalid Content-Length"}, 400)
-                        return
-                    if content_length <= 0 or content_length > 4096:
-                        self._send_json({"error": "Pairing request body is empty or too large"}, 413)
+                    body = self._read_request_body(4096, label="Pairing request body")
+                    if body is None:
                         return
                     try:
-                        data = json.loads(self.rfile.read(content_length))
+                        data = json.loads(body)
                         if not isinstance(data, dict):
                             raise ValueError("Pairing request must be a JSON object")
                         changed = extension_origins.pair(
@@ -557,15 +726,13 @@ class BookmarkAPI:
                     return
 
                 if path_parts and path_parts[0] == 'bookmarks':
-                    try:
-                        content_length = int(self.headers.get('Content-Length', 0))
-                    except (TypeError, ValueError):
-                        self._send_json({"error": "Invalid Content-Length"}, 400)
+                    body = self._read_request_body(
+                        _MAX_BROWSER_SNAPSHOT_BODY_BYTES,
+                        label="Request body",
+                    )
+                    if body is None:
                         return
-                    if content_length <= 0 or content_length > _MAX_BROWSER_SNAPSHOT_BODY_BYTES:
-                        self._send_json({"error": "Request body is empty or too large"}, 413)
-                        return
-                    body = self.rfile.read(content_length)
+                    content_length = len(body)
                     
                     try:
                         data = json.loads(body)
@@ -719,7 +886,11 @@ class BookmarkAPI:
         if self._server:
             return
 
-        self._server = HTTPServer(('127.0.0.1', self.port), APIHandler)
+        self._server = _BoundedThreadingHTTPServer(
+            ('127.0.0.1', self.port),
+            APIHandler,
+            max_workers=self.max_workers,
+        )
         self.port = self._server.server_address[1]
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
         self._thread.start()

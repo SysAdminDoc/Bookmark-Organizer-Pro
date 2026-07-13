@@ -12,8 +12,10 @@ from bookmark_organizer_pro.managers import TagManager
 from bookmark_organizer_pro.models import Bookmark
 
 from .foundation import FONTS, DesignTokens, readable_text_on
+from .tk_interactions import make_keyboard_activatable
 from .widget_controls import ModernButton, TagEditor, ThemedWidget
 from .widget_runtime import _open_external_url, apply_window_chrome, get_theme
+from .window_geometry import apply_screen_aware_geometry
 
 # =============================================================================
 # Bookmark Editor Dialog
@@ -35,7 +37,9 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
         theme = get_theme()
         
         self.title(_("Edit Bookmark") if bookmark else _("Add Bookmark"))
-        self.geometry("640x760")
+        apply_screen_aware_geometry(self, 640, 760)
+        self.minsize(420, 420)
+        self.resizable(True, True)
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
         self.grab_set()
@@ -58,9 +62,42 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
             bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small()
         ).pack(anchor="w", padx=DesignTokens.PANEL_PAD, pady=(0, 9))
         
-        # Content
-        content = tk.Frame(self, bg=theme.bg_primary)
-        content.pack(fill=tk.BOTH, expand=True, padx=28, pady=20)
+        # Scrollable content keeps the footer reachable on 1280x720 displays.
+        body = tk.Frame(self, bg=theme.bg_primary)
+        body.pack(fill=tk.BOTH, expand=True, padx=(28, 14), pady=20)
+        self.content_canvas = tk.Canvas(
+            body, bg=theme.bg_primary, highlightthickness=0, bd=0,
+        )
+        content_scrollbar = ttk.Scrollbar(
+            body, orient=tk.VERTICAL, command=self.content_canvas.yview,
+        )
+        self.content_canvas.configure(yscrollcommand=content_scrollbar.set)
+        self.content_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        content_scrollbar.pack(side=tk.RIGHT, fill=tk.Y, padx=(8, 0))
+        content = tk.Frame(self.content_canvas, bg=theme.bg_primary)
+        content_window = self.content_canvas.create_window(
+            (0, 0), window=content, anchor="nw",
+        )
+        content.bind(
+            "<Configure>",
+            lambda _event: self.content_canvas.configure(
+                scrollregion=self.content_canvas.bbox("all")
+            ),
+        )
+        self.content_canvas.bind(
+            "<Configure>",
+            lambda event: self.content_canvas.itemconfigure(
+                content_window, width=event.width,
+            ),
+        )
+        self.bind(
+            "<MouseWheel>",
+            lambda event: self.content_canvas.yview_scroll(
+                int(-event.delta / 120) if event.delta else 0, "units"
+            ),
+        )
+        self.bind("<Prior>", lambda _event: self.content_canvas.yview_scroll(-1, "pages"))
+        self.bind("<Next>", lambda _event: self.content_canvas.yview_scroll(1, "pages"))
 
         tk.Label(
             content, text=_("BOOKMARK DETAILS"), bg=theme.bg_primary,
@@ -184,6 +221,7 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
                                   font=FONTS.tiny(), padx=5, pady=1, cursor="hand2")
                 add_btn.pack(side=tk.RIGHT, padx=5)
                 add_btn.bind("<Button-1>", lambda e: add_ai_tags())
+                make_keyboard_activatable(add_btn, add_ai_tags)
             
             if bookmark.description:
                 desc_row = tk.Frame(ai_inner, bg=theme.bg_primary)

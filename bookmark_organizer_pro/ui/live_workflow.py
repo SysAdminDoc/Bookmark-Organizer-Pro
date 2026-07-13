@@ -98,6 +98,7 @@ class LiveWorkflowDialog:
         self._queue: "deque[Callable]" = deque()
         self._finished = False
         self._finish_summary: Optional[str] = None
+        self._finish_outcome = "success"
 
         theme = get_theme()
         self.theme = theme
@@ -164,8 +165,12 @@ class LiveWorkflowDialog:
     def run(self, worker: Callable[[], None]):
         """Start the reveal pump and launch ``worker`` on a daemon thread."""
         import threading
-        self._schedule_pump()
+        self.start()
         threading.Thread(target=self._guarded_worker, args=(worker,), daemon=True).start()
+
+    def start(self):
+        """Start UI progress pumping for work owned by an external task runner."""
+        self._schedule_pump()
 
     def _guarded_worker(self, worker: Callable[[], None]):
         try:
@@ -173,7 +178,7 @@ class LiveWorkflowDialog:
         except Exception:  # pragma: no cover - defensive; worker logs its own errors
             from bookmark_organizer_pro.logging_config import log
             log.warning("Live workflow worker crashed", exc_info=True)
-            self.signal_finish("Stopped — an unexpected error occurred")
+            self.signal_finish("Stopped — an unexpected error occurred", outcome="error")
 
     def _alive(self) -> bool:
         try:
@@ -249,10 +254,11 @@ class LiveWorkflowDialog:
         self.add_entry(lambda feed, theme: self._build_standard_row(
             feed, theme, status, title, detail, detail_color))
 
-    def signal_finish(self, summary: str):
+    def signal_finish(self, summary: str, *, outcome: str = "success"):
         """Mark the run complete. The dialog flips to "Done" only after every
         queued row has been revealed, so the drip animation always finishes."""
         self._finish_summary = summary
+        self._finish_outcome = outcome if outcome in {"success", "warning", "error"} else "error"
         self._finished = True
 
     # ── Reveal pump (runs on the Tk main thread) ─────────────────────────
@@ -316,7 +322,12 @@ class LiveWorkflowDialog:
         if not self._alive():
             return
         try:
-            self.bar_fill.configure(bg=self.theme.accent_success)
+            finish_color = {
+                "success": self.theme.accent_success,
+                "warning": self.theme.accent_warning,
+                "error": self.theme.accent_error,
+            }[self._finish_outcome]
+            self.bar_fill.configure(bg=finish_color)
             self.bar_fill.place(relwidth=1.0)
             # Reconcile the counter in case any overflow rows were dropped.
             self.stats_label.configure(text=f"{self.total} / {self.total}")

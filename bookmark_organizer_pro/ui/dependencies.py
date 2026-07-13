@@ -11,6 +11,7 @@ from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.utils.dependencies import DependencyManager
 
 from .foundation import FONTS
+from .window_geometry import apply_screen_aware_geometry
 from .widgets import ModernButton, apply_window_chrome, get_theme
 
 
@@ -26,19 +27,15 @@ class DependencyCheckDialog(tk.Toplevel):
         theme = get_theme()
 
         self.title(f"{APP_NAME} - Setup Check")
-        self.geometry("500x400")
-        self.resizable(False, False)
+        apply_screen_aware_geometry(self, 500, 400)
+        self.minsize(420, 340)
+        self.resizable(True, True)
         self.configure(bg=theme.bg_primary)
         apply_window_chrome(self)
 
         self.transient(parent)
         self.grab_set()
         self.bind("<Escape>", lambda e: self.destroy())
-
-        self.update_idletasks()
-        x = (self.winfo_screenwidth() - 500) // 2
-        y = (self.winfo_screenheight() - 400) // 2
-        self.geometry(f"+{x}+{y}")
 
         self._create_ui(theme)
         self.protocol("WM_DELETE_WINDOW", self._on_cancel)

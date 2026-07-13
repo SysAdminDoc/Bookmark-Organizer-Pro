@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tkinter as tk
 
+from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.ui import build_filter_counts
 from bookmark_organizer_pro.ui.foundation import FONTS, format_compact_count
 from bookmark_organizer_pro.ui.widgets import get_theme
@@ -103,9 +104,9 @@ class FilterActionsMixin:
         btn = getattr(self, '_nl_toggle_btn', None)
         if btn:
             if self._nl_search_mode:
-                btn.configure(bg=theme.accent_primary, fg="#ffffff")
+                btn.configure(bg=theme.accent_primary, fg="#ffffff", text=_("AI on"))
             else:
-                btn.configure(bg=theme.bg_tertiary, fg=theme.text_muted)
+                btn.configure(bg=theme.bg_tertiary, fg=theme.text_muted, text=_("AI"))
         placeholder = "Ask anything about your bookmarks..." if self._nl_search_mode else "Search bookmarks…"
         self._search_placeholder = placeholder
         if not self.search_entry.get() or self.search_entry.get() in (

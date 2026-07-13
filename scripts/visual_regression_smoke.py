@@ -39,6 +39,9 @@ class ExtensionSurface:
 DESKTOP_SURFACES = (
     "desktop-main-empty-dark",
     "desktop-main-list-light",
+    "desktop-bookmark-editor-1280x720",
+    "desktop-about-1280x720",
+    "desktop-dependency-setup-1280x720",
     "desktop-assistant-settings",
     "desktop-import-progress",
     "desktop-cleanup-review",
@@ -436,10 +439,15 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
     from bookmark_organizer_pro.services.snapshot import SnapshotBackendAttempt, SnapshotFailureStore
     from bookmark_organizer_pro.theme_runtime import get_theme_manager
     from bookmark_organizer_pro.ui.graph_view import GraphViewDialog
+    from bookmark_organizer_pro.ui.about import AboutDialog
     from bookmark_organizer_pro.ui.cleanup_review import CleanupReviewDialog, CleanupReviewGroup
+    from bookmark_organizer_pro.ui.dependencies import DependencyCheckDialog
     from bookmark_organizer_pro.ui.read_later_queue import ReadLaterQueueDialog
     from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog
+    from bookmark_organizer_pro.ui.widget_bookmark_editor import BookmarkEditorDialog
+    from bookmark_organizer_pro.ui.window_geometry import apply_screen_aware_geometry
     from bookmark_organizer_pro.ui.workflow_selective_export import SelectiveExportDialog
+    from bookmark_organizer_pro.utils.dependencies import DependencyManager
 
     ensure_directories()
     root = tk.Tk()
@@ -471,6 +479,69 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
                 ),
             )
         )
+
+        editor = BookmarkEditorDialog(
+            root,
+            bookmark=Bookmark(
+                id=504,
+                url="https://example.com/editor",
+                title="Editor viewport fixture",
+                category="Development",
+                tags=["viewport"],
+                ai_tags=["accessibility", "qa"],
+                ai_confidence=0.9,
+                description="A long-form fixture that exercises the scrollable editor body.",
+            ),
+            categories=["Development", "Research"],
+        )
+        apply_screen_aware_geometry(
+            editor, 640, 760, screen_width=1280, screen_height=720,
+        )
+        editor.update()
+        assert_actionable_controls_inside(editor)
+        results.append(
+            capture_tk_window(
+                editor,
+                output_dir,
+                "desktop-bookmark-editor-1280x720",
+                ("Edit bookmark", "BOOKMARK DETAILS", "Save bookmark"),
+            )
+        )
+        editor.destroy()
+
+        about = AboutDialog(root)
+        apply_screen_aware_geometry(
+            about, 700, 640, screen_width=1280, screen_height=720,
+        )
+        about.update()
+        assert_actionable_controls_inside(about)
+        results.append(
+            capture_tk_window(
+                about,
+                output_dir,
+                "desktop-about-1280x720",
+                ("Bookmark Organizer Pro", "Version"),
+            )
+        )
+        about.destroy()
+
+        dependencies = DependencyManager()
+        dependencies.check_all()
+        dependency_dialog = DependencyCheckDialog(root, dependencies)
+        apply_screen_aware_geometry(
+            dependency_dialog, 500, 400, screen_width=1280, screen_height=720,
+        )
+        dependency_dialog.update()
+        assert_actionable_controls_inside(dependency_dialog)
+        results.append(
+            capture_tk_window(
+                dependency_dialog,
+                output_dir,
+                "desktop-dependency-setup-1280x720",
+                ("Setup Check", "Continue"),
+            )
+        )
+        dependency_dialog.destroy()
 
         sample_bookmarks = [
             Bookmark(

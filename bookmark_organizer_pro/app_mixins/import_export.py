@@ -21,9 +21,11 @@ from bookmark_organizer_pro.importers import (
 )
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.recovery_workflow import RecoveryWorkflow
 from bookmark_organizer_pro.ui.bookmark_workflows import SelectiveExportDialog
 from bookmark_organizer_pro.ui.foundation import FONTS, pluralize
 from bookmark_organizer_pro.ui.import_center import ImportCenterDialog, ImportSource, build_import_sources
+from bookmark_organizer_pro.ui.live_workflow import LiveWorkflowDialog
 from bookmark_organizer_pro.ui.widgets import ModernButton, get_theme
 
 
@@ -337,36 +339,53 @@ class ImportExportMixin:
         else:
             lb.insert(tk.END, "  " + _("(no backups yet — they appear after the first save/import)"))
 
+        def start_recovery(operation: str, source: str = ""):
+            title = _("Restoring Library") if operation == "restore" else _("Salvaging Library")
+            activity = LiveWorkflowDialog(self.root, title=title, total=3, width=680, height=500)
+            workflow = RecoveryWorkflow(
+                self.bookmark_manager,
+                on_progress=lambda status, step, detail: activity.add_result(
+                    status=status, title=step, detail=detail,
+                ),
+            )
+
+            def work():
+                return workflow.restore(source) if operation == "restore" else workflow.salvage()
+
+            def complete(result):
+                if result.success:
+                    self._refresh_all()
+                activity.signal_finish(
+                    result.summary, outcome="success" if result.success else "error"
+                )
+                if hasattr(self, "_show_toast"):
+                    self._show_toast(result.summary, "success" if result.success else "error")
+
+            def failed(error):
+                log.error("Recovery task runner failed: %s", error)
+                message = _("Recovery stopped unexpectedly; the source was left in place.")
+                activity.add_result(status="error", title=_("Recovery stopped"), detail=str(error))
+                activity.signal_finish(message, outcome="error")
+                if hasattr(self, "_show_toast"):
+                    self._show_toast(message, "error")
+
+            dlg.destroy()
+            activity.start()
+            self.task_runner.run_task(
+                f"library-{operation}-{id(activity)}",
+                work,
+                on_complete=complete,
+                on_error=failed,
+            )
+
         def do_restore():
             sel = lb.curselection()
             if not names or not sel:
                 return
-            if self.bookmark_manager.restore_backup(names[sel[0]]):
-                self._refresh_all()
-                if hasattr(self, "_show_toast"):
-                    self._show_toast(_("Bookmarks restored from backup"), "success")
-                dlg.destroy()
-            elif hasattr(self, "_show_toast"):
-                self._show_toast(_("Restore failed — see logs"), "error")
+            start_recovery("restore", names[sel[0]])
 
         def do_salvage():
-            try:
-                count, preserved = self.bookmark_manager.salvage_corrupt_file()
-            except Exception as exc:
-                log.error("Library salvage failed: %s", exc)
-                if hasattr(self, "_show_toast"):
-                    self._show_toast(str(exc), "error")
-                return
-            self._refresh_all()
-            if hasattr(self, "_show_toast"):
-                self._show_toast(
-                    _("Recovered {count} bookmark(s); damaged source preserved at {path}").format(
-                        count=count,
-                        path=preserved,
-                    ),
-                    "success",
-                )
-            dlg.destroy()
+            start_recovery("salvage")
 
         ModernButton(btns, text=_("Cancel"), command=dlg.destroy).pack(side=tk.RIGHT, padx=(10, 0))
         ModernButton(btns, text=_("Restore selected"), command=do_restore,
