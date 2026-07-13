@@ -2,10 +2,10 @@
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **single-file HTML snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
-Executable product contract: 61 CLI subcommands, 32 MCP tools, 6 AI providers, and 3 extension surfaces.
+Executable product contract: 62 CLI subcommands, 32 MCP tools, 6 AI providers, 3 extension surfaces, 48 service modules, 42 UI modules, and 35 test files.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
-![Version](https://img.shields.io/badge/Version-v6.11.3-2dd4bf.svg)
+![Version](https://img.shields.io/badge/Version-v6.12.0-2dd4bf.svg)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
@@ -75,8 +75,11 @@ The release artifact smoke runs the built executable with `--version` and fails
 if the artifact is missing, unexpectedly small, reports the wrong version, or
 leaves a process running.
 `python scripts/package_contract_audit.py` verifies the generated install input,
-standard lock, and live CLI/MCP/provider/extension counts. Regenerate the
-platform lock with `python scripts/package_contract_audit.py --update-lock`.
+standard lock, aggregate `all` extra, module ownership, and live product counts.
+`packaging/release_manifest.json` records that `pylock.toml` is verified for
+Windows/Python 3.11; other supported Python/platform combinations resolve the
+bounded manifest and are explicitly not claimed compatible with that lock.
+Regenerate the platform lock with `python scripts/package_contract_audit.py --update-lock`.
 
 ### v6 CLI quickstart
 
@@ -483,6 +486,10 @@ Log file location: `~/.bookmark_organizer/logs/bookmark_organizer.log`
 - Restore and salvage operations run in the background with visible progress,
   validated terminal results, and rollback to a verified destructive safepoint.
 - Category-delete safepoints survive restarts until restored or replaced.
+- Imports use durable source digests and per-row checkpoints, so interrupted
+  sessions can retry failures, cancel, or roll back without duplicating completed rows.
+- Snapshot recapture preserves version history, redirect/status/digest provenance,
+  bounded retention, and content-change reports; recovery bundles include the history.
 
 **Automatic backups:**
 - Created on every save (if enabled)
@@ -504,6 +511,10 @@ Log file location: `~/.bookmark_organizer/logs/bookmark_organizer.log`
 - The AI-search and AI-tag controls expose standard keyboard activation and
   visible focus. Major fixed dialogs fit the supported 1280x720 viewport with
   scrollable content and persistent action buttons.
+- Desktop and extension strings have missing-key gates. `BOOKMARK_LOCALE=qps-ploc`
+  expands desktop copy for layout testing; `qps-plocm` also mirrors representative RTL layouts.
+- Custom and imported themes show required WCAG ratios and cannot activate when
+  text, controls, or focus indicators fail the configured thresholds.
 
 ### Reset to Defaults
 

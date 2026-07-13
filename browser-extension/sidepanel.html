@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" dir="ltr" data-i18n-title="extensionName">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,44 +11,44 @@
     <header>
       <div class="brand-row">
         <span class="brand-mark">B</span>
-        <p class="eyebrow">Bookmark Organizer Pro</p>
+        <p class="eyebrow" data-i18n="extensionName">Bookmark Organizer Pro</p>
       </div>
     </header>
 
     <div class="api-status" role="status" aria-live="polite">
       <span id="statusDot" class="status-dot" aria-hidden="true"></span>
-      <span id="statusText">Connecting...</span>
+      <span id="statusText" data-i18n="connecting">Connecting...</span>
       <span id="totalCount" class="count-badge"></span>
-      <button id="openOptions" class="secondary status-options" type="button">Options</button>
+      <button id="openOptions" class="secondary status-options" type="button" data-i18n="options">Options</button>
     </div>
 
     <section id="pendingPanel" class="pending-panel" role="status" aria-live="polite" hidden>
-      <p id="pendingCount">0 pending quick saves</p>
+      <p id="pendingCount" data-i18n="zeroPendingSaves">0 pending quick saves</p>
       <div class="pending-actions">
-        <button id="retryPending" type="button">Retry</button>
-        <button id="clearPending" class="secondary" type="button">Clear</button>
+        <button id="retryPending" type="button" data-i18n="retry">Retry</button>
+        <button id="clearPending" class="secondary" type="button" data-i18n="clear">Clear</button>
       </div>
     </section>
 
-    <div class="tabs" role="tablist" aria-label="Bookmark side panel sections">
-      <button id="tab-btn-recent" class="tab-btn active" data-tab="recent" type="button" role="tab" aria-selected="true" aria-controls="tab-recent">Recent</button>
-      <button id="tab-btn-search" class="tab-btn" data-tab="search" type="button" role="tab" aria-selected="false" aria-controls="tab-search" tabindex="-1">Search</button>
-      <button id="tab-btn-add" class="tab-btn" data-tab="add" type="button" role="tab" aria-selected="false" aria-controls="tab-add" tabindex="-1">Add</button>
+    <div class="tabs" role="tablist" aria-label="Bookmark side panel sections" data-i18n-aria-label="sidePanelSections">
+      <button id="tab-btn-recent" class="tab-btn active" data-tab="recent" type="button" role="tab" aria-selected="true" aria-controls="tab-recent" data-i18n="recent">Recent</button>
+      <button id="tab-btn-search" class="tab-btn" data-tab="search" type="button" role="tab" aria-selected="false" aria-controls="tab-search" tabindex="-1" data-i18n="search">Search</button>
+      <button id="tab-btn-add" class="tab-btn" data-tab="add" type="button" role="tab" aria-selected="false" aria-controls="tab-add" tabindex="-1" data-i18n="add">Add</button>
     </div>
 
     <div id="tab-recent" class="tab-content active" role="tabpanel" aria-labelledby="tab-btn-recent">
       <ul id="recentList" class="bookmark-list" aria-busy="true"></ul>
-      <button id="loadMoreRecent" class="secondary" type="button" hidden>Load More</button>
+      <button id="loadMoreRecent" class="secondary" type="button" hidden data-i18n="loadMore">Load More</button>
       <div id="rediscoverSection" style="display:none">
-        <p class="section-title">Rediscover</p>
+        <p class="section-title" data-i18n="rediscover">Rediscover</p>
         <ul id="rediscoverList" class="bookmark-list"></ul>
       </div>
     </div>
 
     <div id="tab-search" class="tab-content" role="tabpanel" aria-labelledby="tab-btn-search" hidden>
       <div class="search-box">
-        <input id="searchInput" type="text" placeholder="Search bookmarks..." autocomplete="off" aria-label="Search bookmarks">
-        <button id="searchBtn" type="button">Search</button>
+        <input id="searchInput" type="text" placeholder="Search bookmarks..." data-i18n-placeholder="searchBookmarksPlaceholder" autocomplete="off" aria-label="Search bookmarks" data-i18n-aria-label="searchBookmarks">
+        <button id="searchBtn" type="button" data-i18n="search">Search</button>
       </div>
       <ul id="searchResults" class="bookmark-list"></ul>
     </div>
@@ -57,35 +57,36 @@
       <div class="quick-add">
         <p id="addPageTitle" class="current-page"></p>
         <label>
-          Category
+          <span data-i18n="category">Category</span>
           <input id="addCategory" type="text" autocomplete="off" list="categoryList">
           <datalist id="categoryList"></datalist>
         </label>
         <label>
-          Tags
-          <input id="addTags" type="text" placeholder="design, research, reading" autocomplete="off">
+          <span data-i18n="tags">Tags</span>
+          <input id="addTags" type="text" placeholder="design, research, reading" data-i18n-placeholder="tagsPlaceholder" autocomplete="off">
         </label>
         <label>
-          Notes
-          <textarea id="addNotes" maxlength="5000" placeholder="Add context for future rediscovery."></textarea>
+          <span data-i18n="notes">Notes</span>
+          <textarea id="addNotes" maxlength="5000" placeholder="Add context for future rediscovery." data-i18n-placeholder="shortNotesPlaceholder"></textarea>
         </label>
         <label class="checkbox-row">
           <input id="addReadLater" type="checkbox">
-          <span>Read Later</span>
+          <span data-i18n="readLater">Read Later</span>
         </label>
         <label class="checkbox-row">
           <input id="addCaptureSnapshot" type="checkbox">
-          <span>Preserve this signed-in page</span>
+          <span data-i18n="preserveSignedInPage">Preserve this signed-in page</span>
         </label>
-        <p class="field-hint">Uploads a sanitized page copy (up to 4.5 MB). Scripts, remote resources, and form fields are removed; cookies are never sent.</p>
+        <p class="field-hint" data-i18n="captureHint">Uploads a sanitized page copy (up to 4.5 MB). Bounded same-site styles, images, and fonts are embedded; scripts and forms are removed, omissions are reported, and cookies are never sent.</p>
         <div class="actions">
-          <button id="addSaveBtn" type="button">Save Bookmark</button>
-          <button id="importReadingListBtn" class="secondary" type="button" title="Import from Chrome Reading List">Reading List</button>
+          <button id="addSaveBtn" type="button" data-i18n="saveBookmark">Save Bookmark</button>
+          <button id="importReadingListBtn" class="secondary" type="button" title="Import from Chrome Reading List" data-i18n="readingList" data-i18n-title="importReadingList">Reading List</button>
         </div>
         <p id="addStatus" class="status" role="status" aria-live="polite"></p>
       </div>
     </div>
   </main>
+  <script src="i18n.js"></script>
   <script src="shared.js"></script>
   <script src="sidepanel.js"></script>
 </body>

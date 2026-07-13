@@ -21,8 +21,11 @@ def _write_library(root: Path, *, title: str = "Original") -> None:
     (root / "snapshots").mkdir(parents=True)
     (root / "extracted").mkdir()
     snapshot = root / "snapshots" / "1.html"
+    history_snapshot = root / "snapshots" / "1" / "history" / "v1.html"
+    history_snapshot.parent.mkdir(parents=True)
     extracted = root / "extracted" / "1.txt"
     snapshot.write_text("<html>saved</html>", encoding="utf-8")
+    history_snapshot.write_text("<html>older</html>", encoding="utf-8")
     extracted.write_text("saved article", encoding="utf-8")
     bookmark = {
         "id": 1,
@@ -45,6 +48,7 @@ def _write_library(root: Path, *, title: str = "Original") -> None:
         "flows.json": {"version": 1, "flows": [{"name": "Investigation"}]},
         "feeds.json": {"version": 1, "feeds": [{"url": "https://example.com/feed"}]},
         "smart_collections.json": {"version": 1, "collections": [{"name": "Research"}]},
+        "snapshot_history.json": {"versions": [{"bookmark_id": 1, "path": str(history_snapshot)}]},
     }
     for name, payload in fixtures.items():
         (root / name).write_text(json.dumps(payload), encoding="utf-8")
@@ -74,6 +78,8 @@ def test_bundle_round_trip_restores_full_library_and_rewrites_portable_paths(tmp
         "feeds.json",
         "smart_collections.json",
         "snapshots/1.html",
+        "snapshots/1/history/v1.html",
+        "snapshot_history.json",
         "extracted/1.txt",
     }.issubset(report.contents)
 
@@ -81,6 +87,10 @@ def test_bundle_round_trip_restores_full_library_and_rewrites_portable_paths(tmp
     assert result.applied
     assert Path(result.rollback_bundle).is_file()
     assert (restored / "snapshots" / "1.html").read_text(encoding="utf-8") == "<html>saved</html>"
+    assert (restored / "snapshots" / "1" / "history" / "v1.html").read_text(encoding="utf-8") == "<html>older</html>"
+    history_envelope = json.loads((restored / "snapshot_history.json").read_text(encoding="utf-8"))
+    history_record = history_envelope["document"]["versions"][0]
+    assert history_record["path"] == str((restored / "snapshots" / "1" / "history" / "v1.html").resolve())
     payload = json.loads((restored / "master_bookmarks.json").read_text(encoding="utf-8"))
     bookmark = payload["data"][0]
     assert bookmark["snapshot_path"] == str((restored / "snapshots" / "1.html").resolve())

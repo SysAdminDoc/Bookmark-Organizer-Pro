@@ -221,6 +221,14 @@ class BookmarkCLI:
         p.add_argument("--json", action="store_true", dest="as_json")
         p.set_defaults(func=self._cmd_jobs)
 
+        p = sub.add_parser("imports", help="Inspect, retry, cancel, or roll back import sessions")
+        p.add_argument("action", nargs="?", default="list",
+                       choices=["list", "show", "retry", "cancel", "rollback"])
+        p.add_argument("session_id", nargs="?", help="Import session ID prefix")
+        p.add_argument("--limit", type=int, default=50)
+        p.add_argument("--json", action="store_true", dest="as_json")
+        p.set_defaults(func=self._cmd_import_sessions)
+
         # ── Importers ──────────────────────────────────────────────
         _importer_usage = {
             "import-pocket": "import-pocket <file>",
@@ -1289,13 +1297,77 @@ Top Domains:
             return True, f"added {count} item(s)"
         return False, f"retry is unavailable for {record.job_type} jobs"
 
+    @staticmethod
+    def _print_import_session(importer) -> None:
+        report = getattr(importer, "last_session_report", None)
+        if not report:
+            return
+        causes = "; ".join(f"{cause} ({count})" for cause, count in report.causes.items()) or "none"
+        print(
+            f"  session={report.session_id} status={report.status} failed={report.failed} "
+            f"losses={report.losses} pending={report.pending} duration={report.duration_ms}ms "
+            f"causes={causes}"
+        )
+
+    def _cmd_import_sessions(self, ns: argparse.Namespace):
+        from bookmark_organizer_pro.services.import_sessions import ImportSessionManager
+
+        sessions = ImportSessionManager()
+        action = ns.action
+        if action == "list":
+            reports = sessions.list(ns.limit)
+            if ns.as_json:
+                print(json.dumps([report.to_dict() for report in reports], indent=2))
+            else:
+                for report in reports:
+                    print(
+                        f"{report.session_id} {report.status:<11} {report.source:<24} "
+                        f"added={report.added} duplicate={report.duplicates} "
+                        f"failed={report.failed} loss={report.losses} "
+                        f"pending={report.pending} duration={report.duration_ms}ms"
+                    )
+            return 0
+        if not ns.session_id:
+            self._error(f"imports {action} requires a session ID")
+            return 2
+        try:
+            if action == "show":
+                session = sessions.get(ns.session_id)
+                if not session:
+                    raise RuntimeError("Import session was not found or the prefix is ambiguous")
+                report = sessions.report(ns.session_id)
+            elif action == "retry":
+                report = sessions.retry(self.bookmark_manager, ns.session_id)
+            elif action == "cancel":
+                if not sessions.request_cancel(ns.session_id):
+                    raise RuntimeError("Import session was not found")
+                report = sessions.report(ns.session_id)
+            else:
+                report = sessions.rollback(self.bookmark_manager, ns.session_id)
+        except RuntimeError as exc:
+            self._error(str(exc))
+            return 1
+        if ns.as_json:
+            print(json.dumps(report.to_dict(), indent=2))
+        else:
+            causes = "; ".join(f"{cause} ({count})" for cause, count in report.causes.items()) or "none"
+            print(
+                f"Session {report.session_id}: {report.status}; {report.added} added, "
+                f"{report.duplicates} duplicates, {report.failed} failed, "
+                f"{report.losses} losses, {report.pending} pending, "
+                f"{report.duration_ms}ms; causes: {causes}"
+            )
+        return 0
+
     def _cmd_import_pocket(self, ns: argparse.Namespace):
         if not ns.file:
             print(f"Usage: {ns._usage_hint}")
             return
         from bookmark_organizer_pro.importers_extra import PocketExportImporter, import_into
-        added, dupes = import_into(self.bookmark_manager, PocketExportImporter(), ns.file)
+        importer = PocketExportImporter()
+        added, dupes = import_into(self.bookmark_manager, importer, ns.file)
         print(f"+{added} ({dupes} duplicates skipped)")
+        self._print_import_session(importer)
 
     def _cmd_import_firefox_backup(self, ns: argparse.Namespace):
         if not ns.file:
@@ -1309,38 +1381,47 @@ Top Domains:
             f"Firefox backup import: {added} added, {dupes} duplicates skipped, "
             f"{importer.stats.skipped} invalid/missing URL skipped"
         )
+        self._print_import_session(importer)
 
     def _cmd_import_readwise(self, ns: argparse.Namespace):
         if not ns.file:
             print(f"Usage: {ns._usage_hint}")
             return
         from bookmark_organizer_pro.importers_extra import ReadwiseReaderCSVImporter, import_into
-        added, dupes = import_into(self.bookmark_manager, ReadwiseReaderCSVImporter(), ns.file)
+        importer = ReadwiseReaderCSVImporter()
+        added, dupes = import_into(self.bookmark_manager, importer, ns.file)
         print(f"+{added} ({dupes} duplicates skipped)")
+        self._print_import_session(importer)
 
     def _cmd_import_pinboard(self, ns: argparse.Namespace):
         if not ns.file:
             print(f"Usage: {ns._usage_hint}")
             return
         from bookmark_organizer_pro.importers_extra import PinboardJSONImporter, import_into
-        added, dupes = import_into(self.bookmark_manager, PinboardJSONImporter(), ns.file)
+        importer = PinboardJSONImporter()
+        added, dupes = import_into(self.bookmark_manager, importer, ns.file)
         print(f"+{added} ({dupes} duplicates skipped)")
+        self._print_import_session(importer)
 
     def _cmd_import_instapaper(self, ns: argparse.Namespace):
         if not ns.file:
             print(f"Usage: {ns._usage_hint}")
             return
         from bookmark_organizer_pro.importers_extra import InstapaperImporter, import_into
-        added, dupes = import_into(self.bookmark_manager, InstapaperImporter(), ns.file)
+        importer = InstapaperImporter()
+        added, dupes = import_into(self.bookmark_manager, importer, ns.file)
         print(f"+{added} ({dupes} duplicates skipped)")
+        self._print_import_session(importer)
 
     def _cmd_import_reddit(self, ns: argparse.Namespace):
         if not ns.file:
             print(f"Usage: {ns._usage_hint}")
             return
         from bookmark_organizer_pro.importers_extra import RedditSavedImporter, import_into
-        added, dupes = import_into(self.bookmark_manager, RedditSavedImporter(), ns.file)
+        importer = RedditSavedImporter()
+        added, dupes = import_into(self.bookmark_manager, importer, ns.file)
         print(f"+{added} ({dupes} duplicates skipped)")
+        self._print_import_session(importer)
 
     def _cmd_zip_export(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.services.zip_export import ZipExporter
@@ -2003,8 +2084,10 @@ Top Domains:
             print(f"Usage: {ns._usage_hint}")
             return
         from bookmark_organizer_pro.importers_extra import MatterImporter, import_into
-        added, dupes = import_into(self.bookmark_manager, MatterImporter(), ns.file)
+        importer = MatterImporter()
+        added, dupes = import_into(self.bookmark_manager, importer, ns.file)
         print(f"Matter import: {added} added, {dupes} duplicates skipped")
+        self._print_import_session(importer)
 
     def _cmd_import_zotero(self, ns: argparse.Namespace):
         if not ns.file:
@@ -2036,16 +2119,20 @@ Top Domains:
             print(f"Usage: {ns._usage_hint}")
             return
         from bookmark_organizer_pro.importers_extra import WallabagJSONImporter, import_into
-        added, dupes = import_into(self.bookmark_manager, WallabagJSONImporter(), ns.file)
+        importer = WallabagJSONImporter()
+        added, dupes = import_into(self.bookmark_manager, importer, ns.file)
         print(f"Wallabag import: {added} added, {dupes} duplicates skipped")
+        self._print_import_session(importer)
 
     def _cmd_import_arc(self, ns: argparse.Namespace):
         if not ns.file:
             print(f"Usage: {ns._usage_hint}")
             return
         from bookmark_organizer_pro.importers_extra import ArcBrowserImporter, import_into
-        added, dupes = import_into(self.bookmark_manager, ArcBrowserImporter(), ns.file)
+        importer = ArcBrowserImporter()
+        added, dupes = import_into(self.bookmark_manager, importer, ns.file)
         print(f"Arc Browser import: {added} added, {dupes} duplicates skipped")
+        self._print_import_session(importer)
 
     def _cmd_import_browser(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.importers import BrowserProfileImporter

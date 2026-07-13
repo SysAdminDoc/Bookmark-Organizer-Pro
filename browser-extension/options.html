@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" dir="ltr" data-i18n-title="optionsTitle">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,35 +11,36 @@
     <header>
       <div class="brand-row">
         <span class="brand-mark">B</span>
-        <p class="eyebrow">Extension settings</p>
+        <p class="eyebrow" data-i18n="extensionSettings">Extension settings</p>
       </div>
-      <h1>Local API</h1>
-      <p>Connect the extension to the local Bookmark Organizer Pro API.</p>
+      <h1 data-i18n="localApi">Local API</h1>
+      <p data-i18n="connectDescription">Connect the extension to the local Bookmark Organizer Pro API.</p>
     </header>
 
     <label>
-      API port
+      <span data-i18n="apiPort">API port</span>
       <input id="apiPort" type="number" min="1" max="65535" value="8765">
     </label>
 
     <label>
-      API token
+      <span data-i18n="apiToken">API token</span>
       <input id="apiToken" type="password" autocomplete="off" spellcheck="false">
     </label>
 
     <label>
-      Default category
+      <span data-i18n="defaultCategory">Default category</span>
       <input id="defaultCategory" type="text" value="Uncategorized / Needs Review">
     </label>
 
     <div class="actions">
-      <button id="saveOptions" type="button">Save Settings</button>
-      <button id="testConnection" class="secondary" type="button">Test API</button>
-      <button id="replacePairing" class="secondary" type="button">Replace Pairing</button>
+      <button id="saveOptions" type="button" data-i18n="saveSettings">Save Settings</button>
+      <button id="testConnection" class="secondary" type="button" data-i18n="testApi">Test API</button>
+      <button id="replacePairing" class="secondary" type="button" data-i18n="replacePairing">Replace Pairing</button>
     </div>
 
     <p id="status" class="status" role="status" aria-live="polite"></p>
   </main>
+  <script src="i18n.js"></script>
   <script src="shared.js"></script>
   <script src="options.js"></script>
 </body>

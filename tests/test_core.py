@@ -1865,6 +1865,72 @@ class TestMainAppManagers(unittest.TestCase):
             finally:
                 main.LocalArchiver.ARCHIVE_DIR = original_dir
 
+    def test_local_archiver_writes_real_bounded_mhtml_with_embedded_resources(self):
+        import email
+        import main
+
+        class FakeResponse:
+            status_code = 200
+            encoding = "utf-8"
+
+            def __init__(self, body: bytes, content_type: str):
+                self.body = body
+                self.headers = {
+                    "content-type": content_type,
+                    "content-length": str(len(body)),
+                }
+                self.closed = False
+
+            def iter_content(self, chunk_size=16384):
+                yield self.body
+
+            def close(self):
+                self.closed = True
+
+        responses = {
+            "https://example.com/page": FakeResponse(
+                b'<html><head><link rel="stylesheet" href="/site.css"></head>'
+                b'<body><script>alert(1)</script><img src="/hero.png"></body></html>',
+                "text/html",
+            ),
+            "https://example.com/site.css": FakeResponse(
+                b"@font-face{src:url('/font.woff2')} body{color:#123}",
+                "text/css",
+            ),
+            "https://example.com/hero.png": FakeResponse(b"PNG", "image/png"),
+            "https://example.com/font.woff2": FakeResponse(b"FONT", "font/woff2"),
+        }
+
+        class FakeRequests:
+            def get(self, url, *args, **kwargs):
+                return responses[url]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            original_dir = main.LocalArchiver.ARCHIVE_DIR
+            try:
+                main.LocalArchiver.ARCHIVE_DIR = Path(tmp) / "archives"
+                bookmark = Bookmark(id=1, url="https://example.com/page", title="Example")
+                archiver = main.LocalArchiver()
+                with patch("bookmark_organizer_pro.services.web_tools.URLUtilities._is_safe_url", return_value=True), \
+                        patch("bookmark_organizer_pro.services.web_tools.requests", FakeRequests()):
+                    ok, archive_path = archiver.archive_page(bookmark, "mhtml")
+
+                self.assertTrue(ok, archive_path)
+                message = email.message_from_bytes(Path(archive_path).read_bytes())
+                self.assertEqual(message.get_content_type(), "multipart/related")
+                parts = list(message.walk())
+                self.assertEqual(sum(part.get_content_type() == "text/html" for part in parts), 1)
+                self.assertIn("text/css", [part.get_content_type() for part in parts])
+                self.assertIn("image/png", [part.get_content_type() for part in parts])
+                self.assertIn("font/woff2", [part.get_content_type() for part in parts])
+                html_part = next(part for part in parts if part.get_content_type() == "text/html")
+                html_payload = html_part.get_payload(decode=True).decode("utf-8")
+                self.assertNotIn("<script", html_payload)
+                self.assertIn("cid:resource-", html_payload)
+                self.assertTrue(all(response.closed for response in responses.values()))
+            finally:
+                main.LocalArchiver.ARCHIVE_DIR = original_dir
+
     def test_ai_summarizer_closes_rejected_responses(self):
         import main
 
@@ -2671,6 +2737,30 @@ class TestUITheme(unittest.TestCase):
                 "light_custom", "Light Custom", base_theme="base", is_dark=False
             )
             self.assertFalse(theme.is_dark)
+
+    def test_custom_and_imported_themes_enforce_wcag_contrast(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manager = ThemeManager(
+                self._built_in_themes(),
+                settings_file=root / "settings.json",
+                themes_dir=root / "themes",
+                default_theme="base",
+            )
+            with self.assertRaisesRegex(ValueError, "Primary text"):
+                manager.create_custom_theme(
+                    "unreadable", "Unreadable", base_theme="light",
+                    color_overrides={"text_primary": "#ffffff", "bg_primary": "#ffffff"},
+                )
+
+            imported = root / "unsafe.json"
+            imported.write_text(json.dumps({
+                "name": "unsafe",
+                "display_name": "Unsafe",
+                "colors": {"text_primary": "#ffffff", "bg_primary": "#ffffff"},
+            }), encoding="utf-8")
+            self.assertIsNone(manager.import_theme(imported))
+            self.assertNotIn("unsafe", manager.custom_themes)
 
     def test_theme_colors_reject_css_injection_values(self):
         colors = ThemeColors.from_dict({

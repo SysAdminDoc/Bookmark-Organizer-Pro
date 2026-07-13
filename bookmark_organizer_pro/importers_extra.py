@@ -17,7 +17,6 @@ from typing import Iterable, Iterator, List, Tuple
 
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
-from bookmark_organizer_pro.utils import normalize_url
 
 
 def _ts(value) -> str:
@@ -400,20 +399,14 @@ class ArcBrowserImporter:
 
 
 def import_into(manager, importer, path: str) -> Tuple[int, int]:
-    """Helper: run any importer above through a BookmarkManager.
+    """Run an importer through a durable, resumable import session.
 
     Returns (added, duplicates).
     """
-    added = duplicates = 0
-    existing = {normalize_url(bm.url) for bm in manager.bookmarks.values()}
-    for bm in importer.from_path(path):
-        canonical = normalize_url(bm.url)
-        if canonical in existing:
-            duplicates += 1
-            continue
-        manager.add_bookmark(bm, save=False)
-        existing.add(canonical)
-        added += 1
-    if added:
-        manager.save_bookmarks()
-    return added, duplicates
+    from bookmark_organizer_pro.services.import_sessions import ImportSessionManager
+
+    source = importer.__class__.__name__.removesuffix("Importer").lower()
+    sessions = ImportSessionManager()
+    report = sessions.run(manager, importer, path, source=source)
+    importer.last_session_report = report
+    return report.added, report.duplicates

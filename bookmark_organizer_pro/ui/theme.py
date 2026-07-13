@@ -18,6 +18,7 @@ from typing import Callable, Dict, List, Mapping, Optional, Union
 
 from bookmark_organizer_pro.constants import SETTINGS_FILE, THEMES_DIR
 from bookmark_organizer_pro.logging_config import log
+from bookmark_organizer_pro.ui.foundation import contrast_ratio
 
 
 _THEME_NAME_PATTERN = re.compile(r"[^A-Za-z0-9_.-]+")
@@ -112,6 +113,41 @@ class ThemeColors:
         return cls(**values)
 
 
+_CONTRAST_REQUIREMENTS = (
+    ("text_primary", "bg_primary", 4.5, "Primary text"),
+    ("text_secondary", "bg_primary", 4.5, "Secondary text"),
+    ("text_link", "bg_primary", 4.5, "Link text"),
+    ("text_primary", "bg_secondary", 4.5, "Card text"),
+    ("border_active", "bg_primary", 3.0, "Focus indicator"),
+)
+
+
+def theme_contrast_report(colors: ThemeColors) -> list[dict[str, object]]:
+    """Return required WCAG text/control contrast pairs and pass state."""
+    report = []
+    for foreground, background, minimum, label in _CONTRAST_REQUIREMENTS:
+        ratio = contrast_ratio(getattr(colors, foreground), getattr(colors, background))
+        report.append({
+            "label": label,
+            "foreground": foreground,
+            "background": background,
+            "ratio": round(ratio, 2),
+            "minimum": minimum,
+            "passes": ratio >= minimum,
+        })
+    return report
+
+
+def require_theme_contrast(colors: ThemeColors) -> None:
+    failures = [item for item in theme_contrast_report(colors) if not item["passes"]]
+    if failures:
+        details = ", ".join(
+            f"{item['label']} {item['ratio']}:1 (needs {item['minimum']}:1)"
+            for item in failures
+        )
+        raise ValueError(f"Theme contrast requirements failed: {details}")
+
+
 @dataclass
 class ThemeInfo:
     """Theme metadata plus its color palette."""
@@ -173,6 +209,8 @@ class ThemeManager:
         )
         self.current_theme: ThemeInfo = self.built_in_themes[self.default_theme]
         self.custom_themes: Dict[str, ThemeInfo] = {}
+        self.rejected_custom_themes: Dict[str, str] = {}
+        self.last_import_error = ""
         self._theme_change_callbacks: List[Callable[[ThemeInfo], None]] = []
 
         self.themes_dir.mkdir(parents=True, exist_ok=True)
@@ -214,9 +252,11 @@ class ThemeManager:
                 if not data:
                     continue
                 theme = ThemeInfo.from_dict(data)
+                require_theme_contrast(theme.colors)
                 theme.name = self._unique_theme_name(theme.name)
                 self.custom_themes[theme.name] = theme
             except Exception as exc:
+                self.rejected_custom_themes[theme_file.name] = str(exc)
                 log.warning(f"Error loading theme {theme_file}: {exc}")
 
     def save_settings(self) -> None:
@@ -273,6 +313,8 @@ class ThemeManager:
             colors=ThemeColors.from_dict(new_colors_dict),
         )
 
+        require_theme_contrast(new_theme.colors)
+
         self._write_custom_theme(new_theme)
         self.custom_themes[new_theme.name] = new_theme
         return new_theme
@@ -308,17 +350,20 @@ class ThemeManager:
 
     def import_theme(self, filepath: Union[str, Path]) -> Optional[ThemeInfo]:
         """Import a theme file and store it as a custom theme."""
+        self.last_import_error = ""
         try:
             data = _read_json_object(Path(filepath))
             if not data:
                 return None
 
             theme = ThemeInfo.from_dict(data)
+            require_theme_contrast(theme.colors)
             theme.name = self._unique_theme_name(theme.name)
             self._write_custom_theme(theme)
             self.custom_themes[theme.name] = theme
             return theme
         except Exception as exc:
+            self.last_import_error = str(exc)
             log.error(f"Error importing theme: {exc}")
             return None
 

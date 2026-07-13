@@ -114,7 +114,9 @@ async function loadRecent({ append = false } = {}) {
   const loadMore = document.getElementById("loadMoreRecent");
   if (loadMore) {
     loadMore.disabled = true;
-    loadMore.textContent = append ? "Loading..." : "Load More";
+    loadMore.textContent = append
+      ? extensionMessage("loading", [], "Loading...")
+      : extensionMessage("loadMore", [], "Load More");
   }
   try {
     const config = await getConfig();
@@ -200,13 +202,13 @@ async function checkConnection() {
     const config = await getConfig();
     if (!config.apiToken) {
       dot.classList.remove("connected", "error");
-      text.textContent = "No API token";
+      text.textContent = extensionMessage("noApiToken", [], "No API token");
       return;
     }
     const stats = await apiFetch("/stats", config);
     dot.classList.add("connected");
     dot.classList.remove("error");
-    text.textContent = "Connected";
+    text.textContent = extensionMessage("connected", [], "Connected");
     count.textContent = `${stats.total_bookmarks || 0} bookmarks`;
   } catch (error) {
     dot.classList.remove("connected");
@@ -227,7 +229,7 @@ async function loadAddTab() {
     titleEl.dataset.tabTitle = tab.title || tab.url;
     titleEl.dataset.tabId = tab.id;
   } else {
-    titleEl.textContent = "Open an HTTP/HTTPS page to save.";
+    titleEl.textContent = extensionMessage("openWebPage", [], "Open an HTTP/HTTPS page to save.");
     titleEl.dataset.url = "";
   }
 }
@@ -257,9 +259,9 @@ async function saveBookmark() {
 
   try {
     saveBtn.disabled = true;
-    saveBtn.textContent = "Saving...";
+    saveBtn.textContent = extensionMessage("saving", [], "Saving...");
     if (document.getElementById("addCaptureSnapshot").checked) {
-      setAddStatus("Sanitizing this page before upload...", "info");
+      setAddStatus(extensionMessage("sanitizingPage", [], "Sanitizing this page before upload..."), "info");
       const tabs = await queryTabs({ active: true, currentWindow: true });
       if (!tabs[0] || tabs[0].url !== url) throw new Error("The active page changed before capture.");
       payload.browser_snapshot = await captureSanitizedPage(tabs[0].id);
@@ -267,12 +269,14 @@ async function saveBookmark() {
     const result = await saveBookmarkPayload(payload, config);
     if (result.status === 201) {
       const preserved = result.body && result.body.browser_snapshot;
-      setAddStatus(preserved ? "Saved with a sanitized offline copy. No cookies were sent." : "Saved to your library.", "success");
+      setAddStatus(preserved
+        ? extensionMessage("savedWithOfflineCopy", [], "Saved with a sanitized offline copy. No cookies were sent.")
+        : extensionMessage("savedToLibrary", [], "Saved to your library."), "success");
       loadRecent();
     } else if (result.status === 409) {
-      setAddStatus("Already in your library.", "success");
+      setAddStatus(extensionMessage("alreadyInLibrary", [], "Already in your library."), "success");
     } else if (result.status === 401) {
-      setAddStatus("Invalid token. Check Options.", "error");
+      setAddStatus(extensionMessage("invalidToken", [], "Invalid token. Check Options."), "error");
     } else {
       setAddStatus(`Save failed (${result.status}).`, "error");
     }
@@ -280,7 +284,7 @@ async function saveBookmark() {
     setAddStatus(error?.message || "Cannot reach the local API. Start the app or run: bop api-server", "error");
   } finally {
     saveBtn.disabled = false;
-    saveBtn.textContent = "Save Bookmark";
+    saveBtn.textContent = extensionMessage("saveBookmark", [], "Save Bookmark");
   }
 }
 
@@ -298,7 +302,7 @@ async function importReadingList() {
   }
   try {
     button.disabled = true;
-    button.textContent = "Importing...";
+    button.textContent = extensionMessage("importing", [], "Importing...");
     const config = await getConfig();
     if (!config.apiToken) {
       setAddStatus("Set API token in Options first.", "error");
@@ -306,7 +310,7 @@ async function importReadingList() {
     }
     const items = await api.readingList.query({});
     if (!items || items.length === 0) {
-      setAddStatus("Reading list is empty.", "info");
+      setAddStatus(extensionMessage("readingListEmpty", [], "Reading list is empty."), "info");
       return;
     }
     let imported = 0;
@@ -339,7 +343,7 @@ async function importReadingList() {
     setAddStatus("Could not access reading list.", "error");
   } finally {
     button.disabled = false;
-    button.textContent = "Reading List";
+    button.textContent = extensionMessage("readingList", [], "Reading List");
   }
 }
 

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import html as html_module
+import mimetypes
 import re
 import time
 import urllib.parse
+import uuid
 from datetime import datetime
+from email.message import EmailMessage
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -160,6 +163,8 @@ class LocalArchiver:
     
     ARCHIVE_DIR = DATA_DIR / "archives"
     MAX_ARCHIVE_BYTES = 5_000_000
+    MAX_RESOURCE_BYTES = 1_000_000
+    MAX_MHTML_RESOURCES = 32
     
     def __init__(self):
         self.ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
@@ -190,6 +195,167 @@ class LocalArchiver:
 
         encoding = response.encoding or "utf-8"
         return True, bytes(chunks).decode(encoding, errors="replace")
+
+    def _read_resource_response(self, response, remaining: int) -> Tuple[bool, bytes | str]:
+        """Read one bounded MHTML resource without exceeding the archive budget."""
+        limit = min(self.MAX_RESOURCE_BYTES, max(0, remaining))
+        try:
+            declared = int(response.headers.get("content-length", 0) or 0)
+        except (TypeError, ValueError):
+            declared = 0
+        if declared > limit:
+            return False, "Referenced resource exceeds the archive limit"
+        chunks = bytearray()
+        for chunk in response.iter_content(chunk_size=16384):
+            if not chunk:
+                continue
+            chunks.extend(chunk)
+            if len(chunks) > limit:
+                return False, "Referenced resource exceeds the archive limit"
+        return True, bytes(chunks)
+
+    def _build_mhtml(self, page_text: str, source_url: str) -> bytes:
+        """Build an RFC 2557 multipart/related archive with bounded public resources."""
+        try:
+            from bs4 import BeautifulSoup
+        except ImportError as exc:
+            raise RuntimeError("BeautifulSoup is required for MHTML archives") from exc
+
+        soup = BeautifulSoup(_strip_dangerous_html(page_text), "html.parser")
+        for element in soup.find_all(("script", "iframe", "object", "embed", "form")):
+            element.decompose()
+        for element in soup.find_all("base"):
+            element.decompose()
+        for element in soup.find_all("meta"):
+            if str(element.get("http-equiv") or "").strip().lower() == "refresh":
+                element.decompose()
+
+        resources: list[tuple[str, str, bytes, str]] = []
+        fetched: dict[str, str] = {}
+        total = len(str(soup).encode("utf-8"))
+
+        def fetch_resource(raw_url: str) -> str | None:
+            nonlocal total
+            absolute = urllib.parse.urljoin(source_url, raw_url)
+            if absolute in fetched:
+                return fetched[absolute]
+            if len(resources) >= self.MAX_MHTML_RESOURCES or not URLUtilities._is_safe_url(absolute):
+                return None
+            response = requests.get(
+                absolute,
+                headers={"User-Agent": "Mozilla/5.0"},
+                timeout=15,
+                allow_redirects=False,
+                stream=True,
+            )
+            try:
+                if response.status_code != 200:
+                    return None
+                ok, payload = self._read_resource_response(response, self.MAX_ARCHIVE_BYTES - total)
+                if not ok or not isinstance(payload, bytes):
+                    return None
+                content_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+                if not content_type:
+                    content_type = mimetypes.guess_type(urllib.parse.urlsplit(absolute).path)[0] or "application/octet-stream"
+                if not content_type.startswith(("text/css", "image/", "font/", "application/font", "application/vnd.ms-font")):
+                    return None
+                cid = f"resource-{uuid.uuid4().hex}@bookmark-organizer"
+                resources.append((absolute, cid, payload, content_type))
+                fetched[absolute] = cid
+                total += len(payload)
+                return cid
+            finally:
+                response.close()
+
+        for element, attribute in [
+            *((node, "href") for node in soup.find_all("link", rel=lambda value: value and "stylesheet" in value)),
+            *((node, "src") for node in soup.find_all(("img", "source"))),
+            *((node, "poster") for node in soup.find_all("video")),
+        ]:
+            raw_url = element.get(attribute)
+            if not raw_url or str(raw_url).lower().startswith("data:"):
+                continue
+            cid = fetch_resource(str(raw_url))
+            if cid:
+                element[attribute] = f"cid:{cid}"
+            else:
+                element.attrs.pop(attribute, None)
+
+        for element in soup.find_all(srcset=True):
+            rewritten_candidates = []
+            for candidate in str(element.get("srcset") or "").split(","):
+                parts = candidate.strip().split()
+                if not parts:
+                    continue
+                cid = fetch_resource(parts[0])
+                if cid:
+                    descriptor = f" {' '.join(parts[1:])}" if len(parts) > 1 else ""
+                    rewritten_candidates.append(f"cid:{cid}{descriptor}")
+            if rewritten_candidates:
+                element["srcset"] = ", ".join(rewritten_candidates)
+            else:
+                element.attrs.pop("srcset", None)
+
+        css_url_re = re.compile(r"url\(\s*(['\"]?)(.*?)\1\s*\)", re.IGNORECASE)
+        css_import_re = re.compile(
+            r"@import\s+(?:url\(\s*)?(['\"]?)(?!data:|cid:)(.*?)\1\s*\)?\s*;",
+            re.IGNORECASE,
+        )
+
+        def rewrite_css(css: str, base_url: str) -> str:
+            def replace_css_url(match):
+                raw_target = match.group(2).strip()
+                if raw_target.lower().startswith(("data:", "cid:")):
+                    return match.group(0)
+                target = urllib.parse.urljoin(base_url, raw_target)
+                cid = fetch_resource(target)
+                return f"url('cid:{cid}')" if cid else "url('')"
+
+            def replace_css_import(match):
+                target = urllib.parse.urljoin(base_url, match.group(2))
+                cid = fetch_resource(target)
+                return f"@import url('cid:{cid}');" if cid else ""
+
+            return css_url_re.sub(replace_css_url, css_import_re.sub(replace_css_import, css))
+
+        for style in soup.find_all("style"):
+            css = style.string or style.get_text()
+            style.string = rewrite_css(css, source_url)
+        for element in soup.find_all(style=True):
+            element["style"] = rewrite_css(str(element.get("style") or ""), source_url)
+
+        # Rewrite fonts/images referenced by downloaded stylesheets before MIME assembly.
+        index = 0
+        while index < len(resources):
+            location, cid, payload, content_type = resources[index]
+            if content_type != "text/css":
+                index += 1
+                continue
+            css_text = payload.decode("utf-8", errors="replace")
+            rewritten = rewrite_css(css_text, location).encode("utf-8")
+            resources[index] = (location, cid, rewritten, content_type)
+            index += 1
+
+        root = EmailMessage()
+        root["Subject"] = "Bookmark Organizer offline archive"
+        root["MIME-Version"] = "1.0"
+        root["Snapshot-Content-Location"] = source_url
+        root.make_related()
+        html_part = EmailMessage()
+        html_part.set_content(str(soup), subtype="html", charset="utf-8")
+        html_part["Content-Location"] = source_url
+        root.attach(html_part)
+        for location, cid, payload, content_type in resources:
+            maintype, subtype = content_type.split("/", 1)
+            part = EmailMessage()
+            part.set_content(payload, maintype=maintype, subtype=subtype, cte="base64")
+            part["Content-ID"] = f"<{cid}>"
+            part["Content-Location"] = location
+            root.attach(part)
+        rendered = root.as_bytes()
+        if len(rendered) > self.MAX_ARCHIVE_BYTES:
+            raise ValueError("MHTML archive exceeds the 5 MB limit")
+        return rendered
     
     def archive_page(self, bookmark: Bookmark, 
                      format: str = "html") -> Tuple[bool, str]:
@@ -269,9 +435,8 @@ class LocalArchiver:
                 with open(filepath, 'w', encoding='utf-8') as f:
                     f.write(html_content)
             
-            else:  # MHTML (simplified - full MHTML would need more work)
-                with open(filepath, 'w', encoding='utf-8') as f:
-                    f.write(page_text)
+            else:
+                filepath.write_bytes(self._build_mhtml(page_text, bookmark.url))
             
             # Update bookmark with archive path
             bookmark.custom_data["local_archive_path"] = str(filepath)

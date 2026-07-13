@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bookmark-organizer-pro"
-version = "6.11.3"
+version = "6.12.0"
 description = "Professional bookmark manager with AI categorization, semantic search, MCP server, and HTML snapshots"
 readme = "README.md"
 license = {text = "MIT"}
@@ -42,8 +42,7 @@ dev = [
     "jaraco.text>=4.0",
 ]
 all = [
-    "bookmark-organizer-pro[ai,encryption,mcp,sunvalley]",
-    "defusedxml>=0.7",
+    "bookmark-organizer-pro[ai,encryption,mcp,sunvalley,themedetect]",
 ]
 
 [project.scripts]

@@ -1,6 +1,8 @@
 """Static checks for the bundled browser extension scaffold."""
 
 import concurrent.futures
+import http.server
+import importlib.util
 import json
 import re
 import shutil
@@ -153,7 +155,7 @@ vm.runInContext(`(async () => {
         sidepanel_html = (EXT_DIR / "sidepanel.html").read_text(encoding="utf-8")
         popup_css = (EXT_DIR / "popup.css").read_text(encoding="utf-8")
 
-        self.assertIn('importScripts("shared.js")', background_js)
+        self.assertIn('importScripts("i18n.js", "shared.js")', background_js)
         self.assertLess(options_html.index('src="shared.js"'), options_html.index('src="options.js"'))
         self.assertNotIn("<style", sidepanel_html)
         self.assertIn('class="sidepanel-body"', sidepanel_html)
@@ -228,7 +230,7 @@ const context = vm.createContext({
 context.globalThis = context;
 context.importScripts = (...names) => {
   for (const name of names) {
-    if (name === "shared.js") {
+    if (name === "shared.js" || name === "i18n.js") {
       vm.runInContext(fs.readFileSync(path.join(path.dirname(process.argv[1]), name), "utf8"), context);
       continue;
     }
@@ -362,11 +364,18 @@ vm.runInContext(`(async () => {
         sidepanel_js = (EXT_DIR / "sidepanel.js").read_text(encoding="utf-8")
 
         self.assertIn("async function captureSanitizedPage", shared_js)
+        self.assertIn("async function capturePageInDocument", shared_js)
         self.assertIn('headers["X-BOP-Capture-Version"] = "1"', shared_js)
         self.assertIn('source_url: location.href', shared_js)
         self.assertIn('selection,', shared_js)
         self.assertIn('document.title.slice(0, 500)', shared_js)
         self.assertIn('element.removeAttribute(attribute.name)', shared_js)
+        self.assertIn("per_resource_bytes: 524288", shared_js)
+        self.assertIn("total_resource_bytes: 3000000", shared_js)
+        self.assertIn('credentials: "include"', shared_js)
+        self.assertIn('omit("cross-origin")', shared_js)
+        self.assertIn('omit("per-resource-limit")', shared_js)
+        self.assertIn('omit("total-resource-limit")', shared_js)
         self.assertNotIn("document.cookie", shared_js)
         self.assertNotIn("localStorage", shared_js)
         self.assertIn('id="captureSnapshot"', popup_html)
@@ -375,6 +384,115 @@ vm.runInContext(`(async () => {
         self.assertIn("payload.browser_snapshot = await captureSanitizedPage(tabs[0].id)", sidepanel_js)
         for html in (popup_html, sidepanel_html):
             self.assertIn("cookies are never sent", html)
+
+    @unittest.skipUnless(
+        importlib.util.find_spec("playwright"),
+        "Playwright is required for the authenticated capture fixture",
+    )
+    def test_authenticated_fixture_capture_is_bounded_and_offline_renderable(self):
+        from playwright.sync_api import sync_playwright
+
+        image = b"\x89PNG\r\n\x1a\n" + (b"i" * 64)
+        large_image = b"\x89PNG\r\n\x1a\n" + (b"x" * 524_281)
+        aggregate_image = b"\x89PNG\r\n\x1a\n" + (b"a" * 449_992)
+        font = b"wOF2" + (b"f" * 64)
+        unauthorized_assets = []
+
+        class FixtureHandler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                if self.path == "/":
+                    aggregate = "".join(
+                        f'<img class="aggregate" src="/aggregate-{index}.png">'
+                        for index in range(7)
+                    )
+                    body = (
+                        "<!doctype html><html><head>"
+                        '<link rel="stylesheet" href="/style.css">'
+                        "<script>document.documentElement.dataset.active='yes'</script>"
+                        "</head><body onload=steal()>"
+                        '<img id="hero" src="/hero.png">'
+                        '<img id="large" src="/large.png">'
+                        '<img id="foreign" src="http://localhost:9/private.png">'
+                        f"{aggregate}<form><input value=secret></form><p>Private fixture</p>"
+                        "</body></html>"
+                    ).encode()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html")
+                    self.send_header("Set-Cookie", "fixture_session=allowed; SameSite=Strict")
+                else:
+                    if "fixture_session=allowed" not in self.headers.get("Cookie", ""):
+                        unauthorized_assets.append(self.path)
+                        self.send_error(401)
+                        return
+                    if self.path == "/style.css":
+                        body = (
+                            "@font-face{font-family:fixture;src:url('/font.woff2')}"
+                            "body{font-family:fixture;background-image:url('/background.png')}"
+                        ).encode()
+                        content_type = "text/css"
+                    elif self.path in {"/hero.png", "/background.png"}:
+                        body, content_type = image, "image/png"
+                    elif self.path == "/large.png":
+                        body, content_type = large_image, "image/png"
+                    elif self.path.startswith("/aggregate-"):
+                        body, content_type = aggregate_image, "image/png"
+                    elif self.path == "/font.woff2":
+                        body, content_type = font, "font/woff2"
+                    else:
+                        self.send_error(404)
+                        return
+                    self.send_response(200)
+                    self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *_args):
+                pass
+
+        fixture = http.server.ThreadingHTTPServer(("127.0.0.1", 0), FixtureHandler)
+        fixture_thread = threading.Thread(target=fixture.serve_forever, daemon=True)
+        fixture_thread.start()
+        fixture_url = f"http://127.0.0.1:{fixture.server_port}/"
+        try:
+            with sync_playwright() as playwright:
+                browser = playwright.chromium.launch(headless=True)
+                page = browser.new_page()
+                page.goto(fixture_url, wait_until="networkidle")
+                page.evaluate("window.chrome = {}")
+                page.add_script_tag(path=str(EXT_DIR / "shared.js"))
+                disabled_capture = page.evaluate(
+                    "capturePageInDocument({inlineResources: false})"
+                )
+                capture = page.evaluate("capturePageInDocument({inlineResources: true})")
+                browser.close()
+        finally:
+            fixture.shutdown()
+            fixture.server_close()
+            fixture_thread.join(timeout=2)
+
+        self.assertNotIn("error", capture)
+        self.assertFalse(unauthorized_assets)
+        self.assertEqual(disabled_capture["resources"]["inlined"], 0)
+        self.assertGreater(
+            disabled_capture["resources"]["omitted_by_reason"]["inlining-disabled"],
+            0,
+        )
+        self.assertGreaterEqual(capture["resources"]["inlined"], 3)
+        reasons = capture["resources"]["omitted_by_reason"]
+        self.assertGreaterEqual(reasons["cross-origin"], 1)
+        self.assertGreaterEqual(reasons["per-resource-limit"], 1)
+        self.assertGreaterEqual(reasons["total-resource-limit"], 1)
+        self.assertLessEqual(capture["resources"]["inlined_bytes"], 3_000_000)
+        self.assertNotIn("<script", capture["html"].lower())
+        self.assertNotIn("<form", capture["html"].lower())
+        self.assertNotIn("onload=", capture["html"].lower())
+        self.assertIn("data:image/png;base64,", capture["html"])
+        self.assertIn("data:font/woff2;base64,", capture["html"])
+        self.assertNotIn("/hero.png", capture["html"])
+        self.assertNotIn("/style.css", capture["html"])
+        self.assertNotRegex(capture["html"], r'(?:src|href)=["\']https?://')
+        self.assertNotRegex(capture["html"], r'url\(["\']?https?://')
 
     def test_popup_save_payload_contract_maps_form_fields(self):
         popup_js = (EXT_DIR / "popup.js").read_text(encoding="utf-8")
@@ -446,6 +564,7 @@ vm.runInContext(`(async () => {
             "popup.html",
             "popup.js",
             "popup.css",
+            "i18n.js",
             "options.html",
             "options.js",
             "shared.js",
@@ -628,7 +747,13 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
 
                 header_client.connect(("127.0.0.1", api.port))
                 header_client.sendall(b"GET /health HTTP/1.1\r\nHost: 127.0.0.1")
-                time.sleep(0.05)
+                saturation_deadline = time.monotonic() + 1
+                while (
+                    time.monotonic() < saturation_deadline
+                    and not api._server.at_capacity
+                ):
+                    time.sleep(0.005)
+                self.assertTrue(api._server.at_capacity)
                 with self.assertRaises(urllib.error.HTTPError) as busy:
                     self._get_json(base_url, "/health")
                 self.assertEqual(busy.exception.code, 503)
@@ -882,10 +1007,15 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
 
         malicious_html = """<!doctype html><html><head>
         <script>document.cookie='stolen=1'</script>
-        <style>@import url(https://tracker.example/a.css); body{color:red}</style>
+        <style>@import url(https://tracker.example/a.css);
+        @font-face{font-family:safe;src:url(data:font/woff2;base64,d09GMg==)}
+        body{color:red;background:url(data:image/png;base64,iVBORw0KGgo=)}
+        .unsafe{background:url(data:image/svg+xml;base64,PHN2Zz4=)}</style>
         </head><body onload="steal()">
         <iframe src="https://private.example/account"></iframe>
         <img src="https://private.example/avatar" onerror="steal()">
+        <img id="embedded" src="data:image/png;base64,iVBORw0KGgo=">
+        <img id="unsafe" src="data:image/svg+xml;base64,PHN2Zz4=">
         <a href="javascript:steal()">bad</a><a href="https://example.com/next">next</a>
         <form action="https://evil.example"><input value="secret"></form>
         <p>Authenticated account content</p></body></html>"""
@@ -898,7 +1028,13 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
                 "source_url": url,
                 "title": "Account",
                 "selection": "private selection",
-                "resources": {"count": 4},
+                "resources": {
+                    "count": 9,
+                    "inlined": 3,
+                    "inlined_bytes": 128,
+                    "omitted": 6,
+                    "omitted_by_reason": {"cross-origin": 4, "per-resource-limit": 2},
+                },
             },
         }
         capture_headers = {
@@ -925,7 +1061,12 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
                 )
                 self.assertEqual(status, 201, body)
                 self.assertTrue(body["browser_snapshot"]["stored"])
-                self.assertEqual(body["browser_snapshot"]["resource_count"], 4)
+                self.assertEqual(body["browser_snapshot"]["resource_count"], 9)
+                self.assertEqual(body["browser_snapshot"]["resources"]["inlined"], 3)
+                self.assertEqual(
+                    body["browser_snapshot"]["resources"]["omitted_by_reason"],
+                    {"cross-origin": 4, "per-resource-limit": 2},
+                )
                 snapshot_path = Path(body["snapshot_path"])
                 self.assertTrue(snapshot_path.is_file())
                 self.assertEqual(snapshot_path.parent, Path(tmp) / "snapshots")
@@ -939,6 +1080,9 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
                 self.assertNotIn("javascript:", stored.lower())
                 self.assertNotIn("https://private.example/avatar", stored)
                 self.assertNotIn("tracker.example", stored)
+                self.assertIn("data:image/png;base64,iVBORw0KGgo=", stored)
+                self.assertIn("data:font/woff2;base64,d09GMg==", stored)
+                self.assertNotIn("data:image/svg+xml", stored)
                 self.assertFalse(list(snapshot_path.parent.glob(".*.tmp")))
             finally:
                 api.stop()

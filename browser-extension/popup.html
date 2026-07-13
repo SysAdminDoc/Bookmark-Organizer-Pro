@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" dir="ltr" data-i18n-title="popupTitle">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,54 +11,55 @@
     <header>
       <div class="brand-row">
         <span class="brand-mark">B</span>
-        <p class="eyebrow">Bookmark Organizer Pro</p>
+        <p class="eyebrow" data-i18n="extensionName">Bookmark Organizer Pro</p>
       </div>
-      <h1>Save Bookmark</h1>
-      <p id="pageTitle" class="page-summary">Loading active tab...</p>
+      <h1 data-i18n="saveBookmark">Save Bookmark</h1>
+      <p id="pageTitle" class="page-summary" data-i18n="loadingActiveTab">Loading active tab...</p>
     </header>
 
     <label>
-      Category
+      <span data-i18n="category">Category</span>
       <input id="category" type="text" autocomplete="off" list="categoryList">
       <datalist id="categoryList"></datalist>
     </label>
 
     <label>
-      Tags
-      <input id="tags" type="text" placeholder="design, research, reading" autocomplete="off">
+      <span data-i18n="tags">Tags</span>
+      <input id="tags" type="text" placeholder="design, research, reading" data-i18n-placeholder="tagsPlaceholder" autocomplete="off">
     </label>
 
     <label>
-      Notes
-      <textarea id="notes" maxlength="5000" placeholder="Add context you will want when rediscovering this page."></textarea>
+      <span data-i18n="notes">Notes</span>
+      <textarea id="notes" maxlength="5000" placeholder="Add context you will want when rediscovering this page." data-i18n-placeholder="notesPlaceholder"></textarea>
     </label>
 
     <label class="checkbox-row">
       <input id="readLater" type="checkbox">
-      <span>Read Later</span>
+      <span data-i18n="readLater">Read Later</span>
     </label>
 
     <label class="checkbox-row">
       <input id="captureSnapshot" type="checkbox">
-      <span>Preserve this signed-in page</span>
+      <span data-i18n="preserveSignedInPage">Preserve this signed-in page</span>
     </label>
-    <p class="field-hint">Uploads a sanitized page copy (up to 4.5 MB). Scripts, remote resources, and form fields are removed; cookies are never sent.</p>
+    <p class="field-hint" data-i18n="captureHint">Uploads a sanitized page copy (up to 4.5 MB). Bounded same-site styles, images, and fonts are embedded; scripts and forms are removed, omissions are reported, and cookies are never sent.</p>
 
     <div class="actions">
-      <button id="saveBookmark" type="button">Save Bookmark</button>
-      <button id="openOptions" class="secondary" type="button">Options</button>
+      <button id="saveBookmark" type="button" data-i18n="saveBookmark">Save Bookmark</button>
+      <button id="openOptions" class="secondary" type="button" data-i18n="options">Options</button>
     </div>
 
     <section id="pendingPanel" class="pending-panel" role="status" aria-live="polite" hidden>
-      <p id="pendingCount">0 pending quick saves</p>
+      <p id="pendingCount" data-i18n="zeroPendingSaves">0 pending quick saves</p>
       <div class="pending-actions">
-        <button id="retryPending" type="button">Retry</button>
-        <button id="clearPending" class="secondary" type="button">Clear</button>
+        <button id="retryPending" type="button" data-i18n="retry">Retry</button>
+        <button id="clearPending" class="secondary" type="button" data-i18n="clear">Clear</button>
       </div>
     </section>
 
     <p id="status" class="status" role="status" aria-live="polite"></p>
   </main>
+  <script src="i18n.js"></script>
   <script src="shared.js"></script>
   <script src="popup.js"></script>
 </body>

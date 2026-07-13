@@ -1062,6 +1062,15 @@ def t_export_to_obsidian(vault_path: str, tag_filter: str = "",
 
 
 def t_list_snapshots(limit: int = 50) -> List[Dict]:
+    from dataclasses import asdict
+    from bookmark_organizer_pro.services.snapshot_history import SnapshotHistoryStore
+
+    try:
+        versions = SnapshotHistoryStore(SNAPSHOTS_DIR).list_all_versions(limit=max(1, limit))
+        if versions:
+            return [asdict(item) for item in versions]
+    except (OSError, RuntimeError, ValueError):
+        pass
     out = []
     if not SNAPSHOTS_DIR.is_dir():
         return out

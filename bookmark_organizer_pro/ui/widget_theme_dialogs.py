@@ -7,8 +7,10 @@ import tkinter as tk
 from tkinter import colorchooser, filedialog, messagebox, ttk
 from typing import Dict, List, Tuple
 
+from bookmark_organizer_pro.i18n import N_, _, layout_anchor, layout_side
+
 from .foundation import FONTS, readable_text_on
-from .theme import ThemeInfo, ThemeManager
+from .theme import ThemeColors, ThemeInfo, ThemeManager, theme_contrast_report
 from .widget_controls import ModernButton, ThemedWidget
 from .widget_runtime import apply_window_chrome, get_theme
 
@@ -19,31 +21,31 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
     """Dialog for creating and editing custom themes"""
     
     COLOR_FIELDS = [
-        ("Background", [
-            ("bg_dark", "Dark Background"),
-            ("bg_primary", "Primary Background"),
-            ("bg_secondary", "Secondary Background"),
-            ("bg_tertiary", "Tertiary Background"),
-            ("bg_hover", "Hover Background"),
+        (N_("Background"), [
+            ("bg_dark", N_("Dark Background")),
+            ("bg_primary", N_("Primary Background")),
+            ("bg_secondary", N_("Secondary Background")),
+            ("bg_tertiary", N_("Tertiary Background")),
+            ("bg_hover", N_("Hover Background")),
         ]),
-        ("Text", [
-            ("text_primary", "Primary Text"),
-            ("text_secondary", "Secondary Text"),
-            ("text_muted", "Muted Text"),
-            ("text_link", "Link Text"),
+        (N_("Text"), [
+            ("text_primary", N_("Primary Text")),
+            ("text_secondary", N_("Secondary Text")),
+            ("text_muted", N_("Muted Text")),
+            ("text_link", N_("Link Text")),
         ]),
-        ("Accents", [
-            ("accent_primary", "Primary Accent"),
-            ("accent_success", "Success"),
-            ("accent_warning", "Warning"),
-            ("accent_error", "Error"),
-            ("accent_purple", "Purple"),
-            ("accent_cyan", "Cyan"),
+        (N_("Accents"), [
+            ("accent_primary", N_("Primary Accent")),
+            ("accent_success", N_("Success")),
+            ("accent_warning", N_("Warning")),
+            ("accent_error", N_("Error")),
+            ("accent_purple", N_("Purple")),
+            ("accent_cyan", N_("Cyan")),
         ]),
-        ("UI Elements", [
-            ("border", "Border"),
-            ("selection", "Selection"),
-            ("scrollbar_thumb", "Scrollbar"),
+        (N_("UI Elements"), [
+            ("border", N_("Border")),
+            ("selection", N_("Selection")),
+            ("scrollbar_thumb", N_("Scrollbar")),
         ]),
     ]
     
@@ -60,7 +62,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         
         theme = get_theme()
         
-        self.title("Create Custom Theme")
+        self.title(_("Create Custom Theme"))
         self.geometry("700x650")
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
@@ -75,9 +77,9 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         header.pack_propagate(False)
         
         tk.Label(
-            header, text="Create custom theme", bg=theme.bg_dark,
+            header, text=_("Create custom theme"), bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.title(bold=True)
-        ).pack(side=tk.LEFT, padx=20, pady=15)
+        ).pack(side=layout_side(tk.LEFT), padx=20, pady=15)
         
         # Main content with scrolling
         main = tk.Frame(self, bg=theme.bg_primary)
@@ -99,11 +101,11 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         name_frame.pack(fill=tk.X, pady=15, padx=10)
         
         tk.Label(
-            name_frame, text="Theme name", bg=theme.bg_primary,
+            name_frame, text=_("Theme name"), bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.body()
-        ).pack(side=tk.LEFT)
+        ).pack(side=layout_side(tk.LEFT))
         
-        self.name_var = tk.StringVar(value="My Custom Theme")
+        self.name_var = tk.StringVar(value=_("My Custom Theme"))
         name_entry = tk.Entry(
             name_frame, textvariable=self.name_var,
             bg=theme.bg_secondary, fg=theme.text_primary,
@@ -115,7 +117,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         # Dark mode toggle
         self.is_dark_var = tk.BooleanVar(value=self.base_theme.is_dark)
         dark_check = ttk.Checkbutton(
-            name_frame, text="Dark Theme", variable=self.is_dark_var
+            name_frame, text=_("Dark Theme"), variable=self.is_dark_var
         )
         dark_check.pack(side=tk.RIGHT)
         
@@ -124,7 +126,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         base_frame.pack(fill=tk.X, pady=(0, 15), padx=10)
         
         tk.Label(
-            base_frame, text="Base theme", bg=theme.bg_primary,
+            base_frame, text=_("Base theme"), bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.body()
         ).pack(side=tk.LEFT)
         
@@ -152,7 +154,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         
         # Preview section
         preview_frame = tk.LabelFrame(
-            content, text="Workspace preview", bg=theme.bg_primary,
+            content, text=_("Workspace preview"), bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.body()
         )
         preview_frame.pack(fill=tk.X, padx=10, pady=15)
@@ -162,6 +164,11 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
             bg=theme.bg_secondary, highlightthickness=0
         )
         self.preview_canvas.pack(padx=10, pady=10)
+        self.contrast_status = tk.Label(
+            preview_frame, text="", bg=theme.bg_primary, fg=theme.text_secondary,
+            font=FONTS.small(), justify=tk.LEFT, anchor="w",
+        )
+        self.contrast_status.pack(fill=tk.X, padx=10, pady=(0, 10))
         self._update_preview()
         
         # Buttons
@@ -169,15 +176,15 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         btn_frame.pack(fill=tk.X, padx=20, pady=15)
         
         ModernButton(
-            btn_frame, text="Reset to Base", command=self._reset_to_base
+            btn_frame, text=_("Reset to Base"), command=self._reset_to_base
         ).pack(side=tk.LEFT)
         
         ModernButton(
-            btn_frame, text="Cancel", command=self.destroy
+            btn_frame, text=_("Cancel"), command=self.destroy
         ).pack(side=tk.RIGHT, padx=(10, 0))
         
         ModernButton(
-            btn_frame, text="Create Theme", command=self._create_theme,
+            btn_frame, text=_("Create Theme"), command=self._create_theme,
             style="primary"
         ).pack(side=tk.RIGHT)
         
@@ -192,7 +199,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         theme = get_theme()
         
         frame = tk.LabelFrame(
-            parent, text=title, bg=theme.bg_primary,
+            parent, text=_(title), bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.small(bold=True)
         )
         frame.pack(fill=tk.X, padx=10, pady=5)
@@ -210,7 +217,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
             
             # Label
             tk.Label(
-                inner, text=display_name, bg=theme.bg_primary,
+                inner, text=_(display_name), bg=theme.bg_primary,
                 fg=theme.text_secondary, font=FONTS.small(),
                 width=15, anchor="w"
             ).grid(row=row, column=col*3, sticky="w", pady=3)
@@ -278,6 +285,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
     
     def _update_preview(self):
         """Update the preview canvas"""
+        theme = get_theme()
         self.preview_canvas.delete("all")
         
         # Get current colors
@@ -291,18 +299,31 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         
         # Sidebar preview
         self.preview_canvas.create_rectangle(0, 0, 150, 100, fill=bg_secondary, outline="")
-        self.preview_canvas.create_text(75, 20, text="Sidebar", fill=text_primary, font=FONTS.small())
+        self.preview_canvas.create_text(75, 20, text=_("Sidebar"), fill=text_primary, font=FONTS.small())
         
         # Accent bar
         self.preview_canvas.create_rectangle(0, 40, 150, 45, fill=accent, outline="")
         
         # Main area text
-        self.preview_canvas.create_text(350, 30, text="Main Content Area", fill=text_primary, font=FONTS.body())
-        self.preview_canvas.create_text(350, 60, text="Preview of your theme colors", fill=text_primary, font=FONTS.small())
+        self.preview_canvas.create_text(350, 30, text=_("Main Content Area"), fill=text_primary, font=FONTS.body())
+        self.preview_canvas.create_text(350, 60, text=_("Preview of your theme colors"), fill=text_primary, font=FONTS.small())
         
         # Accent button
         self.preview_canvas.create_rectangle(300, 75, 400, 95, fill=accent, outline="")
-        self.preview_canvas.create_text(350, 85, text="Button", fill=readable_text_on(accent), font=FONTS.small())
+        self.preview_canvas.create_text(350, 85, text=_("Button"), fill=readable_text_on(accent), font=FONTS.small())
+
+        base = self.base_theme.colors.to_dict()
+        base.update({key: variable.get() for key, variable in self.color_vars.items()})
+        report = theme_contrast_report(ThemeColors.from_dict(base))
+        failed = [item for item in report if not item["passes"]]
+        summary = " · ".join(
+            f"{item['label']}: {item['ratio']}:1"
+            for item in report
+        )
+        self.contrast_status.configure(
+            text=("Contrast passes — " if not failed else "Contrast needs attention — ") + summary,
+            fg=theme.accent_success if not failed else theme.accent_error,
+        )
     
     def _reset_to_base(self):
         """Reset all colors to base theme"""
@@ -314,8 +335,8 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         name = self.name_var.get().strip()
         if not name:
             messagebox.showerror(
-                "Theme name required",
-                "Enter a clear name for this custom theme.",
+                _("Theme name required"),
+                _("Enter a clear name for this custom theme."),
                 parent=self
             )
             return
@@ -335,8 +356,8 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
 
         if invalid_fields:
             messagebox.showerror(
-                "Invalid colors",
-                "Use six-digit hex colors like #58a6ff before creating the theme.",
+                _("Invalid colors"),
+                _("Use six-digit hex colors like #58a6ff before creating the theme."),
                 parent=self
             )
             return
@@ -353,15 +374,15 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
             
             self.result = new_theme
             messagebox.showinfo(
-                "Theme created",
-                f"Created '{name}'. You can select it from Theme Settings.",
+                _("Theme created"),
+                _("Created '{name}'. You can select it from Theme Settings.").format(name=name),
                 parent=self
             )
             self.destroy()
         except Exception as e:
             messagebox.showerror(
-                "Theme not created",
-                f"Could not create this theme:\n\n{e}",
+                _("Theme not created"),
+                _("Could not create this theme:\n\n{error}").format(error=e),
                 parent=self
             )
     
@@ -399,7 +420,7 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
         self.result = None
         theme = get_theme()
         
-        self.title("Theme Settings")
+        self.title(_("Theme Settings"))
         self.geometry("540x640")
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
@@ -413,16 +434,16 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
         header.pack(fill=tk.X)
         
         tk.Label(
-            header, text="Theme settings", bg=theme.bg_dark,
+            header, text=_("Theme settings"), bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.title(bold=True)
-        ).pack(anchor="w")
+        ).pack(anchor=layout_anchor("w"))
 
         tk.Label(
             header,
-            text="Choose a built-in theme or create a custom look that fits your workspace.",
+            text=_("Choose a built-in theme or create a custom look that fits your workspace."),
             bg=theme.bg_dark, fg=theme.text_secondary,
             font=FONTS.small(), wraplength=480, justify=tk.LEFT
-        ).pack(anchor="w", pady=(5, 0))
+        ).pack(anchor=layout_anchor("w"), pady=(5, 0))
         
         # Main content
         content = tk.Frame(self, bg=theme.bg_primary)
@@ -430,9 +451,9 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
         
         # Current theme label
         tk.Label(
-            content, text="Theme library", bg=theme.bg_primary,
+            content, text=_("Theme library"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.body(bold=True)
-        ).pack(anchor="w", pady=(0, 10))
+        ).pack(anchor=layout_anchor("w"), pady=(0, 10))
         
         # Theme list with canvas for scrolling
         list_frame = tk.Frame(content, bg=theme.bg_secondary)
@@ -461,16 +482,16 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
         btn_frame.pack(fill=tk.X, padx=20, pady=15)
         
         ModernButton(
-            btn_frame, text="Import Theme", command=self._import_theme
-        ).pack(side=tk.LEFT, padx=(0, 10))
+            btn_frame, text=_("Import Theme"), command=self._import_theme
+        ).pack(side=layout_side(tk.LEFT), padx=(0, 10))
 
         ModernButton(
-            btn_frame, text="Create Custom", command=self._create_custom_theme
-        ).pack(side=tk.LEFT)
+            btn_frame, text=_("Create Custom"), command=self._create_custom_theme
+        ).pack(side=layout_side(tk.LEFT))
         
         ModernButton(
-            btn_frame, text="Close", command=self.destroy
-        ).pack(side=tk.RIGHT)
+            btn_frame, text=_("Close"), command=self.destroy
+        ).pack(side=layout_side(tk.RIGHT))
         
         self.center_window()
     
@@ -520,7 +541,7 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
                 font=FONTS.small(bold=is_selected)
             ).pack(anchor="w")
             
-            mode_text = "Dark" if theme_info.is_dark else "Light"
+            mode_text = _("Dark") if theme_info.is_dark else _("Light")
             tk.Label(
                 info_frame, text=f"{mode_text} • {theme_info.author}",
                 bg=info_frame.cget('bg'),
@@ -531,7 +552,7 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
             # Select button
             if not is_selected:
                 select_btn = ModernButton(
-                    item_frame, text="Select", command=lambda n=name: self._select_theme(n),
+                    item_frame, text=_("Select"), command=lambda n=name: self._select_theme(n),
                     style="primary", padx=12, pady=5, font=FONTS.small()
                 )
                 select_btn.pack(side=tk.RIGHT, padx=10)
@@ -571,22 +592,28 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
     def _import_theme(self):
         """Import a theme from file"""
         filepath = filedialog.askopenfilename(
-            title="Import Theme",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+            title=_("Import Theme"),
+            filetypes=[(_("JSON files"), "*.json"), (_("All files"), "*.*")]
         )
         if filepath:
             theme = self.theme_manager.import_theme(filepath)
             if theme:
                 messagebox.showinfo(
-                    "Theme Imported",
-                    f"Imported {theme.display_name}. You can select it from the theme library.",
+                    _("Theme Imported"),
+                    _("Imported {name}. You can select it from the theme library.").format(
+                        name=theme.display_name,
+                    ),
                     parent=self
                 )
                 self._populate_themes()
             else:
+                reason = self.theme_manager.last_import_error or _("The file is not valid theme JSON.")
                 messagebox.showerror(
-                    "Theme Import Failed",
-                    "The selected file could not be imported as a theme. Check that it is a valid theme JSON file.",
+                    _("Theme Import Failed"),
+                    _(
+                        "The selected theme was not activated, and your current theme remains unchanged."
+                        "\n\n{reason}"
+                    ).format(reason=reason),
                     parent=self
                 )
 

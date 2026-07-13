@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import multiprocessing
+import os
 import sys
 import tkinter as tk
 from tkinter import messagebox
@@ -16,6 +17,7 @@ from bookmark_organizer_pro.desktop_bootstrap import (
     setup_dpi_awareness,
 )
 from bookmark_organizer_pro.logging_config import log
+from bookmark_organizer_pro.i18n import setup_locale
 from bookmark_organizer_pro.ui import check_and_install_dependencies
 from bookmark_organizer_pro.ui.style_manager import style_manager
 from bookmark_organizer_pro.ui.widgets import set_widget_window_chrome_provider
@@ -87,6 +89,7 @@ def main(argv: Sequence[str] | None = None):
     """Run the CLI or desktop GUI with professional error handling."""
     ensure_directories()
     args = list(sys.argv[1:] if argv is None else argv)
+    setup_locale(os.environ.get("BOOKMARK_LOCALE", ""))
 
     if IS_WINDOWS:
         multiprocessing.freeze_support()

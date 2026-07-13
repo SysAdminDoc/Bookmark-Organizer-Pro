@@ -21,12 +21,12 @@ async function saveOptions({ replacePairing = false } = {}) {
   const defaultCategory = document.getElementById("defaultCategory").value.trim() || DEFAULTS.defaultCategory;
 
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    setStatus("Enter a valid TCP port.", "error");
+    setStatus(extensionMessage("validPortRequired", [], "Enter a valid TCP port."), "error");
     return;
   }
 
   if (!apiToken) {
-    setStatus("Enter the local API token before saving.", "error");
+    setStatus(extensionMessage("tokenRequired", [], "Enter the local API token before saving."), "error");
     return;
   }
 
@@ -35,7 +35,9 @@ async function saveOptions({ replacePairing = false } = {}) {
   if (!response || !response.ok) throw new Error("Credential operation failed");
   const pairing = await pairExtension({ apiPort: port, apiToken }, { replace: replacePairing });
   if (pairing.status === 200 && pairing.body.paired) {
-    setStatus(replacePairing ? "Settings saved and pairing replaced." : "Settings saved and extension paired.", "success");
+    setStatus(replacePairing
+      ? extensionMessage("pairingReplaced", [], "Settings saved and pairing replaced.")
+      : extensionMessage("settingsSavedPaired", [], "Settings saved and extension paired."), "success");
   } else if (pairing.status === 409 && pairing.body.replace_required) {
     setStatus("This API is paired with another extension ID. Use Replace Pairing to recover this install.", "error");
   } else if (pairing.status === 401) {
@@ -58,10 +60,10 @@ async function testConnection() {
     return;
   }
 
-  setStatus("Testing connection...");
+  setStatus(extensionMessage("testingConnection", [], "Testing connection..."));
   const button = document.getElementById("testConnection");
   button.disabled = true;
-  button.textContent = "Testing...";
+  button.textContent = extensionMessage("testing", [], "Testing...");
 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/extension/pair`, {
@@ -69,19 +71,19 @@ async function testConnection() {
     });
     const body = await response.json().catch(() => ({}));
     if (response.ok && body.paired) {
-      setStatus("Connected and paired with this extension.", "success");
+      setStatus(extensionMessage("connectedPaired", [], "Connected and paired with this extension."), "success");
     } else if (response.ok) {
-      setStatus("Connected, but this extension is not paired. Save Settings to pair it.", "error");
+      setStatus(extensionMessage("connectedUnpaired", [], "Connected, but this extension is not paired. Save Settings to pair it."), "error");
     } else if (response.status === 401) {
-      setStatus("Server reached but token is invalid.", "error");
+      setStatus(extensionMessage("serverInvalidToken", [], "Server reached but token is invalid."), "error");
     } else {
       setStatus(`Unexpected response: ${response.status}`, "error");
     }
   } catch {
-    setStatus("Cannot reach the local API. Start the app or run: bop api-server", "error");
+    setStatus(extensionMessage("apiUnavailable", [], "Cannot reach the local API. Start the app or run: bop api-server"), "error");
   } finally {
     button.disabled = false;
-    button.textContent = "Test API";
+    button.textContent = extensionMessage("testApi", [], "Test API");
   }
 }
 

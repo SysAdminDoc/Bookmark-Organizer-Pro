@@ -1,4 +1,4 @@
-importScripts("shared.js");
+importScripts("i18n.js", "shared.js");
 importScripts("credential-vault.js");
 
 function storageRemove(keys) {
@@ -66,17 +66,17 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
 api.runtime.onInstalled.addListener(() => {
   api.contextMenus.create({
     id: "save-to-bop",
-    title: "Save to Bookmark Organizer Pro",
+    title: extensionMessage("popupTitle", [], "Save to Bookmark Organizer Pro"),
     contexts: ["page", "link"]
   });
   api.contextMenus.create({
     id: "save-to-bop-selection",
-    title: "Save to BOP with selection",
+    title: extensionMessage("saveWithSelection", [], "Save to BOP with selection"),
     contexts: ["selection"]
   });
   api.contextMenus.create({
     id: "open-bop-sidepanel",
-    title: "Open BOP Side Panel",
+    title: extensionMessage("openSidePanel", [], "Open BOP Side Panel"),
     contexts: ["page"]
   });
 

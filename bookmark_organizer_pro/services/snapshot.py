@@ -31,9 +31,50 @@ from bookmark_organizer_pro.constants import DATA_DIR, SNAPSHOTS_DIR
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.job_ledger import JobLedger
+from bookmark_organizer_pro.services.snapshot_history import SnapshotHistoryStore
 from bookmark_organizer_pro.url_utils import URLUtilities
 
 SNAPSHOT_FAILURES_FILE = DATA_DIR / "snapshot_failures.json"
+_SAFE_CAPTURE_DATA_URI = re.compile(
+    r"^data:(?:"
+    r"image/(?:png|jpeg|gif|webp|avif|bmp|x-icon|vnd\.microsoft\.icon)|"
+    r"font/(?:woff2?|ttf|otf)|"
+    r"application/(?:font-woff|font-sfnt|vnd\.ms-fontobject|octet-stream)"
+    r");base64,[a-z0-9+/=\s]+$",
+    re.IGNORECASE,
+)
+
+
+def _browser_resource_diagnostics(summary: dict | None) -> dict[str, object]:
+    """Return a compact, non-sensitive extension capture diagnostic summary."""
+    source = summary if isinstance(summary, dict) else {}
+
+    def bounded_int(name: str, maximum: int) -> int:
+        try:
+            return min(maximum, max(0, int(source.get(name, 0) or 0)))
+        except (TypeError, ValueError):
+            return 0
+
+    reasons: dict[str, int] = {}
+    raw_reasons = source.get("omitted_by_reason")
+    if isinstance(raw_reasons, dict):
+        for raw_name, raw_count in list(raw_reasons.items())[:20]:
+            name = str(raw_name).strip().lower()
+            if not re.fullmatch(r"[a-z0-9_-]{1,40}", name):
+                continue
+            try:
+                count = min(10_000, max(0, int(raw_count)))
+            except (TypeError, ValueError):
+                continue
+            if count:
+                reasons[name] = count
+    return {
+        "count": bounded_int("count", 10_000),
+        "inlined": bounded_int("inlined", 10_000),
+        "inlined_bytes": bounded_int("inlined_bytes", 5_000_000),
+        "omitted": bounded_int("omitted", 10_000),
+        "omitted_by_reason": reasons,
+    }
 
 
 def _has_binary(name: str) -> bool:
@@ -256,12 +297,18 @@ class SnapshotArchiver:
         failure_store: SnapshotFailureStore | None = None,
         egress_policy: SnapshotEgressPolicy | None = None,
         job_ledger: JobLedger | None = None,
+        history_store: SnapshotHistoryStore | None = None,
+        max_history_versions: int = 10,
     ):
         self.snapshots_dir = Path(snapshots_dir)
         self.snapshots_dir.mkdir(parents=True, exist_ok=True)
         self.failure_store = failure_store or SnapshotFailureStore()
         self.egress_policy = egress_policy or SnapshotEgressPolicy.from_environment()
         self.job_ledger = job_ledger or JobLedger()
+        self.history_store = history_store or SnapshotHistoryStore(
+            self.snapshots_dir, max_versions=max_history_versions,
+        )
+        self._last_provenance: dict = {}
 
     # --- public API ---------------------------------------------------------
 
@@ -285,6 +332,7 @@ class SnapshotArchiver:
         for backend in (self._snapshot_monolith, self._snapshot_singlefile,
                         self._snapshot_playwright, self._snapshot_python):
             backend_name = self._backend_label(backend.__name__)
+            self._last_provenance = {"resolved_url": bookmark.url, "status_code": None}
             try:
                 ok, msg = backend(bookmark.url, out_path)
             except Exception as exc:
@@ -298,6 +346,15 @@ class SnapshotArchiver:
                 bookmark.snapshot_size = size
                 bookmark.snapshot_at = datetime.now().isoformat()
                 bookmark.modified_at = bookmark.snapshot_at
+                self.history_store.record(
+                    bookmark.id,
+                    out_path,
+                    source_url=bookmark.url,
+                    resolved_url=str(self._last_provenance.get("resolved_url") or bookmark.url),
+                    status_code=self._last_provenance.get("status_code"),
+                    backend=backend_name,
+                    captured_at=bookmark.snapshot_at,
+                )
                 self.failure_store.clear_for_bookmark(bookmark)
                 job.succeed(bytes_processed=size, backend=backend_name)
                 return True, str(out_path)
@@ -368,7 +425,13 @@ class SnapshotArchiver:
                 remove = (
                     lower_name.startswith("on")
                     or lower_name in dangerous_attr_names
+                    or lower_name == "srcset"
                     or (lower_name in remote_attr_names and not lowered.startswith("data:"))
+                    or (
+                        lower_name in remote_attr_names
+                        and lowered.startswith("data:")
+                        and not _SAFE_CAPTURE_DATA_URI.fullmatch(rendered.strip())
+                    )
                     or (lower_name.endswith("href") and element.name != "a" and not lowered.startswith("data:"))
                     or (lower_name == "href" and lowered.startswith(("javascript:", "data:", "file:", "blob:")))
                 )
@@ -379,19 +442,35 @@ class SnapshotArchiver:
                 element["rel"] = "noopener noreferrer"
                 element["referrerpolicy"] = "no-referrer"
 
-        css_remote = re.compile(
-            r"@import\s+[^;]+;?|url\(\s*(['\"]?)(?!data:).*?\1\s*\)",
-            re.IGNORECASE,
-        )
+        css_import = re.compile(r"@import\s+[^;]+;?", re.IGNORECASE)
+        css_url = re.compile(r"url\(\s*(['\"]?)(.*?)\1\s*\)", re.IGNORECASE)
+
+        def sanitize_css(value: str) -> str:
+            without_imports = css_import.sub("", value)
+            without_image_sets = re.sub(
+                r"(?:-webkit-)?image-set\([^)]*\)",
+                "none",
+                without_imports,
+                flags=re.IGNORECASE,
+            )
+
+            def replace_url(match: re.Match) -> str:
+                target = match.group(2).strip()
+                if target.startswith("data:") and _SAFE_CAPTURE_DATA_URI.fullmatch(target):
+                    return match.group(0)
+                return "none"
+
+            return css_url.sub(replace_url, without_image_sets)
+
         for style in soup.find_all("style"):
             original = style.string or style.get_text()
-            cleaned = css_remote.sub("", original)
+            cleaned = sanitize_css(original)
             if cleaned != original:
                 removed_attributes += 1
             style.string = cleaned
         for element in soup.find_all(style=True):
             original = str(element.get("style") or "")
-            cleaned = css_remote.sub("", original)
+            cleaned = sanitize_css(original)
             if cleaned != original:
                 removed_attributes += 1
             element["style"] = cleaned
@@ -420,7 +499,8 @@ class SnapshotArchiver:
         selection_note = f" Selection: {html_lib.escape(selection[:500])}" if selection else ""
         disclosure.append(bs4.BeautifulSoup(
             "Browser capture from " + html_lib.escape(source_url) +
-            ". Active content and remote resources were removed; cookies were never transferred." +
+            ". Bounded same-origin assets were embedded; active content and remaining remote resources "
+            "were removed; cookies were never transferred." +
             selection_note,
             "html.parser",
         ))
@@ -446,19 +526,34 @@ class SnapshotArchiver:
         bookmark.snapshot_size = len(rendered)
         bookmark.snapshot_at = now
         bookmark.modified_at = now
-        summary = resource_summary if isinstance(resource_summary, dict) else {}
+        resources = _browser_resource_diagnostics(resource_summary)
+        raw_summary = resource_summary if isinstance(resource_summary, dict) else {}
+        raw_status = raw_summary.get("status_code")
         try:
-            resource_count = min(10_000, max(0, int(summary.get("count", 0) or 0)))
+            status_code = int(raw_status) if raw_status is not None else None
         except (TypeError, ValueError):
-            resource_count = 0
+            status_code = None
+        self.history_store.record(
+            bookmark.id,
+            out_path,
+            source_url=source_url,
+            resolved_url=str(raw_summary.get("resolved_url") or source_url),
+            status_code=status_code,
+            backend="browser-extension",
+            captured_at=now,
+        )
         return {
             "stored": True,
             "path": str(out_path),
             "size": len(rendered),
             "removed_elements": removed_elements,
             "removed_attributes": removed_attributes,
-            "resource_count": resource_count,
-            "disclosure": "Active content and remote resources removed; cookies were never transferred.",
+            "resource_count": resources["count"],
+            "resources": resources,
+            "disclosure": (
+                "Bounded same-origin assets embedded; active content and remaining remote resources "
+                "removed; cookies were never transferred."
+            ),
         }
 
     def delete_snapshot(self, bookmark: Bookmark) -> bool:
@@ -598,13 +693,17 @@ class SnapshotArchiver:
                     context = browser.new_context(service_workers="block")
                     page = context.new_page()
                     page.route("**/*", _route_request)
-                    page.goto(
+                    navigation = page.goto(
                         url,
                         wait_until="networkidle",
                         timeout=int(self.egress_policy.backend_timeout_seconds * 1000),
                     )
                     if violations:
                         return False, violations[0]
+                    self._last_provenance = {
+                        "resolved_url": page.url,
+                        "status_code": navigation.status if navigation is not None else None,
+                    }
                     content = page.content()
                 finally:
                     browser.close()
@@ -631,6 +730,10 @@ class SnapshotArchiver:
         )
         if resp is None:
             return False, f"fetch failed: {error}"
+        self._last_provenance = {
+            "resolved_url": current_url,
+            "status_code": getattr(resp, "status_code", None),
+        }
         try:
             raw = self._read_bounded(resp, self.egress_policy.max_bytes)
             if raw is None:

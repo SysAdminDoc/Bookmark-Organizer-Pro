@@ -2,6 +2,26 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [v6.12.0] - 2026-07-12
+
+Portable capture, migration, and product-contract release.
+
+### Added
+
+- Added optional bounded same-origin CSS, image, and font inlining for authenticated extension captures with omission diagnostics and inert offline output.
+- Added a real persistent headless Chromium MV3 smoke covering pairing, permissions, context menus, Side Panel, Reading List, IndexedDB credentials, offline retry, capture, and service-worker restart.
+- Added durable resumable import sessions with source digests, per-row checkpoints, retries, cancellation, revision-guarded rollback, and CLI/API/desktop diagnostics.
+- Added immutable snapshot versions with status/redirect/digest provenance, retention, content/metadata change reports, detail-panel visibility, MCP listing, and portable recovery.
+- Added desktop pseudo-LTR/pseudo-RTL localization gates and MV3 `chrome.i18n` catalogs with active document language/direction.
+- Added a checksum-bound release manifest that derives module ownership and product counts and states truthful lock compatibility exclusions.
+
+### Changed
+
+- Replaced mislabeled plain-HTML `.mhtml` output with bounded RFC 2557 multipart archives that embed referenced CSS, images, fonts, imports, and `srcset` resources while removing active navigation/content.
+- Enforced WCAG contrast requirements for created, imported, and persisted custom themes with ratio previews, rejection reasons, and safe built-in fallback.
+- Included `themedetect` in the aggregate `all` extra and made local package checks fail on lock, extras, ownership, or product-claim drift.
+- Hardened overload responses on Windows by boundedly draining queued request bytes before returning HTTP 503 and half-closing the socket.
+
 ## [v6.11.3] - 2026-07-12
 
 Concurrent recovery and accessible-dialog release.

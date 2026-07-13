@@ -274,6 +274,15 @@ class _BoundedThreadingHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
         finally:
             self._worker_slots.release()
 
+    @property
+    def at_capacity(self) -> bool:
+        """Return whether a new request would be rejected at this instant."""
+        acquired = self._worker_slots.acquire(blocking=False)
+        if acquired:
+            self._worker_slots.release()
+            return False
+        return True
+
     def _reject_busy(self, request) -> None:
         body = b'{"error":"Local API is busy; retry shortly"}'
         response = (
@@ -286,8 +295,43 @@ class _BoundedThreadingHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
             + body
         )
         try:
+            # Winsock can reset a connection closed with unread request bytes,
+            # discarding the already-sent 503 before urllib receives it. Drain
+            # the bounded request headers (and any small body already in the
+            # socket) before replying so overload is a deterministic HTTP
+            # response rather than a platform-dependent connection abort.
+            request.settimeout(0.01)
+            received = bytearray()
+            deadline = time.monotonic() + 0.05
+            expected = None
+            while len(received) < 65_536 and time.monotonic() < deadline:
+                try:
+                    chunk = request.recv(min(4096, 65_536 - len(received)))
+                except (socket.timeout, BlockingIOError):
+                    continue
+                if not chunk:
+                    break
+                received.extend(chunk)
+                header_end = received.find(b"\r\n\r\n")
+                if header_end >= 0 and expected is None:
+                    header_bytes = bytes(received[:header_end]).lower()
+                    content_length = 0
+                    for line in header_bytes.split(b"\r\n"):
+                        if line.startswith(b"content-length:"):
+                            try:
+                                content_length = max(0, int(line.split(b":", 1)[1].strip()))
+                            except ValueError:
+                                content_length = 0
+                            break
+                    expected = min(65_536, header_end + 4 + content_length)
+                if expected is not None and len(received) >= expected:
+                    break
             request.settimeout(0.25)
             request.sendall(response)
+            try:
+                request.shutdown(socket.SHUT_WR)
+            except OSError:
+                pass
         except OSError:
             pass
         finally:
@@ -526,6 +570,9 @@ class BookmarkAPI:
                             "GET /stats",
                             "GET /search?q=query",
                             "GET /digest",
+                            "GET /imports",
+                            "GET /imports/:id",
+                            "POST /imports/:id/retry|cancel|rollback",
                             "GET /opds",
                             "GET /opds2",
                             "GET|POST|DELETE /extension/pair"
@@ -567,6 +614,34 @@ class BookmarkAPI:
                         bookmarks = [bm for bm in bookmarks if any(t.lower() == tag_l for t in bm.tags)]
                     catalog_url = f"http://127.0.0.1:{self.server.server_port}{self.path}"
                     self._send_xml(render_opds(bookmarks[:limit], title=title, catalog_url=catalog_url))
+                    return
+
+                if path_parts[0] == 'imports':
+                    from bookmark_organizer_pro.services.import_sessions import ImportSessionManager
+
+                    sessions = ImportSessionManager()
+                    if len(path_parts) == 1:
+                        limit = _clamp_int(params.get('limit', [50])[0], 50, minimum=1, maximum=200)
+                        reports = [report.to_dict() for report in sessions.list(limit)]
+                        self._send_json({"count": len(reports), "sessions": reports})
+                        return
+                    session = sessions.get(path_parts[1])
+                    report = sessions.report(path_parts[1])
+                    if not session or not report:
+                        self._send_json({"error": "Import session not found or prefix is ambiguous"}, 404)
+                        return
+                    self._send_json({
+                        **report.to_dict(),
+                        "rows": [
+                            {
+                                "index": row.get("index"),
+                                "key": row.get("key"),
+                                "state": row.get("state"),
+                                "cause": row.get("cause", ""),
+                            }
+                            for row in session.get("rows", [])
+                        ],
+                    })
                     return
 
                 if path_parts[0] == 'opds2':
@@ -723,6 +798,31 @@ class BookmarkAPI:
                     return
 
                 if not self._check_browser_origin(discard_body=True):
+                    return
+
+                if path_parts and path_parts[0] == 'imports' and len(path_parts) == 3:
+                    from bookmark_organizer_pro.services.import_sessions import ImportSessionManager
+
+                    sessions = ImportSessionManager()
+                    session_id, action = path_parts[1], path_parts[2]
+                    try:
+                        if action == 'retry':
+                            report = sessions.retry(bookmark_manager, session_id)
+                        elif action == 'cancel':
+                            if not sessions.request_cancel(session_id):
+                                self._send_json({"error": "Import session not found"}, 404)
+                                return
+                            report = sessions.report(session_id)
+                        elif action == 'rollback':
+                            report = sessions.rollback(bookmark_manager, session_id)
+                        else:
+                            self._send_json({"error": "Unsupported import session action"}, 404)
+                            return
+                    except RuntimeError as exc:
+                        self._send_json({"error": str(exc)}, 409)
+                        return
+                    self._send_json(report.to_dict() if report else {"error": "Import session not found"},
+                                    200 if report else 404)
                     return
 
                 if path_parts and path_parts[0] == 'bookmarks':

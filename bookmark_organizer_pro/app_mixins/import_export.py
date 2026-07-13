@@ -545,7 +545,8 @@ class ImportExportMixin:
     
     def _import_service_file(self, importer_cls, label, filetypes):
         from tkinter import filedialog
-        from bookmark_organizer_pro.importers_extra import import_into
+        from bookmark_organizer_pro.services.import_sessions import ImportSessionManager
+
         path = filedialog.askopenfilename(
             title=_("Import from {source}").format(source=label),
             filetypes=filetypes,
@@ -553,14 +554,86 @@ class ImportExportMixin:
         )
         if not path:
             return
-        self.bookmark_manager.create_safepoint("pre-import")
-        added, dupes = import_into(self.bookmark_manager, importer_cls(), path)
-        self._on_import_done(added, dupes)
-        self._show_import_result_summary(
-            label,
-            added,
-            dupes,
-            _("Review imported items, then run duplicate and tag cleanup."),
+        cancelled = threading.Event()
+        activity = LiveWorkflowDialog(
+            self.root,
+            title=_("Importing from {source}").format(source=label),
+            total=1,
+            width=680,
+            height=500,
+            on_cancel=cancelled.set,
+        )
+        importer = importer_cls()
+        sessions = ImportSessionManager()
+        source = importer_cls.__name__.removesuffix("Importer").lower()
+
+        def progress(report):
+            activity.total = max(1, report.total)
+            processed = report.added + report.duplicates + report.failed
+            activity.add_result(
+                status="error" if report.failed else "ok",
+                title=_("Processed {processed} of {total}").format(
+                    processed=processed, total=report.total,
+                ),
+                detail=_("{added} added · {duplicates} duplicates · {failed} failed").format(
+                    added=report.added,
+                    duplicates=report.duplicates,
+                    failed=report.failed,
+                ),
+            )
+
+        def work():
+            return sessions.run(
+                self.bookmark_manager,
+                importer,
+                path,
+                source=source,
+                cancel_requested=cancelled.is_set,
+                on_progress=progress,
+            )
+
+        def complete(report):
+            self._on_import_done(report.added, report.duplicates)
+            causes = "; ".join(
+                f"{cause} ({count})" for cause, count in report.causes.items()
+            ) or _("none")
+            diagnostics = _(
+                "Session {session} · {status} · {duration} ms · "
+                "{failed} failed · {losses} source losses · causes: {causes}. "
+                "Use `bop imports` to retry, cancel, or roll back."
+            ).format(
+                session=report.session_id,
+                status=report.status,
+                duration=report.duration_ms,
+                failed=report.failed,
+                losses=report.losses,
+                causes=causes,
+            )
+            activity.signal_finish(
+                diagnostics,
+                outcome="error" if report.failed else (
+                    "warning" if report.status == "cancelled" else "success"
+                ),
+            )
+            self._show_import_result_summary(
+                label,
+                report.added,
+                report.duplicates,
+                diagnostics,
+                report=report,
+            )
+
+        def failed(error):
+            activity.add_result(status="error", title=_("Import interrupted"), detail=str(error))
+            activity.signal_finish(str(error), outcome="error")
+            self._show_toast(str(error), "error")
+
+        activity.start()
+        self.task_runner.run_task(
+            f"import-session-{id(activity)}",
+            work,
+            on_complete=complete,
+            on_error=failed,
         )
 
     def _preflight_competitor_migration(self, source: str, label: str):
@@ -650,7 +723,9 @@ class ImportExportMixin:
         ModernButton(buttons, text=_("Close"), command=dlg.destroy,
                      padx=14, pady=7).pack(side=tk.RIGHT, padx=(0, 8))
 
-    def _show_import_result_summary(self, label: str, added: int, dupes: int, next_action: str):
+    def _show_import_result_summary(
+        self, label: str, added: int, dupes: int, next_action: str, *, report=None
+    ):
         """Show a compact non-blocking import result with the next action."""
         theme = get_theme()
         dlg = tk.Toplevel(self.root)
@@ -693,6 +768,40 @@ class ImportExportMixin:
 
         buttons = tk.Frame(dlg, bg=theme.bg_primary)
         buttons.pack(side=tk.BOTTOM, fill=tk.X, padx=22, pady=18)
+
+        def session_action(action: str):
+            from bookmark_organizer_pro.services.import_sessions import ImportSessionManager
+
+            sessions = ImportSessionManager()
+
+            def work():
+                if action == "retry":
+                    return sessions.retry(self.bookmark_manager, report.session_id)
+                return sessions.rollback(self.bookmark_manager, report.session_id)
+
+            def complete(updated):
+                self._refresh_all()
+                dlg.destroy()
+                self._show_toast(
+                    _("Import session {status}: {added} added, {failed} failed, {losses} losses.").format(
+                        status=updated.status,
+                        added=updated.added,
+                        failed=updated.failed,
+                        losses=updated.losses,
+                    ),
+                    "success" if updated.status in {"completed", "rolled_back"} else "warning",
+                )
+
+            def failed(error):
+                self._show_toast(str(error), "error")
+
+            self.task_runner.run_task(
+                f"import-{action}-{report.session_id}",
+                work,
+                on_complete=complete,
+                on_error=failed,
+            )
+
         ModernButton(
             buttons,
             text=_("Review Library"),
@@ -702,6 +811,16 @@ class ImportExportMixin:
             pady=7,
         ).pack(side=tk.RIGHT)
         ModernButton(buttons, text=_("Close"), command=dlg.destroy, padx=14, pady=7).pack(side=tk.RIGHT, padx=(0, 8))
+        if report and report.failed:
+            ModernButton(
+                buttons, text=_("Retry Failed"), command=lambda: session_action("retry"),
+                padx=12, pady=7,
+            ).pack(side=tk.LEFT)
+        if report and report.safepoint:
+            ModernButton(
+                buttons, text=_("Roll Back"), command=lambda: session_action("rollback"),
+                padx=12, pady=7,
+            ).pack(side=tk.LEFT, padx=(0, 8))
 
     def _import_service_pocket(self):
         from bookmark_organizer_pro.importers_extra import PocketExportImporter

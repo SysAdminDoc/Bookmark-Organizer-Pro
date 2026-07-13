@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tkinter as tk
 
+from bookmark_organizer_pro.i18n import _, layout_anchor, layout_side
 from bookmark_organizer_pro.managers import BookmarkManager
 
 from .foundation import FONTS
@@ -46,10 +47,10 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         """Build dashboard UI"""
         # Title
         title = tk.Label(
-            self, text="Dashboard", bg=self.theme.bg_primary,
+            self, text=_("Dashboard"), bg=self.theme.bg_primary,
             fg=self.theme.text_primary, font=FONTS.title(bold=True)
         )
-        title.pack(pady=(20, 15), padx=20, anchor="w")
+        title.pack(pady=(20, 15), padx=20, anchor=layout_anchor("w"))
         
         # Stats grid
         stats_frame = tk.Frame(self, bg=self.theme.bg_primary)
@@ -69,14 +70,14 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         
         # Stat cards
         stat_cards = [
-            ("All", "Total Bookmarks", stats.total_bookmarks),
-            ("Cat", "Categories", stats.total_categories),
-            ("Tag", "Tags Used", stats.total_tags),
-            ("Pin", "Pinned", stats.pinned),
-            ("New", "Uncategorized", stats.uncategorized),
-            ("Dup", "Duplicates", stats.duplicate_bookmarks),
-            ("Fix", "Broken Links", stats.broken),
-            ("Old", "Stale (90+ days)", stats.stale),
+            ("All", _("Total Bookmarks"), stats.total_bookmarks),
+            ("Cat", _("Categories"), stats.total_categories),
+            ("Tag", _("Tags Used"), stats.total_tags),
+            ("Pin", _("Pinned"), stats.pinned),
+            ("New", _("Uncategorized"), stats.uncategorized),
+            ("Dup", _("Duplicates"), stats.duplicate_bookmarks),
+            ("Fix", _("Broken Links"), stats.broken),
+            ("Old", _("Stale (90+ days)"), stats.stale),
         ]
         
         for i, (icon, label, value) in enumerate(stat_cards):
@@ -90,7 +91,7 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         
         # Category distribution
         cat_frame = tk.LabelFrame(
-            self, text="Category Distribution", bg=self.theme.bg_primary,
+            self, text=_("Category Distribution"), bg=self.theme.bg_primary,
             fg=self.theme.text_primary, font=FONTS.body(bold=True)
         )
         cat_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=15)
@@ -103,7 +104,7 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         
         # Top domains
         domain_frame = tk.LabelFrame(
-            self, text="Top Domains", bg=self.theme.bg_primary,
+            self, text=_("Top Domains"), bg=self.theme.bg_primary,
             fg=self.theme.text_primary, font=FONTS.body(bold=True)
         )
         domain_frame.pack(fill=tk.X, padx=20, pady=(0, 20))
@@ -116,12 +117,12 @@ class DashboardPanel(tk.Frame, ThemedWidget):
                 row, text=domain, bg=self.theme.bg_primary,
                 fg=self.theme.text_primary, font=FONTS.body(),
                 anchor="w"
-            ).pack(side=tk.LEFT)
+            ).pack(side=layout_side(tk.LEFT))
             
             tk.Label(
                 row, text=str(count), bg=self.theme.bg_primary,
                 fg=self.theme.text_muted, font=FONTS.body()
-            ).pack(side=tk.RIGHT)
+            ).pack(side=layout_side(tk.RIGHT))
 
     def _load_statistics(self) -> DashboardStatisticsViewModel:
         """Return a complete dashboard state even when statistics fail."""
@@ -130,7 +131,7 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         except Exception:
             return build_dashboard_statistics(
                 degraded_message=(
-                    "Statistics are temporarily unavailable. Showing safe defaults."
+                    _("Statistics are temporarily unavailable. Showing safe defaults.")
                 )
             )
     
@@ -142,19 +143,19 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         tk.Label(
             card, text=icon, bg=self.theme.bg_secondary,
             font=FONTS.title(bold=False)
-        ).pack(anchor="w")
+        ).pack(anchor=layout_anchor("w"))
         
         # Value
         tk.Label(
             card, text=str(value), bg=self.theme.bg_secondary,
             fg=self.theme.text_primary, font=FONTS.hero(bold=True)
-        ).pack(anchor="w")
+        ).pack(anchor=layout_anchor("w"))
         
         # Label
         tk.Label(
             card, text=label, bg=self.theme.bg_secondary,
             fg=self.theme.text_muted, font=FONTS.body()
-        ).pack(anchor="w")
+        ).pack(anchor=layout_anchor("w"))
         
         return card
     
@@ -168,12 +169,12 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         tk.Label(
             row, text=label_text, bg=self.theme.bg_primary,
             fg=self.theme.text_primary, font=FONTS.small(),
-            width=25, anchor="w"
-        ).pack(side=tk.LEFT)
+            width=25, anchor=layout_anchor("w")
+        ).pack(side=layout_side(tk.LEFT))
         
         # Bar
         bar_frame = tk.Frame(row, bg=self.theme.bg_tertiary, height=16)
-        bar_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
+        bar_frame.pack(side=layout_side(tk.LEFT), fill=tk.X, expand=True, padx=10)
         bar_frame.pack_propagate(False)
         
         pct = (value / total * 100) if total > 0 else 0
@@ -184,7 +185,7 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         tk.Label(
             row, text=f"{value} ({pct:.1f}%)", bg=self.theme.bg_primary,
             fg=self.theme.text_muted, font=FONTS.small(), width=12
-        ).pack(side=tk.RIGHT)
+        ).pack(side=layout_side(tk.RIGHT))
     
     def refresh(self):
         """Refresh dashboard data"""

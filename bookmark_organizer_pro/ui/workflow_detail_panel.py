@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 import tkinter as tk
 from typing import Callable, Optional
 
@@ -145,6 +146,31 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
             self._add_detail("Last Visited", self._format_date(bookmark.last_visited))
         
         self._add_detail("Visits", str(bookmark.visit_count))
+
+        if bookmark.snapshot_path:
+            self._add_detail("Snapshot", self._format_date(bookmark.snapshot_at) or "Available")
+            try:
+                from bookmark_organizer_pro.services.snapshot_history import SnapshotHistoryStore
+                versions = SnapshotHistoryStore(Path(bookmark.snapshot_path).parent).list_versions(bookmark.id)
+                self._add_detail("Versions", str(len(versions)))
+                if versions:
+                    latest = versions[0]
+                    provenance = f"{latest.status_code or 'n/a'} · {latest.resolved_url}"
+                    self._add_detail("Capture", provenance)
+                if len(versions) > 1:
+                    report = SnapshotHistoryStore(Path(bookmark.snapshot_path).parent).change_report(
+                        versions[1].version_id, versions[0].version_id, max_diff_lines=1,
+                    )
+                    changes = []
+                    if report["content_changed"]:
+                        changes.append("content")
+                    if report["redirect_changed"]:
+                        changes.append("redirect")
+                    if report["status_changed"]:
+                        changes.append("status")
+                    self._add_detail("Changed", ", ".join(changes) if changes else "No change")
+            except (OSError, RuntimeError, ValueError, KeyError):
+                pass
         
         # Status indicators
         status_parts = []

@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "user_extras": [
+    "ai",
+    "encryption",
+    "mcp",
+    "sunvalley",
+    "themedetect"
+  ],
+  "locks": [
+    {
+      "path": "pylock.toml",
+      "python": "3.11",
+      "platform": "win32",
+      "verified": true,
+      "sha256": "120f0be2c6a0971c8a351964583e972dcf12161f79bf5a473aa40c92a1ef25af"
+    }
+  ],
+  "unlocked_supported_environments": {
+    "python": ["3.10", "3.12", "3.13"],
+    "platforms": ["linux", "darwin"],
+    "install_policy": "Resolve bounded dependencies from pyproject.toml; pylock.toml is not claimed compatible."
+  },
+  "module_ownership": {
+    "app_mixins": "desktop application orchestration",
+    "core": "storage and categorization domain",
+    "io_formats": "portable interchange parsing and serialization",
+    "managers": "bookmark, category, and tag state",
+    "models": "serialized domain models",
+    "services": "headless product capabilities and integrations",
+    "ui": "Tk presentation and interaction",
+    "utils": "runtime and dependency utilities"
+  }
+}

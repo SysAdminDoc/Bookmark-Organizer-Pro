@@ -24,6 +24,7 @@ from bookmark_organizer_pro.constants import (
     MASTER_BOOKMARKS_FILE,
     SETTINGS_FILE,
 )
+from bookmark_organizer_pro.i18n import _, layout_anchor, layout_side
 from bookmark_organizer_pro.services.local_state import (
     build_diagnostics_snapshot,
     export_redacted_support_bundle,
@@ -61,7 +62,7 @@ class AboutDialog(tk.Toplevel):
         theme = get_theme()
         self.status_var = tk.StringVar(value="")
         
-        self.title(f"About {APP_NAME}")
+        self.title(_("About {app_name}").format(app_name=APP_NAME))
         apply_screen_aware_geometry(self, 700, 640)
         self.minsize(520, 420)
         self.resizable(True, True)
@@ -104,7 +105,7 @@ class AboutDialog(tk.Toplevel):
         
         # Version
         tk.Label(
-            header_content, text=f"Version {APP_VERSION}",
+            header_content, text=_("Version {version}").format(version=APP_VERSION),
             font=FONTS.body(), bg=theme.bg_secondary, fg=theme.text_secondary
         ).pack()
         
@@ -135,43 +136,43 @@ class AboutDialog(tk.Toplevel):
         actions.pack(fill=tk.X)
 
         logs_btn = ModernButton(
-            actions, text="Open Logs",
+            actions, text=_("Open Logs"),
             font=FONTS.small(), command=self._open_logs,
             padx=12, pady=6
         )
-        logs_btn.pack(side=tk.LEFT, padx=(0, 8))
+        logs_btn.pack(side=layout_side(tk.LEFT), padx=(0, 8))
 
         copy_btn = ModernButton(
-            actions, text="Copy Diagnostics",
+            actions, text=_("Copy Diagnostics"),
             font=FONTS.small(), command=self._copy_system_info,
             padx=12, pady=6
         )
-        copy_btn.pack(side=tk.LEFT, padx=(0, 8))
+        copy_btn.pack(side=layout_side(tk.LEFT), padx=(0, 8))
 
         bundle_btn = ModernButton(
-            actions, text="Export Redacted Bundle",
+            actions, text=_("Export Redacted Bundle"),
             font=FONTS.small(), command=self._export_support_bundle,
             padx=12, pady=6
         )
-        bundle_btn.pack(side=tk.LEFT)
+        bundle_btn.pack(side=layout_side(tk.LEFT))
 
         close_btn = ModernButton(
-            actions, text="Close", style="primary",
+            actions, text=_("Close"), style="primary",
             font=FONTS.body(), command=self.destroy,
             padx=20, pady=6
         )
-        close_btn.pack(side=tk.RIGHT)
+        close_btn.pack(side=layout_side(tk.RIGHT))
 
         tk.Label(
             footer_content, textvariable=self.status_var, bg=theme.bg_secondary,
-            fg=theme.text_secondary, font=FONTS.small(), anchor="w",
+            fg=theme.text_secondary, font=FONTS.small(), anchor=layout_anchor("w"),
             wraplength=650, justify=tk.LEFT
         ).pack(fill=tk.X, pady=(8, 0))
     
     def _create_about_tab(self, notebook, theme):
         """Create About tab"""
         frame = tk.Frame(notebook, bg=theme.bg_primary)
-        notebook.add(frame, text="  About  ")
+        notebook.add(frame, text="  " + _("About") + "  ")
         
         text = tk.Text(
             frame, bg=theme.bg_primary, fg=theme.text_primary,
@@ -202,7 +203,7 @@ License: {LICENSE}
     def _create_features_tab(self, notebook, theme):
         """Create Features tab"""
         frame = tk.Frame(notebook, bg=theme.bg_primary)
-        notebook.add(frame, text="  Features  ")
+        notebook.add(frame, text="  " + _("Features") + "  ")
         
         # Scrollable list
         canvas = tk.Canvas(frame, bg=theme.bg_primary, highlightthickness=0)
@@ -214,17 +215,17 @@ License: {LICENSE}
         canvas.configure(yscrollcommand=scrollbar.set)
         
         features = [
-            ("Import/Export", "HTML, JSON, CSV, and OPML formats"),
-            ("Categories", "Nested hierarchy with auto-categorization"),
-            ("Tags", "User tags plus AI suggestions"),
-            ("Search", "Advanced syntax with filters and highlighting"),
-            ("AI Features", "Auto-categorize, generate tags, and summarize"),
-            ("Themes", "Built-in themes and a custom theme creator"),
-            ("Analytics", "Collection health, cleanup signals, and insights"),
-            ("Navigation", "Keyboard-friendly navigation and command actions"),
-            ("Undo/Redo", "Bookmark-level action history"),
-            ("Link Checker", "Validate bookmark URLs"),
-            ("Favicons", "Automatic favicon downloading and caching"),
+            (_("Import/Export"), _("HTML, JSON, CSV, and OPML formats")),
+            (_("Categories"), _("Nested hierarchy with auto-categorization")),
+            (_("Tags"), _("User tags plus AI suggestions")),
+            (_("Search"), _("Advanced syntax with filters and highlighting")),
+            (_("AI Features"), _("Auto-categorize, generate tags, and summarize")),
+            (_("Themes"), _("Built-in themes and a custom theme creator")),
+            (_("Analytics"), _("Collection health, cleanup signals, and insights")),
+            (_("Navigation"), _("Keyboard-friendly navigation and command actions")),
+            (_("Undo/Redo"), _("Bookmark-level action history")),
+            (_("Link Checker"), _("Validate bookmark URLs")),
+            (_("Favicons"), _("Automatic favicon downloading and caching")),
         ]
         
         for i, (name, desc) in enumerate(features):
@@ -244,7 +245,7 @@ License: {LICENSE}
     def _create_system_tab(self, notebook, theme):
         """Create System info tab"""
         frame = tk.Frame(notebook, bg=theme.bg_primary)
-        notebook.add(frame, text="  System  ")
+        notebook.add(frame, text="  " + _("System") + "  ")
         
         text = tk.Text(
             frame, bg=theme.bg_primary, fg=theme.text_primary,
@@ -286,7 +287,7 @@ Logs:           {LOG_FILE.name}
     def _create_credits_tab(self, notebook, theme):
         """Create Credits tab"""
         frame = tk.Frame(notebook, bg=theme.bg_primary)
-        notebook.add(frame, text="  Credits  ")
+        notebook.add(frame, text="  " + _("Credits") + "  ")
         
         text = tk.Text(
             frame, bg=theme.bg_primary, fg=theme.text_primary,
@@ -328,7 +329,7 @@ to deal in the Software without restriction.
         
         self.clipboard_clear()
         self.clipboard_append(info)
-        self._set_status("Diagnostics copied to clipboard.")
+        self._set_status(_("Diagnostics copied to clipboard."))
 
     def _open_logs(self):
         """Open the logs directory in the OS file manager."""
@@ -340,17 +341,17 @@ to deal in the Software without restriction.
                 subprocess.Popen(["open", str(LOG_FILE.parent)])
             else:
                 subprocess.Popen(["xdg-open", str(LOG_FILE.parent)])
-            self._set_status(f"Opened logs: {LOG_FILE.parent}")
+            self._set_status(_("Opened logs: {path}").format(path=LOG_FILE.parent))
         except Exception as exc:
-            self._set_status(f"Could not open logs: {exc}")
+            self._set_status(_("Could not open logs: {error}").format(error=exc))
 
     def _export_support_bundle(self):
         """Export a redacted support bundle."""
         try:
             bundle_path = export_redacted_support_bundle()
-            self._set_status(f"Redacted support bundle exported: {bundle_path}")
+            self._set_status(_("Redacted support bundle exported: {path}").format(path=bundle_path))
         except Exception as exc:
-            self._set_status(f"Support bundle export failed: {exc}")
+            self._set_status(_("Support bundle export failed: {error}").format(error=exc))
 
     def _set_status(self, message: str):
         self.status_var.set(message)

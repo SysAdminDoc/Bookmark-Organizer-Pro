@@ -21,13 +21,15 @@ function setStatus(message, tone = "info") {
 function setBusy(isBusy) {
   const button = document.getElementById("saveBookmark");
   button.disabled = isBusy;
-  button.textContent = isBusy ? "Saving..." : "Save Bookmark";
+  button.textContent = isBusy
+    ? extensionMessage("saving", [], "Saving...")
+    : extensionMessage("saveBookmark", [], "Save Bookmark");
 }
 
 function setUnavailable(message) {
   const button = document.getElementById("saveBookmark");
   button.disabled = true;
-  button.textContent = "Unavailable";
+  button.textContent = extensionMessage("unavailable", [], "Unavailable");
   setStatus(message, "error");
 }
 
@@ -46,7 +48,8 @@ async function loadPopup() {
   const values = await getConfig();
 
   document.getElementById("category").value = values.defaultCategory;
-  document.getElementById("pageTitle").textContent = activeTab?.title || "No active tab";
+  document.getElementById("pageTitle").textContent = activeTab?.title ||
+    extensionMessage("noActiveTab", [], "No active tab");
 
   if (!activeTab || !isSaveableUrl(activeTab.url)) {
     setUnavailable("Open an HTTP or HTTPS page before saving.");
@@ -88,18 +91,18 @@ async function clearPendingQueue() {
 
 async function saveBookmark() {
   if (!activeTab || !isSaveableUrl(activeTab.url)) {
-    setStatus("This page cannot be saved.", "error");
+    setStatus(extensionMessage("pageCannotBeSaved", [], "This page cannot be saved."), "error");
     return;
   }
 
   const values = await getConfig();
   if (!values.apiToken) {
-    setStatus("Add the local API token in Options before saving.", "error");
+    setStatus(extensionMessage("addTokenBeforeSaving", [], "Add the local API token in Options before saving."), "error");
     return;
   }
 
   setBusy(true);
-  setStatus("Saving...");
+  setStatus(extensionMessage("saving", [], "Saving..."));
 
   const payload = {
     url: activeTab.url,
@@ -112,17 +115,19 @@ async function saveBookmark() {
 
   try {
     if (document.getElementById("captureSnapshot").checked) {
-      setStatus("Sanitizing this page before upload...");
+      setStatus(extensionMessage("sanitizingPage", [], "Sanitizing this page before upload..."));
       payload.browser_snapshot = await captureSanitizedPage(activeTab.id);
     }
     const result = await saveBookmarkPayload(payload, values);
     if (result.status === 201) {
       const preserved = result.body && result.body.browser_snapshot;
-      setStatus(preserved ? "Saved with a sanitized offline copy. No cookies were sent." : "Saved to your library.", "success");
+      setStatus(preserved
+        ? extensionMessage("savedWithOfflineCopy", [], "Saved with a sanitized offline copy. No cookies were sent.")
+        : extensionMessage("savedToLibrary", [], "Saved to your library."), "success");
     } else if (result.status === 409) {
-      setStatus("Already in your library.", "success");
+      setStatus(extensionMessage("alreadyInLibrary", [], "Already in your library."), "success");
     } else if (result.status === 401) {
-      setStatus("Invalid API token. Check Options.", "error");
+      setStatus(extensionMessage("invalidToken", [], "Invalid API token. Check Options."), "error");
     } else {
       setStatus(`Save failed (${result.status}).`, "error");
     }

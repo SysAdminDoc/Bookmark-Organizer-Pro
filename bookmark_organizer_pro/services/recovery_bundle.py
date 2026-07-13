@@ -48,6 +48,8 @@ LIBRARY_FILES = (
     "extraction_templates.json",
     "dead_links.json",
     "snapshot_failures.json",
+    "snapshot_history.json",
+    "import_sessions.json",
 )
 LIBRARY_DIRS = ("snapshots", "extracted", "ai_snapshots")
 
@@ -326,6 +328,10 @@ def validate_recovery_bundle(bundle_path: str | Path) -> BundleReport:
 
 
 def _rewrite_portable_paths(staging: Path, target: Path, index: dict[str, Any]) -> None:
+    history_path = staging / "snapshot_history.json"
+    if history_path.is_file():
+        from bookmark_organizer_pro.services.snapshot_history import SnapshotHistoryStore
+        SnapshotHistoryStore(staging / "snapshots").relocate_paths(target / "snapshots")
     rewrites = index.get("portable_paths", [])
     if not isinstance(rewrites, list) or not rewrites:
         return
