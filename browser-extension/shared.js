@@ -4,6 +4,7 @@ const DEFAULTS = {
   defaultCategory: "Uncategorized / Needs Review"
 };
 const PENDING_SAVES_KEY = "pendingSaves";
+const CLEARED_SAVES_KEY = "lastClearedPendingSaves";
 
 const api = globalThis.browser ?? globalThis.chrome;
 
@@ -86,17 +87,28 @@ async function pairExtension(config, { replace = false } = {}) {
   return { status: response.status, body };
 }
 
-async function saveBookmarkPayload(payload, config) {
+function isRetryableSaveStatus(status) {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+async function saveBookmarkPayload(payload, config, { source = "unknown", journal = true } = {}) {
   const headers = authHeaders(config);
   if (payload.browser_snapshot) headers["X-BOP-Capture-Version"] = "1";
-  const response = await fetch(`${baseUrl(config)}/bookmarks`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(payload)
-  });
-  let body = {};
-  try { body = await response.json(); } catch { /* response body is optional */ }
-  return { status: response.status, body };
+  try {
+    const response = await fetch(`${baseUrl(config)}/bookmarks`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload)
+    });
+    let body = {};
+    try { body = await response.json(); } catch { /* response body is optional */ }
+    const queued = journal && isRetryableSaveStatus(response.status);
+    if (queued) await enqueuePendingSave(payload, `HTTP ${response.status}`, source);
+    return { status: response.status, body, queued };
+  } catch {
+    if (journal) await enqueuePendingSave(payload, "API unavailable", source);
+    return { status: 0, body: {}, queued: Boolean(journal) };
+  }
 }
 
 async function capturePageInDocument(options = {}) {
@@ -423,6 +435,7 @@ async function enqueuePendingSave(payload, reason = "API unavailable", source = 
   if (duplicate) {
     duplicate.payload = normalized.payload;
     duplicate.reason = reason;
+    duplicate.source = source;
     duplicate.created_at = normalized.created_at;
   } else {
     pending.push(normalized);
@@ -438,11 +451,17 @@ async function retryPendingSaves() {
   let resolved = 0;
   for (const item of pending) {
     try {
-      const result = await saveBookmarkPayload(item.payload, config);
+      const result = await saveBookmarkPayload(
+        item.payload, config, { source: item.source || "retry", journal: false }
+      );
       if (result.status === 201 || result.status === 409) {
         resolved += 1;
       } else {
-        remaining.push({ ...item, attempts: (item.attempts || 0) + 1, reason: `HTTP ${result.status}` });
+        remaining.push({
+          ...item,
+          attempts: (item.attempts || 0) + 1,
+          reason: result.status ? `HTTP ${result.status}` : "API unavailable"
+        });
       }
     } catch {
       remaining.push({ ...item, attempts: (item.attempts || 0) + 1, reason: "API unavailable" });
@@ -452,8 +471,68 @@ async function retryPendingSaves() {
   return { attempted: pending.length, resolved, remaining: remaining.length };
 }
 
-async function clearPendingSaves() {
+async function getClearedPendingSaves() {
+  const stored = await storageGet({ [CLEARED_SAVES_KEY]: null });
+  const snapshot = stored[CLEARED_SAVES_KEY];
+  return snapshot && Array.isArray(snapshot.items) ? snapshot : null;
+}
+
+async function clearPendingSaves({ confirmed = false } = {}) {
+  if (!confirmed) throw new Error("Pending-save clear requires confirmation");
   const pending = await getPendingSaves();
+  await storageSet({
+    [CLEARED_SAVES_KEY]: {
+      schema: "bookmark-organizer-pro/pending-saves",
+      cleared_at: new Date().toISOString(),
+      items: pending
+    }
+  });
   await setPendingSaves([]);
+  return pending.length;
+}
+
+async function restoreClearedPendingSaves() {
+  const snapshot = await getClearedPendingSaves();
+  if (!snapshot) return 0;
+  const pending = await getPendingSaves();
+  const merged = [...pending];
+  for (const item of snapshot.items) {
+    const index = merged.findIndex(existing => existing.payload?.url === item.payload?.url);
+    if (index >= 0) merged[index] = item;
+    else merged.push(item);
+  }
+  await setPendingSaves(merged);
+  await storageSet({ [CLEARED_SAVES_KEY]: null });
+  return snapshot.items.length;
+}
+
+function renderPendingSaves(container, pending) {
+  if (!container) return;
+  container.innerHTML = "";
+  for (const item of pending) {
+    const row = document.createElement("li");
+    const title = item.payload?.title || item.payload?.url || "Untitled save";
+    const when = item.created_at ? new Date(item.created_at).toLocaleString() : "Unknown time";
+    row.textContent = `${title} · ${item.source || "unknown"} · ${when} · ${item.reason || "retry pending"}`;
+    container.appendChild(row);
+  }
+}
+
+async function exportPendingSaves() {
+  const pending = await getPendingSaves();
+  const payload = JSON.stringify({
+    schema: "bookmark-organizer-pro/pending-saves",
+    exported_at: new Date().toISOString(),
+    items: pending
+  }, null, 2);
+  const url = URL.createObjectURL(new Blob([payload], { type: "application/json" }));
+  try {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `bookmark-organizer-pro-pending-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
   return pending.length;
 }

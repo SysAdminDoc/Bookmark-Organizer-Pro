@@ -175,6 +175,11 @@ with `python scripts/extension_firefox_smoke.py`; set `FIREFOX_BINARY` when
 Firefox is not installed in a standard or Playwright location. The smoke exits
 with status 2 and a structured limitation report when no Firefox runtime exists.
 
+Retryable API failures from every save surface enter the same deduplicated local
+journal. The popup and side panel show each pending title, source, time, and
+failure reason; retries retain failures, while JSON export and confirmed Clear
+with Undo protect queued work before it is discarded.
+
 The popup and side panel can optionally save a sanitized offline copy of the
 active signed-in page. Capture removes scripts, forms, event handlers, remote
 assets, cookies, and storage client-side; the authenticated API enforces an

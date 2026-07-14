@@ -303,6 +303,7 @@ button:disabled {
 
 .pending-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 9px;
 }
@@ -311,6 +312,23 @@ button:disabled {
   min-height: 32px;
   padding: 6px 10px;
   font-size: 12px;
+}
+
+.pending-list {
+  max-height: 132px;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.pending-list li {
+  padding: 6px 0;
+  border-top: 1px solid var(--border-soft);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .tabs {

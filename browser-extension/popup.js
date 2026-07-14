@@ -1,6 +1,7 @@
 /* global DEFAULTS, api, storageGet, queryTabs, executeScript, getConfig,
           isSaveableUrl, loadCategories, saveBookmarkPayload, captureSanitizedPage, getPendingSaves,
-          retryPendingSaves, clearPendingSaves */
+          retryPendingSaves, clearPendingSaves, getClearedPendingSaves, restoreClearedPendingSaves,
+          renderPendingSaves, exportPendingSaves */
 
 let activeTab = null;
 
@@ -73,8 +74,18 @@ async function refreshPendingPanel() {
   const panel = document.getElementById("pendingPanel");
   const count = document.getElementById("pendingCount");
   const pending = await getPendingSaves();
-  panel.hidden = pending.length === 0;
-  count.textContent = `${pending.length} pending quick save${pending.length === 1 ? "" : "s"}`;
+  const cleared = await getClearedPendingSaves();
+  panel.hidden = pending.length === 0 && !cleared;
+  count.textContent = pending.length
+    ? `${pending.length} pending save${pending.length === 1 ? "" : "s"}`
+    : cleared
+      ? `${cleared.items.length} cleared save${cleared.items.length === 1 ? "" : "s"} can be restored`
+      : "0 pending saves";
+  renderPendingSaves(document.getElementById("pendingList"), pending);
+  document.getElementById("retryPending").disabled = pending.length === 0;
+  document.getElementById("exportPending").disabled = pending.length === 0;
+  document.getElementById("clearPending").disabled = pending.length === 0;
+  document.getElementById("restorePending").hidden = !cleared;
 }
 
 async function retryPendingQueue() {
@@ -84,8 +95,15 @@ async function retryPendingQueue() {
 }
 
 async function clearPendingQueue() {
-  const cleared = await clearPendingSaves();
+  if (!globalThis.confirm("Clear the pending save journal? You can undo this from the same panel.")) return;
+  const cleared = await clearPendingSaves({ confirmed: true });
   setStatus(`Cleared ${cleared} pending quick save${cleared === 1 ? "" : "s"}.`, "info");
+  await refreshPendingPanel();
+}
+
+async function restorePendingQueue() {
+  const restored = await restoreClearedPendingSaves();
+  setStatus(`Restored ${restored} pending save${restored === 1 ? "" : "s"}.`, "success");
   await refreshPendingPanel();
 }
 
@@ -118,8 +136,11 @@ async function saveBookmark() {
       setStatus(extensionMessage("sanitizingPage", [], "Sanitizing this page before upload..."));
       payload.browser_snapshot = await captureSanitizedPage(activeTab.id);
     }
-    const result = await saveBookmarkPayload(payload, values);
-    if (result.status === 201) {
+    const result = await saveBookmarkPayload(payload, values, { source: "popup" });
+    if (result.queued) {
+      setStatus("API unavailable. Save added to the retry journal.", "warning");
+      await refreshPendingPanel();
+    } else if (result.status === 201) {
       const preserved = result.body && result.body.browser_snapshot;
       setStatus(preserved
         ? extensionMessage("savedWithOfflineCopy", [], "Saved with a sanitized offline copy. No cookies were sent.")
@@ -150,6 +171,13 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   document.getElementById("clearPending").addEventListener("click", () => {
     clearPendingQueue().catch(() => setStatus("Pending queue could not be cleared.", "error"));
+  });
+  document.getElementById("restorePending").addEventListener("click", () => {
+    restorePendingQueue().catch(() => setStatus("Cleared saves could not be restored.", "error"));
+  });
+  document.getElementById("exportPending").addEventListener("click", () => {
+    exportPendingSaves().then(count => setStatus(`Exported ${count} pending save${count === 1 ? "" : "s"}.`, "success"))
+      .catch(() => setStatus("Pending saves could not be exported.", "error"));
   });
   refreshPendingPanel().catch(() => {});
   loadPopup().catch(() => setStatus("Could not load the active tab.", "error"));

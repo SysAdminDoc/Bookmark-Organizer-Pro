@@ -518,7 +518,7 @@ vm.runInContext(`(async () => {
 
     def test_reading_list_import_payload_contract_maps_read_state(self):
         sidepanel_js = (EXT_DIR / "sidepanel.js").read_text(encoding="utf-8")
-        payload = extract_js_object_literal(sidepanel_js, "body: JSON.stringify({")
+        payload = extract_js_object_literal(sidepanel_js, "saveBookmarkPayload({")
 
         self.assertIn("url: item.url", payload)
         self.assertIn("title: item.title || item.url", payload)
@@ -545,14 +545,17 @@ vm.runInContext(`(async () => {
 
         self.assertIn('PENDING_SAVES_KEY = "pendingSaves"', shared_js)
         self.assertIn("enqueuePendingSave", background_js)
-        self.assertIn("HTTP ${response.status}", background_js)
-        self.assertIn("API unavailable", background_js)
+        self.assertIn("saveBookmarkPayload(payload, values, { source })", background_js)
+        self.assertIn("HTTP ${response.status}", shared_js)
+        self.assertIn("API unavailable", shared_js)
         self.assertIn("result.status === 201 || result.status === 409", shared_js)
         for html in (popup_html, sidepanel_html):
             self.assertIn('id="pendingPanel"', html)
             self.assertIn('id="pendingCount"', html)
             self.assertIn('id="retryPending"', html)
             self.assertIn('id="clearPending"', html)
+            self.assertIn('id="exportPending"', html)
+            self.assertIn('id="restorePending"', html)
         for js in (popup_js, sidepanel_js):
             self.assertIn("refreshPendingPanel", js)
             self.assertIn("retryPendingSaves", js)

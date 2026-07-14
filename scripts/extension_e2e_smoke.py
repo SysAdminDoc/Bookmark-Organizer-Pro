@@ -342,24 +342,69 @@ def run_smoke(
             else:
                 checks.append(CheckResult("sanitized_capture", "failed", str(capture_result)))
 
-            worker.evaluate(
-                """async () => {
+            offline_urls = {
+                "popup": "https://example.com/extension-e2e-offline-popup",
+                "side_panel": "https://example.com/extension-e2e-offline-side-panel",
+                "context_menu": "https://example.com/extension-e2e-offline-context",
+                "selection": "https://example.com/extension-e2e-offline-selection",
+            }
+            queued_results = worker.evaluate(
+                """async ({urls}) => {
                   await chrome.storage.local.set({apiPort: 1});
-                  return quickSave('https://example.com/extension-e2e-offline', 'Offline Queue E2E', '');
-                }"""
+                  const config = await getTrustedConfig();
+                  return {
+                    popup: await saveBookmarkPayload(
+                      {url: urls.popup, title: 'Offline Popup E2E', category: 'Research'},
+                      config,
+                      {source: 'popup'}
+                    ),
+                    side_panel: await saveBookmarkPayload(
+                      {url: urls.side_panel, title: 'Offline Side Panel E2E', category: 'Research'},
+                      config,
+                      {source: 'side_panel'}
+                    ),
+                    context_menu: await quickSave(
+                      urls.context_menu, 'Offline Context Menu E2E', '', 'context_menu'
+                    ),
+                    selection: await quickSave(
+                      urls.selection, 'Offline Selection E2E', 'Selected text', 'selection'
+                    )
+                  };
+                }""",
+                {"urls": offline_urls},
             )
             pending = worker.evaluate("getPendingSaves()")
             worker.evaluate("port => chrome.storage.local.set({apiPort: port})", api.port)
             retry_page = context.new_page()
             retry_page.goto(f"{extension_root}/sidepanel.html", wait_until="domcontentloaded")
             retry = retry_page.evaluate("retryPendingSaves()")
+            second_retry = retry_page.evaluate("retryPendingSaves()")
             retry_page.close()
+            saved_urls = [bookmark.url for bookmark in manager.get_all_bookmarks()]
             offline_ok = (
-                len(pending) == 1
+                len(pending) == len(offline_urls)
+                and {item.get("source") for item in pending} == set(offline_urls)
+                and queued_results["popup"].get("queued")
+                and queued_results["side_panel"].get("queued")
+                and queued_results["context_menu"] is False
+                and queued_results["selection"] is False
                 and retry.get("remaining") == 0
-                and manager.url_exists("https://example.com/extension-e2e-offline")
+                and retry.get("resolved") == len(offline_urls)
+                and second_retry.get("attempted") == 0
+                and all(saved_urls.count(url) == 1 for url in offline_urls.values())
             )
-            checks.append(CheckResult("offline_queue", "passed" if offline_ok else "failed", str(retry)))
+            offline_detail = {
+                "pending_sources": sorted(item.get("source", "") for item in pending),
+                "retry": retry,
+                "second_retry": second_retry,
+            }
+            checks.append(
+                CheckResult(
+                    "offline_queue_exactly_once",
+                    "passed" if offline_ok else "failed",
+                    json.dumps(offline_detail, sort_keys=True),
+                )
+            )
 
             reading_support = worker.evaluate(
                 "typeof chrome.readingList !== 'undefined' && typeof chrome.readingList.addEntry === 'function'"

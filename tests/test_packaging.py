@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -297,6 +299,94 @@ class TestExtensionDistribution(unittest.TestCase):
         self.assertIn("status 2", readme)
         self.assertIn('typeof importScripts === "function"', background)
         self.assertIn("api.sidebarAction.open", background)
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for the extension journal harness")
+    def test_extension_save_journal_is_deduplicated_retryable_and_recoverable(self):
+        shared = ROOT / "browser-extension" / "shared.js"
+        harness = r"""
+const fs = require("fs");
+const vm = require("vm");
+const state = {};
+const control = { mode: "503" };
+const local = {
+  async get(keys) {
+    const result = {};
+    for (const [key, fallback] of Object.entries(keys || {})) {
+      result[key] = Object.prototype.hasOwnProperty.call(state, key) ? state[key] : fallback;
+    }
+    return result;
+  },
+  async set(values) { Object.assign(state, values); }
+};
+const chrome = {
+  storage: { local },
+  runtime: {
+    sendMessage: async message => ({ ok: true, config: { apiPort: 8765, apiToken: "token" } }),
+    getURL: path => path
+  }
+};
+const fetch = async () => {
+  if (control.mode === "throw") throw new Error("offline");
+  return { status: Number(control.mode), json: async () => ({}) };
+};
+const context = vm.createContext({ chrome, console, fetch, Date, Math, URL, Blob, control });
+context.globalThis = context;
+vm.runInContext(fs.readFileSync(process.argv[1], "utf8"), context);
+vm.runInContext(`(async () => {
+  const config = { apiPort: 8765, apiToken: "token" };
+  const first = await saveBookmarkPayload(
+    { url: "https://example.com", title: "Popup title" }, config, { source: "popup" }
+  );
+  control.mode = "throw";
+  const second = await saveBookmarkPayload(
+    { url: "https://example.com", title: "Sidebar title" }, config, { source: "side_panel" }
+  );
+  const pending = await getPendingSaves();
+  let refused = false;
+  try { await clearPendingSaves(); } catch { refused = true; }
+  const cleared = await clearPendingSaves({ confirmed: true });
+  const snapshot = await getClearedPendingSaves();
+  const restored = await restoreClearedPendingSaves();
+  control.mode = "409";
+  const retry = await retryPendingSaves();
+  globalThis.result = { first, second, pending, refused, cleared, snapshot, restored, retry,
+    remaining: await getPendingSaves() };
+})()`, context)
+  .then(() => process.stdout.write(JSON.stringify(context.result)))
+  .catch(error => { console.error(error); process.exitCode = 1; });
+"""
+        completed = subprocess.run(
+            ["node", "-e", harness, str(shared)],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = json.loads(completed.stdout)
+        self.assertTrue(result["first"]["queued"])
+        self.assertTrue(result["second"]["queued"])
+        self.assertEqual(len(result["pending"]), 1)
+        self.assertEqual(result["pending"][0]["source"], "side_panel")
+        self.assertEqual(result["pending"][0]["payload"]["title"], "Sidebar title")
+        self.assertIn("created_at", result["pending"][0])
+        self.assertTrue(result["refused"])
+        self.assertEqual((result["cleared"], result["restored"]), (1, 1))
+        self.assertEqual(len(result["snapshot"]["items"]), 1)
+        self.assertEqual(result["retry"], {"attempted": 1, "resolved": 1, "remaining": 0})
+        self.assertEqual(result["remaining"], [])
+
+    def test_extension_queue_ui_exposes_rows_export_confirmation_and_undo(self):
+        for name in ("popup.html", "sidepanel.html"):
+            html = (ROOT / "browser-extension" / name).read_text(encoding="utf-8")
+            for control in ("pendingList", "exportPending", "clearPending", "restorePending"):
+                self.assertIn(f'id="{control}"', html)
+        for name in ("popup.js", "sidepanel.js"):
+            source = (ROOT / "browser-extension" / name).read_text(encoding="utf-8")
+            self.assertIn("globalThis.confirm", source)
+            self.assertIn("renderPendingSaves", source)
+            self.assertIn("exportPendingSaves", source)
+            self.assertIn("restoreClearedPendingSaves", source)
 
     def test_public_product_counts_match_live_surfaces(self):
         module = _load_package_contract_audit()

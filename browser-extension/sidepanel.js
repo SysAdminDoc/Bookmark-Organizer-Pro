@@ -1,6 +1,7 @@
 /* global DEFAULTS, api, storageGet, queryTabs, executeScript, getConfig,
           baseUrl, authHeaders, isSaveableUrl, loadCategories, saveBookmarkPayload, captureSanitizedPage,
-          getPendingSaves, retryPendingSaves, clearPendingSaves */
+          getPendingSaves, retryPendingSaves, clearPendingSaves, getClearedPendingSaves,
+          restoreClearedPendingSaves, renderPendingSaves, exportPendingSaves */
 
 const RECENT_PAGE_SIZE = 30;
 let recentOffset = 0;
@@ -88,8 +89,18 @@ async function refreshPendingPanel() {
   const panel = document.getElementById("pendingPanel");
   const count = document.getElementById("pendingCount");
   const pending = await getPendingSaves();
-  panel.hidden = pending.length === 0;
-  count.textContent = `${pending.length} pending quick save${pending.length === 1 ? "" : "s"}`;
+  const cleared = await getClearedPendingSaves();
+  panel.hidden = pending.length === 0 && !cleared;
+  count.textContent = pending.length
+    ? `${pending.length} pending save${pending.length === 1 ? "" : "s"}`
+    : cleared
+      ? `${cleared.items.length} cleared save${cleared.items.length === 1 ? "" : "s"} can be restored`
+      : "0 pending saves";
+  renderPendingSaves(document.getElementById("pendingList"), pending);
+  document.getElementById("retryPending").disabled = pending.length === 0;
+  document.getElementById("exportPending").disabled = pending.length === 0;
+  document.getElementById("clearPending").disabled = pending.length === 0;
+  document.getElementById("restorePending").hidden = !cleared;
 }
 
 async function retryPendingQueue() {
@@ -101,8 +112,15 @@ async function retryPendingQueue() {
 }
 
 async function clearPendingQueue() {
-  const cleared = await clearPendingSaves();
+  if (!globalThis.confirm("Clear the pending save journal? You can undo this from the same panel.")) return;
+  const cleared = await clearPendingSaves({ confirmed: true });
   document.getElementById("statusText").textContent = `Cleared ${cleared} pending save(s)`;
+  await refreshPendingPanel();
+}
+
+async function restorePendingQueue() {
+  const restored = await restoreClearedPendingSaves();
+  document.getElementById("statusText").textContent = `Restored ${restored} pending save(s)`;
   await refreshPendingPanel();
 }
 
@@ -266,8 +284,11 @@ async function saveBookmark() {
       if (!tabs[0] || tabs[0].url !== url) throw new Error("The active page changed before capture.");
       payload.browser_snapshot = await captureSanitizedPage(tabs[0].id);
     }
-    const result = await saveBookmarkPayload(payload, config);
-    if (result.status === 201) {
+    const result = await saveBookmarkPayload(payload, config, { source: "side_panel" });
+    if (result.queued) {
+      setAddStatus("API unavailable. Save added to the retry journal.", "warning");
+      await refreshPendingPanel();
+    } else if (result.status === 201) {
       const preserved = result.body && result.body.browser_snapshot;
       setAddStatus(preserved
         ? extensionMessage("savedWithOfflineCopy", [], "Saved with a sanitized offline copy. No cookies were sent.")
@@ -316,28 +337,28 @@ async function importReadingList() {
     let imported = 0;
     let duplicates = 0;
     let failed = 0;
+    let queued = 0;
     for (const item of items) {
       if (!item.url || !/^https?:\/\//i.test(item.url)) continue;
       try {
-        const response = await fetch(`${baseUrl(config)}/bookmarks`, {
-          method: "POST",
-          headers: authHeaders(config),
-          body: JSON.stringify({
-            url: item.url,
-            title: item.title || item.url,
-            category: config.defaultCategory,
-            read_later: !item.hasBeenRead
-          })
-        });
-        if (response.status === 201) imported++;
-        else if (response.status === 409) duplicates++;
+        const result = await saveBookmarkPayload({
+          url: item.url,
+          title: item.title || item.url,
+          category: config.defaultCategory,
+          read_later: !item.hasBeenRead
+        }, config, { source: "reading_list" });
+        if (result.status === 201) imported++;
+        else if (result.status === 409) duplicates++;
+        else if (result.queued) queued++;
         else failed++;
       } catch { failed++; }
     }
     const itemWord = items.length === 1 ? "item" : "items";
     const detail = duplicates ? `; ${duplicates} already saved` : "";
+    const queueDetail = queued ? `; ${queued} queued for retry` : "";
     const failureDetail = failed ? `; ${failed} failed` : "";
-    setAddStatus(`Imported ${imported} of ${items.length} reading list ${itemWord}${detail}${failureDetail}.`, failed ? "error" : "success");
+    setAddStatus(`Imported ${imported} of ${items.length} reading list ${itemWord}${detail}${queueDetail}${failureDetail}.`, failed ? "error" : (queued ? "warning" : "success"));
+    if (queued) await refreshPendingPanel();
     if (imported > 0) loadRecent();
   } catch {
     setAddStatus("Could not access reading list.", "error");
@@ -412,6 +433,18 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("clearPending").addEventListener("click", () => {
     clearPendingQueue().catch(() => {
       document.getElementById("statusText").textContent = "Pending queue could not be cleared";
+    });
+  });
+  document.getElementById("restorePending").addEventListener("click", () => {
+    restorePendingQueue().catch(() => {
+      document.getElementById("statusText").textContent = "Cleared saves could not be restored";
+    });
+  });
+  document.getElementById("exportPending").addEventListener("click", () => {
+    exportPendingSaves().then(count => {
+      document.getElementById("statusText").textContent = `Exported ${count} pending save(s)`;
+    }).catch(() => {
+      document.getElementById("statusText").textContent = "Pending saves could not be exported";
     });
   });
 

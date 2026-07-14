@@ -90,7 +90,7 @@ api.runtime.onInstalled.addListener(() => {
   }
 });
 
-async function quickSave(url, title, notes) {
+async function quickSave(url, title, notes, source = "context_menu") {
   const values = await getTrustedConfig();
   if (!values.apiToken) return;
   if (!/^https?:\/\//i.test(url || "")) return;
@@ -102,23 +102,9 @@ async function quickSave(url, title, notes) {
     notes: notes || ""
   };
 
-  try {
-    const response = await fetch(`http://127.0.0.1:${values.apiPort}/bookmarks`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${values.apiToken}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    });
-    if (response.status === 201 || response.status === 409) {
-      return true;
-    }
-    await enqueuePendingSave(payload, `HTTP ${response.status}`);
-  } catch {
-    await enqueuePendingSave(payload, "API unavailable");
-  }
-  return false;
+  // The shared client owns enqueuePendingSave so every capture surface deduplicates identically.
+  const result = await saveBookmarkPayload(payload, values, { source });
+  return result.status === 201 || result.status === 409;
 }
 
 api.contextMenus.onClicked.addListener(async (info, tab) => {
@@ -143,5 +129,6 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
     notes = `Selected: ${info.selectionText.slice(0, 500)}`;
   }
 
-  await quickSave(url, title, notes);
+  const source = info.menuItemId === "save-to-bop-selection" ? "selection" : "context_menu";
+  await quickSave(url, title, notes, source);
 });

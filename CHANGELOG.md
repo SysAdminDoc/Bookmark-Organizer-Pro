@@ -9,6 +9,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Added an isolated release builder that installs the verified Python 3.11/Windows lock, pins the packaging toolchain, embeds commit/lock/profile identity plus a CycloneDX SBOM, and runs the frozen artifact contract before publishing.
 - Added a headless `--release-contract` executable probe covering bundled category data, declared runtime capabilities, dependency versions, lock integrity, and SBOM parity.
 - Added deterministic Chromium ZIP and Firefox XPI extension builds with shared-manifest parity checks, Firefox `sidebar_action`/background-page support, web-ext lint, and a clean-profile temporary-install smoke.
+- Added one deduplicated extension save journal for popup, side-panel, selection, context-menu, and Reading List captures, with failure details, JSON export, confirmed clearing, and one-step clear recovery.
 
 ### Changed
 
@@ -17,6 +18,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Unified API-token, AI-config, and MCP-verifier persistence behind fail-closed atomic owner-only writes that preserve prior credentials when Windows ACL hardening is unavailable or fails.
 - Made cleanup-review Apply single-use and pre-disabled, with explicit safe-retry outcomes and first-safepoint retention until restore or a newly opened maintenance workflow.
 - Routed generic files, explicitly selected browser profiles, Firefox backups, Zotero, and service imports through one preflighted durable session with multi-file identity, parse-loss/field-fidelity reporting, cancellation, resume/retry, rollback, and startup recovery.
+- Made retryable extension saves survive API outages across every capture surface; reconnect retries retain remaining failures and resolve each queued URL exactly once.
 
 ## [v6.12.0] - 2026-07-12
 
