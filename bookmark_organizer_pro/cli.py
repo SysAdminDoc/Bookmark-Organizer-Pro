@@ -1757,7 +1757,10 @@ Top Domains:
         if not result.report.valid:
             return 1
         if result.applied:
-            print("Restore applied.")
+            print(
+                f"Restore applied: {result.restored_count} bookmarks reopened "
+                f"with the {result.storage_backend} backend."
+            )
             print(f"Rollback bundle: {result.rollback_bundle}")
         else:
             print("Dry run only; no files were changed. Re-run with --apply to restore.")
@@ -1768,6 +1771,11 @@ Top Domains:
         state = "valid" if report.valid else "invalid"
         print(f"Recovery bundle: {state}")
         print(f"Files: {report.file_count}; uncompressed bytes: {report.total_bytes}")
+        if report.storage_backend:
+            print(f"Storage backend: {report.storage_backend}")
+        for action in report.actions:
+            suffix = f" — {action.detail}" if action.detail else ""
+            print(f"Plan: {action.kind} {action.path}{suffix}")
         for warning in report.warnings:
             print(f"Warning: {warning}")
         for error in report.errors:

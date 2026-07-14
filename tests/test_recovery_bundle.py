@@ -6,11 +6,13 @@ import json
 import zipfile
 from pathlib import Path
 
+import bookmark_organizer_pro.services.recovery_bundle as recovery_bundle_module
 from bookmark_organizer_pro.cli import BookmarkCLI
 from bookmark_organizer_pro.core.sqlite_storage import SQLiteStorageManager
 from bookmark_organizer_pro.services.recovery_bundle import (
     INDEX_NAME,
     MANIFEST_NAME,
+    ROLLBACK_MANIFEST_NAME,
     create_recovery_bundle,
     restore_recovery_bundle,
     validate_recovery_bundle,
@@ -115,6 +117,101 @@ def test_restore_defaults_to_non_mutating_dry_run(tmp_path):
     assert result.rollback_bundle == ""
     assert (target / "master_bookmarks.json").read_bytes() == before
     assert not (target / "backups" / "recovery_bundles").exists()
+
+
+def test_dry_run_plans_exact_state_and_backend_switch_without_mutating(tmp_path):
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    _write_library(source, title="Bundle")
+    _write_library(target, title="Keep me")
+    current = json.loads((target / "master_bookmarks.json").read_text(encoding="utf-8"))
+    SQLiteStorageManager(target / "master_bookmarks.sqlite").save(current["data"])
+    stale = target / "snapshots" / "stale.html"
+    stale.write_text("stale", encoding="utf-8")
+    before = {path.relative_to(target).as_posix(): path.read_bytes() for path in target.rglob("*") if path.is_file()}
+    bundle = create_recovery_bundle(tmp_path / "library.zip", data_dir=source)
+
+    result = restore_recovery_bundle(bundle, data_dir=target)
+
+    actions = {(action.kind, action.path) for action in result.report.actions}
+    assert result.report.storage_backend == "json"
+    assert ("backend-switch", "master_bookmarks.json") in actions
+    assert ("delete", "master_bookmarks.sqlite") in actions
+    assert ("delete", "snapshots/stale.html") in actions
+    assert ("update", "master_bookmarks.json") in actions
+    after = {path.relative_to(target).as_posix(): path.read_bytes() for path in target.rglob("*") if path.is_file()}
+    assert after == before
+
+
+def test_apply_installs_exact_members_retires_alternate_and_verifies_checkpoint(tmp_path):
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    _write_library(source, title="Bundle")
+    _write_library(target, title="Old")
+    old = json.loads((target / "master_bookmarks.json").read_text(encoding="utf-8"))
+    SQLiteStorageManager(target / "master_bookmarks.sqlite").save(old["data"])
+    (target / "snapshots" / "stale.html").write_text("stale", encoding="utf-8")
+    bundle = create_recovery_bundle(tmp_path / "library.zip", data_dir=source)
+
+    result = restore_recovery_bundle(bundle, data_dir=target, dry_run=False)
+
+    assert result.applied
+    assert result.storage_backend == "json"
+    assert result.restored_count == 1
+    assert not (target / "master_bookmarks.sqlite").exists()
+    assert not (target / "snapshots" / "stale.html").exists()
+    assert json.loads((target / "master_bookmarks.json").read_text(encoding="utf-8"))["data"][0]["title"] == "Bundle"
+    with zipfile.ZipFile(result.rollback_bundle) as archive:
+        manifest = json.loads(archive.read(ROLLBACK_MANIFEST_NAME))
+        checkpoint_paths = {entry["relative_path"] for entry in manifest["entries"]}
+    assert "master_bookmarks.json" in checkpoint_paths
+    assert "master_bookmarks.sqlite" in checkpoint_paths
+    assert "snapshots/stale.html" in checkpoint_paths
+
+
+def test_apply_failure_restores_every_original_managed_root(tmp_path, monkeypatch):
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    _write_library(source, title="Bundle")
+    _write_library(target, title="Original")
+    (target / "snapshots" / "stale.html").write_text("keep", encoding="utf-8")
+    bundle = create_recovery_bundle(tmp_path / "library.zip", data_dir=source)
+    before = {path.relative_to(target).as_posix(): path.read_bytes() for path in target.rglob("*") if path.is_file()}
+    real_replace = recovery_bundle_module.os.replace
+    failed = False
+
+    def fail_once(source_path, destination_path):
+        nonlocal failed
+        source_path = Path(source_path)
+        if (
+            not failed
+            and source_path.parent.name == "candidate"
+            and Path(destination_path).parent == target
+        ):
+            failed = True
+            raise OSError("simulated interrupted install")
+        return real_replace(source_path, destination_path)
+
+    monkeypatch.setattr(recovery_bundle_module.os, "replace", fail_once)
+    try:
+        restore_recovery_bundle(bundle, data_dir=target, dry_run=False)
+    except OSError as exc:
+        assert "interrupted install" in str(exc)
+    else:
+        raise AssertionError("simulated interrupted restore unexpectedly succeeded")
+
+    after = {
+        path.relative_to(target).as_posix(): path.read_bytes()
+        for path in target.rglob("*")
+        if path.is_file() and "backups/recovery_bundles" not in path.relative_to(target).as_posix()
+    }
+    assert after == before
 
 
 def test_sqlite_bundle_rewrites_capture_paths(tmp_path):

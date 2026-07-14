@@ -12,6 +12,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 ### Changed
 
 - Declared the maintained BSD-3-Clause `lz4` runtime dependency for Firefox JSONLZ4 imports and made PyInstaller collect all release-profile modules, binaries, data, and metadata explicitly.
+- Made recovery-bundle dry runs report exact-state mutations and made apply stage, checkpoint, transactionally replace, and reopen one declared JSON or SQLite backend while removing stale managed files.
 
 ## [v6.12.0] - 2026-07-12
 

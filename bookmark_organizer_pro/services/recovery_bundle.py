@@ -10,7 +10,7 @@ import sqlite3
 import tempfile
 import zipfile
 from contextlib import closing
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -19,10 +19,14 @@ from bookmark_organizer_pro import constants as app_constants
 
 
 BUNDLE_FORMAT = "bookmark-organizer-recovery"
-BUNDLE_VERSION = 1
+BUNDLE_VERSION = 2
+SUPPORTED_BUNDLE_VERSIONS = {1, BUNDLE_VERSION}
 MANIFEST_NAME = "recovery-manifest.json"
 INDEX_NAME = "library-index.json"
 PAYLOAD_PREFIX = "library"
+ROLLBACK_FORMAT = "bookmark-organizer-restore-checkpoint"
+ROLLBACK_VERSION = 1
+ROLLBACK_MANIFEST_NAME = "rollback-manifest.json"
 MAX_MEMBERS = 100_000
 MAX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024 * 1024
 
@@ -66,6 +70,17 @@ class BundleReport:
     warnings: tuple[str, ...] = ()
     contents: tuple[str, ...] = ()
     rebuild: dict[str, Any] = field(default_factory=dict)
+    storage_backend: str = ""
+    actions: tuple["RestoreAction", ...] = ()
+
+
+@dataclass(frozen=True)
+class RestoreAction:
+    """One observable mutation proposed by recovery preflight."""
+
+    kind: str
+    path: str
+    detail: str = ""
 
 
 @dataclass(frozen=True)
@@ -75,6 +90,8 @@ class RestoreResult:
     report: BundleReport
     applied: bool = False
     rollback_bundle: str = ""
+    storage_backend: str = ""
+    restored_count: int = 0
 
 
 def _sha256(data: bytes) -> str:
@@ -104,9 +121,34 @@ def _safe_relative(value: str) -> PurePosixPath | None:
     return path
 
 
+def _source_storage_backend(data_dir: Path) -> str:
+    """Resolve the one live backend that a newly created bundle represents."""
+
+    json_exists = (data_dir / "master_bookmarks.json").is_file()
+    sqlite_exists = (data_dir / "master_bookmarks.sqlite").is_file()
+    requested = os.getenv("BOOKMARK_STORAGE_BACKEND", "").strip().lower()
+    if requested in {"sqlite", "sqlite3"} and sqlite_exists:
+        return "sqlite"
+    if requested == "json" and json_exists:
+        return "json"
+    if json_exists:
+        return "json"
+    if sqlite_exists:
+        return "sqlite"
+    raise ValueError(f"No bookmark library found under {data_dir}")
+
+
+def _backend_filename(backend: str) -> str:
+    return "master_bookmarks.sqlite" if backend == "sqlite" else "master_bookmarks.json"
+
+
 def _payload_files(data_dir: Path) -> list[tuple[Path, str]]:
+    backend = _source_storage_backend(data_dir)
+    selected_library = _backend_filename(backend)
     files: list[tuple[Path, str]] = []
     for name in LIBRARY_FILES:
+        if name in {"master_bookmarks.json", "master_bookmarks.sqlite"} and name != selected_library:
+            continue
         path = data_dir / name
         if path.is_file():
             files.append((path, name))
@@ -116,6 +158,30 @@ def _payload_files(data_dir: Path) -> list[tuple[Path, str]]:
             continue
         for path in sorted(root.rglob("*")):
             if path.is_file() and not path.is_symlink():
+                files.append((path, path.relative_to(data_dir).as_posix()))
+    return sorted(files, key=lambda item: item[1])
+
+
+def _managed_files(data_dir: Path) -> list[tuple[Path, str]]:
+    """Return every current file governed by an exact-state restore."""
+
+    files: list[tuple[Path, str]] = []
+    for name in LIBRARY_FILES:
+        path = data_dir / name
+        if path.is_symlink():
+            raise ValueError(f"Managed library path may not be a symbolic link: {path}")
+        if path.is_file():
+            files.append((path, name))
+    for dirname in LIBRARY_DIRS:
+        root = data_dir / dirname
+        if root.is_symlink():
+            raise ValueError(f"Managed library path may not be a symbolic link: {root}")
+        if not root.is_dir():
+            continue
+        for path in sorted(root.rglob("*")):
+            if path.is_symlink():
+                raise ValueError(f"Managed library path may not be a symbolic link: {path}")
+            if path.is_file():
                 files.append((path, path.relative_to(data_dir).as_posix()))
     return sorted(files, key=lambda item: item[1])
 
@@ -170,9 +236,8 @@ def create_recovery_bundle(
     root = Path(data_dir or app_constants.DATA_DIR).expanduser().resolve()
     destination = Path(destination).expanduser().resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
+    storage_backend = _source_storage_backend(root)
     payloads = _payload_files(root)
-    if not any(relative in ("master_bookmarks.json", "master_bookmarks.sqlite") for _, relative in payloads):
-        raise ValueError(f"No bookmark library found under {root}")
 
     generated_index = {
         "format_version": 1,
@@ -212,6 +277,7 @@ def create_recovery_bundle(
                 "format": BUNDLE_FORMAT,
                 "version": BUNDLE_VERSION,
                 "created_at": datetime.now(timezone.utc).isoformat(),
+                "storage_backend": storage_backend,
                 "entries": entries,
             }
             archive.writestr(MANIFEST_NAME, json.dumps(manifest, indent=2, ensure_ascii=False))
@@ -234,6 +300,7 @@ def validate_recovery_bundle(bundle_path: str | Path) -> BundleReport:
     warnings: list[str] = []
     contents: list[str] = []
     version: int | None = None
+    storage_backend = ""
     total = 0
     rebuild: dict[str, Any] = {}
     try:
@@ -265,14 +332,17 @@ def validate_recovery_bundle(bundle_path: str | Path) -> BundleReport:
             if manifest.get("format") != BUNDLE_FORMAT:
                 errors.append("Unsupported recovery bundle format")
             version = manifest.get("version")
-            if version != BUNDLE_VERSION:
-                errors.append(f"Unsupported recovery bundle version {version!r}; expected {BUNDLE_VERSION}")
+            if version not in SUPPORTED_BUNDLE_VERSIONS:
+                errors.append(
+                    f"Unsupported recovery bundle version {version!r}; "
+                    f"supported versions are {sorted(SUPPORTED_BUNDLE_VERSIONS)}"
+                )
             entries = manifest.get("entries")
             if not isinstance(entries, list):
                 errors.append("Manifest entries must be an array")
                 entries = []
             expected_names = {MANIFEST_NAME}
-            has_library = False
+            library_backends: set[str] = set()
             for position, entry in enumerate(entries):
                 if not isinstance(entry, dict):
                     errors.append(f"Manifest entry {position} is not an object")
@@ -296,12 +366,33 @@ def validate_recovery_bundle(bundle_path: str | Path) -> BundleReport:
                         errors.append(f"Invalid restore path mapping: {name}")
                     else:
                         contents.append(relative)
-                        has_library |= relative in ("master_bookmarks.json", "master_bookmarks.sqlite")
+                        if relative == "master_bookmarks.json":
+                            library_backends.add("json")
+                        elif relative == "master_bookmarks.sqlite":
+                            library_backends.add("sqlite")
             extras = sorted(set(names) - expected_names)
             if extras:
                 errors.append("Unmanifested archive members: " + ", ".join(extras[:5]))
-            if not has_library:
+            if not library_backends:
                 errors.append("Bundle does not contain a bookmark library")
+            elif len(library_backends) != 1:
+                errors.append("Bundle must contain exactly one bookmark storage backend")
+            else:
+                inferred_backend = next(iter(library_backends))
+                declared_backend = manifest.get("storage_backend", "")
+                if version == 1 and not declared_backend:
+                    storage_backend = inferred_backend
+                    warnings.append(
+                        f"Legacy bundle backend inferred as {storage_backend}; apply will upgrade semantics"
+                    )
+                elif declared_backend not in {"json", "sqlite"}:
+                    errors.append("Bundle storage_backend must be 'json' or 'sqlite'")
+                elif declared_backend != inferred_backend:
+                    errors.append(
+                        f"Bundle storage_backend {declared_backend!r} does not match its library payload"
+                    )
+                else:
+                    storage_backend = declared_backend
             if INDEX_NAME not in names:
                 errors.append(f"Missing {INDEX_NAME}")
             else:
@@ -324,6 +415,7 @@ def validate_recovery_bundle(bundle_path: str | Path) -> BundleReport:
         warnings=tuple(warnings),
         contents=tuple(sorted(contents)),
         rebuild=rebuild,
+        storage_backend=storage_backend,
     )
 
 
@@ -366,33 +458,169 @@ def _rewrite_portable_paths(staging: Path, target: Path, index: dict[str, Any]) 
             connection.commit()
 
 
+def _bundle_payload_entries(bundle_path: str | Path) -> dict[str, dict[str, Any]]:
+    with zipfile.ZipFile(bundle_path, "r") as archive:
+        manifest = json.loads(archive.read(MANIFEST_NAME))
+    return {
+        str(entry["relative_path"]): entry
+        for entry in manifest.get("entries", [])
+        if isinstance(entry, dict) and entry.get("relative_path")
+    }
+
+
+def _plan_restore_actions(
+    bundle_path: str | Path,
+    target: Path,
+    report: BundleReport,
+) -> tuple[RestoreAction, ...]:
+    entries = _bundle_payload_entries(bundle_path)
+    expected = set(entries)
+    actions: list[RestoreAction] = []
+    alternate = "master_bookmarks.sqlite" if report.storage_backend == "json" else "master_bookmarks.json"
+    if (target / alternate).exists():
+        actions.append(RestoreAction(
+            "backend-switch",
+            _backend_filename(report.storage_backend),
+            f"activate {report.storage_backend} and retire {alternate}",
+        ))
+    for relative, entry in sorted(entries.items()):
+        path = target / relative
+        if not path.is_file():
+            actions.append(RestoreAction("create", relative, "install bundle member"))
+        elif _hash_file(path) != entry.get("sha256"):
+            actions.append(RestoreAction("update", relative, "replace with bundle member"))
+    current = {relative for _, relative in _managed_files(target)}
+    for relative in sorted(current - expected):
+        actions.append(RestoreAction("delete", relative, "absent from exact recovery state"))
+    for dirname in LIBRARY_DIRS:
+        path = target / dirname
+        if path.is_dir() and not any(item == dirname or item.startswith(dirname + "/") for item in expected):
+            if not any(action.kind == "delete" and action.path.startswith(dirname + "/") for action in actions):
+                actions.append(RestoreAction("delete", dirname, "empty managed directory is absent from bundle"))
+    order = {"backend-switch": 0, "create": 1, "update": 2, "delete": 3}
+    return tuple(sorted(actions, key=lambda action: (order[action.kind], action.path)))
+
+
+def _create_restore_checkpoint(target: Path, destination: Path) -> Path:
+    """Write and re-read an exact snapshot of current managed state."""
+
+    payloads = _managed_files(target)
+    roots = [
+        name for name in (*LIBRARY_FILES, *LIBRARY_DIRS)
+        if (target / name).exists() or (target / name).is_symlink()
+    ]
+    entries: list[dict[str, Any]] = []
+    fd, temp_name = tempfile.mkstemp(prefix=destination.name + ".", suffix=".tmp", dir=destination.parent)
+    os.close(fd)
+    try:
+        with zipfile.ZipFile(temp_name, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
+            for source, relative in payloads:
+                name = f"{PAYLOAD_PREFIX}/{relative}"
+                archive.write(source, name)
+                entries.append({
+                    "path": name,
+                    "relative_path": relative,
+                    "size": source.stat().st_size,
+                    "sha256": _hash_file(source),
+                })
+            manifest = {
+                "format": ROLLBACK_FORMAT,
+                "version": ROLLBACK_VERSION,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "roots": roots,
+                "entries": entries,
+            }
+            archive.writestr(ROLLBACK_MANIFEST_NAME, json.dumps(manifest, indent=2, ensure_ascii=False))
+        with zipfile.ZipFile(temp_name, "r") as archive:
+            manifest = json.loads(archive.read(ROLLBACK_MANIFEST_NAME))
+            expected_names = {ROLLBACK_MANIFEST_NAME}
+            if manifest.get("format") != ROLLBACK_FORMAT or manifest.get("version") != ROLLBACK_VERSION:
+                raise ValueError("Rollback checkpoint manifest is invalid")
+            for entry in manifest.get("entries", []):
+                expected_names.add(entry["path"])
+                info = archive.getinfo(entry["path"])
+                if info.file_size != entry["size"] or _hash_member(archive, entry["path"]) != entry["sha256"]:
+                    raise ValueError(f"Rollback checkpoint verification failed: {entry['relative_path']}")
+            if set(archive.namelist()) != expected_names:
+                raise ValueError("Rollback checkpoint contains unmanifested members")
+        os.replace(temp_name, destination)
+    finally:
+        Path(temp_name).unlink(missing_ok=True)
+    return destination
+
+
+def _validate_restored_state(
+    root: Path,
+    backend: str,
+    expected_paths: set[str],
+) -> tuple[tuple[int, ...], dict[str, str]]:
+    """Open the selected backend and fingerprint the exact managed fixture."""
+
+    from bookmark_organizer_pro.core import SQLiteStorageManager, StorageManager
+
+    selected = root / _backend_filename(backend)
+    alternate = root / _backend_filename("json" if backend == "sqlite" else "sqlite")
+    if not selected.is_file() or alternate.exists():
+        raise ValueError(f"Restored state is not a single {backend} backend")
+    storage = SQLiteStorageManager(selected) if backend == "sqlite" else StorageManager(selected)
+    bookmarks = storage.load()
+    status = getattr(storage, "status", None)
+    if status is not None and getattr(status, "recovery_required", False):
+        raise ValueError(f"Restored backend failed to reopen: {getattr(status, 'error', 'invalid state')}")
+    ids = tuple(sorted(int(bookmark.id) for bookmark in bookmarks))
+    if len(ids) != len(set(ids)):
+        raise ValueError("Restored backend contains duplicate bookmark IDs")
+    expected_count = getattr(status, "count", len(bookmarks)) if status is not None else len(bookmarks)
+    if expected_count != len(bookmarks):
+        raise ValueError(
+            f"Restored backend count mismatch: storage={expected_count}, loaded={len(bookmarks)}"
+        )
+    actual_files = {relative for _, relative in _managed_files(root)}
+    if actual_files != expected_paths:
+        missing = sorted(expected_paths - actual_files)
+        extra = sorted(actual_files - expected_paths)
+        raise ValueError(f"Restored managed-state mismatch; missing={missing[:3]}, extra={extra[:3]}")
+    checksums = {relative: _hash_file(root / relative) for relative in sorted(expected_paths)}
+    return ids, checksums
+
+
+def _remove_path(path: Path) -> None:
+    if path.is_symlink() or path.is_file():
+        path.unlink(missing_ok=True)
+    elif path.is_dir():
+        shutil.rmtree(path)
+
+
 def restore_recovery_bundle(
     bundle_path: str | Path,
     *,
     data_dir: str | Path | None = None,
     dry_run: bool = True,
 ) -> RestoreResult:
-    """Validate a bundle, or apply it atomically per file with rollback."""
+    """Preflight or transactionally install one exact managed-library state."""
 
     report = validate_recovery_bundle(bundle_path)
-    if dry_run or not report.valid:
-        return RestoreResult(report=report)
     target = Path(data_dir or app_constants.DATA_DIR).expanduser().resolve()
+    if report.valid:
+        report = replace(report, actions=_plan_restore_actions(bundle_path, target, report))
+    if dry_run or not report.valid:
+        return RestoreResult(report=report, storage_backend=report.storage_backend)
     target.mkdir(parents=True, exist_ok=True)
     rollback_dir = target / "backups" / "recovery_bundles"
     rollback_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     rollback = rollback_dir / f"pre_restore_{stamp}.zip"
-    existing = [target / relative for relative in report.contents if (target / relative).is_file()]
-    with zipfile.ZipFile(rollback, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
-        for path in existing:
-            archive.write(path, path.relative_to(target).as_posix())
 
     with tempfile.TemporaryDirectory(prefix="bop-restore-", dir=target.parent) as temp:
-        staging = Path(temp)
+        transaction = Path(temp)
+        staging = transaction / "candidate"
+        staging.mkdir()
+        prior = transaction / "prior"
+        prior.mkdir()
         with zipfile.ZipFile(bundle_path, "r") as archive:
             manifest = json.loads(archive.read(MANIFEST_NAME))
             index = json.loads(archive.read(INDEX_NAME))
+            extracted: set[str] = set()
             for entry in manifest["entries"]:
                 relative = entry.get("relative_path", "")
                 if not relative:
@@ -401,23 +629,57 @@ def restore_recovery_bundle(
                 output.parent.mkdir(parents=True, exist_ok=True)
                 with archive.open(entry["path"], "r") as source, output.open("wb") as destination:
                     shutil.copyfileobj(source, destination, length=1024 * 1024)
+                if output.stat().st_size != entry.get("size") or _hash_file(output) != entry.get("sha256"):
+                    raise ValueError(f"Bundle changed during restore extraction: {relative}")
+                extracted.add(relative)
+        expected_paths = set(report.contents)
+        if extracted != expected_paths:
+            raise ValueError("Extracted bundle members do not match validated recovery contents")
         _rewrite_portable_paths(staging, target, index)
-        replaced: list[Path] = []
+        staged_ids, staged_checksums = _validate_restored_state(
+            staging,
+            report.storage_backend,
+            expected_paths,
+        )
+        _create_restore_checkpoint(target, rollback)
+
+        managed_roots = tuple(dict.fromkeys((*LIBRARY_FILES, *LIBRARY_DIRS)))
+        candidate_roots = tuple(sorted({PurePosixPath(path).parts[0] for path in expected_paths}))
+        moved_prior: list[str] = []
+        installed: list[str] = []
         try:
-            for relative in report.contents:
-                source = staging / relative
-                destination = target / relative
+            for name in managed_roots:
+                current = target / name
+                if current.exists() or current.is_symlink():
+                    destination = prior / name
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    os.replace(current, destination)
+                    moved_prior.append(name)
+            for name in candidate_roots:
+                source = staging / name
+                destination = target / name
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(source, destination)
-                replaced.append(destination)
+                installed.append(name)
+            installed_ids, installed_checksums = _validate_restored_state(
+                target,
+                report.storage_backend,
+                expected_paths,
+            )
+            if installed_ids != staged_ids or installed_checksums != staged_checksums:
+                raise ValueError("Installed recovery state differs from its validated staging fixture")
         except Exception:
-            for path in replaced:
-                path.unlink(missing_ok=True)
-            with zipfile.ZipFile(rollback, "r") as archive:
-                for info in archive.infolist():
-                    destination = target / info.filename
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                    with archive.open(info, "r") as source, destination.open("wb") as output:
-                        shutil.copyfileobj(source, output, length=1024 * 1024)
+            for name in reversed(installed):
+                _remove_path(target / name)
+            for name in reversed(moved_prior):
+                destination = target / name
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(prior / name, destination)
             raise
-    return RestoreResult(report=report, applied=True, rollback_bundle=str(rollback))
+    return RestoreResult(
+        report=report,
+        applied=True,
+        rollback_bundle=str(rollback),
+        storage_backend=report.storage_backend,
+        restored_count=len(staged_ids),
+    )

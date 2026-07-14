@@ -505,8 +505,11 @@ Log file location: `~/.bookmark_organizer/logs/bookmark_organizer.log`
 **Portable recovery bundles:**
 - Include the library, categories/tags, settings, annotations/reviews, flows,
   feeds, snapshots, and extracted text with a SHA-256 manifest.
-- Validation and restore dry runs do not mutate the library; applied restores
-  create a rollback bundle and report indexes that must be rebuilt.
+- Validation and restore dry runs do not mutate the library; they list every
+  create, update, delete, and JSON/SQLite backend-switch action. Applied restores
+  validate in staging, create a verified exact-state rollback checkpoint, replace
+  managed files transactionally, retire the alternate backend, and reopen the
+  restored fixture before reporting indexes that must be rebuilt.
 
 ### Accessibility and responsive layout
 
