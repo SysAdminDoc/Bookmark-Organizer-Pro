@@ -202,5 +202,8 @@ class FinalBookmarkOrganizerApp(
         # Try to enable window-wide drag-drop
         self._try_enable_window_dnd()
 
+        # Surface durable import work left pending by cancellation or a prior crash.
+        self.root.after(500, self._reopen_incomplete_import_sessions)
+
         # Start analytics polling (update every 30 seconds)
         self._start_analytics_polling()

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -52,6 +52,20 @@ class ImportSessionReport:
         return dict(self.__dict__)
 
 
+@dataclass(frozen=True)
+class ImportPreflight:
+    """Parsed source summary shown before a durable import mutates the library."""
+
+    source: str
+    source_paths: tuple[str, ...]
+    source_digest: str
+    total: int
+    losses: int
+    causes: dict[str, int]
+    field_coverage: dict[str, int]
+    bookmarks: tuple[Any, ...] = field(repr=False, compare=False)
+
+
 class ImportSessionManager:
     """Persist row checkpoints so interrupted imports can resume safely."""
 
@@ -74,6 +88,16 @@ class ImportSessionManager:
                 digest.update(block)
         return digest.hexdigest()
 
+    @classmethod
+    def digest_sources(cls, paths: list[Path]) -> str:
+        if len(paths) == 1:
+            return cls.digest_source(paths[0])
+        digest = hashlib.sha256()
+        for path in paths:
+            digest.update(b"\0source\0")
+            digest.update(cls.digest_source(path).encode("ascii"))
+        return digest.hexdigest()
+
     @staticmethod
     def _session_id(source: str, digest: str) -> str:
         return hashlib.sha256(f"{source}\0{digest}".encode()).hexdigest()[:20]
@@ -83,23 +107,80 @@ class ImportSessionManager:
         canonical = normalize_url(url)
         return hashlib.sha256(f"{index}\0{canonical}".encode()).hexdigest()[:24]
 
+    @staticmethod
+    def _source_paths(source_path) -> list[Path]:
+        values = source_path if isinstance(source_path, (list, tuple)) else [source_path]
+        paths = [Path(value).resolve() for value in values]
+        if not paths:
+            raise ValueError("Import requires at least one source file")
+        for path in paths:
+            if not path.is_file():
+                raise ValueError(f"Import source is not a readable file: {path}")
+        return paths
+
+    @staticmethod
+    def _parse(importer, paths: list[Path]) -> list[Any]:
+        if len(paths) > 1 and hasattr(importer, "from_paths"):
+            return list(importer.from_paths([str(path) for path in paths]))
+        if len(paths) != 1:
+            raise ValueError("This importer accepts exactly one source file")
+        return list(importer.from_path(str(paths[0])))
+
+    def preflight(self, importer, source_path, *, source: str) -> ImportPreflight:
+        paths = self._source_paths(source_path)
+        digest = self.digest_sources(paths)
+        bookmarks = self._parse(importer, paths)
+        if not bookmarks:
+            raise ValueError("Import source contains 0 valid bookmarks; no changes were made")
+        stats = getattr(importer, "stats", None)
+        losses = max(0, int(getattr(stats, "skipped", 0) or 0))
+        raw_causes = getattr(stats, "causes", {}) or {}
+        causes = {
+            str(cause)[:300]: max(1, int(count))
+            for cause, count in raw_causes.items()
+            if str(cause).strip()
+        }
+        placeholders = {"", "Imported", "Uncategorized", "Uncategorized / Needs Review"}
+        coverage = {
+            "title": sum(bool(str(bookmark.title or "").strip()) for bookmark in bookmarks),
+            "folder": sum(str(bookmark.category or "").strip() not in placeholders for bookmark in bookmarks),
+            "tags": sum(bool(bookmark.tags) for bookmark in bookmarks),
+            "notes": sum(bool(str(bookmark.notes or bookmark.description or "").strip()) for bookmark in bookmarks),
+            "source date": sum(bool(str(bookmark.add_date or "").strip()) for bookmark in bookmarks),
+        }
+        return ImportPreflight(
+            source=str(source),
+            source_paths=tuple(str(path) for path in paths),
+            source_digest=digest,
+            total=len(bookmarks),
+            losses=losses,
+            causes=causes,
+            field_coverage=coverage,
+            bookmarks=tuple(bookmarks),
+        )
+
     def run(
         self,
         manager,
         importer,
-        source_path: str | Path,
+        source_path,
         *,
         source: str,
         retry_failed: bool = False,
         cancel_requested: Callable[[], bool] | None = None,
         on_progress: Callable[[ImportSessionReport], None] | None = None,
+        prepared: ImportPreflight | None = None,
     ) -> ImportSessionReport:
-        source_path = Path(source_path).resolve()
-        digest = self.digest_source(source_path)
+        paths = self._source_paths(source_path)
+        digest = self.digest_sources(paths)
+        if prepared is None:
+            prepared = self.preflight(importer, paths, source=source)
+        if prepared.source != str(source) or prepared.source_digest != digest:
+            raise RuntimeError("Import preflight no longer matches the selected source")
         session_id = self._session_id(source, digest)
-        bookmarks = list(importer.from_path(str(source_path)))
+        bookmarks = list(prepared.bookmarks)
         parsed = [(self._row_key(index, bookmark.url), bookmark) for index, bookmark in enumerate(bookmarks)]
-        session = self._ensure_session(session_id, source, source_path, digest, parsed, importer)
+        session = self._ensure_session(session_id, source, paths, digest, parsed, prepared)
         if session["status"] == "completed" and not retry_failed:
             return self._report(session)
         if retry_failed:
@@ -131,6 +212,11 @@ class ImportSessionManager:
                     if canonical in existing:
                         self._set_row(session_id, key, "duplicate", "canonical URL already exists")
                     else:
+                        category = str(getattr(bookmark, "category", "") or "")
+                        if category in {"", "Imported", "Uncategorized", "Uncategorized / Needs Review"}:
+                            categorizer = getattr(getattr(manager, "category_manager", None), "categorize_url", None)
+                            if categorizer:
+                                bookmark.category = categorizer(bookmark.url, bookmark.title)
                         manager.add_bookmark(bookmark)
                         existing.add(canonical)
                         self._set_row(session_id, key, "completed", "")
@@ -141,9 +227,9 @@ class ImportSessionManager:
             report = self._finalize(session_id, started, manager, on_progress)
             if report.failed:
                 job.fail(f"{report.failed} import row(s) failed", retryable=True,
-                         bytes_processed=source_path.stat().st_size)
+                         bytes_processed=self._source_size(paths))
             else:
-                job.succeed(bytes_processed=source_path.stat().st_size)
+                job.succeed(bytes_processed=self._source_size(paths))
             return report
         except Exception as exc:
             terminal_cause = redact_job_error(exc)
@@ -151,8 +237,12 @@ class ImportSessionManager:
                 session_id,
                 lambda item: item.update(status="interrupted", terminal_cause=terminal_cause) or item,
             )
-            job.fail(exc, retryable=True, bytes_processed=source_path.stat().st_size)
+            job.fail(exc, retryable=True, bytes_processed=self._source_size(paths))
             raise
+
+    @staticmethod
+    def _source_size(paths: list[Path]) -> int:
+        return sum(path.stat().st_size for path in paths)
 
     def request_cancel(self, session_id: str) -> bool:
         session = self.get(session_id)
@@ -172,18 +262,35 @@ class ImportSessionManager:
         if not session:
             raise RuntimeError("Import session was not found")
         importer = self._importer_for_source(session.get("source", ""))
-        source_path = Path(str(session.get("source_path") or ""))
-        if not source_path.is_file():
-            raise RuntimeError("Original import source is no longer available")
-        if self.digest_source(source_path) != session.get("source_digest"):
-            raise RuntimeError("Original import source changed; retry was refused")
+        source_paths = self._paths_for_session(session)
+        self._validate_retry_sources(session, source_paths)
         return self.run(
             manager,
             importer,
-            source_path,
+            source_paths,
             source=session["source"],
             retry_failed=True,
         )
+
+    def resume(self, manager, session_id: str) -> ImportSessionReport:
+        session = self.get(session_id)
+        if not session:
+            raise RuntimeError("Import session was not found")
+        importer = self._importer_for_source(session.get("source", ""))
+        source_paths = self._paths_for_session(session)
+        self._validate_retry_sources(session, source_paths)
+        return self.run(manager, importer, source_paths, source=session["source"])
+
+    @staticmethod
+    def _paths_for_session(session: dict[str, Any]) -> list[Path]:
+        values = session.get("source_paths") or [session.get("source_path")]
+        return [Path(str(value or "")) for value in values]
+
+    def _validate_retry_sources(self, session: dict[str, Any], paths: list[Path]) -> None:
+        if not paths or any(not path.is_file() for path in paths):
+            raise RuntimeError("Original import source is no longer available")
+        if self.digest_sources(paths) != session.get("source_digest"):
+            raise RuntimeError("Original import source changed; retry was refused")
 
     def rollback(self, manager, session_id: str) -> ImportSessionReport:
         session = self.get(session_id)
@@ -216,21 +323,23 @@ class ImportSessionManager:
         session = self.get(session_id)
         return self._report(session) if session else None
 
-    def _ensure_session(self, session_id, source, path, digest, parsed, importer):
+    def _ensure_session(self, session_id, source, paths, digest, parsed, preflight):
         existing = self.get(session_id)
         if existing:
             return existing
-        losses = max(0, int(getattr(getattr(importer, "stats", None), "skipped", 0) or 0))
         session = {
             "session_id": session_id,
             "source": str(source)[:80],
-            "source_path": str(path),
+            "source_path": str(paths[0]),
+            "source_paths": [str(path) for path in paths],
             "source_digest": digest,
             "status": "pending",
             "created_at": _now(),
             "updated_at": _now(),
             "duration_ms": 0,
-            "losses": losses,
+            "losses": preflight.losses,
+            "source_causes": dict(preflight.causes),
+            "field_coverage": dict(preflight.field_coverage),
             "safepoint": "",
             "final_revision": 0,
             "cancel_requested": False,
@@ -288,7 +397,18 @@ class ImportSessionManager:
     @staticmethod
     def _importer_for_source(source: str):
         from bookmark_organizer_pro import importers_extra
-        from bookmark_organizer_pro.importers import FirefoxBookmarkBackupImporter
+        from bookmark_organizer_pro.importers import (
+            BrowserProfileSessionImporter,
+            FirefoxBookmarkBackupImporter,
+            GenericFileSessionImporter,
+            ZoteroRDFSessionImporter,
+        )
+
+        normalized = str(source or "").lower()
+        if normalized in {"generic-files", "genericfilesession"}:
+            return GenericFileSessionImporter()
+        if normalized.startswith("browserprofile:"):
+            return BrowserProfileSessionImporter(normalized.split(":", 1)[1])
 
         classes = {
             cls.__name__.removesuffix("Importer").lower(): cls
@@ -302,9 +422,10 @@ class ImportSessionManager:
                 importers_extra.WallabagJSONImporter,
                 importers_extra.ArcBrowserImporter,
                 FirefoxBookmarkBackupImporter,
+                ZoteroRDFSessionImporter,
             )
         }
-        importer_class = classes.get(str(source or "").lower())
+        importer_class = classes.get(normalized)
         if importer_class is None:
             raise RuntimeError(f"Retry is unavailable for import source {source!r}")
         return importer_class()
@@ -314,6 +435,8 @@ class ImportSessionManager:
         rows = session.get("rows", [])
         states = [row.get("state", "pending") for row in rows]
         causes: dict[str, int] = {}
+        for cause, count in (session.get("source_causes") or {}).items():
+            causes[str(cause)] = max(1, int(count))
         for row in rows:
             cause = str(row.get("cause") or "").strip()
             if cause:

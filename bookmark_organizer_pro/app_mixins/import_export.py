@@ -2,25 +2,19 @@
 
 from __future__ import annotations
 
-import json
 import threading
 import tkinter as tk
-from datetime import datetime
 from pathlib import Path
 from typing import List
 
-from bookmark_organizer_pro.constants import BACKUP_DIR
 from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.importers import (
     BrowserProfileImporter,
+    BrowserProfileSessionImporter,
     FirefoxBookmarkBackupImporter,
-    NetscapeBookmarkImporter,
-    OPMLImporter,
-    RaindropImporter,
-    TextURLImporter,
+    GenericFileSessionImporter,
 )
 from bookmark_organizer_pro.logging_config import log
-from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.recovery_workflow import RecoveryWorkflow
 from bookmark_organizer_pro.ui.bookmark_workflows import SelectiveExportDialog
 from bookmark_organizer_pro.ui.foundation import FONTS, pluralize
@@ -30,256 +24,85 @@ from bookmark_organizer_pro.ui.widgets import ModernButton, get_theme
 
 
 class ImportProgressModal(tk.Toplevel):
-    """Large centered modal that shows import progress."""
+    """Compatibility progress surface retained for visual and downstream probes."""
 
-    def __init__(
-        self,
-        parent,
-        source_label: str = "file",
-        next_action: str = "Review imported bookmarks, then run duplicate and tag cleanup.",
-    ):
+    def __init__(self, parent, source_label: str = "file", next_action: str = ""):
         super().__init__(parent)
         theme = get_theme()
         self._next_action = next_action
-
         self.title(_("Importing Bookmarks"))
         self.configure(bg=theme.bg_primary)
+        self.geometry("500x300")
         self.resizable(False, False)
         self.transient(parent)
-        self.grab_set()
-        self.protocol("WM_DELETE_WINDOW", lambda: None)
-
-        width, height = 500, 300
-        self.geometry(f"{width}x{height}")
-        self.update_idletasks()
-        px = parent.winfo_rootx() + (parent.winfo_width() - width) // 2
-        py = parent.winfo_rooty() + (parent.winfo_height() - height) // 2
-        self.geometry(f"+{max(0, px)}+{max(0, py)}")
-
-        try:
-            self.attributes("-topmost", True)
-        except Exception:
-            pass
-
-        # --- Icon ---
-        tk.Label(
-            self, text="↓", bg=theme.bg_primary,
-            fg=theme.accent_primary, font=FONTS.display(bold=True),
-        ).pack(pady=(28, 8))
-
-        # --- Title ---
         self._title_label = tk.Label(
-            self, text=_("Importing from {source}…").format(source=source_label),
-            bg=theme.bg_primary, fg=theme.text_primary,
+            self,
+            text=_("Importing from {source}…").format(source=source_label),
+            bg=theme.bg_primary,
+            fg=theme.text_primary,
             font=FONTS.subtitle(bold=True),
         )
-        self._title_label.pack()
-
-        # --- Status ---
+        self._title_label.pack(pady=(42, 8))
         self._status_label = tk.Label(
-            self, text=_("Preparing…"),
-            bg=theme.bg_primary, fg=theme.text_secondary,
+            self,
+            text=_("Preparing…"),
+            bg=theme.bg_primary,
+            fg=theme.text_secondary,
             font=FONTS.body(),
         )
-        self._status_label.pack(pady=(6, 12))
-
-        # --- Progress bar ---
-        bar_frame = tk.Frame(self, bg=theme.bg_primary)
-        bar_frame.pack(fill=tk.X, padx=48)
-
-        self._bar_bg = tk.Frame(bar_frame, bg=theme.bg_tertiary, height=6)
-        self._bar_bg.pack(fill=tk.X)
-
-        self._bar_fill = tk.Frame(self._bar_bg, bg=theme.accent_primary, height=6)
+        self._status_label.pack(pady=(0, 12))
+        bar = tk.Frame(self, bg=theme.bg_tertiary, height=6)
+        bar.pack(fill=tk.X, padx=48)
+        self._bar_fill = tk.Frame(bar, bg=theme.accent_primary, height=6)
         self._bar_fill.place(x=0, y=0, relheight=1.0, relwidth=0)
-
-        # --- Count ---
         self._count_label = tk.Label(
-            self, text="",
-            bg=theme.bg_primary, fg=theme.text_muted,
-            font=FONTS.small(),
+            self, text="", bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.small(),
         )
         self._count_label.pack(pady=(10, 0))
 
-        self._animating = True
-        self._animate_pos = 0.0
-        self._animate()
-
-    def _animate(self):
-        if not self._animating:
-            return
-        self._animate_pos += 0.03
-        if self._animate_pos > 0.7:
-            self._animate_pos = 0.0
-        self._bar_fill.place(relx=self._animate_pos, relwidth=0.3)
-        self.after(40, self._animate)
-
     def set_progress(self, current: int, total: int, added: int, dupes: int):
-        self._animating = False
-        pct = current / max(total, 1)
-        self._bar_fill.place(relx=0, relwidth=pct)
-        self._status_label.configure(text=_("Processing bookmark {current} of {total}").format(current=f"{current:,}", total=f"{total:,}"))
-        parts = []
-        if added:
-            parts.append(_("{count} added").format(count=f"{added:,}"))
-        if dupes:
-            parts.append(_("{count} skipped").format(count=f"{dupes:,}"))
-        self._count_label.configure(text=" · ".join(parts) if parts else "")
-
-    def set_categorizing(self):
-        self._status_label.configure(text=_("Auto-categorizing bookmarks…"))
-
-    def set_saving(self):
-        self._status_label.configure(text=_("Saving to library…"))
+        self._bar_fill.place(relwidth=min(1.0, current / max(total, 1)))
+        self._status_label.configure(
+            text=_("Processing bookmark {current} of {total}").format(
+                current=f"{current:,}", total=f"{total:,}",
+            )
+        )
+        self._count_label.configure(
+            text=_("{added} added · {duplicates} skipped").format(
+                added=f"{added:,}", duplicates=f"{dupes:,}",
+            )
+        )
 
     def finish(self, added: int, dupes: int):
         theme = get_theme()
-        self._animating = False
-        self._bar_fill.place(relx=0, relwidth=1.0)
+        self._bar_fill.place(relwidth=1.0)
         self._bar_fill.configure(bg=theme.accent_success)
         self._title_label.configure(text=_("Import Complete"))
-        self._status_label.configure(
-            text=_("{added} bookmarks imported, {dupes} duplicates skipped").format(added=f"{added:,}", dupes=f"{dupes:,}"),
-            fg=theme.text_primary,
-        )
-        self._count_label.configure(text="")
-
-        tk.Label(
-            self,
-            text=_("Next: {action}").format(action=self._next_action),
-            bg=theme.bg_primary,
-            fg=theme.text_secondary,
-            font=FONTS.small(),
-            wraplength=400,
-            justify=tk.CENTER,
-        ).pack(pady=(8, 0))
-
-        btn_frame = tk.Frame(self, bg=theme.bg_primary)
-        btn_frame.pack(pady=(12, 0))
-        ModernButton(
-            btn_frame, text=_("Done"), style="primary",
-            command=self._close, padx=24, pady=8,
-        ).pack()
-        self.protocol("WM_DELETE_WINDOW", self._close)
+        self.set_progress(1, 1, added, dupes)
 
     def finish_error(self, message: str):
         theme = get_theme()
-        self._animating = False
-        self._bar_fill.place(relx=0, relwidth=1.0)
+        self._bar_fill.place(relwidth=1.0)
         self._bar_fill.configure(bg=theme.accent_error)
         self._title_label.configure(text=_("Import Failed"))
         self._status_label.configure(text=message[:120], fg=theme.accent_error)
-
-        btn_frame = tk.Frame(self, bg=theme.bg_primary)
-        btn_frame.pack(pady=(12, 0))
-        ModernButton(
-            btn_frame, text=_("Close"), command=self._close, padx=24, pady=8,
-        ).pack()
-        self.protocol("WM_DELETE_WINDOW", self._close)
-
-    def _close(self):
-        self.grab_release()
-        self.destroy()
 
 
 class ImportExportMixin:
     """File, browser, and export actions used by the app coordinator."""
 
     def _on_files_dropped(self, filepaths: List[str]):
-        """Handle dropped files for import with progress modal."""
-        self.import_area.set_importing(True)
-
+        """Import one or more selected files through one durable session."""
         file_names = ", ".join(Path(f).name for f in filepaths[:3])
         if len(filepaths) > 3:
             file_names += f" (+{len(filepaths) - 3} more)"
-        modal = ImportProgressModal(
-            self.root,
-            source_label=file_names,
-            next_action="Review imported categories, then run duplicate and tag cleanup.",
+        self._begin_import_session(
+            file_names,
+            GenericFileSessionImporter(),
+            filepaths,
+            source="generic-files",
+            next_action=_("Review imported categories, then run duplicate and tag cleanup."),
         )
-
-        def do_import():
-            # Capture a recoverable snapshot of the pre-import state first, so a
-            # bad import can be rolled back from File → Restore from Backup.
-            self.bookmark_manager.create_safepoint("pre-import")
-
-            total_added = 0
-            total_dupes = 0
-            imported_bookmarks = []
-            all_parsed: List[Bookmark] = []
-
-            try:
-                # Phase 1: Parse all files
-                for filepath in filepaths:
-                    ext = Path(filepath).suffix.lower()
-                    bookmarks: List[Bookmark] = []
-                    try:
-                        if ext in ('.html', '.htm'):
-                            bookmarks = NetscapeBookmarkImporter.import_from_netscape(filepath)
-                        elif ext == '.json':
-                            if FirefoxBookmarkBackupImporter.looks_like_backup(filepath):
-                                bookmarks = FirefoxBookmarkBackupImporter.import_from_json(filepath)
-                            else:
-                                with open(filepath, 'r', encoding='utf-8') as f:
-                                    data = json.load(f)
-                                items = data if isinstance(data, list) else data.get('bookmarks', [])
-                                for item in items:
-                                    if isinstance(item, dict) and item.get('url'):
-                                        bm = Bookmark(id=None, url=item.get('url', ''),
-                                                      title=item.get('title', ''),
-                                                      category=item.get('category', 'Imported'))
-                                        bookmarks.append(bm)
-                        elif ext == '.jsonlz4':
-                            bookmarks = FirefoxBookmarkBackupImporter.import_from_json(filepath)
-                        elif ext == '.csv':
-                            bookmarks = RaindropImporter.import_from_csv(filepath)
-                        elif ext == '.opml':
-                            bookmarks = OPMLImporter.import_from_opml(filepath)
-                        elif ext == '.txt':
-                            bookmarks = TextURLImporter.import_from_text(filepath)
-                    except Exception as e:
-                        log.error(f"Import error for {filepath}: {e}")
-                    all_parsed.extend(b for b in bookmarks if b and b.url)
-
-                total = len(all_parsed)
-
-                # Phase 2: Deduplicate, categorize, add
-                for i, bm in enumerate(all_parsed):
-                    existing = self.bookmark_manager.find_by_url(bm.url)
-                    if existing:
-                        total_dupes += 1
-                    else:
-                        if not bm.category or bm.category in (
-                            "Imported", "Uncategorized", "Uncategorized / Needs Review"
-                        ):
-                            bm.category = self.category_manager.categorize_url(bm.url, bm.title)
-                        self.bookmark_manager.add_bookmark(bm, save=False)
-                        imported_bookmarks.append(bm)
-                        total_added += 1
-
-                    if (i + 1) % 25 == 0 or i == total - 1:
-                        self.root.after(0, lambda c=i+1, t=total, a=total_added, d=total_dupes:
-                                        modal.set_progress(c, t, a, d))
-
-                # Phase 3: Save
-                self.root.after(0, modal.set_saving)
-                self.bookmark_manager.save_bookmarks()
-
-                if imported_bookmarks:
-                    self._save_import_backup(imported_bookmarks)
-
-                self.root.after(0, lambda: modal.finish(total_added, total_dupes))
-
-            except Exception as e:
-                log.error(f"Import thread error: {e}")
-                # `e` is unbound once this except block exits; capture the text
-                # before scheduling the deferred UI callback.
-                err_text = str(e)[:120]
-                self.root.after(0, lambda: modal.finish_error(err_text))
-            finally:
-                self.root.after(0, lambda: self._on_import_done(total_added, total_dupes))
-
-        threading.Thread(target=do_import, daemon=True).start()
     
     def _show_restore_dialog(self):
         """List backups + safepoints and restore the selected one."""
@@ -399,37 +222,6 @@ class ImportExportMixin:
         lb.bind("<Double-Button-1>", lambda e: do_restore())
         dlg.bind("<Escape>", lambda e: dlg.destroy())
 
-    def _save_import_backup(self, bookmarks: List[Bookmark]):
-        """Save imported bookmarks to permanent backup file (grows forever)"""
-        backup_file = BACKUP_DIR / "import_history_backup.json"
-        
-        try:
-            # Load existing backup
-            existing = []
-            if backup_file.exists():
-                with open(backup_file, 'r', encoding='utf-8') as f:
-                    existing = json.load(f)
-            
-            # Add new bookmarks with timestamp
-            timestamp = datetime.now().isoformat()
-            for bm in bookmarks:
-                existing.append({
-                    'url': bm.url,
-                    'title': bm.title,
-                    'category': bm.category,
-                    'tags': bm.tags,
-                    'notes': bm.notes,
-                    'imported_at': timestamp
-                })
-            
-            # Save back
-            with open(backup_file, 'w', encoding='utf-8') as f:
-                json.dump(existing, f, indent=2, ensure_ascii=False)
-            
-            log.info("Saved %s bookmarks to import backup. Total: %s", len(bookmarks), len(existing))
-        except Exception:
-            log.warning("Error saving import backup", exc_info=True)
-    
     def _on_import_done(self, added: int, dupes: int):
         """Handle import completion"""
         self.import_area.set_importing(False)
@@ -448,6 +240,140 @@ class ImportExportMixin:
                 f"Imported {pluralize(added, 'bookmark')}. Skipped {pluralize(dupes, 'duplicate')}.",
                 "success" if added > 0 else "info"
             )
+
+    def _confirm_import_preflight(self, label, preflight) -> bool:
+        """Require an explicit apply decision after showing source fidelity."""
+        from tkinter import messagebox
+
+        fields = "\n".join(
+            _("{field}: {count} of {total} source rows").format(
+                field=field.title(), count=count, total=preflight.total,
+            )
+            for field, count in preflight.field_coverage.items()
+        )
+        causes = "; ".join(
+            f"{cause} ({count})" for cause, count in preflight.causes.items()
+        ) or _("None detected")
+        message = _(
+            "Source: {source}\nValid bookmarks: {total}\nParse losses: {losses}\n\n"
+            "Field coverage\n{fields}\n\nLoss details: {causes}\n\n"
+            "Missing fields remain blank or use the library default. Apply this import?"
+        ).format(
+            source=label,
+            total=preflight.total,
+            losses=preflight.losses,
+            fields=fields,
+            causes=causes,
+        )
+        return bool(messagebox.askokcancel(_("Import Preflight"), message, parent=self.root))
+
+    def _begin_import_session(
+        self, label, importer, source_paths, *, source: str, next_action: str
+    ):
+        """Preflight and execute every GUI importer through the shared ledger."""
+        from bookmark_organizer_pro.services.import_sessions import ImportSessionManager
+
+        paths = list(source_paths) if isinstance(source_paths, (list, tuple)) else [source_paths]
+        sessions = ImportSessionManager()
+        self.import_area.set_importing(True)
+        self._set_status(_("Inspecting {source} before import…").format(source=label))
+
+        def prepared(preflight):
+            if not self._confirm_import_preflight(label, preflight):
+                self.import_area.set_importing(False)
+                self._set_status(_("Import cancelled before changes were made"))
+                return
+
+            cancelled = threading.Event()
+            activity = LiveWorkflowDialog(
+                self.root,
+                title=_("Importing from {source}").format(source=label),
+                total=preflight.total,
+                width=680,
+                height=500,
+                on_cancel=cancelled.set,
+            )
+
+            def progress(report):
+                processed = report.added + report.duplicates + report.failed
+                activity.add_result(
+                    status="error" if report.failed else "ok",
+                    title=_("Processed {processed} of {total}").format(
+                        processed=processed, total=report.total,
+                    ),
+                    detail=_("{added} added · {duplicates} duplicates · {failed} failed").format(
+                        added=report.added,
+                        duplicates=report.duplicates,
+                        failed=report.failed,
+                    ),
+                )
+
+            def work():
+                return sessions.run(
+                    self.bookmark_manager,
+                    importer,
+                    paths,
+                    source=source,
+                    cancel_requested=cancelled.is_set,
+                    on_progress=progress,
+                    prepared=preflight,
+                )
+
+            def complete(report):
+                self._on_import_done(report.added, report.duplicates)
+                causes = "; ".join(
+                    f"{cause} ({count})" for cause, count in report.causes.items()
+                ) or _("none")
+                diagnostics = _(
+                    "Session {session} · {status} · {duration} ms · "
+                    "{failed} failed · {losses} source losses · causes: {causes}."
+                ).format(
+                    session=report.session_id,
+                    status=report.status,
+                    duration=report.duration_ms,
+                    failed=report.failed,
+                    losses=report.losses,
+                    causes=causes,
+                )
+                activity.signal_finish(
+                    diagnostics,
+                    outcome="error" if report.failed else (
+                        "warning" if report.status == "cancelled" else "success"
+                    ),
+                )
+                self._show_import_result_summary(
+                    label,
+                    report.added,
+                    report.duplicates,
+                    f"{next_action} {diagnostics}",
+                    report=report,
+                )
+
+            def failed(error):
+                self.import_area.set_importing(False)
+                activity.add_result(status="error", title=_("Import interrupted"), detail=str(error))
+                activity.signal_finish(str(error), outcome="error")
+                self._show_toast(str(error), "error")
+
+            activity.start()
+            self.task_runner.run_task(
+                f"import-session-{id(activity)}",
+                work,
+                on_complete=complete,
+                on_error=failed,
+            )
+
+        def preflight_failed(error):
+            self.import_area.set_importing(False)
+            self._set_status(_("Import preflight failed"))
+            self._show_toast(str(error), "error")
+
+        self.task_runner.run_task(
+            f"import-preflight-{id(importer)}",
+            lambda: sessions.preflight(importer, paths, source=source),
+            on_complete=prepared,
+            on_error=preflight_failed,
+        )
     
     def _show_import_dialog(self):
         """Show the guided import center."""
@@ -483,7 +409,7 @@ class ImportExportMixin:
         self._show_toast(_("This import path is not available yet."), "warning")
 
     def _import_from_browser(self, browser: str):
-        """Import bookmarks directly from a browser profile with progress modal."""
+        """Require the user to choose a browser profile before preflight."""
         importer = BrowserProfileImporter()
         profiles = importer.get_profiles(browser)
 
@@ -491,61 +417,74 @@ class ImportExportMixin:
             self._show_toast(_("No {browser} profiles found").format(browser=browser.title()), "warning")
             return
 
-        profile_name, profile_path = profiles[0]
-        modal = ImportProgressModal(
-            self.root,
-            source_label=f"{browser.title()} ({profile_name})",
-            next_action="Review browser folders, then run duplicate and tag cleanup.",
+        self._show_browser_profile_picker(browser, profiles)
+
+    def _show_browser_profile_picker(self, browser: str, profiles):
+        theme = get_theme()
+        dlg = tk.Toplevel(self.root)
+        dlg.title(_("Select {browser} Profile").format(browser=browser.title()))
+        dlg.configure(bg=theme.bg_primary)
+        dlg.geometry("520x360")
+        dlg.transient(self.root)
+        dlg.grab_set()
+        tk.Label(
+            dlg,
+            text=_("Choose the exact profile to import"),
+            bg=theme.bg_primary,
+            fg=theme.text_primary,
+            font=FONTS.subtitle(bold=True),
+        ).pack(anchor="w", padx=22, pady=(22, 6))
+        tk.Label(
+            dlg,
+            text=_("No profile is selected automatically. The source is preflighted before changes."),
+            bg=theme.bg_primary,
+            fg=theme.text_secondary,
+            font=FONTS.body(),
+            wraplength=470,
+            justify=tk.LEFT,
+        ).pack(anchor="w", padx=22, pady=(0, 12))
+        listing = tk.Listbox(
+            dlg,
+            bg=theme.bg_secondary,
+            fg=theme.text_primary,
+            selectbackground=theme.selection,
+            font=FONTS.body(),
+            exportselection=False,
+            activestyle="none",
         )
+        listing.pack(fill=tk.BOTH, expand=True, padx=22)
+        for name, path in profiles:
+            listing.insert(tk.END, f"{name}  —  {path}")
+        listing.selection_set(0)
+        listing.focus_set()
 
-        def do_import():
-            try:
-                if browser == "firefox":
-                    bookmarks = importer.import_from_firefox(profile_path)
-                else:
-                    bookmarks = importer.import_from_chrome(profile_path)
+        def choose():
+            selection = listing.curselection()
+            if not selection:
+                return
+            profile_name, profile_path = profiles[selection[0]]
+            source_path = profile_path / ("places.sqlite" if browser == "firefox" else "Bookmarks")
+            dlg.destroy()
+            self._begin_import_session(
+                f"{browser.title()} ({profile_name})",
+                BrowserProfileSessionImporter(browser),
+                source_path,
+                source=f"browserprofile:{browser}",
+                next_action=_("Review browser folders, then run duplicate and tag cleanup."),
+            )
 
-                valid = [bm for bm in bookmarks if bm.url and bm.url.startswith(('http://', 'https://'))]
-                total = len(valid)
-                added = 0
-                dupes = 0
-
-                for i, bm in enumerate(valid):
-                    existing = self.bookmark_manager.find_by_url(bm.url)
-                    if existing:
-                        dupes += 1
-                    else:
-                        if not bm.category or bm.category in (
-                            "Imported", "Uncategorized", "Uncategorized / Needs Review"
-                        ):
-                            bm.category = self.category_manager.categorize_url(bm.url, bm.title)
-                        bm.source_file = f"{browser}:{profile_name}"
-                        self.bookmark_manager.add_bookmark(bm, save=False)
-                        added += 1
-
-                    if (i + 1) % 25 == 0 or i == total - 1:
-                        self.root.after(0, lambda c=i+1, t=total, a=added, d=dupes:
-                                        modal.set_progress(c, t, a, d))
-
-                self.root.after(0, modal.set_saving)
-                if added > 0:
-                    self.bookmark_manager.save_bookmarks()
-
-                self.root.after(0, lambda: modal.finish(added, dupes))
-                self.root.after(0, lambda: self._on_import_done(added, dupes))
-
-            except Exception as e:
-                log.error(f"Browser import error: {e}")
-                # `e` is unbound once this except block exits; capture the text
-                # before scheduling the deferred UI callback.
-                err_text = str(e)[:120]
-                self.root.after(0, lambda: modal.finish_error(err_text))
-
-        threading.Thread(target=do_import, daemon=True).start()
+        buttons = tk.Frame(dlg, bg=theme.bg_primary)
+        buttons.pack(side=tk.BOTTOM, fill=tk.X, padx=22, pady=18, before=listing)
+        ModernButton(buttons, text=_("Import Selected Profile"), command=choose,
+                     style="primary", padx=14, pady=7).pack(side=tk.RIGHT)
+        ModernButton(buttons, text=_("Cancel"), command=dlg.destroy,
+                     padx=14, pady=7).pack(side=tk.RIGHT, padx=(0, 8))
+        listing.bind("<Double-Button-1>", lambda _event: choose())
+        listing.bind("<Return>", lambda _event: choose())
+        dlg.bind("<Escape>", lambda _event: dlg.destroy())
     
     def _import_service_file(self, importer_cls, label, filetypes):
         from tkinter import filedialog
-        from bookmark_organizer_pro.services.import_sessions import ImportSessionManager
 
         path = filedialog.askopenfilename(
             title=_("Import from {source}").format(source=label),
@@ -554,86 +493,14 @@ class ImportExportMixin:
         )
         if not path:
             return
-        cancelled = threading.Event()
-        activity = LiveWorkflowDialog(
-            self.root,
-            title=_("Importing from {source}").format(source=label),
-            total=1,
-            width=680,
-            height=500,
-            on_cancel=cancelled.set,
-        )
         importer = importer_cls()
-        sessions = ImportSessionManager()
         source = importer_cls.__name__.removesuffix("Importer").lower()
-
-        def progress(report):
-            activity.total = max(1, report.total)
-            processed = report.added + report.duplicates + report.failed
-            activity.add_result(
-                status="error" if report.failed else "ok",
-                title=_("Processed {processed} of {total}").format(
-                    processed=processed, total=report.total,
-                ),
-                detail=_("{added} added · {duplicates} duplicates · {failed} failed").format(
-                    added=report.added,
-                    duplicates=report.duplicates,
-                    failed=report.failed,
-                ),
-            )
-
-        def work():
-            return sessions.run(
-                self.bookmark_manager,
-                importer,
-                path,
-                source=source,
-                cancel_requested=cancelled.is_set,
-                on_progress=progress,
-            )
-
-        def complete(report):
-            self._on_import_done(report.added, report.duplicates)
-            causes = "; ".join(
-                f"{cause} ({count})" for cause, count in report.causes.items()
-            ) or _("none")
-            diagnostics = _(
-                "Session {session} · {status} · {duration} ms · "
-                "{failed} failed · {losses} source losses · causes: {causes}. "
-                "Use `bop imports` to retry, cancel, or roll back."
-            ).format(
-                session=report.session_id,
-                status=report.status,
-                duration=report.duration_ms,
-                failed=report.failed,
-                losses=report.losses,
-                causes=causes,
-            )
-            activity.signal_finish(
-                diagnostics,
-                outcome="error" if report.failed else (
-                    "warning" if report.status == "cancelled" else "success"
-                ),
-            )
-            self._show_import_result_summary(
-                label,
-                report.added,
-                report.duplicates,
-                diagnostics,
-                report=report,
-            )
-
-        def failed(error):
-            activity.add_result(status="error", title=_("Import interrupted"), detail=str(error))
-            activity.signal_finish(str(error), outcome="error")
-            self._show_toast(str(error), "error")
-
-        activity.start()
-        self.task_runner.run_task(
-            f"import-session-{id(activity)}",
-            work,
-            on_complete=complete,
-            on_error=failed,
+        self._begin_import_session(
+            label,
+            importer,
+            path,
+            source=source,
+            next_action=_("Review the imported rows and resolve any reported losses."),
         )
 
     def _preflight_competitor_migration(self, source: str, label: str):
@@ -723,6 +590,114 @@ class ImportExportMixin:
         ModernButton(buttons, text=_("Close"), command=dlg.destroy,
                      padx=14, pady=7).pack(side=tk.RIGHT, padx=(0, 8))
 
+    def _reopen_incomplete_import_sessions(self):
+        """Reopen durable work that did not reach a terminal state last run."""
+        from bookmark_organizer_pro.services.import_sessions import ImportSessionManager
+
+        reports = [
+            report for report in ImportSessionManager().list(50)
+            if report.pending or report.failed or report.status in {
+                "pending", "running", "cancelled", "interrupted", "attention"
+            }
+        ]
+        if reports:
+            self._show_incomplete_import_sessions(reports)
+
+    def _show_incomplete_import_sessions(self, reports):
+        theme = get_theme()
+        dlg = tk.Toplevel(self.root)
+        dlg.title(_("Incomplete Imports"))
+        dlg.configure(bg=theme.bg_primary)
+        dlg.geometry("700x410")
+        dlg.transient(self.root)
+        tk.Label(
+            dlg,
+            text=_("Resume or recover incomplete imports"),
+            bg=theme.bg_primary,
+            fg=theme.text_primary,
+            font=FONTS.subtitle(bold=True),
+        ).pack(anchor="w", padx=22, pady=(22, 6))
+        tk.Label(
+            dlg,
+            text=_("Each session keeps its row checkpoints and original rollback safepoint."),
+            bg=theme.bg_primary,
+            fg=theme.text_secondary,
+            font=FONTS.body(),
+        ).pack(anchor="w", padx=22, pady=(0, 12))
+        listing = tk.Listbox(
+            dlg,
+            bg=theme.bg_secondary,
+            fg=theme.text_primary,
+            selectbackground=theme.selection,
+            font=FONTS.body(),
+            exportselection=False,
+            activestyle="none",
+        )
+        listing.pack(fill=tk.BOTH, expand=True, padx=22)
+        for report in reports:
+            listing.insert(
+                tk.END,
+                _("{source} · {status} · {added}/{total} added · {failed} failed · {pending} pending").format(
+                    source=report.source,
+                    status=report.status,
+                    added=report.added,
+                    total=report.total,
+                    failed=report.failed,
+                    pending=report.pending,
+                ),
+            )
+        listing.selection_set(0)
+        listing.focus_set()
+
+        def selected():
+            indices = listing.curselection()
+            return reports[indices[0]] if indices else None
+
+        def run_action(action: str):
+            report = selected()
+            if not report:
+                return
+            from bookmark_organizer_pro.services.import_sessions import ImportSessionManager
+
+            sessions = ImportSessionManager()
+
+            def work():
+                if action == "rollback":
+                    return sessions.rollback(self.bookmark_manager, report.session_id)
+                if report.failed:
+                    return sessions.retry(self.bookmark_manager, report.session_id)
+                return sessions.resume(self.bookmark_manager, report.session_id)
+
+            def complete(updated):
+                dlg.destroy()
+                self._on_import_done(updated.added, updated.duplicates)
+                self._show_import_result_summary(
+                    updated.source,
+                    updated.added,
+                    updated.duplicates,
+                    _("Review the resumed session diagnostics."),
+                    report=updated,
+                )
+
+            self.task_runner.run_task(
+                f"startup-import-{action}-{report.session_id}",
+                work,
+                on_complete=complete,
+                on_error=lambda error: self._show_toast(str(error), "error"),
+            )
+
+        buttons = tk.Frame(dlg, bg=theme.bg_primary)
+        buttons.pack(side=tk.BOTTOM, fill=tk.X, padx=22, pady=18, before=listing)
+        ModernButton(buttons, text=_("Resume / Retry"), style="primary",
+                     command=lambda: run_action("resume"), padx=14, pady=7).pack(side=tk.RIGHT)
+        ModernButton(buttons, text=_("Close"), command=dlg.destroy,
+                     padx=14, pady=7).pack(side=tk.RIGHT, padx=(0, 8))
+        ModernButton(buttons, text=_("Roll Back Selected"),
+                     command=lambda: run_action("rollback"), padx=14, pady=7).pack(side=tk.LEFT)
+        listing.bind("<Double-Button-1>", lambda _event: run_action("resume"))
+        listing.bind("<Return>", lambda _event: run_action("resume"))
+        dlg.bind("<Escape>", lambda _event: dlg.destroy())
+
     def _show_import_result_summary(
         self, label: str, added: int, dupes: int, next_action: str, *, report=None
     ):
@@ -735,9 +710,12 @@ class ImportExportMixin:
         dlg.resizable(False, False)
         dlg.transient(self.root)
 
+        summary_title = _("{source} Import Complete").format(source=label)
+        if report and report.status not in {"completed", "rolled_back"}:
+            summary_title = _("{source} Import Needs Attention").format(source=label)
         tk.Label(
             dlg,
-            text=_("{source} Import Complete").format(source=label),
+            text=summary_title,
             bg=theme.bg_primary,
             fg=theme.text_primary,
             font=FONTS.subtitle(bold=True),
@@ -777,6 +755,8 @@ class ImportExportMixin:
             def work():
                 if action == "retry":
                     return sessions.retry(self.bookmark_manager, report.session_id)
+                if action == "resume":
+                    return sessions.resume(self.bookmark_manager, report.session_id)
                 return sessions.rollback(self.bookmark_manager, report.session_id)
 
             def complete(updated):
@@ -816,6 +796,11 @@ class ImportExportMixin:
                 buttons, text=_("Retry Failed"), command=lambda: session_action("retry"),
                 padx=12, pady=7,
             ).pack(side=tk.LEFT)
+        if report and report.pending:
+            ModernButton(
+                buttons, text=_("Resume"), command=lambda: session_action("resume"),
+                padx=12, pady=7,
+            ).pack(side=tk.LEFT)
         if report and report.safepoint:
             ModernButton(
                 buttons, text=_("Roll Back"), command=lambda: session_action("rollback"),
@@ -833,12 +818,8 @@ class ImportExportMixin:
                                   [("CSV", "*.csv"), ("All", "*.*")])
 
     def _import_service_raindrop(self):
-        class RaindropCSVServiceImporter:
-            def from_path(self, path: str):
-                return iter(RaindropImporter.import_from_csv(path))
-
         self._import_service_file(
-            RaindropCSVServiceImporter,
+            GenericFileSessionImporter,
             "Raindrop",
             [("CSV", "*.csv"), ("All", "*.*")],
         )
@@ -858,20 +839,12 @@ class ImportExportMixin:
         if not path:
             return
 
-        from bookmark_organizer_pro.importers_extra import import_into
-
-        self.bookmark_manager.create_safepoint("pre-import")
-        importer = FirefoxBookmarkBackupImporter()
-        added, dupes = import_into(self.bookmark_manager, importer, path)
-        skipped = importer.stats.skipped
-        self._on_import_done(added, dupes)
-        self._show_import_result_summary(
+        self._begin_import_session(
             "Firefox Backup",
-            added,
-            dupes,
-            _(
-                "{skipped} invalid or missing-URL item(s) skipped. Review imported folders, then run tag cleanup."
-            ).format(skipped=skipped),
+            FirefoxBookmarkBackupImporter(),
+            path,
+            source="firefoxbookmarkbackup",
+            next_action=_("Review imported folders, then run tag cleanup."),
         )
 
     def _import_service_pinboard(self):
@@ -906,7 +879,7 @@ class ImportExportMixin:
 
     def _import_service_zotero(self):
         from tkinter import filedialog
-        from bookmark_organizer_pro.services.zotero_interop import import_zotero_rdf
+        from bookmark_organizer_pro.importers import ZoteroRDFSessionImporter
         path = filedialog.askopenfilename(
             title=_("Import from Zotero"),
             filetypes=[("RDF", "*.rdf"), ("All", "*.*")],
@@ -914,23 +887,12 @@ class ImportExportMixin:
         )
         if not path:
             return
-        self.bookmark_manager.create_safepoint("pre-import")
-        bookmarks = import_zotero_rdf(path)
-        added = dupes = 0
-        for bm in bookmarks:
-            if self.bookmark_manager.url_exists(bm.url):
-                dupes += 1
-            else:
-                self.bookmark_manager.add_bookmark(bm, save=False)
-                added += 1
-        if added:
-            self.bookmark_manager.save_bookmarks()
-        self._on_import_done(added, dupes)
-        self._show_import_result_summary(
+        self._begin_import_session(
             "Zotero",
-            added,
-            dupes,
-            _("Review imported references and export notes if needed."),
+            ZoteroRDFSessionImporter(),
+            path,
+            source="zoterordfsession",
+            next_action=_("Review imported references and export notes if needed."),
         )
 
     def _show_reading_list_import_help(self):

@@ -105,6 +105,23 @@ class FirefoxBackupImportStats:
         return self.skipped_missing_url + self.skipped_invalid_url + self.malformed
 
 
+@dataclass
+class SessionImportStats:
+    """Parse losses that the durable import-session UI can surface."""
+
+    skipped: int = 0
+    causes: Dict[str, int] = None
+
+    def __post_init__(self):
+        if self.causes is None:
+            self.causes = {}
+
+    def record(self, cause: str, count: int = 1) -> None:
+        count = max(1, int(count))
+        self.skipped += count
+        self.causes[cause] = self.causes.get(cause, 0) + count
+
+
 class FirefoxBookmarkBackupImporter:
     """Import Firefox bookmark backup JSON trees from bookmarkbackups."""
 
@@ -499,6 +516,112 @@ class BrowserProfileImporter:
                 except OSError as e:
                     log.warning(f"Could not remove temporary Firefox import DB {temp_db}: {e}")
 
+        return bookmarks
+
+
+class GenericFileSessionImporter:
+    """Adapt every generic file format to the durable session contract."""
+
+    SUPPORTED_SUFFIXES = {".html", ".htm", ".json", ".jsonlz4", ".csv", ".opml", ".txt"}
+
+    def __init__(self):
+        self.stats = SessionImportStats()
+
+    def from_path(self, path: str) -> List[Bookmark]:
+        return self.from_paths([path])
+
+    def from_paths(self, paths: List[str]) -> List[Bookmark]:
+        self.stats = SessionImportStats()
+        bookmarks: List[Bookmark] = []
+        for value in paths:
+            path = Path(value)
+            suffix = path.suffix.lower()
+            if suffix not in self.SUPPORTED_SUFFIXES:
+                self.stats.record(f"{path.name}: unsupported file type")
+                continue
+            try:
+                parsed = self._parse_one(path, suffix)
+            except Exception as exc:
+                self.stats.record(f"{path.name}: {str(exc)[:160]}")
+                continue
+            if not parsed:
+                self.stats.record(f"{path.name}: no supported bookmark rows found")
+                continue
+            for bookmark in parsed:
+                if not bookmark.source_file:
+                    bookmark.source_file = path.name
+            bookmarks.extend(parsed)
+        if not bookmarks:
+            detail = next(iter(self.stats.causes), "no supported bookmark rows found")
+            raise ValueError(f"Import source contains 0 valid bookmarks ({detail})")
+        return bookmarks
+
+    @staticmethod
+    def _parse_one(path: Path, suffix: str) -> List[Bookmark]:
+        if suffix in {".html", ".htm"}:
+            return NetscapeBookmarkImporter.import_from_netscape(str(path))
+        if suffix in {".json", ".jsonlz4"}:
+            if suffix == ".jsonlz4" or FirefoxBookmarkBackupImporter.looks_like_backup(str(path)):
+                return FirefoxBookmarkBackupImporter().from_path(str(path))
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
+            items = data if isinstance(data, list) else data.get("bookmarks", [])
+            if not isinstance(items, list):
+                raise ValueError("JSON bookmarks must be an array")
+            output = []
+            for item in items:
+                try:
+                    output.append(Bookmark.from_dict(item))
+                except (TypeError, ValueError):
+                    continue
+            return output
+        if suffix == ".csv":
+            return RaindropImporter.import_from_csv(str(path))
+        if suffix == ".opml":
+            return OPMLImporter.import_from_opml(str(path))
+        return TextURLImporter.import_from_text(str(path))
+
+
+class BrowserProfileSessionImporter:
+    """Adapt one explicitly selected browser profile to a restartable source file."""
+
+    def __init__(self, browser: str):
+        browser = str(browser or "").strip().lower()
+        if browser not in BrowserProfileImporter.BROWSER_PATHS:
+            raise ValueError(f"Unsupported browser profile: {browser or 'unknown'}")
+        self.browser = browser
+        self.stats = SessionImportStats()
+
+    def from_path(self, path: str) -> List[Bookmark]:
+        self.stats = SessionImportStats()
+        source = Path(path)
+        profile = source.parent
+        importer = BrowserProfileImporter()
+        if self.browser == "firefox":
+            if source.name != "places.sqlite":
+                raise ValueError("Firefox session source must be places.sqlite")
+            bookmarks = importer.import_from_firefox(profile)
+        else:
+            if source.name != "Bookmarks":
+                raise ValueError("Chromium session source must be the Bookmarks file")
+            bookmarks = importer.import_from_chrome(profile)
+        if not bookmarks:
+            raise ValueError(
+                f"{self.browser.title()} profile {profile.name!r} contains 0 valid bookmarks"
+            )
+        for bookmark in bookmarks:
+            bookmark.source_file = f"{self.browser}:{profile.name}"
+        return bookmarks
+
+
+class ZoteroRDFSessionImporter:
+    """Expose Zotero RDF through the same restartable session interface."""
+
+    def from_path(self, path: str) -> List[Bookmark]:
+        from bookmark_organizer_pro.services.zotero_interop import import_zotero_rdf
+
+        bookmarks = list(import_zotero_rdf(path))
+        if not bookmarks:
+            raise ValueError("Zotero RDF source contains 0 valid bookmarks")
         return bookmarks
 
 

@@ -8,6 +8,7 @@ import urllib.request
 from unittest.mock import patch
 
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.importers import GenericFileSessionImporter
 from bookmark_organizer_pro.services.import_sessions import ImportSessionManager
 
 
@@ -115,6 +116,98 @@ def test_failed_row_retry_preserves_causes_and_loss_count(tmp_path):
     assert (retried.failed, retried.added, retried.losses) == (0, 2, 3)
     assert retried.causes == {}
     assert len(manager.bookmarks) == 2
+
+
+def test_generic_multi_file_import_uses_one_session_and_one_safepoint(tmp_path):
+    first = tmp_path / "first.txt"
+    second = tmp_path / "second.txt"
+    first.write_text("https://one.example\n", encoding="utf-8")
+    second.write_text("https://two.example\n", encoding="utf-8")
+    manager = _Manager()
+    sessions = ImportSessionManager(tmp_path / "sessions.json")
+    importer = GenericFileSessionImporter()
+
+    preflight = sessions.preflight(
+        importer, [first, second], source="generic-files"
+    )
+    report = sessions.run(
+        manager,
+        importer,
+        [first, second],
+        source="generic-files",
+        prepared=preflight,
+    )
+    replay = ImportSessionManager(tmp_path / "sessions.json").resume(
+        manager, report.session_id
+    )
+
+    record = sessions.get(report.session_id)
+    assert preflight.total == 2
+    assert report.status == "completed"
+    assert len(manager.snapshots) == 1
+    assert record["source_paths"] == [str(first.resolve()), str(second.resolve())]
+    assert replay.session_id == report.session_id
+    assert len(manager.bookmarks) == 2
+
+
+def test_preflight_rejects_zero_rows_without_creating_session_or_safepoint(tmp_path):
+    source = tmp_path / "empty.txt"
+    source.write_text("not a URL", encoding="utf-8")
+    manager = _Manager()
+    sessions = ImportSessionManager(tmp_path / "sessions.json")
+
+    try:
+        sessions.run(
+            manager,
+            GenericFileSessionImporter(),
+            source,
+            source="generic-files",
+        )
+    except ValueError as exc:
+        assert "0 valid bookmarks" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("empty import unexpectedly succeeded")
+
+    assert sessions.list() == []
+    assert manager.snapshots == {}
+
+
+def test_preflight_reports_field_coverage_and_partial_file_loss(tmp_path):
+    valid = tmp_path / "valid.json"
+    invalid = tmp_path / "invalid.txt"
+    valid.write_text(
+        json.dumps([{"url": "https://example.com", "title": "Example", "tags": ["saved"]}]),
+        encoding="utf-8",
+    )
+    invalid.write_text("no bookmark URLs here", encoding="utf-8")
+    sessions = ImportSessionManager(tmp_path / "sessions.json")
+
+    preflight = sessions.preflight(
+        GenericFileSessionImporter(), [valid, invalid], source="generic-files"
+    )
+
+    assert preflight.total == 1
+    assert preflight.losses == 1
+    assert preflight.field_coverage["tags"] == 1
+    assert preflight.causes == {"invalid.txt: no supported bookmark rows found": 1}
+
+
+def test_browser_import_requires_profile_picker_instead_of_first_profile(tmp_path):
+    from bookmark_organizer_pro.app_mixins.import_export import ImportExportMixin
+
+    profiles = [("Default", tmp_path / "Default"), ("Profile 2", tmp_path / "Profile 2")]
+    seen = []
+    app = ImportExportMixin()
+    app._show_toast = lambda *_args: None
+    app._show_browser_profile_picker = lambda browser, choices: seen.append((browser, choices))
+
+    with patch(
+        "bookmark_organizer_pro.app_mixins.import_export.BrowserProfileImporter.get_profiles",
+        return_value=profiles,
+    ):
+        app._import_from_browser("chrome")
+
+    assert seen == [("chrome", profiles)]
 
 
 def test_rollback_refuses_newer_edits_then_restores_exact_safepoint(tmp_path):
