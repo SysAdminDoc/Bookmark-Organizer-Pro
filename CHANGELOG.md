@@ -29,6 +29,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Standardized all CLI commands on automation-safe success, operational, usage, and interruption exit codes; diagnostics now use stderr and recovery-key decryption publishes atomically.
 - Made extension Options pair entered credentials before persistence and restore the prior port, category, and vault token if authentication, pairing, network, or storage fails.
 - Consolidated feed redirects onto bounded egress, resolved relative entries through XML Base, Content-Location, and the final response URL, and rejected unsafe or identity-changing registry updates.
+- Bounded embedding chunks to validated integer size/overlap parameters, exact source offsets, monotonic forward progress, and a hard caller-declared character ceiling.
 
 ### Security
 

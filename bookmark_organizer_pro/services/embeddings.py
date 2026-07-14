@@ -174,6 +174,14 @@ class EmbeddingService:
     def chunk_text(text: str, chunk_chars: int = 1500,
                    overlap: int = 200) -> List[dict]:
         """Sliding-window chunker that records char offsets for citation."""
+        if isinstance(chunk_chars, bool) or not isinstance(chunk_chars, int):
+            raise TypeError("chunk_chars must be an integer")
+        if isinstance(overlap, bool) or not isinstance(overlap, int):
+            raise TypeError("overlap must be an integer")
+        if chunk_chars <= 0:
+            raise ValueError("chunk_chars must be greater than zero")
+        if overlap < 0 or overlap >= chunk_chars:
+            raise ValueError("overlap must satisfy 0 <= overlap < chunk_chars")
         text = text or ""
         if not text:
             return []
@@ -183,26 +191,27 @@ class EmbeddingService:
         idx = 0
         while start < n:
             end = min(n, start + chunk_chars)
-            # Try to break at a sentence boundary
+            # Prefer a nearby sentence boundary without exceeding the caller's
+            # declared ceiling or shortening the window below its overlap.
             if end < n:
-                window_start = max(start, end - 200)
-                window = text[window_start:end + 200]
-                local = window.rfind(". ")
-                if local != -1:
-                    end = window_start + local + 1
-            end = max(end, start + 1)
-            chunk = text[start:end].strip()
-            if chunk:
-                chunks.append({
-                    "id": f"c{idx}",
-                    "text": chunk,
-                    "char_start": start,
-                    "char_end": end,
-                })
-                idx += 1
+                window_start = max(start + overlap, end - min(200, chunk_chars))
+                boundary = text.rfind(". ", window_start, end)
+                if boundary != -1:
+                    end = boundary + 1
+            chunk = text[start:end]
+            chunks.append({
+                "id": f"c{idx}",
+                "text": chunk,
+                "char_start": start,
+                "char_end": end,
+            })
+            idx += 1
             if end >= n:
                 break
-            start = end - overlap
+            next_start = max(start + 1, end - overlap)
+            if next_start <= start:  # Defensive invariant for future boundary rules.
+                raise RuntimeError("Embedding chunker did not advance")
+            start = next_start
         return chunks
 
     @staticmethod
