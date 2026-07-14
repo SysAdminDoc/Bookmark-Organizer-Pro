@@ -19,6 +19,7 @@ from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Category
 from bookmark_organizer_pro.services.snapshot import SnapshotArchiver, SnapshotFailureStore
 from bookmark_organizer_pro.ui.cleanup_review import (
+    CleanupApplyResult,
     CleanupReviewDialog,
     build_hybrid_duplicate_review_groups,
     build_tag_lint_review_groups,
@@ -128,7 +129,14 @@ class ToolsActionsMixin:
         if hasattr(self, "_show_toast"):
             self._show_toast(message, style)
 
+    def _begin_maintenance_workflow(self) -> None:
+        self._last_maintenance_safepoint = ""
+        self._maintenance_safepoint_locked = False
+
     def _create_maintenance_safepoint(self, label: str) -> str | None:
+        existing = getattr(self, "_last_maintenance_safepoint", "")
+        if existing and getattr(self, "_maintenance_safepoint_locked", False):
+            return existing
         try:
             create_safepoint = getattr(self.bookmark_manager, "create_safepoint", None)
             if not create_safepoint:
@@ -137,6 +145,7 @@ class ToolsActionsMixin:
             if not safepoint:
                 raise RuntimeError("safepoint was not created")
             self._last_maintenance_safepoint = safepoint
+            self._maintenance_safepoint_locked = True
             return safepoint
         except Exception as exc:
             log.warning("Maintenance safepoint failed before %s: %s", label, exc)
@@ -153,6 +162,8 @@ class ToolsActionsMixin:
 
         try:
             if self.bookmark_manager.restore_backup(safepoint):
+                self._last_maintenance_safepoint = ""
+                self._maintenance_safepoint_locked = False
                 self._refresh_all()
                 self._set_status("Restored the last maintenance safepoint")
                 self._toast("Restored the last maintenance safepoint", "success")
@@ -168,6 +179,7 @@ class ToolsActionsMixin:
         return False
 
     def _show_cleanup_review_dialog(self, title: str, intro: str, groups, on_apply) -> None:
+        self._begin_maintenance_workflow()
         CleanupReviewDialog(
             self.root,
             title=title,
@@ -255,6 +267,7 @@ class ToolsActionsMixin:
             self._show_toast("All bookmarks are already uncategorized", "info")
             return
 
+        self._begin_maintenance_workflow()
         if not self._create_maintenance_safepoint("flatten-folders"):
             return
 
@@ -289,6 +302,7 @@ class ToolsActionsMixin:
             self._show_toast("No tags to clear", "info")
             return
 
+        self._begin_maintenance_workflow()
         if not self._create_maintenance_safepoint("clear-tags"):
             return
 
@@ -329,6 +343,7 @@ class ToolsActionsMixin:
             self._toast("Import or add bookmarks before running categorization", "info")
             return
 
+        self._begin_maintenance_workflow()
         if not self._create_maintenance_safepoint("categorize-all"):
             return
         
@@ -612,7 +627,10 @@ class ToolsActionsMixin:
             if total <= 0:
                 return "No duplicate groups selected."
             if not self._create_maintenance_safepoint("remove-duplicates"):
-                return "No changes made because a recovery safepoint could not be created."
+                return CleanupApplyResult(
+                    "No changes made because a recovery safepoint could not be created.",
+                    retryable=True,
+                )
             removed = 0
             for group in selected:
                 for bm in list(group)[1:]:
@@ -681,7 +699,10 @@ class ToolsActionsMixin:
             if total <= 0:
                 return "No smart duplicate groups selected."
             if not self._create_maintenance_safepoint("smart-duplicates"):
-                return "No changes made because a recovery safepoint could not be created."
+                return CleanupApplyResult(
+                    "No changes made because a recovery safepoint could not be created.",
+                    retryable=True,
+                )
             removed = 0
             for group in selected:
                 ids = [int(bookmark_id) for bookmark_id in getattr(group, "bookmark_ids", [])]
@@ -753,7 +774,10 @@ class ToolsActionsMixin:
             if not selected:
                 return "No tag lint groups selected."
             if not self._create_maintenance_safepoint("lint-tags"):
-                return "No changes made because a recovery safepoint could not be created."
+                return CleanupApplyResult(
+                    "No changes made because a recovery safepoint could not be created.",
+                    retryable=True,
+                )
             try:
                 from bookmark_organizer_pro.services.tag_linter import TagLinter
                 bms = self.bookmark_manager.get_all_bookmarks()
@@ -961,6 +985,7 @@ class ToolsActionsMixin:
 
     def _clean_urls(self):
         """Clean tracking params"""
+        self._begin_maintenance_workflow()
         if not self._create_maintenance_safepoint("clean-tracking-params"):
             return
         count = self.bookmark_manager.clean_tracking_params()

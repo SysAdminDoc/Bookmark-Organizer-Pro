@@ -24,6 +24,14 @@ class CleanupReviewGroup:
     action_label: str
 
 
+@dataclass(frozen=True)
+class CleanupApplyResult:
+    """Explicit callback outcome used to allow only known-safe retries."""
+
+    message: str
+    retryable: bool = False
+
+
 def _bookmark_label(bookmark: Bookmark, action: str) -> str:
     title = truncate_middle(bookmark.title or bookmark.url or f"Bookmark {bookmark.id}", 64)
     url = truncate_middle(bookmark.url or "", 86)
@@ -116,7 +124,7 @@ class CleanupReviewDialog(tk.Toplevel):
         title: str,
         intro: str,
         groups: Iterable[CleanupReviewGroup],
-        on_apply: Callable[[List[str]], str],
+        on_apply: Callable[[List[str]], str | CleanupApplyResult],
         on_restore: Callable[[], bool],
     ):
         super().__init__(parent)
@@ -125,6 +133,8 @@ class CleanupReviewDialog(tk.Toplevel):
         self._on_apply = on_apply
         self._on_restore = on_restore
         self._vars: dict[str, tk.BooleanVar] = {}
+        self._apply_in_progress = False
+        self._applied = False
         self._status_var = tk.StringVar(value="Select groups to apply. A safepoint is created before changes.")
 
         self.title(title)
@@ -177,11 +187,15 @@ class CleanupReviewDialog(tk.Toplevel):
             font=FONTS.small(),
             wraplength=500,
             justify=tk.LEFT,
-        ).pack(side=tk.LEFT, fill=tk.X, expand=True)
-        ModernButton(footer, text="Close", command=self.destroy, padx=14, pady=7).pack(side=tk.RIGHT, padx=(8, 0))
-        ModernButton(footer, text="Restore Safepoint", command=self._restore, padx=14, pady=7).pack(side=tk.RIGHT, padx=(8, 0))
-        ModernButton(footer, text="Skip Selected", command=self._skip_selected, padx=14, pady=7).pack(side=tk.RIGHT, padx=(8, 0))
-        ModernButton(footer, text="Apply Selected", command=self._apply_selected, style="primary", padx=14, pady=7).pack(side=tk.RIGHT)
+        ).pack(fill=tk.X, pady=(0, 9))
+        actions = tk.Frame(footer, bg=theme.bg_primary)
+        actions.pack(fill=tk.X)
+        ModernButton(actions, text="Close", command=self.destroy, padx=14, pady=7).pack(side=tk.RIGHT, padx=(8, 0))
+        ModernButton(actions, text="Restore Safepoint", command=self._restore, padx=14, pady=7).pack(side=tk.LEFT)
+        self.skip_button = ModernButton(actions, text="Skip Selected", command=self._skip_selected, padx=14, pady=7)
+        self.skip_button.pack(side=tk.RIGHT, padx=(8, 0))
+        self.apply_button = ModernButton(actions, text="Apply Selected", command=self._apply_selected, style="primary", padx=14, pady=7)
+        self.apply_button.pack(side=tk.RIGHT)
 
     def _add_group(self, parent: tk.Widget, group: CleanupReviewGroup) -> None:
         theme = self._theme
@@ -199,6 +213,7 @@ class CleanupReviewDialog(tk.Toplevel):
         check = tk.Checkbutton(
             card,
             variable=var,
+            command=self._selection_changed,
             text=group.title,
             bg=theme.bg_secondary,
             fg=theme.text_primary,
@@ -229,25 +244,54 @@ class CleanupReviewDialog(tk.Toplevel):
                 justify=tk.LEFT,
             ).pack(anchor="w", pady=1)
 
+    def _selection_changed(self) -> None:
+        count = len(self.selected_keys())
+        self._status_var.set(
+            f"{count} group(s) selected. A safepoint will be created before changes."
+            if count else "Nothing selected. Choose at least one group to continue."
+        )
+        enabled = bool(count and not self._apply_in_progress and not self._applied)
+        self.apply_button.set_state("normal" if enabled else "disabled")
+        self.skip_button.set_state("normal" if enabled else "disabled")
+
     def selected_keys(self) -> List[str]:
         return [key for key, var in self._vars.items() if var.get()]
 
     def _skip_selected(self) -> None:
+        if self._apply_in_progress or self._applied:
+            return
         selected = self.selected_keys()
         for key in selected:
             self._vars[key].set(False)
-        self._status_var.set(f"Skipped {len(selected)} selected group(s).")
+        self._selection_changed()
 
     def _apply_selected(self) -> None:
+        if self._apply_in_progress or self._applied:
+            return
         selected = self.selected_keys()
         if not selected:
             self._status_var.set("No groups selected.")
             return
+        self._apply_in_progress = True
+        self.apply_button.set_state("disabled")
+        self.skip_button.set_state("disabled")
         try:
-            result = self._on_apply(selected)
+            outcome = self._on_apply(list(selected))
         except Exception as exc:
-            result = f"Cleanup failed: {exc}"
-        self._status_var.set(result)
+            self._apply_in_progress = False
+            self._applied = True
+            self._status_var.set(f"Cleanup failed: {exc}. Reopen this workflow before retrying.")
+            return
+        result = outcome if isinstance(outcome, CleanupApplyResult) else CleanupApplyResult(str(outcome))
+        self._apply_in_progress = False
+        if result.retryable:
+            self._status_var.set(result.message)
+            self._selection_changed()
+            return
+        self._applied = True
+        for key in selected:
+            self._vars[key].set(False)
+        self._status_var.set(result.message)
 
     def _restore(self) -> None:
         restored = False

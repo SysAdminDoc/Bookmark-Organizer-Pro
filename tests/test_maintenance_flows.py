@@ -8,6 +8,7 @@ from unittest.mock import patch
 from bookmark_organizer_pro.app_mixins.tools import ToolsActionsMixin
 from bookmark_organizer_pro.models.bookmark import Bookmark
 from bookmark_organizer_pro.models.category import Category
+from bookmark_organizer_pro.ui.cleanup_review import CleanupApplyResult, CleanupReviewDialog
 from bookmark_organizer_pro.ui.management_dialogs import CategoryManagementDialog
 
 
@@ -123,9 +124,119 @@ class TestMaintenanceFlows(unittest.TestCase):
         self.assertEqual(1, app.refresh_count)
         self.assertTrue(app._last_maintenance_safepoint.endswith("flatten-folders.json"))
 
+        safepoint = app._last_maintenance_safepoint
         self.assertTrue(app._restore_last_maintenance_safepoint())
-        self.assertEqual([app._last_maintenance_safepoint], app.bookmark_manager.restored_backups)
+        self.assertEqual([safepoint], app.bookmark_manager.restored_backups)
+        self.assertEqual("", app._last_maintenance_safepoint)
         self.assertEqual(2, app.refresh_count)
+
+    def test_first_maintenance_safepoint_is_stable_until_restore_or_new_workflow(self):
+        app = MaintenanceHarness([bookmark(1, "https://example.com")])
+        app._begin_maintenance_workflow()
+
+        first = app._create_maintenance_safepoint("first")
+        repeated = app._create_maintenance_safepoint("second")
+
+        self.assertEqual(first, repeated)
+        self.assertEqual(["first"], app.bookmark_manager.created_safepoints)
+        self.assertTrue(app._restore_last_maintenance_safepoint())
+
+        app._begin_maintenance_workflow()
+        second = app._create_maintenance_safepoint("second")
+        self.assertNotEqual(first, second)
+        self.assertEqual(["first", "second"], app.bookmark_manager.created_safepoints)
+
+    def test_cleanup_apply_disables_before_callback_and_is_single_use(self):
+        class Value:
+            def __init__(self, value):
+                self.value = value
+
+            def get(self):
+                return self.value
+
+            def set(self, value):
+                self.value = value
+
+        class Button:
+            def __init__(self):
+                self.state = "normal"
+
+            def set_state(self, state):
+                self.state = state
+
+        class Status:
+            def __init__(self):
+                self.value = ""
+
+            def set(self, value):
+                self.value = value
+
+        dialog = CleanupReviewDialog.__new__(CleanupReviewDialog)
+        dialog._vars = {"one": Value(True)}
+        dialog.apply_button = Button()
+        dialog.skip_button = Button()
+        dialog._status_var = Status()
+        dialog._apply_in_progress = False
+        dialog._applied = False
+        calls = []
+
+        def apply(selected):
+            calls.append((selected, dialog.apply_button.state))
+            dialog._apply_selected()
+            return "Applied once."
+
+        dialog._on_apply = apply
+        dialog._apply_selected()
+        dialog._apply_selected()
+
+        self.assertEqual([(["one"], "disabled")], calls)
+        self.assertTrue(dialog._applied)
+        self.assertFalse(dialog._vars["one"].get())
+        self.assertEqual("disabled", dialog.apply_button.state)
+        self.assertEqual("Applied once.", dialog._status_var.value)
+
+    def test_cleanup_apply_reenables_only_for_explicit_safe_retry(self):
+        class Value:
+            def __init__(self):
+                self.value = True
+
+            def get(self):
+                return self.value
+
+            def set(self, value):
+                self.value = value
+
+        class Control:
+            def __init__(self):
+                self.value = ""
+
+            def set_state(self, value):
+                self.value = value
+
+            def set(self, value):
+                self.value = value
+
+        dialog = CleanupReviewDialog.__new__(CleanupReviewDialog)
+        dialog._vars = {"one": Value()}
+        dialog.apply_button = Control()
+        dialog.skip_button = Control()
+        dialog._status_var = Control()
+        dialog._apply_in_progress = False
+        dialog._applied = False
+        dialog._on_apply = lambda _selected: CleanupApplyResult("Safepoint unavailable.", retryable=True)
+
+        dialog._apply_selected()
+
+        self.assertFalse(dialog._applied)
+        self.assertTrue(dialog._vars["one"].get())
+        self.assertEqual("normal", dialog.apply_button.value)
+
+        dialog._on_apply = lambda _selected: (_ for _ in ()).throw(OSError("write failed"))
+        dialog._apply_selected()
+        dialog._apply_selected()
+        self.assertTrue(dialog._applied)
+        self.assertEqual("disabled", dialog.apply_button.value)
+        self.assertIn("Reopen this workflow", dialog._status_var.value)
 
     def test_clear_all_tags_aborts_when_safepoint_is_unavailable(self):
         app = MaintenanceHarness([

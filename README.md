@@ -490,6 +490,9 @@ Log file location: `~/.bookmark_organizer/logs/bookmark_organizer.log`
 
 **Restore recent maintenance changes:**
 - Bulk cleanup tools create a safepoint before changing bookmark data
+- Cleanup-review Apply is single-use: it disables before mutation, consumes the
+  reviewed selection once, and retains the first pre-change safepoint until it is
+  restored or a new maintenance workflow opens.
 - **Tools > Restore Last Maintenance Safepoint** reverses the latest bulk cleanup action
 - Category deletion can be restored immediately from **Manage Categories > Restore Last Delete**
 - Restore and salvage operations run in the background with visible progress,

@@ -14,6 +14,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Declared the maintained BSD-3-Clause `lz4` runtime dependency for Firefox JSONLZ4 imports and made PyInstaller collect all release-profile modules, binaries, data, and metadata explicitly.
 - Made recovery-bundle dry runs report exact-state mutations and made apply stage, checkpoint, transactionally replace, and reopen one declared JSON or SQLite backend while removing stale managed files.
 - Unified API-token, AI-config, and MCP-verifier persistence behind fail-closed atomic owner-only writes that preserve prior credentials when Windows ACL hardening is unavailable or fails.
+- Made cleanup-review Apply single-use and pre-disabled, with explicit safe-retry outcomes and first-safepoint retention until restore or a newly opened maintenance workflow.
 
 ## [v6.12.0] - 2026-07-12
 
