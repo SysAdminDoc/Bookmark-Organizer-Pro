@@ -6,10 +6,13 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable
 
+from bookmark_organizer_pro.i18n import _
+
 from .foundation import FONTS
 from .tk_interactions import bind_scoped_mousewheel, make_keyboard_activatable
 from .widget_controls import ThemedWidget
 from .widget_runtime import apply_window_chrome, get_theme
+
 
 # =============================================================================
 # Emoji Picker
@@ -43,7 +46,7 @@ class EmojiPicker(tk.Toplevel, ThemedWidget):
         
         theme = get_theme()
         
-        self.title("Choose Emoji")
+        self.title(_("Choose Emoji"))
         self.geometry("400x450")
         self.configure(bg=theme.bg_primary)
         self.transient(parent)

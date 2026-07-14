@@ -29,6 +29,7 @@ import tkinter as tk
 from collections import deque
 from typing import Callable, Optional
 
+from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.ui.components import ScrollableFrame
 from bookmark_organizer_pro.ui.foundation import FONTS
 from bookmark_organizer_pro.ui.widgets import ModernButton, apply_window_chrome, get_theme
@@ -104,7 +105,7 @@ class LiveWorkflowDialog:
         self.theme = theme
 
         dialog = tk.Toplevel(parent)
-        dialog.title(f"{title} — Live")
+        dialog.title(format_message('{value_0} — Live', value_0=title))
         dialog.configure(bg=theme.bg_primary)
         dialog.geometry(f"{width}x{height}")
         dialog.minsize(int(width * 0.85), int(height * 0.78))
@@ -129,7 +130,7 @@ class LiveWorkflowDialog:
             fg=theme.text_primary, font=FONTS.subtitle(bold=True),
         ).pack(side=tk.LEFT)
         self.stats_label = tk.Label(
-            header, text=f"0 / {self.total}", bg=theme.bg_secondary,
+            header, text=format_message('0 / {value_0}', value_0=self.total), bg=theme.bg_secondary,
             fg=theme.text_secondary, font=FONTS.body(),
         )
         self.stats_label.pack(side=tk.RIGHT)
@@ -149,14 +150,14 @@ class LiveWorkflowDialog:
         footer = tk.Frame(dialog, bg=theme.bg_secondary, padx=16, pady=10)
         footer.pack(fill=tk.X, side=tk.BOTTOM)
         self.status_label = tk.Label(
-            footer, text="Starting…", bg=theme.bg_secondary,
+            footer, text=_("Starting…"), bg=theme.bg_secondary,
             fg=theme.text_muted, font=FONTS.small(),
         )
         self.status_label.pack(side=tk.LEFT)
 
-        self.cancel_btn = ModernButton(footer, text="Stop", command=self._cancel, padx=14, pady=5)
+        self.cancel_btn = ModernButton(footer, text=_("Stop"), command=self._cancel, padx=14, pady=5)
         self.cancel_btn.pack(side=tk.RIGHT)
-        self.done_btn = ModernButton(footer, text="Done", style="success", padx=14, pady=5,
+        self.done_btn = ModernButton(footer, text=_("Done"), style="success", padx=14, pady=5,
                                      command=self.close)  # shown only when complete
 
         dialog.protocol("WM_DELETE_WINDOW", self._on_close_request)
@@ -282,7 +283,7 @@ class LiveWorkflowDialog:
         else:
             per_tick = max(1, backlog // 30)  # catch up when batches pile up
 
-        for _ in range(per_tick):
+        for _event_index in range(per_tick):
             if not self._queue:
                 break
             render_fn = self._queue.popleft()
@@ -301,7 +302,7 @@ class LiveWorkflowDialog:
         self._trim_feed()
         self._revealed += 1
         try:
-            self.stats_label.configure(text=f"{self._revealed} / {self.total}")
+            self.stats_label.configure(text=format_message('{value_0} / {value_1}', value_0=self._revealed, value_1=self.total))
             if self.total:
                 self.bar_fill.place(relwidth=min(1.0, self._revealed / self.total))
             self.feed_frame.canvas.update_idletasks()
@@ -330,7 +331,7 @@ class LiveWorkflowDialog:
             self.bar_fill.configure(bg=finish_color)
             self.bar_fill.place(relwidth=1.0)
             # Reconcile the counter in case any overflow rows were dropped.
-            self.stats_label.configure(text=f"{self.total} / {self.total}")
+            self.stats_label.configure(text=format_message('{value_0} / {value_1}', value_0=self.total, value_1=self.total))
             self.cancel_btn.pack_forget()
             self.done_btn.pack(side=tk.RIGHT)
             if self._finish_summary:

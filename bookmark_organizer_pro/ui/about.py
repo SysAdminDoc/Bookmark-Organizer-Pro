@@ -33,9 +33,8 @@ from bookmark_organizer_pro.services.local_state import (
 
 from .foundation import FONTS, readable_text_on
 from .tk_interactions import bind_scoped_mousewheel
-from .window_geometry import apply_screen_aware_geometry
 from .widgets import ModernButton, get_theme
-
+from .window_geometry import apply_screen_aware_geometry
 
 # Build information
 BUILD_DATE = "April 2026"
@@ -92,7 +91,7 @@ class AboutDialog(tk.Toplevel):
         
         # App icon
         icon_label = tk.Label(
-            header_content, text="B", font=FONTS.display(),
+            header_content, text=_("B"), font=FONTS.display(),
             bg=theme.accent_primary, fg=readable_text_on(theme.accent_primary),
             padx=12, pady=2
         )

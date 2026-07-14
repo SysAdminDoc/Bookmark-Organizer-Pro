@@ -7,7 +7,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Callable, List
 
-from bookmark_organizer_pro.i18n import _
+from bookmark_organizer_pro.i18n import _, format_message
 
 from .foundation import FONTS, DesignTokens
 from .theme import ThemeManager
@@ -61,7 +61,7 @@ class EnhancedProgressBar(tk.Frame, ThemedWidget):
         # Percentage label
         if show_percentage:
             self.pct_label = tk.Label(
-                self.inner, text="0%", bg=theme.bg_primary,
+                self.inner, text=_("0%"), bg=theme.bg_primary,
                 fg=theme.text_muted, font=FONTS.small(),
                 width=5
             )
@@ -82,7 +82,7 @@ class EnhancedProgressBar(tk.Frame, ThemedWidget):
         
         # Update percentage text
         if self.show_percentage:
-            self.pct_label.configure(text=f"{int(pct)}%")
+            self.pct_label.configure(text=format_message('{value_0}%', value_0=int(pct)))
         
         # Update label
         if label and self.show_label:
@@ -132,7 +132,7 @@ class EnhancedProgressBar(tk.Frame, ThemedWidget):
         self.bar_fill.place(relwidth=0)
         
         if self.show_percentage:
-            self.pct_label.configure(text="0%")
+            self.pct_label.configure(text=_("0%"))
         if self.show_label:
             self.label.configure(text="")
     
@@ -146,7 +146,7 @@ class EnhancedProgressBar(tk.Frame, ThemedWidget):
         self.bar_fill.configure(bg=theme.accent_success)
 
         if self.show_percentage:
-            self.pct_label.configure(text="100%")
+            self.pct_label.configure(text=_("100%"))
         if self.show_label:
             self.label.configure(text=label)
 
@@ -198,7 +198,7 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
         
         # Icon
         self.icon_label = tk.Label(
-            self, text="↓", bg=theme.bg_secondary,
+            self, text=_("↓"), bg=theme.bg_secondary,
             fg=theme.accent_primary, font=FONTS.hero(bold=True)
         )
         self.icon_label.pack(pady=(8, 5))
@@ -308,7 +308,7 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
     def set_importing(self, is_importing: bool):
         """Visual feedback during import"""
         if is_importing:
-            self.icon_label.configure(text="⏳")
+            self.icon_label.configure(text=_("⏳"))
             self.main_label.configure(text=_("Importing bookmarks…"))
             self.formats_label.configure(text=_("Please keep the app open while files are processed."))
             self.browse_btn.set_state("disabled")
@@ -319,7 +319,7 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
             if self.compact_action:
                 self.compact_action.set_state("disabled")
         else:
-            self.icon_label.configure(text="↓")
+            self.icon_label.configure(text=_("↓"))
             self.main_label.configure(
                 text=_("Import library") if self._compact else _("Bring bookmarks in")
             )
@@ -410,7 +410,7 @@ class FaviconStatusDisplay(tk.Frame, ThemedWidget):
         super().__init__(parent, bg=theme.bg_dark)
         
         self.icon_label = tk.Label(
-            self, text="🌐", bg=theme.bg_dark,
+            self, text=_("🌐"), bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.body()
         )
         self.icon_label.pack(side=tk.LEFT, padx=(5, 3))
@@ -575,7 +575,7 @@ class ThemeDropdown(tk.Frame):
             mode = "Dark" if theme_info.is_dark else "Light"
             check = " ✓" if theme_name == self.theme_manager.current_theme.name else ""
             menu.add_command(
-                label=f"  {mode}  {display}{check}",
+                label=format_message('  {value_0}  {value_1}{value_2}', value_0=mode, value_1=display, value_2=check),
                 command=lambda t=theme_name: self._select_theme(t)
             )
         

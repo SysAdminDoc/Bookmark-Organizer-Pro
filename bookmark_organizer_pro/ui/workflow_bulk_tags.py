@@ -6,11 +6,13 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable, Dict, List, Set
 
+from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.models import Bookmark
 
 from .foundation import FONTS
 from .widget_controls import ModernButton, TagEditor, TagWidget, ThemedWidget
 from .widget_runtime import apply_window_chrome, get_theme
+
 
 # =============================================================================
 # Bulk Tag Editor Dialog
@@ -29,7 +31,7 @@ class BulkTagEditorDialog(tk.Toplevel, ThemedWidget):
         
         theme = get_theme()
         
-        self.title("Bulk Tag Editor")
+        self.title(_("Bulk Tag Editor"))
         self.geometry("500x500")
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
@@ -44,7 +46,7 @@ class BulkTagEditorDialog(tk.Toplevel, ThemedWidget):
         header.pack_propagate(False)
         
         tk.Label(
-            header, text=f"Edit tags for {len(bookmarks)} bookmarks",
+            header, text=format_message('Edit tags for {value_0} bookmarks', value_0=len(bookmarks)),
             bg=theme.bg_dark, fg=theme.text_primary,
             font=FONTS.header()
         ).pack(side=tk.LEFT, padx=20, pady=15)
@@ -55,7 +57,7 @@ class BulkTagEditorDialog(tk.Toplevel, ThemedWidget):
         
         # Current common tags
         tk.Label(
-            content, text="Common Tags (present in all selected):",
+            content, text=_("Common Tags (present in all selected):"),
             bg=theme.bg_primary, fg=theme.text_secondary,
             font=FONTS.body()
         ).pack(anchor="w")
@@ -69,14 +71,14 @@ class BulkTagEditorDialog(tk.Toplevel, ThemedWidget):
                 TagWidget(common_frame, tag, show_remove=False).pack(side=tk.LEFT, padx=2)
         else:
             tk.Label(
-                common_frame, text="No common tags",
+                common_frame, text=_("No common tags"),
                 bg=theme.bg_primary, fg=theme.text_muted,
                 font=FONTS.tiny()
             ).pack(side=tk.LEFT)
         
         # Add tags section
         tk.Label(
-            content, text="Add Tags:", bg=theme.bg_primary,
+            content, text=_("Add Tags:"), bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.body()
         ).pack(anchor="w", pady=(10, 5))
         
@@ -85,7 +87,7 @@ class BulkTagEditorDialog(tk.Toplevel, ThemedWidget):
         
         # Remove tags section
         tk.Label(
-            content, text="Remove Tags:", bg=theme.bg_primary,
+            content, text=_("Remove Tags:"), bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.body()
         ).pack(anchor="w", pady=(15, 5))
         
@@ -105,7 +107,7 @@ class BulkTagEditorDialog(tk.Toplevel, ThemedWidget):
             self.remove_vars[tag] = var
             
             cb = ttk.Checkbutton(
-                row_frame, text=f"#{tag}", variable=var
+                row_frame, text=format_message('#{value_0}', value_0=tag), variable=var
             )
             cb.grid(row=col // 3, column=col % 3, sticky="w", padx=5, pady=2)
             col += 1
@@ -113,7 +115,7 @@ class BulkTagEditorDialog(tk.Toplevel, ThemedWidget):
         # Replace all option
         self.replace_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(
-            content, text="Replace all existing tags (instead of add/remove)",
+            content, text=_("Replace all existing tags (instead of add/remove)"),
             variable=self.replace_var
         ).pack(anchor="w", pady=(15, 10))
         
@@ -122,11 +124,11 @@ class BulkTagEditorDialog(tk.Toplevel, ThemedWidget):
         btn_frame.pack(fill=tk.X, padx=20, pady=15)
         
         ModernButton(
-            btn_frame, text="Cancel", command=self.destroy
+            btn_frame, text=_("Cancel"), command=self.destroy
         ).pack(side=tk.RIGHT, padx=(10, 0))
         
         ModernButton(
-            btn_frame, text="Apply", command=self._apply,
+            btn_frame, text=_("Apply"), command=self._apply,
             style="primary"
         ).pack(side=tk.RIGHT)
         

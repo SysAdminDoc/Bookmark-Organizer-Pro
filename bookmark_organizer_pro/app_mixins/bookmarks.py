@@ -6,6 +6,7 @@ import tkinter as tk
 from datetime import datetime, timedelta
 from typing import Dict, List
 
+from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.ui.feedback import ToastNotification
 from bookmark_organizer_pro.ui.foundation import DesignTokens, display_or_fallback, pluralize, truncate_middle
@@ -71,17 +72,17 @@ class BookmarkViewMixin:
             n = len(bookmarks)
             total = len(self.bookmark_manager.bookmarks)
             if total == 0:
-                self.count_label.configure(text="Library")
+                self.count_label.configure(text=_("Library"))
                 if getattr(self, 'view_hint_label', None):
-                    self.view_hint_label.configure(text="Ready to import")
+                    self.view_hint_label.configure(text=_("Ready to import"))
             elif n != total:
-                self.count_label.configure(text=f"{pluralize(n, 'bookmark')} Shown")
+                self.count_label.configure(text=format_message('{value_0} Shown', value_0=pluralize(n, 'bookmark')))
                 if getattr(self, 'view_hint_label', None):
-                    self.view_hint_label.configure(text="Filtered view")
+                    self.view_hint_label.configure(text=_("Filtered view"))
             else:
                 self.count_label.configure(text=pluralize(n, "Bookmark"))
                 if getattr(self, 'view_hint_label', None):
-                    self.view_hint_label.configure(text="List view")
+                    self.view_hint_label.configure(text=_("List view"))
 
         self._refresh_filter_counts()
         total_bookmarks = len(self.bookmark_manager.get_all_bookmarks())

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import tkinter as tk
 
-import json
-
 from bookmark_organizer_pro.constants import SETTINGS_FILE
+from bookmark_organizer_pro.i18n import format_message
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.ui.foundation import pluralize
 
@@ -124,7 +124,7 @@ class LifecycleActionsMixin:
             if hasattr(self, 'status_selected_label') and self.status_selected_label:
                 selected = len(self.selected_bookmarks) if hasattr(self, 'selected_bookmarks') else 0
                 if selected > 0:
-                    self.status_selected_label.configure(text=f"{selected} selected")
+                    self.status_selected_label.configure(text=format_message('{value_0} selected', value_0=selected))
                 else:
                     self.status_selected_label.configure(text="")
         except Exception:

@@ -51,12 +51,12 @@
 
     <section id="pendingPanel" class="pending-panel" role="status" aria-live="polite" hidden>
       <p id="pendingCount" data-i18n="zeroPendingSaves">0 pending quick saves</p>
-      <ul id="pendingList" class="pending-list" aria-label="Pending save details"></ul>
+      <ul id="pendingList" class="pending-list" aria-label="Pending save details" data-i18n-aria-label="pendingSaveDetails"></ul>
       <div class="pending-actions">
         <button id="retryPending" type="button" data-i18n="retry">Retry</button>
-        <button id="exportPending" class="secondary" type="button">Export JSON</button>
+        <button id="exportPending" class="secondary" type="button" data-i18n="exportJson">Export JSON</button>
         <button id="clearPending" class="secondary" type="button" data-i18n="clear">Clear</button>
-        <button id="restorePending" class="secondary" type="button" hidden>Undo Clear</button>
+        <button id="restorePending" class="secondary" type="button" hidden data-i18n="undoClear">Undo Clear</button>
       </div>
     </section>
 

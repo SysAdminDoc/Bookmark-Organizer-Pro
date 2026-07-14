@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 import tkinter as tk
+from datetime import datetime
 from tkinter import ttk
 from typing import Callable, List
 
-from bookmark_organizer_pro.i18n import _
+from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.managers import TagManager
 from bookmark_organizer_pro.models import Bookmark
 
@@ -16,6 +16,7 @@ from .tk_interactions import bind_scoped_mousewheel, make_keyboard_activatable
 from .widget_controls import ModernButton, TagEditor, ThemedWidget
 from .widget_runtime import _open_external_url, apply_window_chrome, get_theme
 from .window_geometry import apply_screen_aware_geometry
+
 
 # =============================================================================
 # Bookmark Editor Dialog
@@ -193,7 +194,7 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
                         fg=theme.text_muted, font=FONTS.small(), width=12, anchor="w").pack(side=tk.LEFT)
                 conf_color = theme.accent_success if bookmark.ai_confidence >= 0.7 else (
                     theme.accent_warning if bookmark.ai_confidence >= 0.4 else theme.accent_error)
-                tk.Label(conf_row, text=f"{bookmark.ai_confidence:.0%}", bg=theme.bg_primary,
+                tk.Label(conf_row, text=format_message('{value_0:.0%}', value_0=bookmark.ai_confidence), bg=theme.bg_primary,
                         fg=conf_color, font=FONTS.tiny(bold=True)).pack(side=tk.LEFT)
             
             if bookmark.ai_tags:

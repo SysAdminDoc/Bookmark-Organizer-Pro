@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import tkinter as tk
+from dataclasses import dataclass
 from tkinter import ttk
 from typing import Callable, Iterable, List, Optional
 
-from bookmark_organizer_pro.i18n import _
+from bookmark_organizer_pro.i18n import _, format_message
 
 from .foundation import FONTS
 from .tk_interactions import bind_scoped_mousewheel
@@ -52,7 +52,7 @@ def _browser_source(browser: str, detected: bool) -> ImportSource:
 
     return ImportSource(
         key=f"browser-{browser}",
-        title=f"{browser_title} bookmarks",
+        title=format_message('{value_0} bookmarks', value_0=browser_title),
         description="Bring over browser folders and saved pages.",
         accepted_formats=accepted,
         privacy_note="Processed locally; source browser data is read-only and never uploaded.",
@@ -75,7 +75,7 @@ def build_import_sources(detected_browsers: Iterable[str] = ()) -> List[ImportSo
         _browser_source("safari", False),
         ImportSource(
             key="firefox-backup",
-            title="Firefox bookmark backup",
+            title=_("Firefox bookmark backup"),
             description="Import Firefox bookmarkbackups JSON with folders and tags preserved.",
             accepted_formats="Firefox bookmarkbackups .json or .jsonlz4",
             privacy_note="The backup is parsed locally and the Firefox profile is not modified.",
@@ -88,7 +88,7 @@ def build_import_sources(detected_browsers: Iterable[str] = ()) -> List[ImportSo
         ),
         ImportSource(
             key="pocket",
-            title="Pocket export",
+            title=_("Pocket export"),
             description="Migrate saved Pocket links after exporting from Pocket.",
             accepted_formats="Pocket HTML or JSON export",
             privacy_note="The export file is parsed locally; no Pocket account connection is made.",
@@ -101,7 +101,7 @@ def build_import_sources(detected_browsers: Iterable[str] = ()) -> List[ImportSo
         ),
         ImportSource(
             key="arc",
-            title="Arc Browser sidebar",
+            title=_("Arc Browser sidebar"),
             description="Import Arc StorableSidebar exports into a local category.",
             accepted_formats="StorableSidebar.json",
             privacy_note="The local JSON file is parsed without modifying Arc data.",
@@ -114,7 +114,7 @@ def build_import_sources(detected_browsers: Iterable[str] = ()) -> List[ImportSo
         ),
         ImportSource(
             key="linkwarden",
-            title="Linkwarden export",
+            title=_("Linkwarden export"),
             description="Preflight Linkwarden links, collections, tags, notes, and state before import.",
             accepted_formats="Linkwarden JSON export",
             privacy_note="The export is analyzed locally and never uploaded.",
@@ -127,7 +127,7 @@ def build_import_sources(detected_browsers: Iterable[str] = ()) -> List[ImportSo
         ),
         ImportSource(
             key="karakeep",
-            title="Karakeep export",
+            title=_("Karakeep export"),
             description="Preflight Karakeep bookmarks, lists, tags, notes, and state before import.",
             accepted_formats="Karakeep JSON export",
             privacy_note="The export is analyzed locally and never uploaded.",
@@ -140,7 +140,7 @@ def build_import_sources(detected_browsers: Iterable[str] = ()) -> List[ImportSo
         ),
         ImportSource(
             key="raindrop",
-            title="Raindrop CSV",
+            title=_("Raindrop CSV"),
             description="Bring over Raindrop collections, tags, notes, and saved dates.",
             accepted_formats="Raindrop CSV export",
             privacy_note="CSV content stays on this machine.",
@@ -153,7 +153,7 @@ def build_import_sources(detected_browsers: Iterable[str] = ()) -> List[ImportSo
         ),
         ImportSource(
             key="readwise",
-            title="Readwise-compatible CSV",
+            title=_("Readwise-compatible CSV"),
             description="Import Readwise Reader document exports and compatible CSV files.",
             accepted_formats="CSV with URL, Title, Tags, and note/date columns",
             privacy_note="CSV content is parsed locally and not sent to Readwise.",
@@ -166,7 +166,7 @@ def build_import_sources(detected_browsers: Iterable[str] = ()) -> List[ImportSo
         ),
         ImportSource(
             key="chrome-reading-list",
-            title="Chrome Reading List",
+            title=_("Chrome Reading List"),
             description="Use the browser extension side panel to save Reading List entries.",
             accepted_formats="Chrome Reading List API through the MV3 extension",
             privacy_note="The extension sends URLs only to the local API using your bearer token.",
@@ -309,7 +309,7 @@ class ImportCenterDialog(tk.Toplevel):
         for row, (label, value) in enumerate(details):
             tk.Label(
                 grid,
-                text=f"{label}:",
+                text=format_message('{value_0}:', value_0=label),
                 bg=theme.bg_secondary,
                 fg=theme.text_muted,
                 font=FONTS.tiny(bold=True),

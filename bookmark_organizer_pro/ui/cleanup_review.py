@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import tkinter as tk
+from dataclasses import dataclass
 from tkinter import ttk
 from typing import Callable, Iterable, List, Mapping, Sequence
 
+from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.models import Bookmark
 
 from .foundation import FONTS, truncate_middle
@@ -81,7 +82,7 @@ def build_hybrid_duplicate_review_groups(report, bookmarks_by_id: Mapping[int, B
         items.extend(_bookmark_label(bm, "Remove") for bm in extras)
         groups.append(CleanupReviewGroup(
             key=f"hybrid:{index}:{canonical_id}",
-            title=f"{method.title()} match for #{canonical_id}",
+            title=format_message('{value_0} match for #{value_1}', value_0=method.title(), value_1=canonical_id),
             subtitle=f"Confidence {confidence:.2f}; {len(extras)} duplicate bookmark(s) will be removed.",
             items=tuple(items),
             action_label=f"Remove {len(extras)} duplicate(s)",
@@ -108,7 +109,7 @@ def build_tag_lint_review_groups(report) -> List[CleanupReviewGroup]:
         items = tuple(f"Merge '{variant}' -> '{canonical}'" for variant in variants)
         groups.append(CleanupReviewGroup(
             key=f"tag:{index}:{canonical}",
-            title=f"Normalize to '{canonical}'",
+            title=format_message("Normalize to '{value_0}'", value_0=canonical),
             subtitle=f"{bookmark_count} bookmark(s) affected; {len(variants)} variant tag(s).",
             items=items,
             action_label=f"Merge {len(variants)} variant(s)",
@@ -194,11 +195,11 @@ class CleanupReviewDialog(tk.Toplevel):
         ).pack(fill=tk.X, pady=(0, 9))
         actions = tk.Frame(footer, bg=theme.bg_primary)
         actions.pack(fill=tk.X)
-        ModernButton(actions, text="Close", command=self.destroy, padx=14, pady=7).pack(side=tk.RIGHT, padx=(8, 0))
-        ModernButton(actions, text="Restore Safepoint", command=self._restore, padx=14, pady=7).pack(side=tk.LEFT)
-        self.skip_button = ModernButton(actions, text="Skip Selected", command=self._skip_selected, padx=14, pady=7)
+        ModernButton(actions, text=_("Close"), command=self.destroy, padx=14, pady=7).pack(side=tk.RIGHT, padx=(8, 0))
+        ModernButton(actions, text=_("Restore Safepoint"), command=self._restore, padx=14, pady=7).pack(side=tk.LEFT)
+        self.skip_button = ModernButton(actions, text=_("Skip Selected"), command=self._skip_selected, padx=14, pady=7)
         self.skip_button.pack(side=tk.RIGHT, padx=(8, 0))
-        self.apply_button = ModernButton(actions, text="Apply Selected", command=self._apply_selected, style="primary", padx=14, pady=7)
+        self.apply_button = ModernButton(actions, text=_("Apply Selected"), command=self._apply_selected, style="primary", padx=14, pady=7)
         self.apply_button.pack(side=tk.RIGHT)
 
     def _add_group(self, parent: tk.Widget, group: CleanupReviewGroup) -> None:
@@ -230,7 +231,7 @@ class CleanupReviewDialog(tk.Toplevel):
         check.pack(anchor="w")
         tk.Label(
             card,
-            text=f"{group.subtitle} Action: {group.action_label}.",
+            text=format_message('{value_0} Action: {value_1}.', value_0=group.subtitle, value_1=group.action_label),
             bg=theme.bg_secondary,
             fg=theme.text_secondary,
             font=FONTS.small(),
@@ -240,7 +241,7 @@ class CleanupReviewDialog(tk.Toplevel):
         for item in group.items:
             tk.Label(
                 card,
-                text=f"- {item}",
+                text=format_message('- {value_0}', value_0=item),
                 bg=theme.bg_secondary,
                 fg=theme.text_muted,
                 font=FONTS.tiny(),

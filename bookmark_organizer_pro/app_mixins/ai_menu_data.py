@@ -9,6 +9,8 @@ from pathlib import Path
 from tkinter import filedialog, messagebox
 from typing import Dict, List
 
+from bookmark_organizer_pro.i18n import _, format_message
+
 try:
     import requests
 except ImportError:  # pragma: no cover - optional runtime dependency
@@ -31,21 +33,21 @@ class AiMenuDataMixin:
                       font=FONTS.body(), activebackground=theme.bg_hover,
                       activeforeground=theme.text_primary, bd=0)
         
-        menu.add_command(label="Categorize Selected", command=self._ai_categorize)
-        menu.add_command(label="Suggest Tags", command=self._ai_suggest_tags)
-        menu.add_command(label="Summarize Selected", command=self._ai_summarize)
-        menu.add_command(label="Improve Titles", command=self._ai_improve_titles)
+        menu.add_command(label=_("Categorize Selected"), command=self._ai_categorize)
+        menu.add_command(label=_("Suggest Tags"), command=self._ai_suggest_tags)
+        menu.add_command(label=_("Summarize Selected"), command=self._ai_summarize)
+        menu.add_command(label=_("Improve Titles"), command=self._ai_improve_titles)
         menu.add_separator()
-        menu.add_command(label="Undo Last Assistant Action", command=self._undo_last_ai_operation)
+        menu.add_command(label=_("Undo Last Assistant Action"), command=self._undo_last_ai_operation)
         menu.add_separator()
-        menu.add_command(label="Accept Suggested Tags", command=self._merge_ai_tags)
+        menu.add_command(label=_("Accept Suggested Tags"), command=self._merge_ai_tags)
         menu.add_separator()
-        menu.add_command(label="Export Assistant Data", command=self._export_ai_data)
-        menu.add_command(label="Export Learned Patterns", command=self._generate_category_patterns)
-        menu.add_command(label="Import Learned Patterns", command=self._import_ai_learned_data)
+        menu.add_command(label=_("Export Assistant Data"), command=self._export_ai_data)
+        menu.add_command(label=_("Export Learned Patterns"), command=self._generate_category_patterns)
+        menu.add_command(label=_("Import Learned Patterns"), command=self._import_ai_learned_data)
         menu.add_separator()
-        menu.add_command(label="Assistant Activity", command=self._show_ai_stats)
-        menu.add_command(label="Assistant Settings", command=self._show_ai_settings)
+        menu.add_command(label=_("Assistant Activity"), command=self._show_ai_stats)
+        menu.add_command(label=_("Assistant Settings"), command=self._show_ai_settings)
         
         # Position below button
         x = self.ai_btn.winfo_rootx()
@@ -54,13 +56,13 @@ class AiMenuDataMixin:
     
     def _undo_last_ai_operation(self):
         """Restore bookmarks to their state before the most recent AI batch."""
-        from bookmark_organizer_pro.services.ai_snapshot import list_snapshots, restore_snapshot, delete_snapshot
+        from bookmark_organizer_pro.services.ai_snapshot import delete_snapshot, list_snapshots, restore_snapshot
 
         snapshots = list_snapshots()
         if not snapshots:
             messagebox.showinfo(
-                "No Assistant Snapshots",
-                "No assistant action snapshots are available to undo.",
+                _("No Assistant Snapshots"),
+                _("No assistant action snapshots are available to undo."),
                 parent=self.root,
             )
             return
@@ -98,21 +100,19 @@ class AiMenuDataMixin:
         if merged > 0:
             self.bookmark_manager.save_bookmarks()
             self._refresh_bookmark_list()
-            messagebox.showinfo("Suggested Tags Accepted",
-                f"Suggested tags were added to user tags.\n\n"
-                f"Bookmarks updated: {merged}\n"
-                f"Tags added: {tags_added}")
+            messagebox.showinfo(_("Suggested Tags Accepted"),
+                format_message('Suggested tags were added to user tags.\n\nBookmarks updated: {value_0}\nTags added: {value_1}', value_0=merged, value_1=tags_added))
         else:
-            messagebox.showinfo("No Suggested Tags",
-                "No suggested tags are available to accept.\n\n"
-                "Use Suggest Tags first to generate suggestions.")
+            messagebox.showinfo(_("No Suggested Tags"),
+                _("No suggested tags are available to accept.\n\n"
+                "Use Suggest Tags first to generate suggestions."))
         
         self._set_status(f"Accepted {tags_added} suggested tags")
     
     def _export_ai_data(self):
         """Export AI-enriched bookmark data to JSON"""
         filepath = filedialog.asksaveasfilename(
-            title="Export Assistant Data",
+            title=_("Export Assistant Data"),
             defaultextension=".json",
             filetypes=[("JSON Files", "*.json"), ("All Files", "*.*")],
             initialfilename="bookmarks_ai_data.json"
@@ -158,15 +158,12 @@ class AiMenuDataMixin:
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(export_data, f, indent=2, ensure_ascii=False)
             
-            messagebox.showinfo("Export Complete",
-                f"Assistant data exported successfully.\n\n"
-                f"File: {filepath}\n"
-                f"Bookmarks: {len(bookmarks)}\n"
-                f"Categories: {len(export_data['categories'])}")
+            messagebox.showinfo(_("Export Complete"),
+                format_message('Assistant data exported successfully.\n\nFile: {value_0}\nBookmarks: {value_1}\nCategories: {value_2}', value_0=filepath, value_1=len(bookmarks), value_2=len(export_data['categories'])))
             self._set_status(f"Exported assistant data to {Path(filepath).name}")
             
         except Exception as e:
-            messagebox.showerror("Export Error", f"Failed to export: {str(e)}")
+            messagebox.showerror(_("Export Error"), format_message('Failed to export: {value_0}', value_0=str(e)))
     
     def _show_ai_stats(self):
         """Show AI processing statistics"""
@@ -190,7 +187,7 @@ class AiMenuDataMixin:
         
         # Show dialog
         dialog = tk.Toplevel(self.root)
-        dialog.title("Assistant Activity")
+        dialog.title(_("Assistant Activity"))
         dialog.configure(bg=theme.bg_primary)
         dialog.geometry("400x350")
         dialog.transient(self.root)
@@ -203,7 +200,7 @@ class AiMenuDataMixin:
         dialog.geometry(f"+{x}+{y}")
         
         # Header
-        tk.Label(dialog, text="Assistant Activity", bg=theme.bg_primary,
+        tk.Label(dialog, text=_("Assistant Activity"), bg=theme.bg_primary,
                 fg=theme.text_primary, font=FONTS.title(bold=False)).pack(pady=20)
         
         # Stats
@@ -223,7 +220,7 @@ class AiMenuDataMixin:
             row = tk.Frame(stats_frame, bg=theme.bg_primary)
             row.pack(fill=tk.X, pady=5)
             
-            tk.Label(row, text=label + ":", bg=theme.bg_primary,
+            tk.Label(row, text=label + _(":"), bg=theme.bg_primary,
                     fg=theme.text_secondary, font=FONTS.body(),
                     width=20, anchor="w").pack(side=tk.LEFT)
             tk.Label(row, text=value, bg=theme.bg_primary,
@@ -232,7 +229,7 @@ class AiMenuDataMixin:
         
         # Top AI tags
         if all_ai_tags:
-            tk.Label(dialog, text="Top Suggested Tags", bg=theme.bg_primary,
+            tk.Label(dialog, text=_("Top Suggested Tags"), bg=theme.bg_primary,
                     fg=theme.text_secondary, font=FONTS.body()).pack(pady=(20, 5))
             
             # Count tag frequency
@@ -250,7 +247,7 @@ class AiMenuDataMixin:
         
         # Close button
         ModernButton(
-            dialog, text="Close", command=dialog.destroy,
+            dialog, text=_("Close"), command=dialog.destroy,
             padx=20, pady=5,
         ).pack(pady=20)
     
@@ -262,9 +259,9 @@ class AiMenuDataMixin:
         ai_categorized = [bm for bm in bookmarks if bm.ai_confidence >= 0.7]
         
         if not ai_categorized:
-            messagebox.showinfo("No Learned Patterns",
-                "No high-confidence assistant categorizations are available yet.\n\n"
-                "Run Categorize Selected on your bookmarks first.")
+            messagebox.showinfo(_("No Learned Patterns"),
+                _("No high-confidence assistant categorizations are available yet.\n\n"
+                "Run Categorize Selected on your bookmarks first."))
             return
         
         # Group domains by category
@@ -280,7 +277,7 @@ class AiMenuDataMixin:
         
         # Generate patterns file
         filepath = filedialog.asksaveasfilename(
-            title="Export Category Patterns",
+            title=_("Export Category Patterns"),
             defaultextension=".json",
             filetypes=[("JSON Files", "*.json"), ("All Files", "*.*")],
             initialfilename="learned_category_patterns.json"
@@ -320,21 +317,17 @@ class AiMenuDataMixin:
                 json.dump(export_data, f, indent=2, ensure_ascii=False)
             
             total_patterns = sum(len(p) for p in export_data["categories"].values())
-            messagebox.showinfo("Patterns Exported", 
-                f"Category patterns exported successfully!\n\n"
-                f"File: {Path(filepath).name}\n"
-                f"Categories: {len(export_data['categories'])}\n"
-                f"Total patterns: {total_patterns}\n\n"
-                "Share this file to help improve categorization for others!")
+            messagebox.showinfo(_("Patterns Exported"),
+                format_message('Category patterns exported successfully!\n\nFile: {value_0}\nCategories: {value_1}\nTotal patterns: {value_2}\n\nShare this file to help improve categorization for others!', value_0=Path(filepath).name, value_1=len(export_data['categories']), value_2=total_patterns))
             self._set_status(f"Exported {total_patterns} learned patterns")
             
         except Exception as e:
-            messagebox.showerror("Export Error", f"Failed to export: {str(e)}")
+            messagebox.showerror(_("Export Error"), format_message('Failed to export: {value_0}', value_0=str(e)))
     
     def _import_ai_learned_data(self):
         """Import AI-learned data from another user's export"""
         filepath = filedialog.askopenfilename(
-            title="Import Learned Patterns",
+            title=_("Import Learned Patterns"),
             filetypes=[("JSON Files", "*.json"), ("All Files", "*.*")]
         )
         
@@ -347,7 +340,7 @@ class AiMenuDataMixin:
             
             # Check if it's our format
             if "categories" not in data:
-                messagebox.showerror("Invalid File", "This does not appear to be a learned-pattern export.")
+                messagebox.showerror(_("Invalid File"), _("This does not appear to be a learned-pattern export."))
                 return
             
             imported = 0
@@ -378,11 +371,9 @@ class AiMenuDataMixin:
             self.category_manager.save_categories()
             self._refresh_category_list()
             
-            messagebox.showinfo("Import Complete",
-                f"Learned patterns imported.\n\n"
-                f"New categories: {imported}\n"
-                f"Patterns added: {updated}")
+            messagebox.showinfo(_("Import Complete"),
+                format_message('Learned patterns imported.\n\nNew categories: {value_0}\nPatterns added: {value_1}', value_0=imported, value_1=updated))
             self._set_status(f"Imported {imported} categories, {updated} patterns")
             
         except Exception as e:
-            messagebox.showerror("Import Error", f"Failed to import: {str(e)}")
+            messagebox.showerror(_("Import Error"), format_message('Failed to import: {value_0}', value_0=str(e)))

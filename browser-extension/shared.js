@@ -511,9 +511,13 @@ function renderPendingSaves(container, pending) {
   container.innerHTML = "";
   for (const item of pending) {
     const row = document.createElement("li");
-    const title = item.payload?.title || item.payload?.url || "Untitled save";
-    const when = item.created_at ? new Date(item.created_at).toLocaleString() : "Unknown time";
-    row.textContent = `${title} · ${item.source || "unknown"} · ${when} · ${item.reason || "retry pending"}`;
+    const title = item.payload?.title || item.payload?.url
+      || extensionMessage("untitledSave", [], "Untitled save");
+    const when = item.created_at ? new Date(item.created_at).toLocaleString()
+      : extensionMessage("unknownTime", [], "Unknown time");
+    const source = item.source || extensionMessage("unknownSource", [], "unknown");
+    const reason = item.reason || extensionMessage("retryPending", [], "retry pending");
+    row.textContent = `${title} · ${source} · ${when} · ${reason}`;
     container.appendChild(row);
   }
 }

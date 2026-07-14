@@ -106,21 +106,31 @@ async function refreshPendingPanel() {
 async function retryPendingQueue() {
   const result = await retryPendingSaves();
   const text = document.getElementById("statusText");
-  text.textContent = result.remaining ? `${result.remaining} pending save(s) remain` : "Pending saves resolved";
+  text.textContent = result.remaining
+    ? extensionMessage("pendingSavesRemain", [String(result.remaining)], `${result.remaining} pending saves remain`)
+    : extensionMessage("pendingSavesResolved", [], "Pending saves resolved");
   await refreshPendingPanel();
   if (result.resolved) loadRecent();
 }
 
 async function clearPendingQueue() {
-  if (!globalThis.confirm("Clear the pending save journal? You can undo this from the same panel.")) return;
+  if (!globalThis.confirm(extensionMessage(
+    "confirmClearPending",
+    [],
+    "Clear the pending save journal? You can undo this from the same panel.",
+  ))) return;
   const cleared = await clearPendingSaves({ confirmed: true });
-  document.getElementById("statusText").textContent = `Cleared ${cleared} pending save(s)`;
+  document.getElementById("statusText").textContent = cleared === 1
+    ? extensionMessage("clearedOnePendingSave", [], "Cleared 1 pending save")
+    : extensionMessage("clearedPendingSaves", [String(cleared)], `Cleared ${cleared} pending saves`);
   await refreshPendingPanel();
 }
 
 async function restorePendingQueue() {
   const restored = await restoreClearedPendingSaves();
-  document.getElementById("statusText").textContent = `Restored ${restored} pending save(s)`;
+  document.getElementById("statusText").textContent = restored === 1
+    ? extensionMessage("restoredOnePendingSave", [], "Restored 1 pending save")
+    : extensionMessage("restoredPendingSaves", [String(restored)], `Restored ${restored} pending saves`);
   await refreshPendingPanel();
 }
 
@@ -227,13 +237,16 @@ async function checkConnection() {
     dot.classList.add("connected");
     dot.classList.remove("error");
     text.textContent = extensionMessage("connected", [], "Connected");
-    count.textContent = `${stats.total_bookmarks || 0} bookmarks`;
+    const total = stats.total_bookmarks || 0;
+    count.textContent = total === 1
+      ? extensionMessage("oneBookmark", [], "1 bookmark")
+      : extensionMessage("bookmarkCount", [String(total)], `${total} bookmarks`);
   } catch (error) {
     dot.classList.remove("connected");
     dot.classList.add("error");
     text.textContent = error instanceof ApiResponseError && error.status === 401
-      ? "Token rejected"
-      : "Disconnected";
+      ? extensionMessage("tokenRejected", [], "Token rejected")
+      : extensionMessage("disconnected", [], "Disconnected");
     count.textContent = "";
   }
 }
@@ -419,7 +432,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("importReadingListBtn").addEventListener("click", importReadingList);
   document.getElementById("openOptions").addEventListener("click", () => {
     openOptionsPage().catch(() => {
-      document.getElementById("statusText").textContent = "Options could not be opened";
+      document.getElementById("statusText").textContent = extensionMessage("optionsOpenFailed", [], "Options could not be opened");
     });
   });
   document.getElementById("loadMoreRecent").addEventListener("click", () => {
@@ -427,24 +440,26 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   document.getElementById("retryPending").addEventListener("click", () => {
     retryPendingQueue().catch(() => {
-      document.getElementById("statusText").textContent = "Pending retry failed";
+      document.getElementById("statusText").textContent = extensionMessage("pendingRetryFailed", [], "Pending retry failed");
     });
   });
   document.getElementById("clearPending").addEventListener("click", () => {
     clearPendingQueue().catch(() => {
-      document.getElementById("statusText").textContent = "Pending queue could not be cleared";
+      document.getElementById("statusText").textContent = extensionMessage("pendingClearFailed", [], "Pending queue could not be cleared");
     });
   });
   document.getElementById("restorePending").addEventListener("click", () => {
     restorePendingQueue().catch(() => {
-      document.getElementById("statusText").textContent = "Cleared saves could not be restored";
+      document.getElementById("statusText").textContent = extensionMessage("pendingRestoreFailed", [], "Cleared saves could not be restored");
     });
   });
   document.getElementById("exportPending").addEventListener("click", () => {
     exportPendingSaves().then(count => {
-      document.getElementById("statusText").textContent = `Exported ${count} pending save(s)`;
+      document.getElementById("statusText").textContent = count === 1
+        ? extensionMessage("exportedOnePendingSave", [], "Exported 1 pending save")
+        : extensionMessage("exportedPendingSaves", [String(count)], `Exported ${count} pending saves`);
     }).catch(() => {
-      document.getElementById("statusText").textContent = "Pending saves could not be exported";
+      document.getElementById("statusText").textContent = extensionMessage("pendingExportFailed", [], "Pending saves could not be exported");
     });
   });
 

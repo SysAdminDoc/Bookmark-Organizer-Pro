@@ -59,6 +59,7 @@ python scripts/extension_e2e_smoke.py --extension-dir build/browser-extension/ch
 python scripts/extension_firefox_smoke.py
 python scripts/dependency_vulnerability_audit.py
 python scripts/release_artifact_smoke.py --artifact dist/BookmarkOrganizerPro.exe
+python -m bookmark_organizer_pro.i18n --check
 ```
 
 The smoke writes screenshots to a temporary directory, captures Windows desktop
@@ -88,6 +89,13 @@ Regenerate the platform lock with `python scripts/package_contract_audit.py --up
 `python scripts/build_release.py` creates an isolated environment, installs the
 hash-verified lock and exact build toolchain, embeds version/commit/lock/profile
 identity and an SBOM, builds with PyInstaller, and runs the artifact smoke.
+
+The localization check fails when the gettext template is stale, desktop UI
+text bypasses `_()`, `ngettext()`, or the named-placeholder helpers, extension
+copy bypasses `data-i18n`/`extensionMessage()`, or plural and format placeholders
+drift. Its only literal allowlist is non-language one-character brand glyphs and
+the HTML `<title>` fallback that is replaced through `data-i18n-title`; add human
+translations separately rather than generating them.
 
 ### v6 CLI quickstart
 

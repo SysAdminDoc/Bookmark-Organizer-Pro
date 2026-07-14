@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 import json
 import time
+from datetime import datetime
 from typing import List
 
 from bookmark_organizer_pro.ai import create_failover_client
+from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
-from bookmark_organizer_pro.services.ai_audit_log import log_tag_suggestion, log_summary
+from bookmark_organizer_pro.services.ai_audit_log import log_summary, log_tag_suggestion
 from bookmark_organizer_pro.services.ai_snapshot import create_snapshot
 from bookmark_organizer_pro.ui.live_workflow import LiveWorkflowDialog
-
 
 _SKIP_URL_PATTERNS = (
     "/login", "/signin", "/sign-in", "/auth", "/oauth", "/account",
@@ -82,7 +82,7 @@ class AiEnrichmentMixin:
     def _run_ai_tags_live(self, bookmarks: List[Bookmark]):
         """Tag suggestion with batched API calls and a drip-revealed feed."""
         dialog = LiveWorkflowDialog(
-            self.root, title="AI Tag Suggestions", total=len(bookmarks),
+            self.root, title=_("AI Tag Suggestions"), total=len(bookmarks),
             width=680, height=520,
         )
 
@@ -218,7 +218,7 @@ class AiEnrichmentMixin:
     def _run_ai_summaries_live(self, bookmarks: List[Bookmark]):
         """Summary generation with batched calls and a drip-revealed feed."""
         dialog = LiveWorkflowDialog(
-            self.root, title="AI Summaries", total=len(bookmarks),
+            self.root, title=_("AI Summaries"), total=len(bookmarks),
             width=680, height=520,
         )
 

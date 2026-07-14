@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from bookmark_organizer_pro.ai import AI_PROVIDERS, create_ai_client
-from bookmark_organizer_pro.i18n import _
+from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.services.ollama_manager import (
     OLLAMA_DEFAULT_URL,
     OllamaManager,
@@ -86,7 +86,7 @@ class AiSettingsMixin:
             if info.free_tier:
                 badge = " · Free" if not info.local else " · Free · Local"
             tk.Label(
-                row, text=f"  {info.description}{badge}",
+                row, text=format_message('  {value_0}{value_1}', value_0=info.description, value_1=badge),
                 bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.small(),
                 wraplength=430, justify=tk.LEFT,
             ).pack(side=tk.LEFT, padx=(4, 0), fill=tk.X, expand=True)
@@ -162,7 +162,7 @@ class AiSettingsMixin:
 
         # Status indicator dot
         ollama_dot = tk.Label(
-            ollama_panel, text="●", bg=theme.bg_secondary,
+            ollama_panel, text=_("●"), bg=theme.bg_secondary,
             fg=theme.text_muted, font=FONTS.body(),
         )
 

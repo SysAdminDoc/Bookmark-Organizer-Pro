@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable, Iterable, List
 
-from bookmark_organizer_pro.i18n import _
+from bookmark_organizer_pro.i18n import _, format_plural
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.read_later import ReadLaterQueue
 
@@ -169,7 +169,13 @@ class ReadLaterQueueDialog(tk.Toplevel):
                     break
         self.listbox.selection_set(selected_index)
         self.listbox.activate(selected_index)
-        self._status_var.set(_("{count} queued bookmark(s).").format(count=len(self._rows)))
+        count = len(self._rows)
+        self._status_var.set(format_plural(
+            "{count} queued bookmark.",
+            "{count} queued bookmarks.",
+            count,
+            count=count,
+        ))
 
     def _selected_row(self) -> ReadLaterQueueRow | None:
         if not self._rows:

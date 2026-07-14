@@ -6,6 +6,8 @@ import re
 from tkinter import messagebox
 from typing import List, Optional
 
+from bookmark_organizer_pro.i18n import _, format_message
+
 try:
     import requests
 except ImportError:  # pragma: no cover - optional runtime dependency
@@ -63,8 +65,8 @@ class AiSupportMixin:
 
         if not bookmarks:
             messagebox.showinfo(
-                "Selection Not Available",
-                "The selected rows are no longer available. Refresh the list and try again.",
+                _("Selection Not Available"),
+                _("The selected rows are no longer available. Refresh the list and try again."),
                 parent=self.root
             )
             self._set_status("Selection could not be used")
@@ -73,9 +75,8 @@ class AiSupportMixin:
     def _show_ai_client_error(self, action_name: str):
         """Show a consistent AI connection/configuration failure message."""
         messagebox.showerror(
-            "AI Connection Unavailable",
-            f"{action_name} could not start because the configured AI client could not be created.\n\n"
-            "Open Assistant Settings to confirm the provider, model, and credential.",
+            _("AI Connection Unavailable"),
+            format_message('{value_0} could not start because the configured AI client could not be created.\n\nOpen Assistant Settings to confirm the provider, model, and credential.', value_0=action_name),
             parent=self.root
         )
         self._set_status("Assistant settings need attention")

@@ -6,12 +6,14 @@ import tkinter as tk
 from tkinter import messagebox
 from typing import Callable, List, Optional
 
+from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.search import SearchEngine
 
 from .foundation import FONTS, DesignTokens, readable_text_on
 from .theme import ThemeColors
 from .tk_interactions import make_keyboard_activatable
 from .widget_runtime import get_theme
+
 
 # =============================================================================
 # Themed Widget Base
@@ -385,7 +387,7 @@ class ModernSearch(tk.Frame, ThemedWidget):
         
         # Search icon
         self.icon_label = tk.Label(
-            self.inner, text="Search", bg=theme.bg_secondary,
+            self.inner, text=_("Search"), bg=theme.bg_secondary,
             fg=theme.text_muted, font=FONTS.body()
         )
         self.icon_label.pack(side=tk.LEFT, padx=(0, 10))
@@ -402,7 +404,7 @@ class ModernSearch(tk.Frame, ThemedWidget):
         # Help button
         if show_syntax_help:
             self.help_btn = tk.Label(
-                self.inner, text="?", bg=theme.bg_secondary,
+                self.inner, text=_("?"), bg=theme.bg_secondary,
                 fg=theme.text_muted, font=FONTS.small(),
                 cursor="hand2"
             )
@@ -412,7 +414,7 @@ class ModernSearch(tk.Frame, ThemedWidget):
         
         # Clear button
         self.clear_btn = tk.Label(
-            self.inner, text="Clear", bg=theme.bg_secondary,
+            self.inner, text=_("Clear"), bg=theme.bg_secondary,
             fg=theme.text_muted, font=FONTS.body(), cursor="hand2"
         )
         make_keyboard_activatable(self.clear_btn, self._clear)
@@ -454,7 +456,7 @@ class ModernSearch(tk.Frame, ThemedWidget):
     
     def _show_help(self, e=None):
         help_text = SearchEngine.get_syntax_help()
-        messagebox.showinfo("Search Syntax", help_text)
+        messagebox.showinfo(_("Search Syntax"), help_text)
     
     def focus_set(self):
         self.entry.focus_set()
@@ -496,7 +498,7 @@ class TagWidget(tk.Frame, ThemedWidget):
         
         # Tag label
         self.label = tk.Label(
-            self, text=f"#{tag_name}", bg=theme.bg_secondary,
+            self, text=format_message('#{value_0}', value_0=tag_name), bg=theme.bg_secondary,
             fg=color, font=FONTS.small(), padx=6, pady=2
         )
         self.label.pack(side=tk.LEFT)
@@ -504,7 +506,7 @@ class TagWidget(tk.Frame, ThemedWidget):
         # Remove button
         if removable and on_remove:
             self.remove_btn = tk.Label(
-                self, text="×", bg=theme.bg_secondary,
+                self, text=_("×"), bg=theme.bg_secondary,
                 fg=theme.text_muted, font=FONTS.small(),
                 cursor="hand2", padx=4
             )
@@ -559,7 +561,7 @@ class TagEditor(tk.Frame, ThemedWidget):
         self.entry.bind("<Return>", self._add_tag)
 
         self.add_btn = tk.Label(
-            self.entry_frame, text="+", bg=theme.bg_secondary,
+            self.entry_frame, text=_("+"), bg=theme.bg_secondary,
             fg=theme.accent_primary, font=FONTS.body(bold=True),
             cursor="hand2", padx=6
         )

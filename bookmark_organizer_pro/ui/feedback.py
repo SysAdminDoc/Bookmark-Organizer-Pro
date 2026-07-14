@@ -63,7 +63,7 @@ class HoverPreview:
         
         # URL
         tk.Label(
-            frame, text=bookmark.url[:50] + "..." if len(bookmark.url) > 53 else bookmark.url,
+            frame, text=bookmark.url[:50] + _("...") if len(bookmark.url) > 53 else bookmark.url,
             bg=theme.bg_dark, fg=theme.text_link, font=FONTS.small()
         ).pack(anchor="w", pady=(5, 0))
         
@@ -155,8 +155,8 @@ class EmptyState(tk.Frame):
         self._intro = tk.Label(
             stage,
             text=(
-                "Import your existing bookmarks or add new ones. We'll help you clean up, "
-                "organize, and rediscover what matters."
+                _("Import your existing bookmarks or add new ones. We'll help you clean up, "
+                "organize, and rediscover what matters.")
             ),
             bg=theme.bg_primary, fg=theme.text_secondary,
             font=FONTS.body(), justify=tk.LEFT, wraplength=690
@@ -221,7 +221,7 @@ class EmptyState(tk.Frame):
         activity.pack(fill=tk.X)
         self._recent_activity = activity
         tk.Label(
-            activity, text="↻", bg=theme.bg_tertiary,
+            activity, text=_("↻"), bg=theme.bg_tertiary,
             fg=theme.text_secondary, font=FONTS.title(), width=3, pady=8,
         ).pack(side=tk.LEFT, padx=16, pady=14)
         activity_copy = tk.Frame(activity, bg=theme.bg_dark)
@@ -398,7 +398,7 @@ class ToastNotification(tk.Toplevel):
         ).pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(4, 14))
 
         close_lbl = tk.Label(
-            inner, text="✕", bg=theme.bg_card,
+            inner, text=_("✕"), bg=theme.bg_card,
             fg=theme.text_muted, font=FONTS.small(),
             cursor="hand2", padx=8
         )

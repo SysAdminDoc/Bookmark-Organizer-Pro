@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 import json
 import tkinter as tk
+from datetime import datetime
 from tkinter import messagebox, ttk
 from typing import Dict, List
+
+from bookmark_organizer_pro.i18n import _, format_message
 
 try:
     import requests
@@ -77,7 +79,7 @@ Respond with ONLY valid JSON in this exact format:
         def _on_done(text, error):
             if error:
                 log.warning("AI title improvement failed", exc_info=True)
-                messagebox.showerror("Title Improvement Failed", f"AI title suggestions could not be completed.\n\n{str(error)[:240]}", parent=self.root)
+                messagebox.showerror(_("Title Improvement Failed"), format_message('AI title suggestions could not be completed.\n\n{value_0}', value_0=str(error)[:240]), parent=self.root)
                 self._set_status("Title improvement failed")
                 return
             json_text = self._extract_json_object_text(text)
@@ -86,7 +88,7 @@ Respond with ONLY valid JSON in this exact format:
                 titles = data.get("titles", [])
                 self._show_title_preview(bookmarks, titles)
             else:
-                messagebox.showerror("AI Response Not Applied", "The AI response was not valid JSON, so no bookmark titles were changed.", parent=self.root)
+                messagebox.showerror(_("AI Response Not Applied"), _("The AI response was not valid JSON, so no bookmark titles were changed."), parent=self.root)
                 self._set_status("Title suggestions could not be applied")
 
         threading.Thread(target=_worker, daemon=True).start()
@@ -107,15 +109,15 @@ Respond with ONLY valid JSON in this exact format:
         
         if not changes:
             messagebox.showinfo(
-                "No Title Changes",
-                "AI did not suggest any title improvements for the selected bookmarks.",
+                _("No Title Changes"),
+                _("AI did not suggest any title improvements for the selected bookmarks."),
                 parent=self.root
             )
             return
         
         # Create preview dialog
         dialog = tk.Toplevel(self.root)
-        dialog.title("Preview Title Changes")
+        dialog.title(_("Preview Title Changes"))
         dialog.configure(bg=theme.bg_primary)
         dialog.geometry("700x500")
         dialog.transient(self.root)
@@ -133,12 +135,12 @@ Respond with ONLY valid JSON in this exact format:
         header.pack(fill=tk.X)
         
         tk.Label(
-            header, text="Preview title changes", bg=theme.bg_secondary,
+            header, text=_("Preview title changes"), bg=theme.bg_secondary,
             fg=theme.text_primary, font=FONTS.title(bold=True)
         ).pack(anchor="w")
         tk.Label(
             header,
-            text=f"Review {len(changes)} suggested title update(s) before applying them.",
+            text=format_message('Review {value_0} suggested title update(s) before applying them.', value_0=len(changes)),
             bg=theme.bg_secondary, fg=theme.text_secondary,
             font=FONTS.small(), wraplength=640, justify=tk.LEFT
         ).pack(anchor="w", pady=(4, 0))
@@ -177,14 +179,14 @@ Respond with ONLY valid JSON in this exact format:
             
             # Old title
             tk.Label(
-                text_frame, text=f"Current: {bm.title[:90]}", bg=theme.bg_tertiary,
+                text_frame, text=format_message('Current: {value_0}', value_0=bm.title[:90]), bg=theme.bg_tertiary,
                 fg=theme.text_secondary, font=FONTS.small(),
                 wraplength=560, justify=tk.LEFT
             ).pack(anchor="w")
             
             # New title
             tk.Label(
-                text_frame, text=f"Suggested: {new_title[:90]}", bg=theme.bg_tertiary,
+                text_frame, text=format_message('Suggested: {value_0}', value_0=new_title[:90]), bg=theme.bg_tertiary,
                 fg=theme.accent_success, font=FONTS.small(bold=True),
                 wraplength=560, justify=tk.LEFT
             ).pack(anchor="w", pady=(2, 0))
@@ -215,22 +217,22 @@ Respond with ONLY valid JSON in this exact format:
             dialog.destroy()
             
             messagebox.showinfo(
-                "Titles Updated",
-                f"Updated {applied} bookmark title(s).",
+                _("Titles Updated"),
+                format_message('Updated {value_0} bookmark title(s).', value_0=applied),
                 parent=self.root
             )
             self._set_status(f"Updated {applied} titles")
         
         def select_all():
-            for _, _, var in check_vars:
+            for _old_title, _new_title, var in check_vars:
                 var.set(True)
         
         def select_none():
-            for _, _, var in check_vars:
+            for _old_title, _new_title, var in check_vars:
                 var.set(False)
         
-        ModernButton(btn_frame, text="Select all", command=select_all, padx=12, pady=6).pack(side=tk.LEFT, padx=(20, 8))
-        ModernButton(btn_frame, text="Select none", command=select_none, padx=12, pady=6).pack(side=tk.LEFT)
-        ModernButton(btn_frame, text="Apply selected", command=apply_changes, style="success", padx=20, pady=8).pack(side=tk.RIGHT, padx=20)
-        ModernButton(btn_frame, text="Cancel", command=dialog.destroy, padx=16, pady=8).pack(side=tk.RIGHT)
+        ModernButton(btn_frame, text=_("Select all"), command=select_all, padx=12, pady=6).pack(side=tk.LEFT, padx=(20, 8))
+        ModernButton(btn_frame, text=_("Select none"), command=select_none, padx=12, pady=6).pack(side=tk.LEFT)
+        ModernButton(btn_frame, text=_("Apply selected"), command=apply_changes, style="success", padx=20, pady=8).pack(side=tk.RIGHT, padx=20)
+        ModernButton(btn_frame, text=_("Cancel"), command=dialog.destroy, padx=16, pady=8).pack(side=tk.RIGHT)
         dialog.bind("<Escape>", lambda e: dialog.destroy())

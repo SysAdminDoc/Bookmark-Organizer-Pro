@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from io import BytesIO
 import hashlib
 import tkinter as tk
+from io import BytesIO
 from tkinter import filedialog, messagebox, ttk
 from typing import Callable, List, Optional
 from urllib.parse import urlparse
 
+from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.services.egress import public_egress as requests
 
 try:
@@ -61,7 +62,7 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         
         theme = get_theme()
         
-        self.title("Add Bookmark")
+        self.title(_("Add Bookmark"))
         self.geometry("560x420")
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
@@ -75,12 +76,12 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         header.pack(fill=tk.X)
 
         tk.Label(
-            header, text="Add bookmark", bg=theme.bg_dark,
+            header, text=_("Add bookmark"), bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.title(bold=True)
         ).pack(anchor="w", padx=24, pady=(18, 3))
 
         tk.Label(
-            header, text="Paste a URL now. You can refine title, category, and icon before saving.",
+            header, text=_("Paste a URL now. You can refine title, category, and icon before saving."),
             bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small()
         ).pack(anchor="w", padx=24, pady=(0, 16))
         
@@ -89,7 +90,7 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         url_frame.pack(fill=tk.X, padx=24, pady=(18, 10))
         
         tk.Label(
-            url_frame, text="URL", bg=theme.bg_primary,
+            url_frame, text=_("URL"), bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.small(bold=True),
             width=10, anchor="w"
         ).pack(side=tk.LEFT)
@@ -109,7 +110,7 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         title_frame.pack(fill=tk.X, padx=24, pady=(0, 10))
         
         tk.Label(
-            title_frame, text="Title", bg=theme.bg_primary,
+            title_frame, text=_("Title"), bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.small(bold=True),
             width=10, anchor="w"
         ).pack(side=tk.LEFT)
@@ -132,7 +133,7 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         cat_frame.pack(fill=tk.X, padx=24, pady=(0, 10))
         
         tk.Label(
-            cat_frame, text="Category", bg=theme.bg_primary,
+            cat_frame, text=_("Category"), bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.small(bold=True),
             width=10, anchor="w"
         ).pack(side=tk.LEFT)
@@ -150,13 +151,13 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         favicon_frame.pack(fill=tk.X, padx=24, pady=(0, 8))
         
         tk.Label(
-            favicon_frame, text="Icon", bg=theme.bg_primary,
+            favicon_frame, text=_("Icon"), bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.small(bold=True),
             width=10, anchor="w"
         ).pack(side=tk.LEFT)
 
         tk.Label(
-            favicon_frame, text="Custom favicon (optional)", bg=theme.bg_primary,
+            favicon_frame, text=_("Custom favicon (optional)"), bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.small()
         ).pack(side=tk.LEFT, padx=(5, 10))
         
@@ -179,7 +180,7 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         
         # Browse button
         browse_btn = ModernButton(
-            favicon_input_frame, text="Browse",
+            favicon_input_frame, text=_("Browse"),
             command=self._browse_favicon, padx=10, pady=5
         )
         browse_btn.pack(side=tk.LEFT, padx=5)
@@ -195,11 +196,11 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         btn_frame.pack(fill=tk.X, padx=24, pady=(12, 20))
         
         ModernButton(
-            btn_frame, text="Cancel", command=self.destroy
+            btn_frame, text=_("Cancel"), command=self.destroy
         ).pack(side=tk.RIGHT, padx=(10, 0))
         
         ModernButton(
-            btn_frame, text="Add bookmark", command=self._add,
+            btn_frame, text=_("Add bookmark"), command=self._add,
             style="primary"
         ).pack(side=tk.RIGHT)
         
@@ -253,7 +254,7 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         """Browse for a local favicon image"""
         self._clear_favicon_placeholder()
         filepath = filedialog.askopenfilename(
-            title="Select Favicon Image",
+            title=_("Select Favicon Image"),
             filetypes=[
                 ("Image files", "*.png *.ico *.jpg *.jpeg *.gif *.bmp"),
                 ("All files", "*.*")
@@ -320,15 +321,15 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
             if favicon_input.startswith(('http://', 'https://')):
                 if not URLUtilities._is_safe_url(favicon_input):
                     messagebox.showerror(
-                        "Favicon Not Available",
-                        "Private or unsupported favicon URLs cannot be downloaded.",
+                        _("Favicon Not Available"),
+                        _("Private or unsupported favicon URLs cannot be downloaded."),
                         parent=self
                     )
                     return None
                 if requests is None:
                     messagebox.showerror(
-                        "Favicon Not Available",
-                        "The requests package is required to download favicon URLs.",
+                        _("Favicon Not Available"),
+                        _("The requests package is required to download favicon URLs."),
                         parent=self
                     )
                     return None
@@ -336,8 +337,8 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
                 if resp.status_code >= 400:
                     resp.close()
                     messagebox.showerror(
-                        "Favicon Not Available",
-                        f"The favicon URL returned HTTP {resp.status_code}.",
+                        _("Favicon Not Available"),
+                        format_message('The favicon URL returned HTTP {value_0}.', value_0=resp.status_code),
                         parent=self
                     )
                     return None
@@ -349,8 +350,8 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
                         content.extend(chunk)
                         if len(content) > 1_000_000:
                             messagebox.showerror(
-                                "Favicon Too Large",
-                                "Choose an image smaller than 1 MB.",
+                                _("Favicon Too Large"),
+                                _("Choose an image smaller than 1 MB."),
                                 parent=self
                             )
                             return None
@@ -393,7 +394,7 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
             favicon_placeholder_active=self._favicon_placeholder_active,
         )
         if not payload:
-            messagebox.showwarning("Bookmark URL Needed", error, parent=self)
+            messagebox.showwarning(_("Bookmark URL Needed"), error, parent=self)
             self.url_entry.focus_set()
             self.url_entry.select_range(0, tk.END)
             return

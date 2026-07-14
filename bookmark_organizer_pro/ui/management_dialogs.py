@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import Callable
 
+from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services import FaviconWrapperGenerator
 from bookmark_organizer_pro.services.category_delete_recovery import CategoryDeleteRecovery
@@ -35,7 +36,7 @@ class CategoryManagementDialog(tk.Toplevel):
         )
         self._last_deleted_category = self._category_delete_recovery.pending()
         
-        self.title("Manage Categories")
+        self.title(_("Manage Categories"))
         self.configure(bg=theme.bg_primary)
         self.geometry("560x660")
         self.transient(parent)
@@ -48,18 +49,18 @@ class CategoryManagementDialog(tk.Toplevel):
         header.pack_propagate(False)
         
         tk.Label(
-            header, text="Manage Categories", bg=theme.bg_dark,
+            header, text=_("Manage Categories"), bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.title(bold=True)
         ).pack(anchor="w", padx=DesignTokens.PANEL_PAD, pady=(11, 1))
         
         tk.Label(
-            header, text="Keep your collection structure clean and predictable.",
+            header, text=_("Keep your collection structure clean and predictable."),
             bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small()
         ).pack(anchor="w", padx=DesignTokens.PANEL_PAD, pady=(0, 9))
         
         # Add category section
         add_frame = tk.LabelFrame(
-            self, text=" Add New Category ", bg=theme.bg_primary,
+            self, text=_(" Add New Category "), bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.body()
         )
         add_frame.pack(fill=tk.X, padx=20, pady=(0, 15))
@@ -81,14 +82,14 @@ class CategoryManagementDialog(tk.Toplevel):
         self.new_cat_entry.bind("<Return>", lambda e: self._add_category())
         
         add_btn = ModernButton(
-            add_inner, text="Add", style="success",
+            add_inner, text=_("Add"), style="success",
             command=self._add_category
         )
         add_btn.pack(side=tk.RIGHT)
         
         # Category list
         list_frame = tk.LabelFrame(
-            self, text=" Existing Categories ", bg=theme.bg_primary,
+            self, text=_(" Existing Categories "), bg=theme.bg_primary,
             fg=theme.text_secondary, font=FONTS.body()
         )
         list_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 15))
@@ -124,12 +125,12 @@ class CategoryManagementDialog(tk.Toplevel):
         ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
 
         ModernButton(
-            footer, text="Close", command=self.destroy,
+            footer, text=_("Close"), command=self.destroy,
             padx=22, pady=9
         ).pack(side=tk.RIGHT)
 
         ModernButton(
-            footer, text="Restore Last Delete", command=self._restore_last_deleted_category,
+            footer, text=_("Restore Last Delete"), command=self._restore_last_deleted_category,
             padx=16, pady=9
         ).pack(side=tk.RIGHT, padx=(10, 0))
 
@@ -169,7 +170,7 @@ class CategoryManagementDialog(tk.Toplevel):
         if not categories:
             tk.Label(
                 self.cat_list_frame,
-                text="No categories yet. Create one above or import bookmarks to seed the list.",
+                text=_("No categories yet. Create one above or import bookmarks to seed the list."),
                 bg=theme.bg_primary, fg=theme.text_secondary,
                 font=FONTS.body(), wraplength=460,
                 justify=tk.LEFT, padx=12, pady=18
@@ -193,7 +194,7 @@ class CategoryManagementDialog(tk.Toplevel):
             
             # Icon and name
             tk.Label(
-                row, text=f"{cat.icon} {cat_name}", bg=theme.bg_secondary,
+                row, text=format_message('{value_0} {value_1}', value_0=cat.icon, value_1=cat_name), bg=theme.bg_secondary,
                 fg=theme.text_primary, font=FONTS.body(bold=True), anchor="w"
             ).pack(side=tk.LEFT, padx=(12, 8), pady=9)
             
@@ -210,7 +211,7 @@ class CategoryManagementDialog(tk.Toplevel):
             
             # Edit button
             edit_btn = tk.Label(
-                btn_frame, text="Rename", bg=theme.bg_secondary,
+                btn_frame, text=_("Rename"), bg=theme.bg_secondary,
                 fg=theme.text_secondary, font=FONTS.small(), cursor="hand2",
                 padx=4
             )
@@ -220,7 +221,7 @@ class CategoryManagementDialog(tk.Toplevel):
 
             # Delete button
             del_btn = tk.Label(
-                btn_frame, text="Delete", bg=theme.bg_secondary,
+                btn_frame, text=_("Delete"), bg=theme.bg_secondary,
                 fg=theme.accent_error, font=FONTS.small(), cursor="hand2",
                 padx=4
             )
@@ -244,8 +245,8 @@ class CategoryManagementDialog(tk.Toplevel):
                     self.on_change()
             else:
                 messagebox.showerror(
-                    "Category not added",
-                    "That category already exists or the name is not valid.",
+                    _("Category not added"),
+                    _("That category already exists or the name is not valid."),
                     parent=self
                 )
     
@@ -254,7 +255,7 @@ class CategoryManagementDialog(tk.Toplevel):
         theme = get_theme()
         
         dialog = tk.Toplevel(self)
-        dialog.title("Edit Category")
+        dialog.title(_("Edit Category"))
         dialog.configure(bg=theme.bg_primary)
         dialog.geometry("350x150")
         dialog.transient(self)
@@ -262,7 +263,7 @@ class CategoryManagementDialog(tk.Toplevel):
         apply_window_chrome(dialog)
         
         tk.Label(
-            dialog, text="New name:", bg=theme.bg_primary,
+            dialog, text=_("New name:"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.body()
         ).pack(pady=(20, 5))
         
@@ -292,7 +293,7 @@ class CategoryManagementDialog(tk.Toplevel):
                 dialog.destroy()
         
         ModernButton(
-            dialog, text="Save", command=save,
+            dialog, text=_("Save"), command=save,
             padx=24, pady=8, style="primary"
         ).pack(pady=15)
         entry.bind("<Return>", lambda e: save())
@@ -412,7 +413,7 @@ class CustomFaviconDialog(tk.Toplevel):
         self.on_update = on_update
         self.selected_favicon = None
         
-        self.title("Custom Favicon")
+        self.title(_("Custom Favicon"))
         self.configure(bg=theme.bg_primary)
         self.geometry("450x350")
         self.transient(parent)
@@ -421,12 +422,12 @@ class CustomFaviconDialog(tk.Toplevel):
         
         # Header
         tk.Label(
-            self, text="Set Custom Favicon", bg=theme.bg_primary,
+            self, text=_("Set Custom Favicon"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.title(bold=False)
         ).pack(pady=(20, 5))
         
         tk.Label(
-            self, text=f"For: {bookmark.title[:50]}", bg=theme.bg_primary,
+            self, text=format_message('For: {value_0}', value_0=bookmark.title[:50]), bg=theme.bg_primary,
             fg=theme.text_muted, font=FONTS.body()
         ).pack(pady=(0, 15))
         
@@ -435,42 +436,42 @@ class CustomFaviconDialog(tk.Toplevel):
         preview_frame.pack(pady=15, padx=20)
         
         tk.Label(
-            preview_frame, text="Current:", bg=theme.bg_secondary,
+            preview_frame, text=_("Current:"), bg=theme.bg_secondary,
             fg=theme.text_secondary, font=FONTS.body()
         ).pack(side=tk.LEFT, padx=10, pady=10)
         
         self.preview_label = tk.Label(
-            preview_frame, text="Site", bg=theme.bg_secondary,
+            preview_frame, text=_("Site"), bg=theme.bg_secondary,
             fg=theme.text_secondary, font=FONTS.body(bold=True)
         )
         self.preview_label.pack(side=tk.LEFT, padx=10, pady=10)
 
         tk.Label(
-            preview_frame, text="→", bg=theme.bg_secondary,
+            preview_frame, text=_("→"), bg=theme.bg_secondary,
             fg=theme.text_muted, font=FONTS.subtitle(bold=False)
         ).pack(side=tk.LEFT, padx=10)
 
         tk.Label(
-            preview_frame, text="New:", bg=theme.bg_secondary,
+            preview_frame, text=_("New:"), bg=theme.bg_secondary,
             fg=theme.text_secondary, font=FONTS.body()
         ).pack(side=tk.LEFT, padx=10, pady=10)
 
         self.new_preview = tk.Label(
-            preview_frame, text="?", bg=theme.bg_secondary,
+            preview_frame, text=_("?"), bg=theme.bg_secondary,
             font=FONTS.hero(bold=False), fg=theme.text_muted
         )
         self.new_preview.pack(side=tk.LEFT, padx=10, pady=10)
         
         # Select button
         ModernButton(
-            self, text="Select Favicon Image",
+            self, text=_("Select Favicon Image"),
             command=self._select_favicon, padx=20, pady=8
         ).pack(pady=15)
         
         # Info
         tk.Label(
-            self, text="Note: This creates a wrapper page with your custom icon.\n"
-                      "The wrapper redirects instantly to the original site.",
+            self, text=_("Note: This creates a wrapper page with your custom icon.\n"
+                      "The wrapper redirects instantly to the original site."),
             bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.small(),
             justify=tk.CENTER
         ).pack(pady=10)
@@ -487,12 +488,12 @@ class CustomFaviconDialog(tk.Toplevel):
         btn_frame.pack(pady=20)
         
         ModernButton(
-            btn_frame, text="Apply", command=self._apply,
+            btn_frame, text=_("Apply"), command=self._apply,
             padx=25, pady=8, style="primary"
         ).pack(side=tk.LEFT, padx=5)
         
         ModernButton(
-            btn_frame, text="Cancel", command=self.destroy,
+            btn_frame, text=_("Cancel"), command=self.destroy,
             padx=25, pady=8
         ).pack(side=tk.LEFT, padx=5)
 
@@ -502,7 +503,7 @@ class CustomFaviconDialog(tk.Toplevel):
     def _select_favicon(self):
         """Select favicon image"""
         filepath = filedialog.askopenfilename(
-            title="Select Favicon Image",
+            title=_("Select Favicon Image"),
             filetypes=[
                 ("Image Files", "*.png *.ico *.jpg *.jpeg *.gif"),
                 ("PNG", "*.png"),
@@ -521,7 +522,7 @@ class CustomFaviconDialog(tk.Toplevel):
                 self._preview_img = ImageTk.PhotoImage(img)
                 self.new_preview.configure(image=self._preview_img, text="")
             except Exception:
-                self.new_preview.configure(text="✓", fg=get_theme().accent_success)
+                self.new_preview.configure(text=_("✓"), fg=get_theme().accent_success)
             self._set_status("Favicon image selected.")
 
     def _set_status(self, message: str):
@@ -544,8 +545,8 @@ class CustomFaviconDialog(tk.Toplevel):
             self.after(750, self.destroy)
         else:
             messagebox.showerror(
-                "Favicon not applied",
-                "Could not create the favicon wrapper page.",
+                _("Favicon not applied"),
+                _("Could not create the favicon wrapper page."),
                 parent=self
             )
 

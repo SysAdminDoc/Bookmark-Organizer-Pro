@@ -8,12 +8,13 @@ import tkinter as tk
 from tkinter import ttk
 
 from bookmark_organizer_pro.constants import APP_NAME
+from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.utils.dependencies import DependencyInstallReport, DependencyManager
 
 from .foundation import FONTS
-from .window_geometry import apply_screen_aware_geometry
 from .widgets import ModernButton, apply_window_chrome, get_theme
+from .window_geometry import apply_screen_aware_geometry
 
 
 class DependencyCheckDialog(tk.Toplevel):
@@ -31,7 +32,7 @@ class DependencyCheckDialog(tk.Toplevel):
 
         theme = get_theme()
 
-        self.title(f"{APP_NAME} - Setup Check")
+        self.title(format_message('{value_0} - Setup Check', value_0=APP_NAME))
         apply_screen_aware_geometry(self, 500, 400)
         self.minsize(420, 340)
         self.resizable(True, True)
@@ -54,7 +55,7 @@ class DependencyCheckDialog(tk.Toplevel):
 
         tk.Label(
             header,
-            text="Setup Check",
+            text=_("Setup Check"),
             font=FONTS.subtitle(bold=True),
             bg=theme.bg_secondary,
             fg=theme.text_primary,
@@ -63,7 +64,7 @@ class DependencyCheckDialog(tk.Toplevel):
         tk.Label(
             header,
             text=(
-                "Install required packages now, or continue with optional features disabled."
+                _("Install required packages now, or continue with optional features disabled.")
                 if install_supported
                 else self.dep_manager.repair_guidance()
             ),
@@ -80,7 +81,7 @@ class DependencyCheckDialog(tk.Toplevel):
         if self.dep_manager.missing_required:
             tk.Label(
                 content,
-                text="Required Packages",
+                text=_("Required Packages"),
                 font=FONTS.small(bold=True),
                 bg=theme.bg_primary,
                 fg=theme.accent_error,
@@ -92,14 +93,14 @@ class DependencyCheckDialog(tk.Toplevel):
                 frame.pack(fill=tk.X, pady=2)
                 tk.Label(
                     frame,
-                    text=f"Required: {package}",
+                    text=format_message('Required: {value_0}', value_0=package),
                     font=FONTS.small(),
                     bg=theme.bg_primary,
                     fg=theme.text_primary,
                 ).pack(side=tk.LEFT)
                 tk.Label(
                     frame,
-                    text=f"- {info['description']}",
+                    text=format_message('- {value_0}', value_0=info['description']),
                     font=FONTS.tiny(),
                     bg=theme.bg_primary,
                     fg=theme.text_muted,
@@ -108,7 +109,7 @@ class DependencyCheckDialog(tk.Toplevel):
         if self.dep_manager.missing_optional:
             tk.Label(
                 content,
-                text="Optional Packages",
+                text=_("Optional Packages"),
                 font=FONTS.small(bold=True),
                 bg=theme.bg_primary,
                 fg=theme.accent_warning,
@@ -120,14 +121,14 @@ class DependencyCheckDialog(tk.Toplevel):
                 frame.pack(fill=tk.X, pady=2)
                 tk.Label(
                     frame,
-                    text=f"Optional: {package}",
+                    text=format_message('Optional: {value_0}', value_0=package),
                     font=FONTS.small(),
                     bg=theme.bg_primary,
                     fg=theme.text_primary,
                 ).pack(side=tk.LEFT)
                 tk.Label(
                     frame,
-                    text=f"- {info['description']}",
+                    text=format_message('- {value_0}', value_0=info['description']),
                     font=FONTS.tiny(),
                     bg=theme.bg_primary,
                     fg=theme.text_muted,
@@ -156,7 +157,7 @@ class DependencyCheckDialog(tk.Toplevel):
         if install_supported:
             self.install_btn = ModernButton(
                 btn_frame,
-                text="Install All",
+                text=_("Install All"),
                 font=FONTS.small(),
                 style="primary",
                 padx=20,
@@ -169,7 +170,7 @@ class DependencyCheckDialog(tk.Toplevel):
         if not self.dep_manager.missing_required:
             self.skip_btn = ModernButton(
                 btn_frame,
-                text="Continue Without Optional",
+                text=_("Continue Without Optional"),
                 font=FONTS.small(),
                 padx=15,
                 pady=8,
@@ -179,7 +180,7 @@ class DependencyCheckDialog(tk.Toplevel):
 
         self.cancel_btn = ModernButton(
             btn_frame,
-            text="Cancel",
+            text=_("Cancel"),
             font=FONTS.small(),
             padx=15,
             pady=8,
@@ -255,13 +256,13 @@ class DependencyCheckDialog(tk.Toplevel):
             return
 
         if success or not self.dep_manager.missing_required:
-            self.progress_label.configure(text="Installation complete.", fg=theme.accent_success)
+            self.progress_label.configure(text=_("Installation complete."), fg=theme.accent_success)
             self.result = True
             self.after(1000, self.destroy)
             return
 
         self.progress_label.configure(
-            text="Some installations failed. Check your internet connection.",
+            text=_("Some installations failed. Check your internet connection."),
             fg=theme.accent_error,
         )
         self.install_btn.set_state("normal")
@@ -280,7 +281,7 @@ class DependencyCheckDialog(tk.Toplevel):
             return
         self._cancel_requested = True
         self.progress_label.configure(
-            text="Cancelling installer safely...",
+            text=_("Cancelling installer safely..."),
             fg=self._theme.accent_warning,
         )
         self.cancel_btn.set_state("disabled")

@@ -7,13 +7,14 @@ import tkinter as tk
 from tkinter import colorchooser, filedialog, messagebox, ttk
 from typing import Dict, List, Tuple
 
-from bookmark_organizer_pro.i18n import N_, _, layout_anchor, layout_side
+from bookmark_organizer_pro.i18n import N_, _, format_message, layout_anchor, layout_side
 
 from .foundation import FONTS, readable_text_on
 from .theme import ThemeColors, ThemeInfo, ThemeManager, theme_contrast_report
 from .tk_interactions import bind_scoped_mousewheel
 from .widget_controls import ModernButton, ThemedWidget
 from .widget_runtime import apply_window_chrome, get_theme
+
 
 # =============================================================================
 # Custom Theme Creator Dialog
@@ -268,7 +269,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
     def _pick_color(self, field_name: str):
         """Open color picker for a field"""
         current = self.color_vars[field_name].get()
-        color = colorchooser.askcolor(color=current, title=f"Choose {field_name}")
+        color = colorchooser.askcolor(color=current, title=format_message('Choose {value_0}', value_0=field_name))
         if color[1]:
             self.color_vars[field_name].set(color[1])
     
@@ -325,7 +326,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
             for item in report
         )
         self.contrast_status.configure(
-            text=("Contrast passes — " if not failed else "Contrast needs attention — ") + summary,
+            text=(_("Contrast passes — ") if not failed else _("Contrast needs attention — ")) + summary,
             fg=theme.accent_success if not failed else theme.accent_error,
         )
     
@@ -550,7 +551,7 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
             
             mode_text = _("Dark") if theme_info.is_dark else _("Light")
             tk.Label(
-                info_frame, text=f"{mode_text} • {theme_info.author}",
+                info_frame, text=format_message('{value_0} • {value_1}', value_0=mode_text, value_1=theme_info.author),
                 bg=info_frame.cget('bg'),
                 fg=theme.text_secondary,
                 font=FONTS.small()

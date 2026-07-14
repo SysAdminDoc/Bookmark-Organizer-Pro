@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
 from pathlib import Path
+from tkinter import filedialog, messagebox, ttk
 from typing import List
 
 from bookmark_organizer_pro.i18n import _
@@ -297,7 +297,7 @@ class ReaderViewDialog(tk.Toplevel):
                 note=note,
             )
         except ValueError as exc:
-            messagebox.showerror("Reader", str(exc), parent=self)
+            messagebox.showerror(_("Reader"), str(exc), parent=self)
             return
         self.note_text.delete("1.0", tk.END)
         self._load_highlights()

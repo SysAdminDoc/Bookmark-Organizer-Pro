@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
 import tkinter as tk
+from datetime import datetime, timedelta
 from tkinter import ttk
 from typing import Any, Callable, Dict, List
 
+from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.models import Bookmark
 
 from .foundation import FONTS
 from .tk_interactions import make_keyboard_activatable
 from .widget_controls import ThemedWidget, Tooltip
 from .widget_runtime import get_theme
+
 
 # =============================================================================
 # Smart Filters Panel
@@ -33,7 +35,7 @@ class SmartFiltersPanel(tk.Frame, ThemedWidget):
         header.pack(fill=tk.X)
         
         self.toggle_btn = tk.Label(
-            header, text="◀", bg=theme.bg_tertiary,
+            header, text=_("◀"), bg=theme.bg_tertiary,
             fg=theme.text_primary, font=FONTS.body(),
             cursor="hand2", padx=10, pady=8
         )
@@ -42,13 +44,13 @@ class SmartFiltersPanel(tk.Frame, ThemedWidget):
         Tooltip(self.toggle_btn, "Collapse Smart Filters")
         
         tk.Label(
-            header, text="Smart Filters", bg=theme.bg_tertiary,
+            header, text=_("Smart Filters"), bg=theme.bg_tertiary,
             fg=theme.text_primary, font=FONTS.small(bold=True),
             pady=8
         ).pack(side=tk.LEFT)
         
         self.clear_btn = tk.Label(
-            header, text="Clear", bg=theme.bg_tertiary,
+            header, text=_("Clear"), bg=theme.bg_tertiary,
             fg=theme.accent_primary, font=FONTS.small(),
             cursor="hand2", padx=10
         )
@@ -73,7 +75,7 @@ class SmartFiltersPanel(tk.Frame, ThemedWidget):
         date_frame.pack(fill=tk.X, pady=5)
         
         tk.Label(
-            date_frame, text="From:", bg=theme.bg_secondary,
+            date_frame, text=_("From:"), bg=theme.bg_secondary,
             fg=theme.text_secondary, font=FONTS.small()
         ).pack(side=tk.LEFT)
         
@@ -87,7 +89,7 @@ class SmartFiltersPanel(tk.Frame, ThemedWidget):
         date_from.bind("<FocusIn>", lambda e: date_from.delete(0, tk.END) if date_from.get() == "YYYY-MM-DD" else None)
         
         tk.Label(
-            date_frame, text="To:", bg=theme.bg_secondary,
+            date_frame, text=_("To:"), bg=theme.bg_secondary,
             fg=theme.text_secondary, font=FONTS.small()
         ).pack(side=tk.LEFT, padx=(10, 0))
         
@@ -161,7 +163,7 @@ class SmartFiltersPanel(tk.Frame, ThemedWidget):
         confidence_frame.pack(fill=tk.X, pady=5)
         
         self.confidence_label = tk.Label(
-            confidence_frame, text="Min: 0%", bg=theme.bg_secondary,
+            confidence_frame, text=_("Min: 0%"), bg=theme.bg_secondary,
             fg=theme.text_secondary, font=FONTS.small()
         )
         self.confidence_label.pack(side=tk.LEFT)
@@ -188,11 +190,11 @@ class SmartFiltersPanel(tk.Frame, ThemedWidget):
         
         if self.is_collapsed:
             self.content.pack_forget()
-            self.toggle_btn.configure(text="▶")
+            self.toggle_btn.configure(text=_("▶"))
             self.configure(width=40)
         else:
             self.content.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-            self.toggle_btn.configure(text="◀")
+            self.toggle_btn.configure(text=_("◀"))
             self.configure(width=250)
     
     def _clear_filters(self, e=None):
@@ -219,7 +221,7 @@ class SmartFiltersPanel(tk.Frame, ThemedWidget):
     
     def _on_confidence_change(self, value):
         """Handle confidence slider change"""
-        self.confidence_label.configure(text=f"Min: {int(float(value))}%")
+        self.confidence_label.configure(text=format_message('Min: {value_0}%', value_0=int(float(value))))
         self._on_change()
     
     def _on_change(self):

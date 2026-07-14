@@ -47,7 +47,7 @@ def test_dependency_dialog_waits_for_real_installer_cancellation():
     source = (ROOT / "bookmark_organizer_pro/ui/dependencies.py").read_text(encoding="utf-8")
     manager_source = (ROOT / "bookmark_organizer_pro/utils/dependencies.py").read_text(encoding="utf-8")
 
-    assert 'text="Cancelling installer safely..."' in source
+    assert 'text=_("Cancelling installer safely...")' in source
     assert "self.dep_manager.cancel_installation()" in source
     assert "DependencyInstallReport" in source
     assert "self._post_ui" in source

@@ -7,11 +7,11 @@ from tkinter import ttk
 from typing import Dict
 
 from bookmark_organizer_pro.constants import APP_VERSION
-from bookmark_organizer_pro.i18n import _
+from bookmark_organizer_pro.i18n import _, format_message
+from bookmark_organizer_pro.ui.components import EnhancedProgressBar, FaviconStatusDisplay
 from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, format_compact_count, pluralize, truncate_middle
 from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable, route_pointer_to_control
 from bookmark_organizer_pro.ui.view_models import build_collection_pulse, build_collection_summary
-from bookmark_organizer_pro.ui.components import EnhancedProgressBar, FaviconStatusDisplay
 from bookmark_organizer_pro.ui.widgets import ModernButton, Tooltip, get_theme
 
 
@@ -63,7 +63,7 @@ class DashboardActionsMixin:
         block = tk.Frame(parent, bg=theme.bg_card)
         block.pack(side=tk.LEFT, padx=(8, 0))
         value_lbl = tk.Label(
-            block, text="0", bg=theme.bg_card, fg=color,
+            block, text=_("0"), bg=theme.bg_card, fg=color,
             font=FONTS.title(bold=True), width=3, anchor="e"
         )
         value_lbl.pack(anchor="e")
@@ -170,7 +170,7 @@ class DashboardActionsMixin:
             return
         count = len(self.selected_bookmarks)
         if count:
-            self.selection_count_label.configure(text=f"{pluralize(count, 'bookmark')} selected")
+            self.selection_count_label.configure(text=format_message('{value_0} selected', value_0=pluralize(count, 'bookmark')))
             if not self.selection_bar.winfo_ismapped():
                 self.selection_bar.pack(
                     fill=tk.X,
@@ -193,7 +193,7 @@ class DashboardActionsMixin:
             padx=DesignTokens.PANEL_PAD, pady=14,
         ).pack(side=tk.LEFT)
         refresh_btn = tk.Label(
-            header, text="↻", bg=theme.bg_dark,
+            header, text=_("↻"), bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.subtitle(),
             cursor="hand2", padx=DesignTokens.SPACE_SM,
         )
@@ -248,7 +248,7 @@ class DashboardActionsMixin:
                 style=tk.ARC, outline=health_color, width=11,
             )
         ring.create_text(
-            57, 49, text=f"{pulse.health_score}%",
+            57, 49, text=format_message('{value_0}%', value_0=pulse.health_score),
             fill=health_color, font=FONTS.title(bold=True),
         )
         ring.create_text(
@@ -266,7 +266,7 @@ class DashboardActionsMixin:
             row = tk.Frame(legend, bg=theme.bg_card)
             row.pack(fill=tk.X, pady=4)
             tk.Label(
-                row, text="■", bg=theme.bg_card, fg=color,
+                row, text=_("■"), bg=theme.bg_card, fg=color,
                 font=FONTS.tiny(),
             ).pack(side=tk.LEFT, padx=(0, 6))
             tk.Label(
@@ -314,7 +314,7 @@ class DashboardActionsMixin:
         )
         action_card.pack(fill=tk.X)
         tk.Label(
-            action_card, text="◎", bg=theme.bg_tertiary,
+            action_card, text=_("◎"), bg=theme.bg_tertiary,
             fg=theme.accent_primary, font=FONTS.title(bold=True),
             width=3, pady=7,
         ).pack(side=tk.LEFT, padx=12, pady=12)
@@ -330,7 +330,7 @@ class DashboardActionsMixin:
             wraplength=210, justify=tk.LEFT, anchor="w",
         ).pack(fill=tk.X, pady=(3, 0))
         tk.Label(
-            action_card, text="›", bg=theme.bg_card,
+            action_card, text=_("›"), bg=theme.bg_card,
             fg=theme.text_secondary, font=FONTS.title(),
         ).pack(side=tk.RIGHT, padx=12)
         callback = lambda: self._run_pulse_action(pulse.action_key)
@@ -611,7 +611,7 @@ class DashboardActionsMixin:
             dead_row = tk.Frame(self.analytics_frame, bg=theme.bg_secondary, cursor="hand2")
             dead_row.pack(fill=tk.X, pady=2)
             dead_lbl = tk.Label(
-                dead_row, text=f"Review {dead_count} broken link(s)", bg=theme.bg_secondary,
+                dead_row, text=format_message('Review {value_0} broken link(s)', value_0=dead_count), bg=theme.bg_secondary,
                 fg=theme.accent_error, font=FONTS.small(bold=True), cursor="hand2",
             )
             dead_lbl.pack(side=tk.LEFT)
@@ -626,7 +626,7 @@ class DashboardActionsMixin:
             snap_row.pack(fill=tk.X, pady=2)
             snap_lbl = tk.Label(
                 snap_row,
-                text=f"Review {retryable} retryable failure(s)",
+                text=format_message('Review {value_0} retryable failure(s)', value_0=retryable),
                 bg=theme.bg_secondary,
                 fg=theme.accent_warning,
                 font=FONTS.small(bold=True),
@@ -807,7 +807,7 @@ class DashboardActionsMixin:
         
         # Total count
         self.status_total_label = tk.Label(
-            right_frame, text="0 items", bg=theme.bg_dark,
+            right_frame, text=_("0 items"), bg=theme.bg_dark,
             fg=theme.text_secondary, font=FONTS.small()
         )
         self.status_total_label.pack(side=tk.LEFT, padx=DesignTokens.SPACE_SM)
@@ -818,6 +818,6 @@ class DashboardActionsMixin:
         
         # Version
         tk.Label(
-            right_frame, text=f"v{APP_VERSION}", bg=theme.bg_dark,
+            right_frame, text=format_message('v{value_0}', value_0=APP_VERSION), bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.tiny()
         ).pack(side=tk.LEFT, padx=DesignTokens.SPACE_MD)

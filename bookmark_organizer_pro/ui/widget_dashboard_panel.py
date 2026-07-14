@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import tkinter as tk
 
-from bookmark_organizer_pro.i18n import _, layout_anchor, layout_side
+from bookmark_organizer_pro.i18n import _, format_message, layout_anchor, layout_side
 from bookmark_organizer_pro.managers import BookmarkManager
 
 from .foundation import FONTS
 from .view_models import DashboardStatisticsViewModel, build_dashboard_statistics
 from .widget_controls import ThemedWidget
 from .widget_runtime import get_theme
+
 
 # =============================================================================
 # Analytics Dashboard
@@ -183,7 +184,7 @@ class DashboardPanel(tk.Frame, ThemedWidget):
         
         # Count
         tk.Label(
-            row, text=f"{value} ({pct:.1f}%)", bg=self.theme.bg_primary,
+            row, text=format_message('{value_0} ({value_1:.1f}%)', value_0=value, value_1=pct), bg=self.theme.bg_primary,
             fg=self.theme.text_muted, font=FONTS.small(), width=12
         ).pack(side=layout_side(tk.RIGHT))
     

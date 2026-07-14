@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 import time
+from datetime import datetime
 from typing import List
 
 from bookmark_organizer_pro.ai import create_failover_client
+from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.ai_audit_log import log_categorize, log_title_improvement
@@ -39,7 +40,7 @@ class AiCategorizationMixin:
     def _run_ai_categorization_live(self, bookmarks: List[Bookmark]):
         """Run AI categorization with a live, drip-revealed activity feed."""
         dialog = LiveWorkflowDialog(
-            self.root, title="AI Categorization", total=len(bookmarks),
+            self.root, title=_("AI Categorization"), total=len(bookmarks),
             width=700, height=580,
         )
 

@@ -6,6 +6,7 @@ import tkinter as tk
 import webbrowser
 from datetime import datetime
 
+from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.ui.foundation import pluralize
 from bookmark_organizer_pro.ui.widgets import get_theme
@@ -77,15 +78,15 @@ class SelectionActionsMixin:
         
         menu = tk.Menu(self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
                       activebackground=theme.bg_hover, activeforeground=theme.text_primary)
-        menu.add_command(label="Open in Browser", command=self._open_selected)
-        menu.add_command(label="Reader View", command=self._open_reader_view)
-        menu.add_command(label="Edit Bookmark", command=self._edit_selected)
+        menu.add_command(label=_("Open in Browser"), command=self._open_selected)
+        menu.add_command(label=_("Reader View"), command=self._open_reader_view)
+        menu.add_command(label=_("Edit Bookmark"), command=self._edit_selected)
         menu.add_separator()
         
         # Search Domain option
         if first_bookmark and first_bookmark.domain:
             menu.add_command(
-                label=f"Filter by Domain ({first_bookmark.domain})",
+                label=format_message('Filter by Domain ({value_0})', value_0=first_bookmark.domain),
                 command=lambda: self._filter_by_domain(first_bookmark.domain)
             )
         
@@ -100,25 +101,25 @@ class SelectionActionsMixin:
                 command=lambda c=cat: self._send_to_category(c)
             )
         
-        menu.add_cascade(label="Move to Category", menu=send_to_menu)
+        menu.add_cascade(label=_("Move to Category"), menu=send_to_menu)
         menu.add_separator()
-        menu.add_command(label="Copy URL", command=self._copy_url)
-        menu.add_command(label="Toggle Pin", command=self._toggle_pin)
-        menu.add_command(label="Set Custom Favicon…", command=self._show_custom_favicon_dialog)
+        menu.add_command(label=_("Copy URL"), command=self._copy_url)
+        menu.add_command(label=_("Toggle Pin"), command=self._toggle_pin)
+        menu.add_command(label=_("Set Custom Favicon…"), command=self._show_custom_favicon_dialog)
         menu.add_separator()
         
         # AI Tools submenu
         ai_menu = tk.Menu(menu, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
                          activebackground=theme.bg_hover, activeforeground=theme.text_primary)
-        ai_menu.add_command(label="AI Categorize", command=self._ai_categorize)
-        ai_menu.add_command(label="Suggest Tags", command=self._ai_suggest_tags)
-        ai_menu.add_command(label="Summarize", command=self._ai_summarize)
-        ai_menu.add_command(label="Improve Titles", command=self._ai_improve_titles)
-        menu.add_cascade(label="Assistant Tools", menu=ai_menu)
+        ai_menu.add_command(label=_("AI Categorize"), command=self._ai_categorize)
+        ai_menu.add_command(label=_("Suggest Tags"), command=self._ai_suggest_tags)
+        ai_menu.add_command(label=_("Summarize"), command=self._ai_summarize)
+        ai_menu.add_command(label=_("Improve Titles"), command=self._ai_improve_titles)
+        menu.add_cascade(label=_("Assistant Tools"), menu=ai_menu)
 
         menu.add_separator()
-        menu.add_command(label="Mark as Needs Review", command=self._mark_as_broken)
-        menu.add_command(label="Delete", command=self._delete_selected)
+        menu.add_command(label=_("Mark as Needs Review"), command=self._mark_as_broken)
+        menu.add_command(label=_("Delete"), command=self._delete_selected)
         
         menu.tk_popup(event.x_root, event.y_root)
     

@@ -6,6 +6,7 @@ import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import ttk
 
+from bookmark_organizer_pro.i18n import format_message
 from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens
 
 
@@ -36,7 +37,7 @@ class ZoomActionsMixin:
     def _apply_zoom(self):
         """Apply zoom to ALL UI elements — fonts, spacing, widget sizes."""
         if self.zoom_label:
-            self.zoom_label.configure(text=f"{self.zoom_level}%")
+            self.zoom_label.configure(text=format_message('{value_0}%', value_0=self.zoom_level))
 
         scale = self.zoom_level / 100.0
 

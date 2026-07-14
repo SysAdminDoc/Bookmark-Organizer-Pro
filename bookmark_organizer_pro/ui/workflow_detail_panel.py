@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import tkinter as tk
 from datetime import datetime
 from pathlib import Path
-import tkinter as tk
 from typing import Callable, Optional
 
+from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.extraction_templates import (
     format_structured_value,
@@ -14,11 +15,12 @@ from bookmark_organizer_pro.services.extraction_templates import (
     structured_metadata_payload,
 )
 
-from .foundation import DesignTokens, FONTS, readable_text_on
+from .foundation import FONTS, DesignTokens, readable_text_on
 from .tk_interactions import make_keyboard_activatable
 from .widget_controls import ModernButton, ThemedWidget, create_tooltip
 from .widget_runtime import get_theme
 from .workflow_runtime import _open_external_url
+
 
 # =============================================================================
 # Split View with Details Panel
@@ -45,14 +47,14 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
         self.header.pack(fill=tk.X)
         
         tk.Label(
-            self.header, text="Bookmark Details", bg=theme.bg_tertiary,
+            self.header, text=_("Bookmark Details"), bg=theme.bg_tertiary,
             fg=theme.text_primary, font=FONTS.body(bold=True),
             padx=15, pady=12
         ).pack(side=tk.LEFT)
         
         # Close button
         close_btn = tk.Label(
-            self.header, text="✕", bg=theme.bg_tertiary,
+            self.header, text=_("✕"), bg=theme.bg_tertiary,
             fg=theme.text_muted, font=FONTS.header(bold=False),
             cursor="hand2", padx=15
         )
@@ -66,7 +68,7 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
         
         # Placeholder
         self.placeholder = tk.Label(
-            self.content, text="Select a bookmark to view details",
+            self.content, text=_("Select a bookmark to view details"),
             bg=theme.bg_secondary, fg=theme.text_muted,
             font=FONTS.body()
         )
@@ -115,17 +117,17 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
         actions.pack(fill=tk.X, pady=15)
         
         ModernButton(
-            actions, text="Open",
+            actions, text=_("Open"),
             command=lambda: self._open_bookmark()
         ).pack(side=tk.LEFT, padx=(0, 5))
         
         ModernButton(
-            actions, text="Edit",
+            actions, text=_("Edit"),
             command=lambda: self._edit_bookmark()
         ).pack(side=tk.LEFT, padx=(0, 5))
         
         ModernButton(
-            actions, text="Delete", style="danger",
+            actions, text=_("Delete"), style="danger",
             command=lambda: self._delete_bookmark()
         ).pack(side=tk.LEFT)
         
@@ -198,7 +200,7 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
             tk.Frame(self.content, bg=theme.border, height=1).pack(fill=tk.X, pady=15)
             
             tk.Label(
-                self.content, text="Notes:", bg=theme.bg_secondary,
+                self.content, text=_("Notes:"), bg=theme.bg_secondary,
                 fg=theme.text_secondary, font=FONTS.body(),
                 anchor="w"
             ).pack(fill=tk.X)
@@ -219,13 +221,13 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
         row.pack(fill=tk.X, pady=3)
         
         tk.Label(
-            row, text=f"{label}:", bg=theme.bg_secondary,
+            row, text=format_message('{value_0}:', value_0=label), bg=theme.bg_secondary,
             fg=theme.text_secondary, font=FONTS.small(),
             width=12, anchor="w"
         ).pack(side=tk.LEFT)
         
         value_label = tk.Label(
-            row, text=value[:40] + "..." if len(value) > 43 else value,
+            row, text=value[:40] + _("...") if len(value) > 43 else value,
             bg=theme.bg_secondary,
             fg=theme.text_link if is_link else theme.text_primary,
             font=FONTS.small(),
@@ -264,7 +266,7 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
         
         theme = get_theme()
         self.placeholder = tk.Label(
-            self.content, text="Select a bookmark to view details",
+            self.content, text=_("Select a bookmark to view details"),
             bg=theme.bg_secondary, fg=theme.text_muted,
             font=FONTS.body()
         )

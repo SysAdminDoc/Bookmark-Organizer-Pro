@@ -6,7 +6,9 @@ import tkinter as tk
 from enum import Enum
 from typing import Callable, List, Tuple
 
-from .foundation import DesignTokens, FONTS
+from bookmark_organizer_pro.i18n import _
+
+from .foundation import FONTS, DesignTokens
 from .tk_interactions import make_keyboard_activatable, route_pointer_to_control
 from .widget_controls import ThemedWidget
 from .widget_runtime import get_theme
@@ -61,12 +63,12 @@ class CommandPalette(tk.Toplevel, ThemedWidget):
         shell.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
 
         tk.Label(
-            shell, text="Command Palette", bg=theme.bg_secondary,
+            shell, text=_("Command Palette"), bg=theme.bg_secondary,
             fg=theme.text_primary, font=FONTS.header(bold=True), anchor="w"
         ).pack(fill=tk.X)
 
         tk.Label(
-            shell, text="Type to filter actions. Use ↑/↓ and Enter.",
+            shell, text=_("Type to filter actions. Use ↑/↓ and Enter."),
             bg=theme.bg_secondary, fg=theme.text_secondary,
             font=FONTS.small(), anchor="w"
         ).pack(fill=tk.X, pady=(3, 12))
@@ -137,12 +139,12 @@ class CommandPalette(tk.Toplevel, ThemedWidget):
             empty = tk.Frame(self.list_frame, bg=theme.bg_secondary)
             empty.pack(fill=tk.BOTH, expand=True, pady=26)
             tk.Label(
-                empty, text="No Matching Commands",
+                empty, text=_("No Matching Commands"),
                 bg=theme.bg_secondary, fg=theme.text_secondary,
                 font=FONTS.body(bold=True)
             ).pack(fill=tk.X)
             tk.Label(
-                empty, text="Try Add, Import, Export, Search, Theme, or Settings.",
+                empty, text=_("Try Add, Import, Export, Search, Theme, or Settings."),
                 bg=theme.bg_secondary, fg=theme.text_muted,
                 font=FONTS.small(), pady=6
             ).pack(fill=tk.X)
@@ -237,7 +239,7 @@ class StatusBar(tk.Frame, ThemedWidget):
         
         # Left: Status message
         self.status_label = tk.Label(
-            self, text="Ready", bg=theme.bg_dark,
+            self, text=_("Ready"), bg=theme.bg_dark,
             fg=theme.text_secondary, font=FONTS.small()
         )
         self.status_label.pack(side=tk.LEFT, padx=10)

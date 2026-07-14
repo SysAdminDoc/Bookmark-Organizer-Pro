@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable
 
-from bookmark_organizer_pro.i18n import _
+from bookmark_organizer_pro.i18n import _, format_message
 
 from .foundation import FONTS, DesignTokens, readable_text_on
 from .tk_interactions import bind_scoped_mousewheel, make_keyboard_activatable
@@ -237,7 +237,7 @@ class ChatPanel(tk.Frame, ThemedWidget):
                 bm_id = src.get("bookmark_id")
                 title = src.get("title", src.get("url", ""))[:60]
                 src_label = tk.Label(
-                    bubble, text=f"  [{title}]",
+                    bubble, text=format_message('  [{value_0}]', value_0=title),
                     bg=bubble["bg"],
                     fg=theme.accent_primary if not is_user else readable_text_on(theme.accent_primary),
                     font=FONTS.tiny(), cursor="hand2", anchor="w",

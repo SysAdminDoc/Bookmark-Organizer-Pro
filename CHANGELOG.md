@@ -22,6 +22,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Enforced the documented 1280x720 desktop contract with a collapsing right rail, exact realized-size and overflow gates, 125% scaling coverage, and screen-fitted Graph View geometry.
 - Made custom rows, citations, emoji choices, and recovery lists keyboard-operable with named focus targets and focus restoration, while replacing global wheel hooks with scoped Windows/macOS/Linux scrolling across canvas-based dialogs.
 - Made dependency setup cancellation terminate the active pip process, prevent subsequent packages from starting, keep the dialog visible through terminal cancellation, and report packages changed before cancellation.
+- Made localization coverage executable: desktop UI literals and named/plural placeholders now fail a local gate when they bypass gettext, while extension HTML/JavaScript copy, catalog keys, and Chrome substitutions are audited together.
 
 ## [v6.12.0] - 2026-07-12
 

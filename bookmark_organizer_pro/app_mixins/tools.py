@@ -7,37 +7,45 @@ import tkinter as tk
 from datetime import datetime
 from tkinter import filedialog, messagebox
 
+from bookmark_organizer_pro.i18n import format_message
+
 try:
                 from bookmark_organizer_pro.services.egress import public_egress as requests
 except ImportError:  # pragma: no cover - optional runtime dependency
     requests = None
 
 from bookmark_organizer_pro.constants import DATA_DIR
-from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.core.category_manager import get_category_icon
+from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Category
 from bookmark_organizer_pro.services.snapshot import SnapshotArchiver, SnapshotFailureStore
 from bookmark_organizer_pro.ui.cleanup_review import (
-    CleanupApplyResult,
-    CleanupReviewDialog,
-    build_hybrid_duplicate_review_groups,
-    build_tag_lint_review_groups,
-    build_url_duplicate_review_groups,
+                CleanupApplyResult,
+                CleanupReviewDialog,
+                build_hybrid_duplicate_review_groups,
+                build_tag_lint_review_groups,
+                build_url_duplicate_review_groups,
 )
 from bookmark_organizer_pro.ui.foundation import FONTS, readable_text_on
-from bookmark_organizer_pro.ui.widgets import ModernButton, ThemeSelectorDialog, apply_window_chrome
 from bookmark_organizer_pro.ui.graph_view import GraphViewDialog
 from bookmark_organizer_pro.ui.management_dialogs import CategoryManagementDialog, CustomFaviconDialog
-from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog
 from bookmark_organizer_pro.ui.read_later_queue import ReadLaterQueueDialog
+from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog
 from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable
 from bookmark_organizer_pro.ui.treeview import (
-    accessible_list_mode_enabled,
-    save_accessible_list_mode,
+                accessible_list_mode_enabled,
+                save_accessible_list_mode,
 )
-from bookmark_organizer_pro.ui.widgets import AnalyticsDashboard, Tooltip, get_theme
 from bookmark_organizer_pro.ui.widget_runtime import _open_external_url
+from bookmark_organizer_pro.ui.widgets import (
+                AnalyticsDashboard,
+                ModernButton,
+                ThemeSelectorDialog,
+                Tooltip,
+                apply_window_chrome,
+                get_theme,
+)
 from bookmark_organizer_pro.url_utils import URLUtilities
 
 
@@ -248,7 +256,7 @@ class ToolsActionsMixin:
                     padx=18,
                     pady=8,
                 ).pack(side=tk.LEFT, padx=(0, 8))
-            ModernButton(footer, text="Close", command=win.destroy, padx=22, pady=8).pack(side=tk.RIGHT)
+            ModernButton(footer, text=_("Close"), command=win.destroy, padx=22, pady=8).pack(side=tk.RIGHT)
             win.bind("<Escape>", lambda _event: win.destroy())
         except Exception as exc:
             log.warning("Could not show non-blocking report '%s': %s", title, exc)
@@ -355,7 +363,7 @@ class ToolsActionsMixin:
         progress_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
         
         progress_label = tk.Label(
-            progress_frame, text="Categorizing…", bg=theme.bg_dark,
+            progress_frame, text=_("Categorizing…"), bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.small()
         )
         progress_label.pack(side=tk.LEFT, padx=5)
@@ -368,7 +376,7 @@ class ToolsActionsMixin:
         progress_fill.place(x=0, y=0, relheight=1.0, relwidth=0)
         
         cancel_btn = tk.Label(
-            progress_frame, text="✕ Cancel", bg=theme.accent_error, fg=readable_text_on(theme.accent_error),
+            progress_frame, text=_("✕ Cancel"), bg=theme.accent_error, fg=readable_text_on(theme.accent_error),
             font=FONTS.small(), padx=8, pady=2, cursor="hand2"
         )
         cancel_btn.pack(side=tk.LEFT, padx=10)
@@ -417,7 +425,7 @@ class ToolsActionsMixin:
             # Update progress
             progress = self._cat_index / len(self._cat_bookmarks)
             progress_fill.place(relwidth=progress)
-            progress_label.configure(text=f"Categorizing: {self._cat_index}/{len(self._cat_bookmarks)} ({self._cat_changed} changed)")
+            progress_label.configure(text=format_message('Categorizing: {value_0}/{value_1} ({value_2} changed)', value_0=self._cat_index, value_1=len(self._cat_bookmarks), value_2=self._cat_changed))
             
             # Schedule next batch
             self.root.after(10, process_batch)
@@ -428,7 +436,7 @@ class ToolsActionsMixin:
     def _import_categories_file(self):
         """Import categories from a JSON file"""
         filepath = filedialog.askopenfilename(
-            title="Select Categories JSON File",
+            title=_("Select Categories JSON File"),
             filetypes=[("JSON Files", "*.json"), ("All Files", "*.*")]
         )
         
@@ -441,8 +449,8 @@ class ToolsActionsMixin:
             
             if not isinstance(categories_data, dict):
                 messagebox.showerror(
-                    "Categories Import Failed",
-                    "The selected file is not a categories JSON object. Choose a file whose top level contains category names.",
+                    _("Categories Import Failed"),
+                    _("The selected file is not a categories JSON object. Choose a file whose top level contains category names."),
                     parent=self.root
                 )
                 return
@@ -485,15 +493,15 @@ class ToolsActionsMixin:
             
         except json.JSONDecodeError as e:
             messagebox.showerror(
-                "Categories Import Failed",
-                f"The selected file is not valid JSON.\n\n{e}",
+                _("Categories Import Failed"),
+                format_message('The selected file is not valid JSON.\n\n{value_0}', value_0=e),
                 parent=self.root
             )
         except Exception as e:
             log.warning("Categories import failed", exc_info=True)
             messagebox.showerror(
-                "Categories Import Failed",
-                f"Categories could not be imported.\n\n{e}",
+                _("Categories Import Failed"),
+                format_message('Categories could not be imported.\n\n{value_0}', value_0=e),
                 parent=self.root
             )
 
@@ -501,8 +509,8 @@ class ToolsActionsMixin:
         """Check all links - non-blocking with cancel support"""
         if requests is None:
             messagebox.showerror(
-                "Link Check Unavailable",
-                "The requests package is required before link checks can run.",
+                _("Link Check Unavailable"),
+                _("The requests package is required before link checks can run."),
                 parent=self.root
             )
             self._set_status("Link checking is unavailable")
@@ -523,7 +531,7 @@ class ToolsActionsMixin:
         progress_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
         
         progress_label = tk.Label(
-            progress_frame, text="Checking links…", bg=theme.bg_dark,
+            progress_frame, text=_("Checking links…"), bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.small()
         )
         progress_label.pack(side=tk.LEFT, padx=5)
@@ -536,14 +544,14 @@ class ToolsActionsMixin:
         progress_fill.place(x=0, y=0, relheight=1.0, relwidth=0)
         
         cancel_btn = tk.Label(
-            progress_frame, text="✕ Cancel", bg=theme.accent_error, fg=readable_text_on(theme.accent_error),
+            progress_frame, text=_("✕ Cancel"), bg=theme.accent_error, fg=readable_text_on(theme.accent_error),
             font=FONTS.small(), padx=8, pady=2, cursor="hand2"
         )
         cancel_btn.pack(side=tk.LEFT, padx=10)
         
         def cancel_check():
             self._link_check_cancelled = True
-            cancel_btn.configure(text="Cancelling…", bg=theme.text_muted)
+            cancel_btn.configure(text=_("Cancelling…"), bg=theme.text_muted)
 
         make_keyboard_activatable(cancel_btn, cancel_check)
         Tooltip(cancel_btn, "Cancel Link Check")
@@ -591,7 +599,7 @@ class ToolsActionsMixin:
                 checked_count[0] += 1
                 progress = checked_count[0] / len(bookmarks)
                 progress_fill.place(relwidth=progress)
-                progress_label.configure(text=f"Checked {checked_count[0]}/{len(bookmarks)} - {broken_count[0]} broken")
+                progress_label.configure(text=format_message('Checked {value_0}/{value_1} - {value_2} broken', value_0=checked_count[0], value_1=len(bookmarks), value_2=broken_count[0]))
                 if checked_count[0] % 20 == 0:
                     self.bookmark_manager.save_bookmarks()
 
@@ -1075,6 +1083,7 @@ class ToolsActionsMixin:
     def _migrate_to_sqlite(self):
         """Run JSON-to-SQLite migration from the GUI with a progress indicator."""
         import threading
+
         from bookmark_organizer_pro.constants import MASTER_BOOKMARKS_FILE
 
         sqlite_path = MASTER_BOOKMARKS_FILE.with_suffix(".sqlite")
@@ -1122,8 +1131,8 @@ class ToolsActionsMixin:
     def _on_sqlite_migrate_error(self, exc):
         self._set_status("SQLite migration failed")
         messagebox.showerror(
-            "Migration Failed",
-            f"Could not migrate to SQLite:\n\n{exc}",
+            _("Migration Failed"),
+            format_message('Could not migrate to SQLite:\n\n{value_0}', value_0=exc),
             parent=self.root,
         )
 

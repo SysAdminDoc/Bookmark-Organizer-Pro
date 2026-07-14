@@ -6,10 +6,13 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Any, Dict
 
+from bookmark_organizer_pro.i18n import _, format_message
+
 from .foundation import FONTS, DesignTokens, truncate_middle
 from .tk_interactions import bind_scoped_mousewheel
 from .widget_controls import ModernButton, ThemedWidget
 from .widget_runtime import apply_window_chrome, get_theme
+
 
 # =============================================================================
 # Analytics Dashboard Dialog
@@ -24,7 +27,7 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         self.stats = stats
         theme = get_theme()
         
-        self.title("Analytics")
+        self.title(_("Analytics"))
         self.geometry("800x650")
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
@@ -38,11 +41,11 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         header.pack_propagate(False)
         
         tk.Label(
-            header, text="Collection Analytics", bg=theme.bg_dark,
+            header, text=_("Collection Analytics"), bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.title(bold=True)
         ).pack(anchor="w", padx=DesignTokens.PANEL_PAD, pady=(11, 1))
         tk.Label(
-            header, text="Health, coverage, and cleanup signals for the current library.",
+            header, text=_("Health, coverage, and cleanup signals for the current library."),
             bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small()
         ).pack(anchor="w", padx=DesignTokens.PANEL_PAD, pady=(0, 9))
         
@@ -107,7 +110,7 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
             health_width = health_score / 100
         
         tk.Label(
-            health_frame, text=f"Collection Health · {health_state}", bg=theme.bg_secondary,
+            health_frame, text=format_message('Collection Health · {value_0}', value_0=health_state), bg=theme.bg_secondary,
             fg=theme.text_secondary, font=FONTS.body()
         ).pack(anchor="w", padx=15, pady=(10, 5))
         
@@ -145,7 +148,7 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         btn_frame.pack(fill=tk.X, padx=20, pady=15)
         
         ModernButton(
-            btn_frame, text="Close", command=self.destroy
+            btn_frame, text=_("Close"), command=self.destroy
         ).pack(side=tk.RIGHT)
         
         self.center_window()

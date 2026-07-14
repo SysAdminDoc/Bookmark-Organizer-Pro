@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import csv
-from datetime import datetime
 import html as html_module
-from pathlib import Path
 import tkinter as tk
+from datetime import datetime
+from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Any, Callable, Dict, List
 
 from bookmark_organizer_pro.constants import APP_VERSION
+from bookmark_organizer_pro.i18n import _, format_message, format_plural
 from bookmark_organizer_pro.importers import OPMLExporter
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.managers import BookmarkManager
@@ -22,6 +23,7 @@ from .quick_add import DEFAULT_CATEGORY
 from .tk_interactions import bind_scoped_mousewheel, make_keyboard_activatable
 from .widget_controls import ModernButton, ThemedWidget, Tooltip
 from .widget_runtime import apply_window_chrome, get_theme
+
 
 # =============================================================================
 # Selective Export Dialog
@@ -38,7 +40,7 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         
         theme = get_theme()
         
-        self.title("Export Bookmarks")
+        self.title(_("Export Bookmarks"))
         # Fit within the screen so the bottom action buttons are never pushed
         # off-screen on smaller displays.
         _h = min(660, max(480, self.winfo_screenheight() - 96))
@@ -58,14 +60,14 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         title_stack = tk.Frame(header, bg=theme.bg_dark)
         title_stack.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=20, pady=10)
         tk.Label(
-            title_stack, text="Export Bookmarks", bg=theme.bg_dark,
+            title_stack, text=_("Export Bookmarks"), bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.header(bold=True),
             anchor="w"
         ).pack(fill=tk.X)
 
         tk.Label(
             title_stack,
-            text="Choose the scope, format, and metadata before writing a file.",
+            text=_("Choose the scope, format, and metadata before writing a file."),
             bg=theme.bg_dark, fg=theme.text_secondary,
             font=FONTS.small(), anchor="w"
         ).pack(fill=tk.X, pady=(3, 0))
@@ -74,9 +76,9 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         # bottom of the window and stay visible even when the dialog is short.
         btn_frame = tk.Frame(self, bg=theme.bg_primary)
         btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=15)
-        ModernButton(btn_frame, text="Cancel", command=self.destroy).pack(side=tk.RIGHT, padx=(10, 0))
+        ModernButton(btn_frame, text=_("Cancel"), command=self.destroy).pack(side=tk.RIGHT, padx=(10, 0))
         self.export_button = ModernButton(
-            btn_frame, text="Export Bookmarks", command=self._export,
+            btn_frame, text=_("Export Bookmarks"), command=self._export,
             style="primary"
         )
         self.export_button.pack(side=tk.RIGHT)
@@ -87,13 +89,13 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         
         # Format selection
         tk.Label(
-            content, text="Export Format", bg=theme.bg_primary,
+            content, text=_("Export Format"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.body(bold=True)
         ).pack(anchor="w")
 
         tk.Label(
             content,
-            text="HTML works well for browsers. JSON preserves app data. CSV is best for spreadsheets.",
+            text=_("HTML works well for browsers. JSON preserves app data. CSV is best for spreadsheets."),
             bg=theme.bg_primary, fg=theme.text_muted,
             font=FONTS.small(), wraplength=520, justify=tk.LEFT
         ).pack(anchor="w", pady=(2, 0))
@@ -110,7 +112,7 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         
         # Category selection
         tk.Label(
-            content, text="Categories", bg=theme.bg_primary,
+            content, text=_("Categories"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.body(bold=True)
         ).pack(anchor="w", pady=(10, 5))
 
@@ -147,14 +149,14 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         select_frame.pack(fill=tk.X, padx=10, pady=10)
         
         select_all_btn = tk.Label(
-            select_frame, text="Select All", bg=theme.bg_secondary,
+            select_frame, text=_("Select All"), bg=theme.bg_secondary,
             fg=theme.accent_primary, font=FONTS.small(),
             cursor="hand2"
         )
         select_all_btn.pack(side=tk.LEFT, padx=(0, 15))
         
         select_none_btn = tk.Label(
-            select_frame, text="Select None", bg=theme.bg_secondary,
+            select_frame, text=_("Select None"), bg=theme.bg_secondary,
             fg=theme.accent_primary, font=FONTS.small(),
             cursor="hand2"
         )
@@ -177,7 +179,7 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         if not categories:
             tk.Label(
                 cat_inner,
-                text="No categories yet. Add or import bookmarks first.",
+                text=_("No categories yet. Add or import bookmarks first."),
                 bg=theme.bg_secondary, fg=theme.text_secondary,
                 font=FONTS.body(), padx=10, pady=20,
                 justify=tk.LEFT
@@ -189,7 +191,7 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
             self.cat_vars[cat] = var
             
             cb = ttk.Checkbutton(
-                cat_inner, text=f"{cat} ({format_compact_count(count)})",
+                cat_inner, text=format_message('{value_0} ({value_1})', value_0=cat, value_1=format_compact_count(count)),
                 variable=var, command=self._update_export_summary
             )
             cb.pack(anchor="w", padx=10, pady=2)
@@ -199,23 +201,23 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         opts_frame.pack(fill=tk.X, pady=(15, 0))
 
         tk.Label(
-            opts_frame, text="Included Data", bg=theme.bg_primary,
+            opts_frame, text=_("Included Data"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.small(bold=True)
         ).pack(anchor="w", pady=(0, 4))
         
         self.include_tags_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(
-            opts_frame, text="Include tags", variable=self.include_tags_var
+            opts_frame, text=_("Include tags"), variable=self.include_tags_var
         ).pack(anchor="w")
         
         self.include_notes_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(
-            opts_frame, text="Include notes", variable=self.include_notes_var
+            opts_frame, text=_("Include notes"), variable=self.include_notes_var
         ).pack(anchor="w")
         
         self.include_metadata_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(
-            opts_frame, text="Include metadata (dates, visit count)", 
+            opts_frame, text=_("Include metadata (dates, visit count)"),
             variable=self.include_metadata_var
         ).pack(anchor="w")
         
@@ -403,8 +405,8 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         
         if not selected_cats:
             messagebox.showwarning(
-                "Choose a category",
-                "Select at least one category to export.",
+                _("Choose a category"),
+                _("Select at least one category to export."),
                 parent=self
             )
             return
@@ -413,8 +415,8 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         
         if not bookmarks:
             messagebox.showwarning(
-                "Nothing to export",
-                "The selected categories do not contain any bookmarks.",
+                _("Nothing to export"),
+                _("The selected categories do not contain any bookmarks."),
                 parent=self
             )
             return
@@ -430,7 +432,7 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         }
         
         filepath = filedialog.asksaveasfilename(
-            title="Export Bookmarks",
+            title=_("Export Bookmarks"),
             defaultextension=f".{fmt}",
             filetypes=[extensions[fmt], ("All files", "*.*")],
             parent=self
@@ -459,8 +461,14 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
             }
             
             messagebox.showinfo(
-                "Export complete",
-                f"Exported {len(bookmarks)} bookmark{'s' if len(bookmarks) != 1 else ''} to {Path(filepath).name}.",
+                _("Export complete"),
+                format_plural(
+                    "Exported {count} bookmark to {name}.",
+                    "Exported {count} bookmarks to {name}.",
+                    len(bookmarks),
+                    count=len(bookmarks),
+                    name=Path(filepath).name,
+                ),
                 parent=self
             )
             if callable(self.on_export):
@@ -470,8 +478,8 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         except Exception as e:
             log.warning("Selective export failed", exc_info=True)
             messagebox.showerror(
-                "Export failed",
-                f"Could not export bookmarks:\n\n{e}",
+                _("Export failed"),
+                format_message('Could not export bookmarks:\n\n{value_0}', value_0=e),
                 parent=self
             )
     

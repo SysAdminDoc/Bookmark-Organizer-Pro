@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from bookmark_organizer_pro.constants import APP_NAME
-from bookmark_organizer_pro.i18n import _
+from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.ui.components import DragDropImportArea, ScrollableFrame
 from bookmark_organizer_pro.ui.feedback import EmptyState, FilteredEmptyState
 from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, readable_text_on
@@ -86,7 +86,7 @@ class AppShellMixin:
         from bookmark_organizer_pro.search import SearchEngine
         get_syntax_help = SearchEngine.get_syntax_help
         win = tk.Toplevel(self.root)
-        win.title("Search Syntax")
+        win.title(_("Search Syntax"))
         win.geometry("520x480")
         win.transient(self.root)
         win.grab_set()
@@ -116,7 +116,7 @@ class AppShellMixin:
             ("Escape", "Close dialog"),
         ]
         win = tk.Toplevel(self.root)
-        win.title("Keyboard Shortcuts")
+        win.title(_("Keyboard Shortcuts"))
         win.geometry("400x400")
         win.transient(self.root)
         win.grab_set()
@@ -158,7 +158,7 @@ class AppShellMixin:
         brand_row = tk.Frame(brand, bg=theme.bg_dark)
         brand_row.pack(anchor="w")
         tk.Label(
-            brand_row, text="B", bg=theme.accent_primary,
+            brand_row, text=_("B"), bg=theme.accent_primary,
             fg=readable_text_on(theme.accent_primary),
             font=FONTS.header(bold=True), width=2, padx=3, pady=4
         ).pack(side=tk.LEFT, padx=(0, 9))
@@ -182,7 +182,7 @@ class AppShellMixin:
         self.search_frame = search_frame
 
         self._search_icon_label = tk.Label(
-            search_frame, text="⌕", bg=theme.bg_secondary,
+            search_frame, text=_("⌕"), bg=theme.bg_secondary,
             fg=theme.text_muted, font=FONTS.small()
         )
         self._search_icon_label.pack(side=tk.LEFT, padx=(12, 6))
@@ -238,7 +238,7 @@ class AppShellMixin:
         Tooltip(self._nl_toggle_btn, _("Interpret the query as natural language"))
 
         search_help = tk.Label(
-            search_frame, text="?", bg=theme.bg_tertiary,
+            search_frame, text=_("?"), bg=theme.bg_tertiary,
             fg=theme.text_muted, font=FONTS.tiny(bold=True),
             padx=7, pady=3, cursor="hand2"
         )
@@ -340,7 +340,7 @@ class AppShellMixin:
             anchor="w", padx=10, pady=9,
         ).pack(side=tk.LEFT, fill=tk.X, expand=True)
         tk.Label(
-            workspace_row, text="⌄", bg=theme.bg_secondary,
+            workspace_row, text=_("⌄"), bg=theme.bg_secondary,
             fg=theme.text_muted, font=FONTS.small(), padx=10,
         ).pack(side=tk.RIGHT)
 
@@ -398,7 +398,7 @@ class AppShellMixin:
             )
             name_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
             count_lbl = tk.Label(
-                row, text="0", bg=row["bg"],
+                row, text=_("0"), bg=row["bg"],
                 fg=theme.accent_primary if is_active else theme.text_muted,
                 font=FONTS.tiny(bold=True),
                 cursor="hand2", padx=4, pady=1
@@ -440,7 +440,7 @@ class AppShellMixin:
             fg=theme.text_muted, font=FONTS.tiny(bold=True)
         ).pack(side=tk.LEFT)
         add_collection = tk.Label(
-            cat_header, text="+", bg=theme.bg_dark,
+            cat_header, text=_("+"), bg=theme.bg_dark,
             fg=theme.text_secondary, font=FONTS.subtitle(),
             cursor="hand2", padx=5,
         )
@@ -463,7 +463,7 @@ class AppShellMixin:
         make_keyboard_activatable(rl_title, self._show_read_later_queue)
         Tooltip(rl_title, _("Open Read Later queue"))
         self._rl_count_label = tk.Label(
-            rl_header, text="0", bg=theme.bg_dark,
+            rl_header, text=_("0"), bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.tiny(),
         )
         self._rl_count_label.pack(side=tk.RIGHT)
@@ -492,7 +492,7 @@ class AppShellMixin:
             fg=theme.text_muted, font=FONTS.tiny(bold=True),
         ).pack(side=tk.LEFT)
         self._flows_count_label = tk.Label(
-            flows_header, text="0", bg=theme.bg_dark,
+            flows_header, text=_("0"), bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.tiny(),
         )
         self._flows_count_label.pack(side=tk.RIGHT)
@@ -685,8 +685,8 @@ class AppShellMixin:
         def _do_ask():
             try:
                 from bookmark_organizer_pro.services.embeddings import EmbeddingService
-                from bookmark_organizer_pro.services.vector_store import VectorStore
                 from bookmark_organizer_pro.services.rag_chat import CollectionChat
+                from bookmark_organizer_pro.services.vector_store import VectorStore
 
                 if not hasattr(self, "_chat_service") or self._chat_service is None:
                     emb = EmbeddingService()
@@ -734,7 +734,7 @@ class AppShellMixin:
         for bm in queue[:8]:
             title = (bm.title or bm.url)[:40]
             row = tk.Label(
-                self._rl_frame, text=f"  {title}",
+                self._rl_frame, text=format_message('  {value_0}', value_0=title),
                 bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small(),
                 cursor="hand2", anchor="w",
             )
