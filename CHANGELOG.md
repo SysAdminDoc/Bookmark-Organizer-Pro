@@ -19,6 +19,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Made cleanup-review Apply single-use and pre-disabled, with explicit safe-retry outcomes and first-safepoint retention until restore or a newly opened maintenance workflow.
 - Routed generic files, explicitly selected browser profiles, Firefox backups, Zotero, and service imports through one preflighted durable session with multi-file identity, parse-loss/field-fidelity reporting, cancellation, resume/retry, rollback, and startup recovery.
 - Made retryable extension saves survive API outages across every capture surface; reconnect retries retain remaining failures and resolve each queued URL exactly once.
+- Enforced the documented 1280x720 desktop contract with a collapsing right rail, exact realized-size and overflow gates, 125% scaling coverage, and screen-fitted Graph View geometry.
 
 ## [v6.12.0] - 2026-07-12
 

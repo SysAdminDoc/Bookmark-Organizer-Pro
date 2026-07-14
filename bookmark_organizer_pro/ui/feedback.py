@@ -131,16 +131,20 @@ class EmptyState(tk.Frame):
         self._on_add = on_add
         self._on_organize = on_organize
         self._on_search = on_search
+        self._compact_layout = False
         self._build(theme)
+        self.bind("<Configure>", self._on_viewport_configure, add="+")
 
     def _build(self, theme):
         stage = tk.Frame(self, bg=theme.bg_primary)
         stage.pack(fill=tk.BOTH, expand=True, padx=48, pady=(28, 24))
+        self._stage = stage
 
-        tk.Label(
+        self._eyebrow = tk.Label(
             stage, text=_("YOUR LIBRARY"), bg=theme.bg_primary,
             fg=theme.accent_primary, font=FONTS.tiny(bold=True)
-        ).pack(anchor="w", pady=(0, 13))
+        )
+        self._eyebrow.pack(anchor="w", pady=(0, 13))
 
         tk.Label(
             stage, text=_("Build a library worth returning to"),
@@ -148,7 +152,7 @@ class EmptyState(tk.Frame):
             font=FONTS.display(), justify=tk.LEFT
         ).pack(anchor="w")
 
-        tk.Label(
+        self._intro = tk.Label(
             stage,
             text=(
                 "Import your existing bookmarks or add new ones. We'll help you clean up, "
@@ -156,7 +160,8 @@ class EmptyState(tk.Frame):
             ),
             bg=theme.bg_primary, fg=theme.text_secondary,
             font=FONTS.body(), justify=tk.LEFT, wraplength=690
-        ).pack(anchor="w", pady=(15, 24))
+        )
+        self._intro.pack(anchor="w", pady=(15, 24))
 
         btn_row = tk.Frame(stage, bg=theme.bg_primary)
         btn_row.pack(anchor="w")
@@ -177,15 +182,18 @@ class EmptyState(tk.Frame):
         )
         add_btn.pack(side=tk.LEFT)
 
-        tk.Frame(stage, bg=theme.border_muted, height=1).pack(fill=tk.X, pady=(24, 20))
+        self._divider = tk.Frame(stage, bg=theme.border_muted, height=1)
+        self._divider.pack(fill=tk.X, pady=(24, 20))
 
-        tk.Label(
+        self._quick_heading = tk.Label(
             stage, text=_("Quick start"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.subtitle(bold=True),
-        ).pack(anchor="w", pady=(0, 12))
+        )
+        self._quick_heading.pack(anchor="w", pady=(0, 12))
 
         cards = tk.Frame(stage, bg=theme.bg_primary)
         cards.pack(fill=tk.X)
+        self._cards = cards
         for column in range(3):
             cards.grid_columnconfigure(column, weight=1, uniform="quick-start")
 
@@ -200,16 +208,18 @@ class EmptyState(tk.Frame):
         for column, spec in enumerate(card_specs):
             self._create_quick_start_card(cards, theme, column, *spec)
 
-        tk.Label(
+        self._recent_heading = tk.Label(
             stage, text=_("Recent activity"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.subtitle(bold=True),
-        ).pack(anchor="w", pady=(24, 10))
+        )
+        self._recent_heading.pack(anchor="w", pady=(24, 10))
 
         activity = tk.Frame(
             stage, bg=theme.bg_dark,
             highlightbackground=theme.border_muted, highlightthickness=1,
         )
         activity.pack(fill=tk.X)
+        self._recent_activity = activity
         tk.Label(
             activity, text="↻", bg=theme.bg_tertiary,
             fg=theme.text_secondary, font=FONTS.title(), width=3, pady=8,
@@ -225,6 +235,29 @@ class EmptyState(tk.Frame):
             bg=theme.bg_dark, fg=theme.text_secondary,
             font=FONTS.small(), anchor="w",
         ).pack(fill=tk.X, pady=(3, 0))
+
+    def _on_viewport_configure(self, event) -> None:
+        """Compact first-run spacing when the root is at laptop height."""
+        compact = int(event.height) < 680
+        if compact == self._compact_layout:
+            return
+        self._compact_layout = compact
+        if compact:
+            self._stage.pack_configure(padx=32, pady=(12, 12))
+            self._eyebrow.pack_configure(pady=(0, 6))
+            self._intro.pack_configure(pady=(8, 12))
+            self._divider.pack_configure(pady=(12, 10))
+            self._quick_heading.pack_configure(pady=(0, 6))
+            self._recent_heading.pack_forget()
+            self._recent_activity.pack_forget()
+            return
+        self._stage.pack_configure(padx=48, pady=(28, 24))
+        self._eyebrow.pack_configure(pady=(0, 13))
+        self._intro.pack_configure(pady=(15, 24))
+        self._divider.pack_configure(pady=(24, 20))
+        self._quick_heading.pack_configure(pady=(0, 12))
+        self._recent_heading.pack(anchor="w", pady=(24, 10), after=self._cards)
+        self._recent_activity.pack(fill=tk.X, after=self._recent_heading)
 
     @staticmethod
     def _create_quick_start_card(parent, theme, column, icon, title, body,

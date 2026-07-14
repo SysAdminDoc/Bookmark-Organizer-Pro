@@ -108,7 +108,7 @@ class FinalBookmarkOrganizerApp(
         self.theme_manager.add_theme_change_callback(self._theme_change_callback)
         self.root.title(f"{APP_NAME} v{APP_VERSION}")
         self.root.geometry("1540x980")
-        self.root.minsize(1320, 760)
+        self.root.minsize(1180, 680)
         
         theme = get_theme()
         self.root.configure(bg=theme.bg_primary)

@@ -18,6 +18,7 @@ from bookmark_organizer_pro.services.bookmark_graph import (
 
 from .foundation import FONTS
 from .widget_controls import ModernButton
+from .window_geometry import apply_screen_aware_geometry
 from .widgets import apply_window_chrome, get_theme
 
 
@@ -96,8 +97,8 @@ class GraphViewDialog(tk.Toplevel):
         self.selected_node_id: str | None = None
 
         self.title(_("Bookmark Graph"))
-        self.geometry("1120x760")
         self.minsize(820, 560)
+        apply_screen_aware_geometry(self, 1120, 760)
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
         apply_window_chrome(self)
@@ -216,6 +217,8 @@ class GraphViewDialog(tk.Toplevel):
             fg=theme.text_muted,
             font=FONTS.small(),
             anchor="w",
+            justify=tk.LEFT,
+            wraplength=240,
         )
         self.status.pack(fill=tk.X, pady=(10, 0))
 

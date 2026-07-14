@@ -166,14 +166,14 @@ msgid "Add Tags:"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:256
-#: bookmark_organizer_pro/ui/feedback.py:303
+#: bookmark_organizer_pro/ui/feedback.py:336
 #: bookmark_organizer_pro/ui/widget_bookmark_editor.py:54
 #: bookmark_organizer_pro/ui/workflow_quick_add.py:77
 #: bookmark_organizer_pro/ui/workflow_quick_add.py:201
 msgid "Add bookmark"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:247
+#: bookmark_organizer_pro/ui/graph_view.py:250
 msgid "Add bookmarks with tags, categories, or shared domains to build relationships."
 msgstr ""
 
@@ -185,7 +185,7 @@ msgstr ""
 msgid "Add one bookmark manually"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/feedback.py:173
+#: bookmark_organizer_pro/ui/feedback.py:178
 msgid "Add one link"
 msgstr ""
 
@@ -339,8 +339,8 @@ msgstr ""
 msgid "Bookmark Details"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:98
-#: bookmark_organizer_pro/ui/graph_view.py:117
+#: bookmark_organizer_pro/ui/graph_view.py:99
+#: bookmark_organizer_pro/ui/graph_view.py:118
 msgid "Bookmark Graph"
 msgstr ""
 
@@ -362,7 +362,7 @@ msgstr ""
 msgid "Bring bookmarks in"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/feedback.py:288
+#: bookmark_organizer_pro/ui/feedback.py:321
 msgid "Broaden the search, choose another filter, or reset the view to return to the full library."
 msgstr ""
 
@@ -378,7 +378,7 @@ msgstr ""
 msgid "Browse"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/feedback.py:146
+#: bookmark_organizer_pro/ui/feedback.py:150
 msgid "Build a library worth returning to"
 msgstr ""
 
@@ -636,7 +636,7 @@ msgstr ""
 msgid "Connection Successful"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:371
+#: bookmark_organizer_pro/ui/graph_view.py:374
 msgid "Connections: {count}"
 msgstr ""
 
@@ -845,12 +845,12 @@ msgstr ""
 msgid "Exit"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:125
+#: bookmark_organizer_pro/ui/graph_view.py:126
 msgid "Explore relationships between bookmarks, tags, categories, and domains."
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:274
-#: bookmark_organizer_pro/ui/graph_view.py:133
+#: bookmark_organizer_pro/ui/graph_view.py:134
 #: bookmark_organizer_pro/ui/reader_view.py:79
 msgid "Export"
 msgstr ""
@@ -885,7 +885,7 @@ msgstr ""
 msgid "Export Format"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:386
+#: bookmark_organizer_pro/ui/graph_view.py:389
 msgid "Export Graph JSON"
 msgstr ""
 
@@ -917,7 +917,7 @@ msgstr ""
 msgid "Export file"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:393
+#: bookmark_organizer_pro/ui/graph_view.py:396
 #: bookmark_organizer_pro/ui/reader_view.py:346
 msgid "Exported {name}"
 msgstr ""
@@ -1125,7 +1125,7 @@ msgstr ""
 msgid "Import Theme"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/feedback.py:165
+#: bookmark_organizer_pro/ui/feedback.py:170
 msgid "Import bookmarks"
 msgstr ""
 
@@ -1141,7 +1141,7 @@ msgstr ""
 msgid "Import from Zotero"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/feedback.py:168
+#: bookmark_organizer_pro/ui/feedback.py:173
 msgid "Import from a browser, service, or bookmark file"
 msgstr ""
 
@@ -1165,7 +1165,7 @@ msgstr ""
 msgid "Import session {status}: {added} added, {failed} failed, {losses} losses."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/feedback.py:151
+#: bookmark_organizer_pro/ui/feedback.py:155
 msgid "Import your existing bookmarks or add new ones. We'll help you clean up, organize, and rediscover what matters."
 msgstr ""
 
@@ -1318,7 +1318,7 @@ msgstr ""
 msgid "LIBRARY"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:199
+#: bookmark_organizer_pro/ui/graph_view.py:200
 msgid "Legend"
 msgstr ""
 
@@ -1520,7 +1520,7 @@ msgstr ""
 msgid "No assistant action snapshots are available to undo."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/feedback.py:281
+#: bookmark_organizer_pro/ui/feedback.py:314
 msgid "No bookmarks match this view"
 msgstr ""
 
@@ -1540,7 +1540,7 @@ msgstr ""
 msgid "No extracted text is available yet.\n\nCapture page text or an archive snapshot, then return here to highlight key passages."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:241
+#: bookmark_organizer_pro/ui/graph_view.py:244
 msgid "No graph data yet"
 msgstr ""
 
@@ -1556,7 +1556,7 @@ msgstr ""
 msgid "No profile is selected automatically. The source is preflighted before changes."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/feedback.py:220
+#: bookmark_organizer_pro/ui/feedback.py:230
 msgid "No recent activity yet"
 msgstr ""
 
@@ -1800,7 +1800,7 @@ msgstr ""
 msgid "Queue order saved."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/feedback.py:183
+#: bookmark_organizer_pro/ui/feedback.py:189
 msgid "Quick start"
 msgstr ""
 
@@ -1870,7 +1870,7 @@ msgstr ""
 msgid "Recent Saves"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/feedback.py:204
+#: bookmark_organizer_pro/ui/feedback.py:212
 msgid "Recent activity"
 msgstr ""
 
@@ -1958,7 +1958,7 @@ msgstr ""
 msgid "Reset to Base"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/feedback.py:297
+#: bookmark_organizer_pro/ui/feedback.py:330
 msgid "Reset view"
 msgstr ""
 
@@ -2084,7 +2084,7 @@ msgstr ""
 msgid "Save bookmark"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/feedback.py:176
+#: bookmark_organizer_pro/ui/feedback.py:181
 msgid "Save one bookmark manually"
 msgstr ""
 
@@ -2160,11 +2160,11 @@ msgstr ""
 msgid "Select a highlight first."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:193
+#: bookmark_organizer_pro/ui/graph_view.py:194
 msgid "Select a node to inspect its relationship details."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:214
+#: bookmark_organizer_pro/ui/graph_view.py:215
 msgid "Select a node. Use Tab or arrow keys to navigate; Enter opens bookmarks."
 msgstr ""
 
@@ -2193,7 +2193,7 @@ msgstr ""
 msgid "Select {browser} Profile"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:174
+#: bookmark_organizer_pro/ui/graph_view.py:175
 msgid "Selected"
 msgstr ""
 
@@ -2546,7 +2546,7 @@ msgstr ""
 msgid "Try Add, Import, Export, Search, Theme, or Settings."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/feedback.py:310
+#: bookmark_organizer_pro/ui/feedback.py:343
 msgid "Try domain:example.com, is:pinned, is:broken, or #tag in search."
 msgstr ""
 
@@ -2559,7 +2559,7 @@ msgstr ""
 msgid "Type your question..."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:369
+#: bookmark_organizer_pro/ui/graph_view.py:372
 msgid "Type: {type}"
 msgstr ""
 
@@ -2640,7 +2640,7 @@ msgstr ""
 msgid "Warning"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:370
+#: bookmark_organizer_pro/ui/graph_view.py:373
 msgid "Weight: {weight}"
 msgstr ""
 
@@ -2660,7 +2660,7 @@ msgstr ""
 msgid "Workspace preview"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/feedback.py:141
+#: bookmark_organizer_pro/ui/feedback.py:144
 msgid "YOUR LIBRARY"
 msgstr ""
 
@@ -2668,7 +2668,7 @@ msgstr ""
 msgid "You"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/feedback.py:224
+#: bookmark_organizer_pro/ui/feedback.py:234
 msgid "Your imports, edits, and searches will appear here."
 msgstr ""
 
@@ -2732,7 +2732,7 @@ msgstr ""
 msgid "{model} ready!"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/graph_view.py:165
+#: bookmark_organizer_pro/ui/graph_view.py:166
 msgid "{nodes} nodes / {edges} edges"
 msgstr ""
 
@@ -2774,7 +2774,7 @@ msgid "↓"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/dashboard.py:195
-#: bookmark_organizer_pro/ui/feedback.py:213
+#: bookmark_organizer_pro/ui/feedback.py:223
 msgid "↻"
 msgstr ""
 
@@ -2843,7 +2843,7 @@ msgstr ""
 msgid "✓ Library ready"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/feedback.py:367
+#: bookmark_organizer_pro/ui/feedback.py:400
 #: bookmark_organizer_pro/ui/workflow_detail_panel.py:54
 msgid "✕"
 msgstr ""

@@ -67,12 +67,39 @@ def test_windows_capture_resolves_top_level_hwnd_contract():
 
 def test_desktop_viewport_gate_covers_supported_sizes_and_themes():
     source = inspect.getsource(smoke.verify_desktop_viewports)
-    assert "(1280, 720)" in source
-    assert "(1540, 980)" in source
-    assert "(1920, 1080)" in source
+    assert smoke.DESKTOP_VIEWPORTS == (
+        (1280, 720, 1.0),
+        (1540, 980, 1.25),
+        (1920, 1080, 1.0),
+    )
     assert '"github_dark"' in source
     assert '"github_light"' in source
-    assert "assert_actionable_controls_inside" in source
+    viewport_source = inspect.getsource(smoke._verify_viewport)
+    assert "assert_realized_viewport" in viewport_source
+    assert "assert_actionable_controls_inside" in viewport_source
+    assert "assert_no_horizontal_overflow" in viewport_source
+    assert "right rail did not collapse" in source
+
+
+def test_graph_view_uses_shared_geometry_and_full_viewport_matrix():
+    root = Path(__file__).resolve().parents[1]
+    graph_source = (root / "bookmark_organizer_pro" / "ui" / "graph_view.py").read_text(encoding="utf-8")
+    smoke_source = inspect.getsource(smoke.verify_graph_viewports)
+
+    assert "apply_screen_aware_geometry(self, 1120, 760)" in graph_source
+    assert "DESKTOP_VIEWPORTS" in smoke_source
+    assert '"github_dark"' in smoke_source
+    assert '"github_light"' in smoke_source
+    assert "_verify_viewport" in smoke_source
+
+
+def test_root_minimum_allows_documented_laptop_viewport():
+    root = Path(__file__).resolve().parents[1]
+    app_source = (root / "bookmark_organizer_pro" / "app.py").read_text(encoding="utf-8")
+    empty_state_source = (root / "bookmark_organizer_pro" / "ui" / "feedback.py").read_text(encoding="utf-8")
+    assert "self.root.minsize(1180, 680)" in app_source
+    assert 'self.bind("<Configure>", self._on_viewport_configure' in empty_state_source
+    assert "int(event.height) < 680" in empty_state_source
 
 
 def test_primary_dialog_headers_share_design_token():

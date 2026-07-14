@@ -24,6 +24,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 DEFAULT_OUTPUT_DIR = Path(tempfile.gettempdir()) / "bookmark-organizer-pro-visual-smoke"
+DESKTOP_VIEWPORTS = (
+    (1280, 720, 1.0),
+    (1540, 980, 1.25),
+    (1920, 1080, 1.0),
+)
 
 
 @dataclass(frozen=True)
@@ -398,12 +403,16 @@ def assert_actionable_controls_inside(window) -> None:
         if not actionable:
             continue
         chrome_tolerance = 8
-        if (
-            widget_left < left - chrome_tolerance
-            or widget_top < top - chrome_tolerance
-            or widget_right > right + chrome_tolerance
-            or widget_bottom > bottom + chrome_tolerance
-        ):
+        horizontal_clip = widget_left < left - chrome_tolerance or widget_right > right + chrome_tolerance
+        vertical_clip = widget_top < top - chrome_tolerance or widget_bottom > bottom + chrome_tolerance
+        ancestor = widget.master
+        inside_scroll_viewport = False
+        while ancestor is not None and ancestor is not window:
+            if ancestor.winfo_class() == "Canvas":
+                inside_scroll_viewport = True
+                break
+            ancestor = getattr(ancestor, "master", None)
+        if horizontal_clip or (vertical_clip and not inside_scroll_viewport):
             text = str(widget.cget("text")) if "text" in widget.keys() else ""
             failures.append(
                 f"{widget.winfo_class()}:{widget.winfo_name()}:{text!r} "
@@ -413,16 +422,92 @@ def assert_actionable_controls_inside(window) -> None:
         raise VisualSmokeError("actionable controls clipped: " + ", ".join(failures[:8]))
 
 
-def verify_desktop_viewports(root, theme_manager) -> None:
+def assert_realized_viewport(window, width: int, height: int) -> None:
+    """Require Tk to honor the requested client viewport exactly."""
+    actual = (window.winfo_width(), window.winfo_height())
+    expected = (int(width), int(height))
+    if actual != expected:
+        raise VisualSmokeError(f"viewport realized as {actual[0]}x{actual[1]}, expected {width}x{height}")
+
+
+def assert_no_horizontal_overflow(window) -> None:
+    """Fail when mapped widget geometry forces content past the client width."""
+    window.update_idletasks()
+    left = window.winfo_rootx()
+    right = left + window.winfo_width()
+    tolerance = 8
+    failures: list[str] = []
+    stack = list(window.winfo_children())
+    while stack:
+        widget = stack.pop()
+        stack.extend(widget.winfo_children())
+        if not widget.winfo_ismapped() or widget.winfo_width() <= 1:
+            continue
+        widget_left = widget.winfo_rootx()
+        widget_right = widget_left + widget.winfo_width()
+        if widget_left < left - tolerance or widget_right > right + tolerance:
+            text = str(widget.cget("text")) if "text" in widget.keys() else ""
+            failures.append(
+                f"{widget.winfo_class()}:{widget.winfo_name()}:{text!r} "
+                f"x={widget_left - left} width={widget.winfo_width()}"
+            )
+    if failures:
+        raise VisualSmokeError("horizontal overflow: " + ", ".join(failures[:8]))
+
+
+def _set_scaling(window, baseline: float, multiplier: float) -> None:
+    window.tk.call("tk", "scaling", baseline * multiplier)
+
+
+def _verify_viewport(window, width: int, height: int) -> None:
+    window.geometry(f"{width}x{height}")
+    window.update_idletasks()
+    window.update()
+    assert_realized_viewport(window, width, height)
+    assert_actionable_controls_inside(window)
+    assert_no_horizontal_overflow(window)
+
+
+def verify_desktop_viewports(root, theme_manager, *, collapsible_rail=None) -> None:
     """Exercise supported desktop sizes and themes without foreground activation."""
     _prepare_background_window(root)
-    for width, height in ((1280, 720), (1540, 980), (1920, 1080)):
-        for theme_name in ("github_dark", "github_light"):
-            theme_manager.set_theme(theme_name)
-            root.geometry(f"{width}x{height}")
-            root.update()
-            assert_actionable_controls_inside(root)
-    root.withdraw()
+    baseline = float(root.tk.call("tk", "scaling"))
+    try:
+        for width, height, scaling in DESKTOP_VIEWPORTS:
+            for theme_name in ("github_dark", "github_light"):
+                _set_scaling(root, baseline, scaling)
+                theme_manager.set_theme(theme_name)
+                _verify_viewport(root, width, height)
+                if collapsible_rail is not None:
+                    rail = collapsible_rail() if callable(collapsible_rail) else collapsible_rail
+                    rail_visible = bool(rail.winfo_manager())
+                    if width < 1400 and rail_visible:
+                        raise VisualSmokeError("right rail did not collapse at laptop width")
+                    if width >= 1400 and not rail_visible:
+                        raise VisualSmokeError("right rail did not restore at wide viewport")
+    finally:
+        _set_scaling(root, baseline, 1.0)
+        root.withdraw()
+
+
+def verify_graph_viewports(root, theme_manager, bookmarks) -> None:
+    """Create Graph View in every supported viewport/theme/DPI combination."""
+    from bookmark_organizer_pro.ui.graph_view import GraphViewDialog
+
+    baseline = float(root.tk.call("tk", "scaling"))
+    try:
+        for width, height, scaling in DESKTOP_VIEWPORTS:
+            for theme_name in ("github_dark", "github_light"):
+                _set_scaling(root, baseline, scaling)
+                theme_manager.set_theme(theme_name)
+                dialog = GraphViewDialog(root, bookmarks)
+                try:
+                    _prepare_background_window(dialog)
+                    _verify_viewport(dialog, width, height)
+                finally:
+                    destroy_window(dialog)
+    finally:
+        _set_scaling(root, baseline, 1.0)
 
 
 def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
@@ -457,7 +542,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
     app = FinalBookmarkOrganizerApp(root)
     root.update()
     theme_manager = get_theme_manager()
-    verify_desktop_viewports(root, theme_manager)
+    verify_desktop_viewports(root, theme_manager, collapsible_rail=lambda: app._right_sidebar)
     root.geometry("1540x980")
     theme_manager.set_theme("github_dark")
     root.update()
@@ -573,7 +658,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
         app.bookmark_manager.save_bookmarks()
         app._refresh_all()
 
-        verify_desktop_viewports(root, theme_manager)
+        verify_desktop_viewports(root, theme_manager, collapsible_rail=lambda: app._right_sidebar)
         root.geometry("1540x980")
         theme_manager.set_theme("github_light")
         root.update()
@@ -720,6 +805,8 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
         )
         destroy_window(reader_dialog)
 
+        verify_graph_viewports(root, theme_manager, sample_bookmarks)
+        theme_manager.set_theme("github_dark")
         graph_dialog = GraphViewDialog(root, sample_bookmarks)
         results.append(
             capture_tk_window(
