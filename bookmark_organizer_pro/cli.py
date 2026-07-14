@@ -1174,6 +1174,9 @@ Top Domains:
             for fid, n in results.items():
                 cfg = reg.get(fid)
                 print(f"  {cfg.name if cfg else fid}: {n} new")
+            failures = sum(1 for count in results.values() if count < 0)
+            if failures:
+                return self._failure(f"{failures} feed(s) failed to fetch")
             return 0
         return self._usage_error("usage: feed {list|add|remove|fetch} [arguments]")
 
