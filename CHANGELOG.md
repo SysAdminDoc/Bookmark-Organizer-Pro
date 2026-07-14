@@ -31,6 +31,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Consolidated feed redirects onto bounded egress, resolved relative entries through XML Base, Content-Location, and the final response URL, and rejected unsafe or identity-changing registry updates.
 - Bounded embedding chunks to validated integer size/overlap parameters, exact source offsets, monotonic forward progress, and a hard caller-declared character ceiling.
 - Validated smart-collection creation and updates, quarantined malformed saved rules with CLI diagnostics, made date comparisons UTC-deterministic, and restricted domains to exact hosts and subdomains.
+- Synced the executable product contract to the five new focused CLI, extension, feed, embedding, and smart-collection test suites.
 
 ### Security
 
