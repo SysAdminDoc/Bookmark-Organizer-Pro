@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import hmac
 import json
-import os
 import re
 import secrets
 import socket
@@ -25,6 +24,11 @@ from typing import TYPE_CHECKING
 from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION, DATA_DIR
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.services.feed_export import render_opds, render_opds2
+from bookmark_organizer_pro.services.private_files import (
+    atomic_write_private_bytes,
+    atomic_write_private_text,
+    restrict_private_file,
+)
 from bookmark_organizer_pro.utils import validate_url
 
 if TYPE_CHECKING:
@@ -48,28 +52,7 @@ _EXTENSION_ORIGIN_RE = re.compile(
 
 def _write_private_file(path: Path, payload: bytes) -> None:
     """Atomically write a local credential-adjacent file with owner-only access."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{secrets.token_hex(8)}.tmp")
-    try:
-        with temporary.open("wb") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        if os.name != "nt":
-            os.chmod(temporary, 0o600)
-        os.replace(temporary, path)
-        if os.name == "nt":
-            import subprocess
-
-            username = os.environ.get("USERNAME", "")
-            if username:
-                subprocess.run(
-                    ["icacls", str(path), "/inheritance:r", "/grant:r", f"{username}:(F)"],
-                    capture_output=True,
-                    check=False,
-                )
-    finally:
-        temporary.unlink(missing_ok=True)
+    atomic_write_private_bytes(path, payload)
 
 
 class ExtensionOriginRegistry:
@@ -209,6 +192,7 @@ def _load_or_create_token() -> str:
 
     # 2. Fall back to legacy file (auto-migrate to keyring if possible)
     if _TOKEN_FILE.exists():
+        restrict_private_file(_TOKEN_FILE)
         token = _TOKEN_FILE.read_text(encoding="utf-8").strip()
         if token:
             try:
@@ -230,18 +214,7 @@ def _load_or_create_token() -> str:
     except Exception:
         pass
 
-    _TOKEN_FILE.write_text(token, encoding="utf-8")
-    if os.name == "nt":
-        import subprocess
-        username = os.environ.get("USERNAME", "")
-        if username:
-            subprocess.run(
-                ["icacls", str(_TOKEN_FILE), "/inheritance:r",
-                 "/grant:r", f"{username}:(F)"],
-                capture_output=True, check=False,
-            )
-    else:
-        os.chmod(_TOKEN_FILE, 0o600)
+    atomic_write_private_text(_TOKEN_FILE, token)
     log.info(f"API token written to {_TOKEN_FILE} (keyring unavailable)")
     return token
 

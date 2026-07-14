@@ -11,6 +11,7 @@ import ipaddress
 import json
 import os
 import stat
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -189,17 +190,21 @@ class TestMcpTokenAuth(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(mgr.filepath.stat().st_mode), 0o600)
 
     def test_windows_acl_restricts_inheritance_to_current_user(self):
-        from bookmark_organizer_pro.services.mcp_auth import MCPTokenManager
+        from bookmark_organizer_pro.services.private_files import restrict_private_file
 
         completed = mock.Mock(returncode=0)
         with (
             mock.patch.dict(os.environ, {"USERNAME": "TestUser"}),
             mock.patch(
-                "bookmark_organizer_pro.services.mcp_auth.subprocess.run",
+                "bookmark_organizer_pro.services.private_files._platform_name",
+                return_value="nt",
+            ),
+            mock.patch(
+                "bookmark_organizer_pro.services.private_files.subprocess.run",
                 return_value=completed,
             ) as run,
         ):
-            MCPTokenManager._restrict_windows_acl(Path("mcp_tokens.tmp"))
+            restrict_private_file(Path("mcp_tokens.tmp"))
         self.assertEqual(
             run.call_args.args[0],
             [
@@ -216,6 +221,112 @@ class TestMcpTokenAuth(unittest.TestCase):
         mgr = MCPTokenManager(filepath=path)
         self.assertTrue(mgr.list_tokens())
         self.assertFalse(mgr.validate("anything", "list_bookmarks"))
+
+
+class TestPrivateCredentialPersistence(unittest.TestCase):
+    class _UnavailableKeyring:
+        @staticmethod
+        def get_password(*_args):
+            raise RuntimeError("keyring unavailable")
+
+        @staticmethod
+        def set_password(*_args):
+            raise RuntimeError("keyring unavailable")
+
+    def _acl_context(self, *results):
+        return (
+            mock.patch.dict(os.environ, {"USERNAME": "TestUser"}),
+            mock.patch(
+                "bookmark_organizer_pro.services.private_files._platform_name",
+                return_value="nt",
+            ),
+            mock.patch(
+                "bookmark_organizer_pro.services.private_files.subprocess.run",
+                side_effect=list(results),
+            ),
+        )
+
+    def test_missing_icacls_removes_plaintext_temp_and_preserves_prior(self):
+        from bookmark_organizer_pro.services.private_files import (
+            PrivateFilePermissionError,
+            atomic_write_private_text,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "credential.txt"
+            path.write_text("prior-secret", encoding="utf-8")
+            environment, platform, runner = self._acl_context(FileNotFoundError("icacls"))
+            with environment, platform, runner, self.assertRaises(PrivateFilePermissionError) as raised:
+                atomic_write_private_text(path, "new-secret")
+            self.assertIn("not published", str(raised.exception))
+            self.assertEqual(path.read_text(encoding="utf-8"), "prior-secret")
+            self.assertEqual(list(path.parent.glob(f".{path.name}.*.tmp")), [])
+
+    def test_api_token_windows_acl_success_and_failure(self):
+        import bookmark_organizer_pro.services.api as api
+        from bookmark_organizer_pro.services.private_files import PrivateFilePermissionError
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "api_token.txt"
+            with (
+                mock.patch.object(api, "_TOKEN_FILE", path),
+                mock.patch.dict(sys.modules, {"keyring": self._UnavailableKeyring()}),
+                mock.patch.object(api.secrets, "token_urlsafe", return_value="generated-api-token"),
+            ):
+                environment, platform, runner = self._acl_context(mock.Mock(returncode=0))
+                with environment, platform, runner:
+                    self.assertEqual(api._load_or_create_token(), "generated-api-token")
+                self.assertEqual(path.read_text(encoding="utf-8"), "generated-api-token")
+
+                path.write_text("\n", encoding="utf-8")
+                environment, platform, runner = self._acl_context(mock.Mock(returncode=5))
+                with environment, platform, runner, self.assertRaises(PrivateFilePermissionError):
+                    api._load_or_create_token()
+                self.assertEqual(path.read_text(encoding="utf-8"), "\n")
+                self.assertEqual(list(path.parent.glob(f".{path.name}.*.tmp")), [])
+
+    def test_ai_config_windows_acl_success_and_failure(self):
+        from bookmark_organizer_pro.ai import AIConfigManager
+        from bookmark_organizer_pro.services.private_files import PrivateFilePermissionError
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ai_config.json"
+            manager = AIConfigManager(filepath=path)
+            manager._config.setdefault("api_keys", {})["google"] = "first-secret"
+            environment, platform, runner = self._acl_context(mock.Mock(returncode=0))
+            with environment, platform, runner:
+                manager.save_config()
+            prior = path.read_bytes()
+
+            manager._config["api_keys"]["google"] = "replacement-secret"
+            environment, platform, runner = self._acl_context(mock.Mock(returncode=5))
+            with environment, platform, runner, self.assertRaises(PrivateFilePermissionError):
+                manager.save_config()
+            self.assertEqual(path.read_bytes(), prior)
+            self.assertEqual(list(path.parent.glob(f".{path.name}.*.tmp")), [])
+
+    def test_mcp_verifier_windows_acl_success_and_failure(self):
+        from bookmark_organizer_pro.services.mcp_auth import MCPTokenManager
+        from bookmark_organizer_pro.services.private_files import PrivateFilePermissionError
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "mcp_tokens.json"
+            manager = MCPTokenManager(filepath=path)
+            environment, platform, runner = self._acl_context(mock.Mock(returncode=0))
+            with environment, platform, runner:
+                first_token = manager.create_token("first")
+            prior = path.read_bytes()
+            self.assertNotIn(first_token, prior.decode("utf-8"))
+
+            environment, platform, runner = self._acl_context(
+                mock.Mock(returncode=0),
+                mock.Mock(returncode=5),
+            )
+            with environment, platform, runner, self.assertRaises(PrivateFilePermissionError):
+                manager.create_token("must-not-publish")
+            self.assertEqual(path.read_bytes(), prior)
+            self.assertEqual(len(json.loads(prior)["document"]), 1)
+            self.assertEqual(list(path.parent.glob(f".{path.name}.*.tmp")), [])
 
 
 class TestCliExitCodes(unittest.TestCase):

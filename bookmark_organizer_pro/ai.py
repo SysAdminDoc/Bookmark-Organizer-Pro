@@ -7,8 +7,6 @@ import importlib
 import json
 import os
 import re
-import subprocess
-import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +14,11 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 from .constants import AI_CONFIG_FILE
 from .logging_config import log
+from .services.private_files import (
+    PrivateFilePermissionError,
+    atomic_write_private_text,
+    restrict_private_file,
+)
 
 # Per-request network timeout (seconds) applied to every remote provider so a
 # hung connection can never block an AI worker thread indefinitely.
@@ -187,11 +190,14 @@ class AIConfigManager:
         """Load configuration from file"""
         if self.filepath.exists():
             try:
+                restrict_private_file(self.filepath)
                 with open(self.filepath, 'r', encoding='utf-8') as f:
                     self._config = json.load(f)
                 if not isinstance(self._config, dict):
                     log.warning("AI config is not an object; using defaults")
                     self._config = {}
+            except PrivateFilePermissionError:
+                raise
             except Exception as e:
                 log.warning(f"Could not load AI config: {e}")
                 self._config = {}
@@ -278,41 +284,15 @@ class AIConfigManager:
         """Save configuration to file"""
         try:
             self._normalize_config()
-            self.filepath.parent.mkdir(parents=True, exist_ok=True)
-            fd, temp_path = tempfile.mkstemp(
-                dir=self.filepath.parent, suffix='.tmp', text=True
+            payload = json.dumps(
+                self._config,
+                indent=2,
+                ensure_ascii=False,
             )
-            try:
-                if os.name != "nt":
-                    os.fchmod(fd, 0o600)
-                with os.fdopen(fd, 'w', encoding='utf-8') as f:
-                    json.dump(self._config, f, indent=2)
-                os.replace(temp_path, self.filepath)
-                self._restrict_permissions()
-            except Exception:
-                if os.path.exists(temp_path):
-                    os.remove(temp_path)
-                raise
+            atomic_write_private_text(self.filepath, payload + "\n")
         except Exception as e:
             log.error(f"Error saving AI config: {e}")
-
-    def _restrict_permissions(self):
-        """Lock down the config file — it can hold plaintext API keys when the
-        OS keyring is unavailable. POSIX permissions are set via fchmod before
-        the rename; on Windows, restrict the ACL to the current user."""
-        if os.name != "nt":
-            return
-        username = os.environ.get("USERNAME", "")
-        if not username:
-            return
-        try:
-            subprocess.run(
-                ["icacls", str(self.filepath), "/inheritance:r",
-                 "/grant:r", f"{username}:(F)"],
-                capture_output=True, check=False,
-            )
-        except Exception as exc:  # pragma: no cover - best-effort hardening
-            log.debug(f"Could not restrict AI config permissions: {exc}")
+            raise
 
     def get_provider(self) -> str:
         return self._config.get("provider", "google")

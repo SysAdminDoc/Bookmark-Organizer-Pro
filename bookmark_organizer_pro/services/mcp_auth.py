@@ -8,9 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import secrets
-import subprocess
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,6 +17,7 @@ from typing import Dict, Optional
 from bookmark_organizer_pro.constants import DATA_DIR
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.services.atomic_document_store import AtomicDocumentStore
+from bookmark_organizer_pro.services.private_files import restrict_private_file
 
 MCP_TOKENS_FILE = DATA_DIR / "mcp_tokens.json"
 TOKEN_SALT_BYTES = 16
@@ -125,6 +124,7 @@ class MCPTokenManager:
             return {}
 
     def _load(self) -> None:
+        self._secure_persisted_files()
         legacy_fallback = self._legacy_fallback()
         self._tokens = self._store.load()
         self._recovery_required = self._store.status.recovery_required
@@ -135,34 +135,10 @@ class MCPTokenManager:
             log.info("Migrated legacy MCP bearer tokens to salted verifier records")
         self._secure_persisted_files()
 
-    @staticmethod
-    def _restrict_windows_acl(path: Path) -> None:
-        username = os.environ.get("USERNAME", "").strip()
-        if not username:
-            raise PermissionError("USERNAME is unavailable; cannot secure MCP token file")
-        result = subprocess.run(
-            [
-                "icacls", str(path), "/inheritance:r",
-                "/grant:r", f"{username}:(F)",
-            ],
-            capture_output=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            raise PermissionError("could not restrict MCP token file to the current user")
-
     def _secure_persisted_files(self) -> None:
         for path in (self.filepath, self._store.backup_path):
-            if not path.exists():
-                continue
-            if os.name == "nt":
-                self._restrict_windows_acl(path)
-            else:
-                os.chmod(path, 0o600)
-
-    def _save(self) -> None:
-        self._store.save(self._tokens)
-        self._secure_persisted_files()
+            if path.exists():
+                restrict_private_file(path)
 
     def _reload(self) -> None:
         loaded = self._store.load()
@@ -185,15 +161,6 @@ class MCPTokenManager:
                 document[identifier] = record
 
             self._tokens = self._store.update(add)
-            try:
-                self._secure_persisted_files()
-            except Exception:
-                def rollback(document: dict) -> None:
-                    document.pop(identifier, None)
-
-                self._store.update(rollback)
-                self._tokens.pop(identifier, None)
-                raise
         log.info(f"MCP token created: {name} (scope={record['scope']})")
         return token
 
@@ -207,7 +174,6 @@ class MCPTokenManager:
                     document.pop(identifier, None)
 
                 self._tokens = self._store.update(revoke)
-                self._secure_persisted_files()
                 log.info(f"MCP token revoked: {name}")
                 return True
         return False

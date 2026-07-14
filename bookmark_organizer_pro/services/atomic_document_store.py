@@ -16,6 +16,10 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from bookmark_organizer_pro.logging_config import log
+from bookmark_organizer_pro.services.private_files import (
+    atomic_copy_private_file,
+    restrict_private_file,
+)
 
 
 class AtomicDocumentError(RuntimeError):
@@ -204,6 +208,8 @@ class AtomicDocumentStore:
             self.status = AtomicDocumentStatus("absent", self.path)
             return self.default_factory()
         try:
+            if self.sensitive:
+                restrict_private_file(self.path)
             raw = json.loads(self.path.read_text(encoding="utf-8"))
             document, revision, migrated = self._decode(raw)
             if migrated:
@@ -267,6 +273,8 @@ class AtomicDocumentStore:
         quarantine = self._quarantine_copy_locked()
         if self.backup_path.exists():
             try:
+                if self.sensitive:
+                    restrict_private_file(self.backup_path)
                 backup_raw = json.loads(self.backup_path.read_text(encoding="utf-8"))
                 document, revision, _migrated = self._decode(backup_raw)
                 self._write_locked(document, revision + 1, preserve_current=False)
@@ -297,9 +305,10 @@ class AtomicDocumentStore:
             self.recovery_dir.mkdir(parents=True, exist_ok=True)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
             destination = self.recovery_dir / f"{self.path.name}.{timestamp}.corrupt"
-            shutil.copy2(self.path, destination)
             if self.sensitive:
-                os.chmod(destination, 0o600)
+                atomic_copy_private_file(self.path, destination)
+            else:
+                shutil.copy2(self.path, destination)
             return destination
         except OSError as exc:
             log.error("Could not quarantine damaged sidecar %s: %s", self.path, exc)
@@ -324,8 +333,6 @@ class AtomicDocumentStore:
             text=True,
         )
         try:
-            if self.sensitive:
-                os.chmod(temporary, 0o600)
             with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
                 json.dump(envelope, handle, indent=2, ensure_ascii=False)
                 handle.write("\n")
@@ -335,9 +342,9 @@ class AtomicDocumentStore:
             decoded, decoded_revision, migrated = self._decode(verified)
             if migrated or decoded_revision != revision or decoded != document:
                 raise ValueError("atomic document verification failed")
-            os.replace(temporary, self.path)
             if self.sensitive:
-                os.chmod(self.path, 0o600)
+                restrict_private_file(temporary)
+            os.replace(temporary, self.path)
             self._fsync_parent()
             self.revision = revision
             self.status = AtomicDocumentStatus(
@@ -364,9 +371,9 @@ class AtomicDocumentStore:
             shutil.copy2(source, temporary)
             with open(temporary, "rb+") as handle:
                 os.fsync(handle.fileno())
-            os.replace(temporary, destination)
             if self.sensitive:
-                os.chmod(destination, 0o600)
+                restrict_private_file(temporary)
+            os.replace(temporary, destination)
         except Exception:
             Path(temporary).unlink(missing_ok=True)
             raise

@@ -2,7 +2,7 @@
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **single-file HTML snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
-Executable product contract: 62 CLI subcommands, 32 MCP tools, 6 AI providers, 3 extension surfaces, 48 service modules, 42 UI modules, and 35 test files.
+Executable product contract: 62 CLI subcommands, 32 MCP tools, 6 AI providers, 3 extension surfaces, 49 service modules, 42 UI modules, and 35 test files.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
 ![Version](https://img.shields.io/badge/Version-v6.12.0-2dd4bf.svg)
@@ -359,7 +359,10 @@ the detail panel.
 ### Safety Notes
 
 - Network tools skip private, localhost, and unsupported URL schemes to avoid leaking or fetching internal resources.
-- AI API keys are stored in the OS keyring when available; `~/.bookmark_organizer/ai_config.json` stores provider settings and is used as a locked-down fallback if keyring storage is unavailable.
+- API and AI keys are stored in the OS keyring when available. Fallback API-token,
+  AI-config, and MCP-verifier files are published atomically only after owner-only
+  permissions succeed; a missing or failing Windows `icacls` preserves the prior
+  credential and reports keyring/permission recovery guidance.
 - New encrypted stores use versioned Argon2id parameters authenticated with the ciphertext. Legacy PBKDF2 v1/v2 stores and recovery keys remain readable; rotation creates and verifies a byte-exact backup before upgrading.
 - Imports, exports, settings, and category files are written defensively with atomic writes where supported.
 - Annotations, flows, feeds, smart collections, jobs, and MCP verifier records use checksummed, revisioned atomic documents with recovery backups and cross-process write coordination.
