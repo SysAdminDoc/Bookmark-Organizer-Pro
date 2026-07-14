@@ -10,6 +10,7 @@ from typing import Callable, Iterable, List, Optional
 from bookmark_organizer_pro.i18n import _
 
 from .foundation import FONTS
+from .tk_interactions import bind_scoped_mousewheel
 from .widgets import ModernButton, apply_window_chrome, get_theme
 
 
@@ -239,6 +240,9 @@ class ImportCenterDialog(tk.Toplevel):
         canvas.configure(yscrollcommand=scrollbar.set)
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self._wheel_binding = bind_scoped_mousewheel(
+            canvas, lambda units, _event: canvas.yview_scroll(units, "units")
+        )
 
         for source in self._sources:
             self._add_card(source)

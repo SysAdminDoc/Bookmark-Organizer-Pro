@@ -213,9 +213,16 @@ def check_tk_interactions() -> dict[str, object]:
             root.update()
             if label.cget("takefocus") not in {1, "1"}:
                 raise AccessibilityContractError("make_keyboard_activatable must set takefocus=1")
+            if getattr(label, "_bop_accessible_name", "") != "Clear":
+                raise AccessibilityContractError("custom controls must expose an accessible name")
             for sequence in ("<Return>", "<KP_Enter>", "<space>"):
                 if not label.bind(sequence):
                     raise AccessibilityContractError(f"keyboard activatable label missing {sequence} binding")
+            label.focus_set()
+            label.event_generate("<Return>")
+            root.update()
+            if activations != ["label"] or root.focus_get() is not label:
+                raise AccessibilityContractError("activation must invoke once and restore visible focus")
 
             button_hits: list[str] = []
             button = ModernButton(root, text="Run", command=lambda: button_hits.append("button"))

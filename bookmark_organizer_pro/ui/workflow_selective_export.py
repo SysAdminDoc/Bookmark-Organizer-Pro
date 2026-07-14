@@ -19,7 +19,7 @@ from bookmark_organizer_pro.utils.runtime import atomic_json_write, csv_safe_cel
 
 from .foundation import FONTS, format_compact_count, pluralize
 from .quick_add import DEFAULT_CATEGORY
-from .tk_interactions import make_keyboard_activatable
+from .tk_interactions import bind_scoped_mousewheel, make_keyboard_activatable
 from .widget_controls import ModernButton, ThemedWidget, Tooltip
 from .widget_runtime import apply_window_chrome, get_theme
 
@@ -138,6 +138,9 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self._wheel_binding = bind_scoped_mousewheel(
+            canvas, lambda units, _event: canvas.yview_scroll(units, "units")
+        )
         
         # Select all / none buttons
         select_frame = tk.Frame(cat_inner, bg=theme.bg_secondary)

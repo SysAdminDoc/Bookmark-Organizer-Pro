@@ -11,7 +11,7 @@ from bookmark_organizer_pro.ui.components import DragDropImportArea, ScrollableF
 from bookmark_organizer_pro.ui.feedback import EmptyState, FilteredEmptyState
 from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, readable_text_on
 from bookmark_organizer_pro.ui.shell_widgets import ViewMode
-from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable
+from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable, route_pointer_to_control
 from bookmark_organizer_pro.ui.treeview import BookmarkListWidget
 from bookmark_organizer_pro.ui.widget_chat_panel import ChatPanel
 from bookmark_organizer_pro.ui.widgets import ModernButton, Tooltip, get_theme
@@ -234,7 +234,6 @@ class AppShellMixin:
             padx=7, pady=3, cursor="hand2",
         )
         self._nl_toggle_btn.pack(side=tk.RIGHT, padx=(4, 4))
-        self._nl_toggle_btn.bind("<Button-1>", lambda e: self._toggle_nl_search())
         make_keyboard_activatable(self._nl_toggle_btn, self._toggle_nl_search)
         Tooltip(self._nl_toggle_btn, _("Interpret the query as natural language"))
 
@@ -407,8 +406,6 @@ class AppShellMixin:
             count_lbl.pack(side=tk.RIGHT, padx=(4, 8), pady=6)
 
             for widget in (row, name_lbl, count_lbl):
-                widget.bind("<Button-1>", lambda e, f=filter_name: self._apply_filter(f))
-
                 def on_enter(e, f=filter_name):
                     if self.active_filter != f:
                         self._set_filter_visual(f, False, hover=True)
@@ -422,7 +419,12 @@ class AppShellMixin:
 
             self.filter_buttons[filter_name] = row
             self.filter_button_parts[filter_name] = (row, name_lbl, count_lbl)
-            make_keyboard_activatable(row, lambda f=filter_name: self._apply_filter(f))
+            make_keyboard_activatable(
+                row,
+                lambda f=filter_name: self._apply_filter(f),
+                accessible_name=_("Filter library: {name}").format(name=filter_name),
+            )
+            route_pointer_to_control(row, name_lbl, count_lbl)
             row.bind("<FocusIn>", lambda e, f=filter_name: self._set_filter_visual(f, self.active_filter == f, hover=True))
             row.bind("<FocusOut>", lambda e, f=filter_name: self._set_filter_visual(f, self.active_filter == f))
             
@@ -737,7 +739,11 @@ class AppShellMixin:
                 cursor="hand2", anchor="w",
             )
             row.pack(fill=tk.X, pady=1)
-            row.bind("<Button-1>", lambda e, b=bm: self._select_bookmark_by_id(b.id))
+            make_keyboard_activatable(
+                row,
+                lambda b=bm: self._select_bookmark_by_id(b.id),
+                accessible_name=_("Open Read Later bookmark: {title}").format(title=title),
+            )
             row.bind("<Enter>", lambda e, w=row: w.configure(bg=theme.bg_hover, fg=theme.text_primary))
             row.bind("<Leave>", lambda e, w=row: w.configure(bg=theme.bg_dark, fg=theme.text_secondary))
 

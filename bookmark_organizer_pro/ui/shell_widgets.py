@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Callable, List, Tuple
 
 from .foundation import DesignTokens, FONTS
-from .tk_interactions import make_keyboard_activatable
+from .tk_interactions import make_keyboard_activatable, route_pointer_to_control
 from .widget_controls import ThemedWidget
 from .widget_runtime import get_theme
 
@@ -181,10 +181,12 @@ class CommandPalette(tk.Toplevel, ThemedWidget):
                 )
                 shortcut_label.pack(side=tk.RIGHT, padx=10)
 
-            make_keyboard_activatable(item, lambda idx=i: self._select_and_execute(idx))
-            for widget in [name_label, shortcut_label]:
-                if widget:
-                    widget.bind("<Button-1>", lambda e, idx=i: self._select_and_execute(idx))
+            make_keyboard_activatable(
+                item,
+                lambda idx=i: self._select_and_execute(idx),
+                accessible_name=name,
+            )
+            route_pointer_to_control(item, name_label, shortcut_label)
     
     def _move_up(self, e):
         if self.selected_index > 0:
@@ -334,7 +336,11 @@ class StyledDropdownMenu(tk.Toplevel):
                 
                 # Click handler
                 if command:
-                    item.bind("<Button-1>", lambda e, cmd=command: self._on_click(cmd))
+                    make_keyboard_activatable(
+                        item,
+                        lambda cmd=command: self._on_click(cmd),
+                        accessible_name=label,
+                    )
         
         # Position the menu
         self.update_idletasks()
@@ -391,4 +397,3 @@ def show_styled_menu(parent, button_widget, items: List[Tuple[str, Callable]]):
     y = button_widget.winfo_rooty() + button_widget.winfo_height() + 2
     
     return StyledDropdownMenu(parent, items, x, y)
-

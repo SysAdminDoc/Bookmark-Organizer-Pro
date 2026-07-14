@@ -2,9 +2,13 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from bookmark_organizer_pro.services.bookmark_graph import BookmarkGraph, GraphNode
-from bookmark_organizer_pro.ui.components import ScrollableFrame
 from bookmark_organizer_pro.ui.graph_view import GraphViewDialog, _directional_node_id
 from bookmark_organizer_pro.ui import treeview
+from bookmark_organizer_pro.ui.tk_interactions import (
+    ScopedMousewheelBinding,
+    WHEEL_EVENTS,
+    wheel_scroll_units,
+)
 from scripts import accessibility_contract_smoke as a11y
 
 
@@ -86,52 +90,104 @@ def test_graph_keyboard_activation_opens_selected_bookmark():
     assert opened == [bookmark]
 
 
-class _FakeCanvas:
+class _FakeTarget:
     def __init__(self):
         self.bound = []
         self.unbound = []
-        self.scrolls = []
 
-    def bind_all(self, sequence, callback):
+    def bind(self, sequence, callback, add=None):
+        self.bound.append((sequence, callback))
+        return f"binding-{len(self.bound)}"
+
+    def unbind(self, sequence, binding_id):
+        self.unbound.append((sequence, binding_id))
+
+
+class _FakeHost:
+    def __init__(self, target):
+        self.target = target
+        self.bound = []
+        self.pointer_widget = self
+
+    def winfo_toplevel(self):
+        return self.target
+
+    def bind(self, sequence, callback, add=None):
         self.bound.append((sequence, callback))
 
-    def unbind_all(self, sequence):
-        self.unbound.append(sequence)
+    def winfo_pointerxy(self):
+        return (10, 20)
 
-    def yview_scroll(self, units, mode):
-        self.scrolls.append((units, mode))
+    def winfo_containing(self, _x, _y):
+        return self.pointer_widget
 
 
-def test_scrollable_frame_binds_cross_platform_wheel_events():
-    frame = object.__new__(ScrollableFrame)
-    frame.canvas = _FakeCanvas()
+def test_scoped_wheel_binding_is_cross_platform_and_targeted():
+    target = _FakeTarget()
+    host = _FakeHost(target)
+    scrolls = []
+    binding = ScopedMousewheelBinding(host, lambda units, event: scrolls.append((units, event)))
 
-    frame._activate_mousewheel()
-    assert [sequence for sequence, _callback in frame.canvas.bound] == [
-        "<MouseWheel>", "<Button-4>", "<Button-5>"
+    assert [sequence for sequence, _callback in target.bound] == list(WHEEL_EVENTS)
+    event = SimpleNamespace(num=4, delta=0)
+    assert binding._dispatch(event) == "break"
+    assert scrolls == [(-1, event)]
+
+    host.pointer_widget = SimpleNamespace(master=None)
+    assert binding._dispatch(SimpleNamespace(num=5, delta=0)) is None
+    binding.close()
+    assert target.unbound == [
+        ("<MouseWheel>", "binding-1"),
+        ("<Button-4>", "binding-2"),
+        ("<Button-5>", "binding-3"),
     ]
-    frame._unbind_mousewheel_events()
-    assert frame.canvas.unbound == ["<MouseWheel>", "<Button-4>", "<Button-5>"]
 
 
-def test_scrollable_frame_handles_linux_buttons_and_small_macos_deltas():
-    frame = object.__new__(ScrollableFrame)
-    frame.canvas = _FakeCanvas()
+def test_wheel_normalization_handles_linux_buttons_and_small_macos_deltas():
+    assert [
+        wheel_scroll_units(SimpleNamespace(num=4, delta=0)),
+        wheel_scroll_units(SimpleNamespace(num=5, delta=0)),
+        wheel_scroll_units(SimpleNamespace(num=None, delta=1)),
+        wheel_scroll_units(SimpleNamespace(num=None, delta=-1)),
+    ] == [-1, 1, -1, 1]
 
-    for event in (
-        SimpleNamespace(num=4, delta=0),
-        SimpleNamespace(num=5, delta=0),
-        SimpleNamespace(num=None, delta=1),
-        SimpleNamespace(num=None, delta=-1),
-    ):
-        assert frame._on_mousewheel(event) == "break"
 
-    assert frame.canvas.scrolls == [
-        (-1, "units"),
-        (1, "units"),
-        (-1, "units"),
-        (1, "units"),
-    ]
+def test_pointer_and_wheel_contracts_enumerate_custom_surfaces():
+    click_surfaces = (
+        "bookmark_organizer_pro/app_mixins/app_shell.py",
+        "bookmark_organizer_pro/app_mixins/categories.py",
+        "bookmark_organizer_pro/app_mixins/dashboard.py",
+        "bookmark_organizer_pro/ui/feedback.py",
+        "bookmark_organizer_pro/ui/shell_widgets.py",
+        "bookmark_organizer_pro/ui/widget_chat_panel.py",
+        "bookmark_organizer_pro/ui/workflow_emoji_picker.py",
+        "bookmark_organizer_pro/launcher.py",
+    )
+    for relative in click_surfaces:
+        source = (ROOT / relative).read_text(encoding="utf-8")
+        assert 'bind("<Button-1>"' not in source, relative
+        assert "make_keyboard_activatable" in source, relative
+
+    wheel_surfaces = (
+        "bookmark_organizer_pro/ui/components.py",
+        "bookmark_organizer_pro/ui/widget_chat_panel.py",
+        "bookmark_organizer_pro/ui/widget_bookmark_editor.py",
+        "bookmark_organizer_pro/ui/management_dialogs.py",
+        "bookmark_organizer_pro/ui/cleanup_review.py",
+        "bookmark_organizer_pro/ui/import_center.py",
+        "bookmark_organizer_pro/ui/widget_theme_dialogs.py",
+        "bookmark_organizer_pro/ui/workflow_emoji_picker.py",
+    )
+    for relative in wheel_surfaces:
+        source = (ROOT / relative).read_text(encoding="utf-8")
+        assert "bind_scoped_mousewheel" in source, relative
+        assert ".bind_all(" not in source, relative
+        assert ".unbind_all(" not in source, relative
+
+    chat_source = (ROOT / "bookmark_organizer_pro/ui/widget_chat_panel.py").read_text(encoding="utf-8")
+    read_later_source = (ROOT / "bookmark_organizer_pro/ui/read_later_queue.py").read_text(encoding="utf-8")
+    assert "Open cited bookmark" in chat_source
+    assert 'self.listbox.bind("<space>"' in read_later_source
 
 
 def test_accessible_bookmark_list_preference_is_persistent_and_non_destructive(tmp_path: Path):

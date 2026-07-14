@@ -11,7 +11,11 @@ from bookmark_organizer_pro.i18n import _
 
 from .foundation import FONTS, DesignTokens
 from .theme import ThemeManager
-from .tk_interactions import make_keyboard_activatable
+from .tk_interactions import (
+    bind_scoped_mousewheel,
+    make_keyboard_activatable,
+    route_pointer_to_control,
+)
 from .widgets import ModernButton, ThemedWidget, get_theme
 
 
@@ -222,13 +226,12 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
         self.browse_btn.pack(pady=(14, 6))
         
         # Click-to-browse (true drag-drop requires tkinterdnd2)
-        self.bind("<Button-1>", lambda e: self._browse_files())
-        self.bind("<Return>", lambda e: self._browse_files())
-        self.bind("<space>", lambda e: self._browse_files())
+        make_keyboard_activatable(
+            self, self._browse_files, accessible_name=_("Choose bookmark files to import")
+        )
         self.bind("<FocusIn>", self._on_enter)
         self.bind("<FocusOut>", self._on_leave)
-        for child in (self.icon_label, self.main_label, self.formats_label):
-            child.bind("<Button-1>", lambda e: self._browse_files())
+        route_pointer_to_control(self, self.icon_label, self.main_label, self.formats_label)
         
         # Visual feedback on hover
         self.bind("<Enter>", self._on_enter)
@@ -368,9 +371,15 @@ class DragDropImportArea(tk.Frame, ThemedWidget):
                 )
                 self.compact_action.pack(side=tk.RIGHT, padx=(8, 0))
                 for widget in (self.compact_row, copy, self.compact_title_label, self.compact_detail_label):
-                    widget.bind("<Button-1>", lambda e: self._browse_files())
                     widget.bind("<Enter>", self._on_enter)
                     widget.bind("<Leave>", self._on_leave)
+                route_pointer_to_control(
+                    self,
+                    self.compact_row,
+                    copy,
+                    self.compact_title_label,
+                    self.compact_detail_label,
+                )
             self.compact_row.pack(fill=tk.X)
         else:
             self.configure(
@@ -459,8 +468,6 @@ class FaviconStatusDisplay(tk.Frame, ThemedWidget):
 # =============================================================================
 class ScrollableFrame(tk.Frame):
     """A scrollable frame widget that properly handles content overflow"""
-
-    _WHEEL_EVENTS = ("<MouseWheel>", "<Button-4>", "<Button-5>")
     
     def __init__(self, parent, bg=None, **kwargs):
         theme = get_theme()
@@ -489,51 +496,15 @@ class ScrollableFrame(tk.Frame):
         self.inner.bind("<Configure>", self._on_frame_configure)
         self.canvas.bind("<Configure>", self._on_canvas_configure)
 
-        # Mouse wheel scrolling — bound globally only while the pointer is over
-        # this frame. Previously every child widget was (re)bound on each
-        # <Configure>/<Map> with add="+", which *appends* a new binding without
-        # removing the old ones. In long, widget-heavy views (e.g. the AI
-        # activity feeds) that grew O(n^2) Tcl bindings and leaked large amounts
-        # of memory. A single hover-scoped bind_all scrolls over any descendant
-        # with no per-widget bindings to accumulate.
-        self.canvas.bind("<Enter>", self._activate_mousewheel)
-        self.canvas.bind("<Leave>", self._deactivate_mousewheel)
-        self.bind("<Destroy>", lambda e: self._deactivate_mousewheel())
+        self._wheel_binding = bind_scoped_mousewheel(
+            self.canvas,
+            lambda units, _event: self.canvas.yview_scroll(units, "units"),
+        )
 
         # Keyboard scrolling
         self.canvas.configure(takefocus=1)
         for key in ("<Prior>", "<Next>", "<Home>", "<End>"):
             self.canvas.bind(key, self._on_key_scroll)
-
-    def _activate_mousewheel(self, event=None):
-        """Capture the wheel globally while the pointer is over this frame."""
-        try:
-            for sequence in self._WHEEL_EVENTS:
-                self.canvas.bind_all(sequence, self._on_mousewheel)
-        except Exception:
-            pass
-
-    def _unbind_mousewheel_events(self):
-        for sequence in self._WHEEL_EVENTS:
-            self.canvas.unbind_all(sequence)
-
-    def _deactivate_mousewheel(self, event=None):
-        """Release the global wheel binding once the pointer truly leaves.
-
-        Tk fires <Leave> on the canvas when the pointer crosses onto a child
-        window too, so confirm the pointer is outside the whole frame before
-        unbinding — otherwise scrolling would stop over the feed rows.
-        """
-        try:
-            x, y = self.winfo_pointerxy()
-            w = self.winfo_containing(x, y)
-            while w is not None:
-                if w is self:
-                    return  # pointer is still over a descendant; keep active
-                w = w.master
-            self._unbind_mousewheel_events()
-        except Exception:
-            self._unbind_mousewheel_events()
 
     def _on_frame_configure(self, event):
         """Update scroll region when inner frame changes"""
@@ -542,23 +513,6 @@ class ScrollableFrame(tk.Frame):
     def _on_canvas_configure(self, event):
         """Update inner frame width when canvas resizes"""
         self.canvas.itemconfig(self.canvas_window, width=event.width)
-
-    def _on_mousewheel(self, event):
-        """Handle mouse wheel scrolling"""
-        button = getattr(event, "num", None)
-        if button == 4:
-            units = -1
-        elif button == 5:
-            units = 1
-        else:
-            delta = getattr(event, "delta", 0)
-            if not delta:
-                return "break"
-            units = int(-delta / 120)
-            if units == 0:
-                units = -1 if delta > 0 else 1
-        self.canvas.yview_scroll(units, "units")
-        return "break"
 
     def _on_key_scroll(self, event):
         """Handle keyboard scrolling (Page Up/Down, Home, End)."""

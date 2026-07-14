@@ -7,6 +7,7 @@ from tkinter import ttk
 from typing import Any, Dict
 
 from .foundation import FONTS, DesignTokens, truncate_middle
+from .tk_interactions import bind_scoped_mousewheel
 from .widget_controls import ModernButton, ThemedWidget
 from .widget_runtime import apply_window_chrome, get_theme
 
@@ -80,6 +81,9 @@ class AnalyticsDashboard(tk.Toplevel, ThemedWidget):
         
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self._wheel_binding = bind_scoped_mousewheel(
+            canvas, lambda units, _event: canvas.yview_scroll(units, "units")
+        )
         
         # Health Score
         health_frame = tk.Frame(

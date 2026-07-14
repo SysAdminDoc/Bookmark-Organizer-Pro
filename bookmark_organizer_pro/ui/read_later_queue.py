@@ -112,6 +112,7 @@ class ReadLaterQueueDialog(tk.Toplevel):
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.listbox.bind("<Double-Button-1>", lambda _event: self._open_selected())
         self.listbox.bind("<Return>", lambda _event: self._open_selected())
+        self.listbox.bind("<space>", lambda _event: self._open_selected())
 
         controls = tk.Frame(body, bg=theme.bg_primary)
         controls.pack(side=tk.RIGHT, fill=tk.Y, padx=(14, 0))

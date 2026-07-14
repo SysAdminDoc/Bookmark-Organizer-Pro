@@ -9,7 +9,7 @@ from typing import Callable
 from bookmark_organizer_pro.i18n import _
 
 from .foundation import FONTS, DesignTokens, readable_text_on
-from .tk_interactions import make_keyboard_activatable
+from .tk_interactions import bind_scoped_mousewheel, make_keyboard_activatable
 from .widget_controls import ModernButton, ThemedWidget
 from .widget_runtime import get_theme
 
@@ -44,7 +44,6 @@ class ChatPanel(tk.Frame, ThemedWidget):
             font=FONTS.tiny(), cursor="hand2",
         )
         self._clear_btn.pack(side=tk.RIGHT)
-        self._clear_btn.bind("<Button-1>", lambda e: self.clear_conversation())
         make_keyboard_activatable(self._clear_btn, self.clear_conversation)
         self._clear_btn.pack_forget()
 
@@ -81,9 +80,10 @@ class ChatPanel(tk.Frame, ThemedWidget):
         self._messages_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self._show_welcome(theme)
 
-        # Bind mousewheel for scrolling
-        self._messages_canvas.bind("<Enter>", self._bind_mousewheel)
-        self._messages_canvas.bind("<Leave>", self._unbind_mousewheel)
+        self._wheel_binding = bind_scoped_mousewheel(
+            self._messages_canvas,
+            lambda units, _event: self._messages_canvas.yview_scroll(units, "units"),
+        )
 
         # Input area
         input_frame = tk.Frame(self, bg=theme.bg_dark)
@@ -159,17 +159,6 @@ class ChatPanel(tk.Frame, ThemedWidget):
         if self._welcome_frame and self._welcome_frame.winfo_exists():
             self._welcome_frame.destroy()
         self._welcome_frame = None
-
-    def _bind_mousewheel(self, event):
-        self._messages_canvas.bind(
-            "<MouseWheel>",
-            lambda e: self._messages_canvas.yview_scroll(
-                int(-1 * (e.delta / 120)), "units"
-            ),
-        )
-
-    def _unbind_mousewheel(self, event):
-        self._messages_canvas.unbind("<MouseWheel>")
 
     def _on_focus_in(self, event):
         theme = get_theme()
@@ -255,9 +244,10 @@ class ChatPanel(tk.Frame, ThemedWidget):
                 )
                 src_label.pack(fill=tk.X)
                 if bm_id and self._on_bookmark_click:
-                    src_label.bind(
-                        "<Button-1>",
-                        lambda e, bid=bm_id: self._on_bookmark_click(bid),
+                    make_keyboard_activatable(
+                        src_label,
+                        lambda bid=bm_id: self._on_bookmark_click(bid),
+                        accessible_name=_("Open cited bookmark: {title}").format(title=title),
                     )
 
         self._messages_canvas.update_idletasks()

@@ -9,7 +9,7 @@ from typing import Dict
 from bookmark_organizer_pro.constants import APP_VERSION
 from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, format_compact_count, pluralize, truncate_middle
-from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable
+from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable, route_pointer_to_control
 from bookmark_organizer_pro.ui.view_models import build_collection_pulse, build_collection_summary
 from bookmark_organizer_pro.ui.components import EnhancedProgressBar, FaviconStatusDisplay
 from bookmark_organizer_pro.ui.widgets import ModernButton, Tooltip, get_theme
@@ -336,14 +336,17 @@ class DashboardActionsMixin:
         callback = lambda: self._run_pulse_action(pulse.action_key)
         make_keyboard_activatable(action_card, callback)
 
+        action_children = []
+
         def bind_action(widget):
             widget.configure(cursor="hand2")
-            widget.bind("<Button-1>", lambda _event, run=callback: run())
+            action_children.append(widget)
             for child in widget.winfo_children():
                 bind_action(child)
 
         for child in action_card.winfo_children():
             bind_action(child)
+        route_pointer_to_control(action_card, *action_children)
 
         if pulse.metrics["total"]:
             ModernButton(
@@ -548,9 +551,9 @@ class DashboardActionsMixin:
             # Bind click to select category (like clicking in left panel)
             make_keyboard_activatable(cat_frame, lambda c=cat: self._select_category(c))
             for widget in [top, cat_lbl]:
-                widget.bind("<Button-1>", lambda e, c=cat: self._select_category(c))
                 widget.bind("<Enter>", lambda e, lbl=cat_lbl: lbl.configure(fg=theme.accent_success))
                 widget.bind("<Leave>", lambda e, lbl=cat_lbl: lbl.configure(fg=theme.accent_primary))
+            route_pointer_to_control(cat_frame, top, cat_lbl)
         
         # Recent bookmarks (clickable)
         section_label(_("Recent Saves"))
@@ -566,7 +569,7 @@ class DashboardActionsMixin:
             )
             title_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
             make_keyboard_activatable(row, lambda bid=bm.id: self._select_bookmark_by_id(bid))
-            title_lbl.bind("<Button-1>", lambda e, bid=bm.id: self._select_bookmark_by_id(bid))
+            route_pointer_to_control(row, title_lbl)
 
         # Pinned bookmarks
         pinned = [b for b in all_bookmarks if b.is_pinned]
@@ -581,7 +584,7 @@ class DashboardActionsMixin:
                 )
                 title_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
                 make_keyboard_activatable(row, lambda bid=bm.id: self._select_bookmark_by_id(bid))
-                title_lbl.bind("<Button-1>", lambda e, bid=bm.id: self._select_bookmark_by_id(bid))
+                route_pointer_to_control(row, title_lbl)
 
         # Read Later queue
         read_later = sorted(
@@ -599,7 +602,7 @@ class DashboardActionsMixin:
                 )
                 title_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
                 make_keyboard_activatable(row, lambda bid=bm.id: self._select_bookmark_by_id(bid))
-                title_lbl.bind("<Button-1>", lambda e, bid=bm.id: self._select_bookmark_by_id(bid))
+                route_pointer_to_control(row, title_lbl)
 
         # Dead links badge
         dead_count = stats.get("broken", 0)
@@ -613,7 +616,7 @@ class DashboardActionsMixin:
             )
             dead_lbl.pack(side=tk.LEFT)
             make_keyboard_activatable(dead_row, lambda: self._apply_filter("Broken"))
-            dead_lbl.bind("<Button-1>", lambda e: self._apply_filter("Broken"))
+            route_pointer_to_control(dead_row, dead_lbl)
 
         # Snapshot failures badge
         if snapshot_failures and hasattr(self, "_view_snapshot_failures"):
@@ -631,7 +634,7 @@ class DashboardActionsMixin:
             )
             snap_lbl.pack(side=tk.LEFT)
             make_keyboard_activatable(snap_row, self._view_snapshot_failures)
-            snap_lbl.bind("<Button-1>", lambda e: self._view_snapshot_failures())
+            route_pointer_to_control(snap_row, snap_lbl)
 
         if job_health.get("jobs"):
             section_label(_("Local Job Health"))
@@ -667,7 +670,7 @@ class DashboardActionsMixin:
                     )
                     title_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
                     make_keyboard_activatable(row, lambda bid=bm.id: self._select_bookmark_by_id(bid))
-                    title_lbl.bind("<Button-1>", lambda e, bid=bm.id: self._select_bookmark_by_id(bid))
+                    route_pointer_to_control(row, title_lbl)
         except Exception:
             pass
 
@@ -693,7 +696,7 @@ class DashboardActionsMixin:
                         fg=theme.text_muted, font=FONTS.small(),
                     ).pack(side=tk.RIGHT)
                     make_keyboard_activatable(row, lambda bid=hl.bookmark_id: self._select_bookmark_by_id(bid))
-                    hl_lbl.bind("<Button-1>", lambda e, bid=hl.bookmark_id: self._select_bookmark_by_id(bid))
+                    route_pointer_to_control(row, hl_lbl)
         except Exception:
             pass
 
@@ -729,9 +732,9 @@ class DashboardActionsMixin:
             # Bind click to filter by domain
             make_keyboard_activatable(row, lambda d=domain: self._filter_by_domain(d))
             for widget in [domain_lbl]:
-                widget.bind("<Button-1>", lambda e, d=domain: self._filter_by_domain(d))
                 widget.bind("<Enter>", lambda e, lbl=domain_lbl: lbl.configure(fg=theme.accent_success))
                 widget.bind("<Leave>", lambda e, lbl=domain_lbl: lbl.configure(fg=theme.accent_primary))
+            route_pointer_to_control(row, domain_lbl)
     
     def _calculate_health_score(self, stats: Dict) -> int:
         """Calculate collection health score"""

@@ -12,7 +12,7 @@ from bookmark_organizer_pro.managers import TagManager
 from bookmark_organizer_pro.models import Bookmark
 
 from .foundation import FONTS, DesignTokens, readable_text_on
-from .tk_interactions import make_keyboard_activatable
+from .tk_interactions import bind_scoped_mousewheel, make_keyboard_activatable
 from .widget_controls import ModernButton, TagEditor, ThemedWidget
 from .widget_runtime import _open_external_url, apply_window_chrome, get_theme
 from .window_geometry import apply_screen_aware_geometry
@@ -90,11 +90,9 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
                 content_window, width=event.width,
             ),
         )
-        self.bind(
-            "<MouseWheel>",
-            lambda event: self.content_canvas.yview_scroll(
-                int(-event.delta / 120) if event.delta else 0, "units"
-            ),
+        self._wheel_binding = bind_scoped_mousewheel(
+            self.content_canvas,
+            lambda units, _event: self.content_canvas.yview_scroll(units, "units"),
         )
         self.bind("<Prior>", lambda _event: self.content_canvas.yview_scroll(-1, "pages"))
         self.bind("<Next>", lambda _event: self.content_canvas.yview_scroll(1, "pages"))
@@ -220,7 +218,6 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
                                   fg=readable_text_on(theme.accent_primary),
                                   font=FONTS.tiny(), padx=5, pady=1, cursor="hand2")
                 add_btn.pack(side=tk.RIGHT, padx=5)
-                add_btn.bind("<Button-1>", lambda e: add_ai_tags())
                 make_keyboard_activatable(add_btn, add_ai_tags)
             
             if bookmark.description:

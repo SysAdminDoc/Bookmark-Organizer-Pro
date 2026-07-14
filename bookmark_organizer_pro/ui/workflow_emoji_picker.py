@@ -7,6 +7,7 @@ from tkinter import ttk
 from typing import Callable
 
 from .foundation import FONTS
+from .tk_interactions import bind_scoped_mousewheel, make_keyboard_activatable
 from .widget_controls import ThemedWidget
 from .widget_runtime import apply_window_chrome, get_theme
 
@@ -85,8 +86,9 @@ class EmojiPicker(tk.Toplevel, ThemedWidget):
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        canvas.bind("<MouseWheel>", 
-            lambda e: canvas.yview_scroll(-1 * (e.delta // 120), "units"))
+        self._wheel_binding = bind_scoped_mousewheel(
+            canvas, lambda units, _event: canvas.yview_scroll(units, "units")
+        )
         
         self._render_emojis()
         
@@ -124,7 +126,9 @@ class EmojiPicker(tk.Toplevel, ThemedWidget):
                     font=FONTS.title(bold=False), cursor="hand2"
                 )
                 btn.grid(row=i // 10, column=i % 10, padx=2, pady=2)
-                btn.bind("<Button-1>", lambda e, em=emoji: self._select(em))
+                make_keyboard_activatable(
+                    btn, lambda em=emoji: self._select(em), accessible_name=f"Select {emoji}"
+                )
                 
                 # Hover effect
                 btn.bind("<Enter>", lambda e, b=btn: b.configure(bg=theme.bg_secondary))

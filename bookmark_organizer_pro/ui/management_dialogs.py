@@ -11,7 +11,7 @@ from bookmark_organizer_pro.services import FaviconWrapperGenerator
 from bookmark_organizer_pro.services.category_delete_recovery import CategoryDeleteRecovery
 
 from .foundation import FONTS, DesignTokens, pluralize
-from .tk_interactions import make_keyboard_activatable
+from .tk_interactions import bind_scoped_mousewheel, make_keyboard_activatable
 from .widgets import ModernButton, Tooltip, apply_window_chrome, get_theme
 
 
@@ -107,13 +107,9 @@ class CategoryManagementDialog(tk.Toplevel):
         # Keep the inner frame as wide as the canvas so rows fill the width.
         canvas.bind("<Configure>", lambda e: canvas.itemconfig(_win, width=e.width))
 
-        # Mouse-wheel scrolling — this was missing, so the list "wouldn't scroll
-        # down" with the wheel. Bind globally only while hovering the list.
-        def _on_wheel(e):
-            canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
-            return "break"
-        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _on_wheel))
-        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+        self._wheel_binding = bind_scoped_mousewheel(
+            canvas, lambda units, _event: canvas.yview_scroll(units, "units")
+        )
         
         self._populate_categories()
         

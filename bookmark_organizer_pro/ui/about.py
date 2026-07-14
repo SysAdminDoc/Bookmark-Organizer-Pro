@@ -32,6 +32,7 @@ from bookmark_organizer_pro.services.local_state import (
 )
 
 from .foundation import FONTS, readable_text_on
+from .tk_interactions import bind_scoped_mousewheel
 from .window_geometry import apply_screen_aware_geometry
 from .widgets import ModernButton, get_theme
 
@@ -241,6 +242,9 @@ License: {LICENSE}
         
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        bind_scoped_mousewheel(
+            canvas, lambda units, _event: canvas.yview_scroll(units, "units")
+        )
     
     def _create_system_tab(self, notebook, theme):
         """Create System info tab"""

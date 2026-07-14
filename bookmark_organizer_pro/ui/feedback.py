@@ -10,7 +10,7 @@ from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.models import Bookmark
 
 from .foundation import FONTS, readable_text_on
-from .tk_interactions import make_keyboard_activatable
+from .tk_interactions import make_keyboard_activatable, route_pointer_to_control
 from .widgets import ModernButton, get_theme
 
 
@@ -289,10 +289,10 @@ class EmptyState(tk.Frame):
         )
         action.pack(fill=tk.X, padx=16, pady=(0, 14))
         if command:
-            make_keyboard_activatable(card, command)
+            make_keyboard_activatable(card, command, accessible_name=action_text)
             for child in card.winfo_children():
                 child.configure(cursor="hand2")
-                child.bind("<Button-1>", lambda _event, callback=command: callback())
+            route_pointer_to_control(card, *card.winfo_children())
 
 
 

@@ -220,6 +220,8 @@ class ImportExportMixin:
                 command=do_salvage,
             ).pack(side=tk.LEFT)
         lb.bind("<Double-Button-1>", lambda e: do_restore())
+        lb.bind("<Return>", lambda e: do_restore())
+        lb.bind("<space>", lambda e: do_restore())
         dlg.bind("<Escape>", lambda e: dlg.destroy())
 
     def _on_import_done(self, added: int, dupes: int):
@@ -481,6 +483,7 @@ class ImportExportMixin:
                      padx=14, pady=7).pack(side=tk.RIGHT, padx=(0, 8))
         listing.bind("<Double-Button-1>", lambda _event: choose())
         listing.bind("<Return>", lambda _event: choose())
+        listing.bind("<space>", lambda _event: choose())
         dlg.bind("<Escape>", lambda _event: dlg.destroy())
     
     def _import_service_file(self, importer_cls, label, filetypes):
@@ -696,6 +699,7 @@ class ImportExportMixin:
                      command=lambda: run_action("rollback"), padx=14, pady=7).pack(side=tk.LEFT)
         listing.bind("<Double-Button-1>", lambda _event: run_action("resume"))
         listing.bind("<Return>", lambda _event: run_action("resume"))
+        listing.bind("<space>", lambda _event: run_action("resume"))
         dlg.bind("<Escape>", lambda _event: dlg.destroy())
 
     def _show_import_result_summary(

@@ -20,6 +20,7 @@ from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.i18n import setup_locale
 from bookmark_organizer_pro.ui import check_and_install_dependencies
 from bookmark_organizer_pro.ui.style_manager import style_manager
+from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable
 from bookmark_organizer_pro.ui.widgets import set_widget_window_chrome_provider
 
 
@@ -70,7 +71,9 @@ def _show_first_run_privacy_notice(root: tk.Tk):
         font=FONTS.small(bold=True), cursor="hand2", padx=12,
     )
     dismiss_btn.pack(side=tk.RIGHT, padx=(0, 12), fill=tk.Y)
-    dismiss_btn.bind("<Button-1>", lambda e: _dismiss_banner())
+    make_keyboard_activatable(
+        dismiss_btn, _dismiss_banner, accessible_name="Dismiss privacy notice"
+    )
 
 
 def _configure_tk_scaling(root: tk.Tk):

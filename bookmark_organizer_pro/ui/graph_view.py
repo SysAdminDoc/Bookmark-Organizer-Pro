@@ -17,6 +17,7 @@ from bookmark_organizer_pro.services.bookmark_graph import (
 )
 
 from .foundation import FONTS
+from .tk_interactions import WHEEL_EVENTS, wheel_scroll_units
 from .widget_controls import ModernButton
 from .window_geometry import apply_screen_aware_geometry
 from .widgets import apply_window_chrome, get_theme
@@ -225,7 +226,8 @@ class GraphViewDialog(tk.Toplevel):
         self.canvas.bind("<ButtonPress-1>", self._on_canvas_press)
         self.canvas.bind("<B1-Motion>", self._on_canvas_drag)
         self.canvas.bind("<Double-Button-1>", self._on_canvas_double_click)
-        self.canvas.bind("<MouseWheel>", self._on_mousewheel)
+        for sequence in WHEEL_EVENTS:
+            self.canvas.bind(sequence, self._on_mousewheel)
         self.canvas.bind("<Tab>", self._on_tab_navigation)
         self.canvas.bind("<Shift-Tab>", self._on_tab_navigation)
         if self.canvas.tk.call("tk", "windowingsystem") == "x11":
@@ -324,9 +326,13 @@ class GraphViewDialog(tk.Toplevel):
             self.on_open_bookmark(bookmark)
 
     def _on_mousewheel(self, event) -> None:
-        factor = 1.1 if event.delta > 0 else 0.9
+        units = wheel_scroll_units(event)
+        if not units:
+            return "break"
+        factor = 1.1 if units < 0 else 0.9
         self.canvas.scale("graph", self.canvas.canvasx(event.x), self.canvas.canvasy(event.y), factor, factor)
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        return "break"
 
     def _on_tab_navigation(self, event) -> str:
         node_ids = [node.id for node in self.graph.nodes]

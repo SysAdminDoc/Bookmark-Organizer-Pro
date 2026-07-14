@@ -7,7 +7,7 @@ from tkinter import messagebox
 
 from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.ui.foundation import FONTS, format_compact_count, pluralize, truncate_middle
-from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable
+from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable, route_pointer_to_control
 from bookmark_organizer_pro.ui.widgets import ModernButton, Tooltip, apply_window_chrome, get_theme
 
 
@@ -88,7 +88,6 @@ class CategoryActionsMixin:
                 count_lbl = None
 
             for w in [row, name_lbl] + ([count_lbl] if count_lbl else []):
-                w.bind("<Button-1>", lambda e, c=cat: self._select_category(c))
                 w.bind("<Button-3>", lambda e, c=cat: self._show_category_context_menu(e, c))
 
             def on_enter(e, r=row, n=name_lbl, cl=count_lbl, c=cat):
@@ -111,7 +110,12 @@ class CategoryActionsMixin:
                 w.bind("<Enter>", on_enter)
                 w.bind("<Leave>", on_leave)
 
-            make_keyboard_activatable(row, lambda c=cat: self._select_category(c))
+            make_keyboard_activatable(
+                row,
+                lambda c=cat: self._select_category(c),
+                accessible_name=_("Show category: {category}").format(category=cat),
+            )
+            route_pointer_to_control(row, name_lbl, count_lbl)
             row.bind("<FocusIn>", lambda e, r=row, n=name_lbl, cl=count_lbl, c=cat: on_enter(e, r, n, cl, c), add="+")
             row.bind("<FocusOut>", lambda e, r=row, n=name_lbl, cl=count_lbl, c=cat: on_leave(e, r, n, cl, c), add="+")
             Tooltip(row, f"Show {cat} ({pluralize(count, 'bookmark')})")

@@ -10,6 +10,7 @@ from typing import Callable, Iterable, List, Mapping, Sequence
 from bookmark_organizer_pro.models import Bookmark
 
 from .foundation import FONTS, truncate_middle
+from .tk_interactions import bind_scoped_mousewheel
 from .widgets import ModernButton, apply_window_chrome, get_theme
 
 
@@ -173,6 +174,9 @@ class CleanupReviewDialog(tk.Toplevel):
         canvas.configure(yscrollcommand=scrollbar.set)
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self._wheel_binding = bind_scoped_mousewheel(
+            canvas, lambda units, _event: canvas.yview_scroll(units, "units")
+        )
 
         for group in self._groups:
             self._add_group(cards, group)
