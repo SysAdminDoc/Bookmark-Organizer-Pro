@@ -2,6 +2,17 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- Added an isolated release builder that installs the verified Python 3.11/Windows lock, pins the packaging toolchain, embeds commit/lock/profile identity plus a CycloneDX SBOM, and runs the frozen artifact contract before publishing.
+- Added a headless `--release-contract` executable probe covering bundled category data, declared runtime capabilities, dependency versions, lock integrity, and SBOM parity.
+
+### Changed
+
+- Declared the maintained BSD-3-Clause `lz4` runtime dependency for Firefox JSONLZ4 imports and made PyInstaller collect all release-profile modules, binaries, data, and metadata explicitly.
+
 ## [v6.12.0] - 2026-07-12
 
 Portable capture, migration, and product-contract release.

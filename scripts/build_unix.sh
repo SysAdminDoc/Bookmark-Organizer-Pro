@@ -15,21 +15,11 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-# Check for PyInstaller
-if ! python3 -c "import PyInstaller" 2>/dev/null; then
-    echo "Installing PyInstaller..."
-    pip3 install pyinstaller
-fi
-
-# Install dependencies
-echo ""
-echo "Checking dependencies..."
-pip3 install beautifulsoup4 requests "Pillow>=12.3.0" --quiet 2>/dev/null || true
-
-# Build
+# The checked-in lock targets Windows/Python 3.11. Unix builds resolve the same
+# bounded `all` profile and record lock_verified=false in their identity.
 echo ""
 echo "Building executable..."
-pyinstaller packaging/bookmark_organizer.spec --clean --noconfirm
+python3 scripts/build_release.py --allow-unlocked-target
 
 echo ""
 echo "============================================"

@@ -1,5 +1,12 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "release_profile": "all",
+  "build_tools": {
+    "pip": "26.1.2",
+    "setuptools": "80.10.2",
+    "wheel": "0.47.0",
+    "pyinstaller": "6.21.0"
+  },
   "user_extras": [
     "ai",
     "encryption",
@@ -13,14 +20,124 @@
       "python": "3.11",
       "platform": "win32",
       "verified": true,
-      "sha256": "120f0be2c6a0971c8a351964583e972dcf12161f79bf5a473aa40c92a1ef25af"
+      "sha256": "7de5da4b99054f7e62abc343e3a0f778a4e219df2d44e875bffcf596cd84e82a"
     }
   ],
   "unlocked_supported_environments": {
-    "python": ["3.10", "3.12", "3.13"],
-    "platforms": ["linux", "darwin"],
+    "python": [
+      "3.10",
+      "3.12",
+      "3.13"
+    ],
+    "platforms": [
+      "linux",
+      "darwin"
+    ],
     "install_policy": "Resolve bounded dependencies from pyproject.toml; pylock.toml is not claimed compatible."
   },
+  "runtime_capabilities": [
+    {
+      "name": "default_categories",
+      "module": "bookmark_organizer_pro.core.default_categories",
+      "minimum_categories": 48,
+      "minimum_patterns": 7500
+    },
+    {
+      "name": "html_parsing",
+      "module": "bs4",
+      "distribution": "beautifulsoup4"
+    },
+    {
+      "name": "http_client",
+      "module": "requests",
+      "distribution": "requests"
+    },
+    {
+      "name": "idna",
+      "module": "idna",
+      "distribution": "idna"
+    },
+    {
+      "name": "image_processing",
+      "module": "PIL",
+      "distribution": "Pillow"
+    },
+    {
+      "name": "safe_xml",
+      "module": "defusedxml",
+      "distribution": "defusedxml"
+    },
+    {
+      "name": "virtual_table",
+      "module": "tksheet",
+      "distribution": "tksheet"
+    },
+    {
+      "name": "transport",
+      "module": "urllib3",
+      "distribution": "urllib3"
+    },
+    {
+      "name": "xml_html",
+      "module": "lxml",
+      "distribution": "lxml"
+    },
+    {
+      "name": "safe_regex",
+      "module": "regex",
+      "distribution": "regex"
+    },
+    {
+      "name": "firefox_jsonlz4",
+      "module": "lz4.block",
+      "distribution": "lz4"
+    },
+    {
+      "name": "content_extraction",
+      "module": "trafilatura",
+      "distribution": "trafilatura"
+    },
+    {
+      "name": "language_detection",
+      "module": "lingua",
+      "distribution": "lingua-language-detector"
+    },
+    {
+      "name": "local_embeddings",
+      "module": "fastembed",
+      "distribution": "fastembed"
+    },
+    {
+      "name": "vector_store",
+      "module": "lancedb",
+      "distribution": "lancedb"
+    },
+    {
+      "name": "encryption",
+      "module": "cryptography",
+      "distribution": "cryptography"
+    },
+    {
+      "name": "mcp_sdk",
+      "module": "mcp",
+      "distribution": "mcp"
+    },
+    {
+      "name": "fastmcp",
+      "module": "fastmcp",
+      "distribution": "fastmcp-slim"
+    },
+    {
+      "name": "sun_valley_theme",
+      "module": "sv_ttk",
+      "distribution": "sv-ttk"
+    },
+    {
+      "name": "os_theme_detection",
+      "module": "darkdetect",
+      "distribution": "darkdetect"
+    }
+  ],
   "module_ownership": {
     "app_mixins": "desktop application orchestration",
     "core": "storage and categorization domain",

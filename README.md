@@ -71,15 +71,20 @@ The dependency audit checks the generated `pylock.toml` with `pip-audit --locked
 actionable vulnerability IDs and fix versions, and requires every suppression in
 `security/pip_audit_suppressions.json` to include package, version, ID, and
 rationale.
-The release artifact smoke runs the built executable with `--version` and fails
-if the artifact is missing, unexpectedly small, reports the wrong version, or
-leaves a process running.
+The release artifact smoke runs the built executable with `--version` and its
+headless `--release-contract` probe. It fails when the artifact is missing or
+unexpectedly small, reports the wrong version, lacks bundled categories or a
+declared capability, differs from its embedded dependency identity, omits its
+CycloneDX SBOM, was built from dirty source, or leaves a process running.
 `python scripts/package_contract_audit.py` verifies the generated install input,
 standard lock, aggregate `all` extra, module ownership, and live product counts.
 `packaging/release_manifest.json` records that `pylock.toml` is verified for
 Windows/Python 3.11; other supported Python/platform combinations resolve the
 bounded manifest and are explicitly not claimed compatible with that lock.
 Regenerate the platform lock with `python scripts/package_contract_audit.py --update-lock`.
+`python scripts/build_release.py` creates an isolated environment, installs the
+hash-verified lock and exact build toolchain, embeds version/commit/lock/profile
+identity and an SBOM, builds with PyInstaller, and runs the artifact smoke.
 
 ### v6 CLI quickstart
 
@@ -239,11 +244,12 @@ On first run, the application will:
 
 **Optional** (recommended):
 - `Pillow` - Image processing for favicons and screenshots
+- `lz4` - Firefox JSONLZ4 bookmark-backup import
 
 ### Manual Installation
 
 ```bash
-pip install beautifulsoup4 requests tksheet "Pillow>=12.3.0"
+pip install beautifulsoup4 requests tksheet "Pillow>=12.3.0" "lz4>=4.4.5,<5"
 ```
 
 ## Usage
@@ -617,30 +623,28 @@ GitHub-hosted build or release workflows.
 ### Prerequisites
 
 ```bash
-# Install PyInstaller
-pip install pyinstaller
-
-# Install dependencies
-pip install beautifulsoup4 requests tksheet "Pillow>=12.3.0"
+# Use Python 3.11 on Windows for the checked-in verified lock.
+python --version
 ```
 
 ### Build Commands
 
 **Windows:**
 ```batch
-# Using spec file (recommended)
-pyinstaller packaging/bookmark_organizer.spec --clean --noconfirm
+# Recreate an isolated locked environment, build, and smoke the artifact.
+python scripts/build_release.py
 
-# Or use the build script
+# Convenience wrapper
 scripts\build_windows.bat
 ```
 
 **macOS/Linux:**
 ```bash
-# Using spec file (recommended)
-pyinstaller packaging/bookmark_organizer.spec --clean --noconfirm
+# Resolve the bounded `all` profile for the unlocked Unix target, record that
+# distinction in the artifact identity, build, and smoke the artifact.
+python3 scripts/build_release.py --allow-unlocked-target
 
-# Or use the build script
+# Convenience wrapper
 chmod +x scripts/build_unix.sh
 ./scripts/build_unix.sh
 ```

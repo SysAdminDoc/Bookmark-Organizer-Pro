@@ -16,7 +16,10 @@ Options:
 """
 
 from pathlib import Path
+import json
 import sys
+
+from PyInstaller.utils.hooks import collect_all
 
 # =============================================================================
 # CONFIGURATION
@@ -30,6 +33,13 @@ PNG_ICON_FILE = "bookmark_organizer.png"
 
 SPEC_DIR = Path(SPECPATH).resolve()
 ROOT_DIR = SPEC_DIR.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from scripts.package_contract_audit import BUILD_METADATA, prepare_build_metadata
+
+prepare_build_metadata(BUILD_METADATA)
+RELEASE_MANIFEST = json.loads((BUILD_METADATA / "release_manifest.json").read_text(encoding="utf-8"))
 ASSETS_DIR = ROOT_DIR / "assets"
 SCRIPT_PATH = ROOT_DIR / SCRIPT_NAME
 VERSION_INFO_FILE = SPEC_DIR / "version_info.txt"
@@ -84,6 +94,7 @@ hidden_imports = [
     'bs4',
     'requests',
     'tksheet',
+    'lz4.block',
     # v6.0.0 — modular backend package
     'bookmark_organizer_pro',
     'bookmark_organizer_pro.services',
@@ -134,18 +145,50 @@ hidden_imports = [
 # Data files to include. Keep bundled runtime assets under the same
 # "assets/" folder used by local development.
 datas = []
+binaries = []
+
+
+def release_submodule_filter(name):
+    """Exclude upstream command shells that require undeclared CLI-only extras."""
+    return name != "mcp.cli" and not name.startswith("mcp.cli.")
+
+
 for asset_name in (ICON_FILE, PNG_ICON_FILE):
     asset_path = ASSETS_DIR / asset_name
     if asset_path.exists():
         datas.append((str(asset_path), "assets"))
 
-# Binary files to include
-binaries = []
+default_categories = ROOT_DIR / "bookmark_organizer_pro" / "core" / "default_categories.json"
+if not default_categories.is_file():
+    raise FileNotFoundError(f"required runtime asset is missing: {default_categories}")
+datas.append((str(default_categories), "bookmark_organizer_pro/core"))
+
+for metadata_name in ("release_manifest.json", "pylock.toml", "build_identity.json", "sbom.cdx.json"):
+    metadata_path = BUILD_METADATA / metadata_name
+    if not metadata_path.is_file():
+        raise FileNotFoundError(f"required release metadata is missing: {metadata_path}")
+    datas.append((str(metadata_path), "release"))
+
+for capability in RELEASE_MANIFEST["runtime_capabilities"]:
+    module = capability["module"]
+    if module.startswith("bookmark_organizer_pro."):
+        hidden_imports.append(module)
+        continue
+    package = module.split(".", 1)[0]
+    package_datas, package_binaries, package_hidden = collect_all(
+        package,
+        filter_submodules=release_submodule_filter,
+    )
+    datas.extend(package_datas)
+    binaries.extend(package_binaries)
+    hidden_imports.extend(package_hidden)
+    hidden_imports.append(module)
+
+hidden_imports = sorted(set(hidden_imports))
 
 # Packages to exclude (reduce size)
 excludes = [
     'matplotlib',
-    'numpy',
     'pandas',
     'scipy',
     'pytest',
@@ -154,7 +197,6 @@ excludes = [
     'pip',
     '_pytest',
     'doctest',
-    'pydoc',
     'unittest',
 ]
 

@@ -504,14 +504,14 @@ sha256 = "bf8150b79a2d5d91ae48629d8b427a8f7ba0e1097dd6202a9059f29a36379535"
 
 [[packages]]
 name = "jaraco-functools"
-version = "4.5.0"
+version = "4.6.0"
 
 [[packages.wheels]]
-name = "jaraco_functools-4.5.0-py3-none-any.whl"
-url = "https://files.pythonhosted.org/packages/96/9a/982e48afcffcd727a9144506720ffd4224b6b7e355c98641866f38b7c043/jaraco_functools-4.5.0-py3-none-any.whl"
+name = "jaraco_functools-4.6.0-py3-none-any.whl"
+url = "https://files.pythonhosted.org/packages/02/36/ecc85bc96c273dc8a11273ed4782272975e6338d4a3e9228621175edf0e3/jaraco_functools-4.6.0-py3-none-any.whl"
 
 [packages.wheels.hashes]
-sha256 = "79ce39246eddbde4b3a03b77ea5f0f7878dc669b166a66cf3fa8e266aa3fa2f4"
+sha256 = "99e3dc0060c5cbe8fcd1cdb36258e2a65ca40f1566b2033b12abb1bb44dd3c30"
 
 [[packages]]
 name = "joserfc"
@@ -666,6 +666,17 @@ url = "https://files.pythonhosted.org/packages/6a/bd/6e2b76a6c5dee10397db9c929f0
 
 [packages.wheels.hashes]
 sha256 = "c76fcadd1e5bfb9b8bafc2200d51e4e78eb0dad67f56881c21dfb6484c7e7746"
+
+[[packages]]
+name = "lz4"
+version = "4.4.5"
+
+[[packages.wheels]]
+name = "lz4-4.4.5-cp311-cp311-win_amd64.whl"
+url = "https://files.pythonhosted.org/packages/18/47/715865a6c7071f417bef9b57c8644f29cb7a55b77742bd5d93a609274e7e/lz4-4.4.5-cp311-cp311-win_amd64.whl"
+
+[packages.wheels.hashes]
+sha256 = "8a842ead8ca7c0ee2f396ca5d878c4c40439a527ebad2b996b0444f0074ed004"
 
 [[packages]]
 name = "markdown-it-py"

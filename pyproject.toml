@@ -18,6 +18,7 @@ dependencies = [
     "tksheet>=7.6,<8",
     "urllib3>=2.7.0",
     "lxml>=6.1.1",
+    "lz4>=4.4.5,<5",
     "regex>=2024.11.6",
 ]
 

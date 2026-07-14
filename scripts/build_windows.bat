@@ -15,22 +15,10 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM Check for PyInstaller
-python -c "import PyInstaller" >nul 2>&1
-if errorlevel 1 (
-    echo Installing PyInstaller...
-    pip install pyinstaller
-)
-
-REM Check for optional dependencies
-echo.
-echo Checking dependencies...
-pip install beautifulsoup4 requests "Pillow>=12.3.0" --quiet
-
-REM Build
+REM Build in an isolated Python 3.11 environment from the verified lock.
 echo.
 echo Building executable...
-pyinstaller packaging\bookmark_organizer.spec --clean --noconfirm
+python scripts\build_release.py
 
 if errorlevel 1 (
     echo.

@@ -15,7 +15,9 @@ A powerful, modern bookmark manager with:
 """
 
 import multiprocessing
+import json
 import sys
+from pathlib import Path
 
 multiprocessing.freeze_support()
 
@@ -31,6 +33,25 @@ if __name__ == "__main__" and any(arg in {"--version", "-V"} for arg in sys.argv
         except Exception:
             pass
     raise SystemExit(0)
+
+if __name__ == "__main__" and "--release-contract" in sys.argv[1:]:
+    from bookmark_organizer_pro.release_contract import build_runtime_contract, write_runtime_contract
+
+    output_path = None
+    if "--release-contract-output" in sys.argv[1:]:
+        output_index = sys.argv.index("--release-contract-output") + 1
+        if output_index >= len(sys.argv):
+            raise SystemExit("--release-contract-output requires a path")
+        output_path = Path(sys.argv[output_index])
+    report = write_runtime_contract(output_path) if output_path else build_runtime_contract()
+    stdout = getattr(sys, "stdout", None)
+    if stdout is not None:
+        try:
+            stdout.write(json.dumps(report, sort_keys=True) + "\n")
+            stdout.flush()
+        except Exception:
+            pass
+    raise SystemExit(0 if report.get("ok") else 1)
 
 import webbrowser
 

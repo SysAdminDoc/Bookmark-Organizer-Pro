@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 import tempfile
 import unittest
@@ -34,6 +35,15 @@ def _load_nuitka_smoke():
 def _load_package_contract_audit():
     path = ROOT / "scripts" / "package_contract_audit.py"
     spec = importlib.util.spec_from_file_location("bop_package_contract_audit", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_release_builder():
+    path = ROOT / "scripts" / "build_release.py"
+    spec = importlib.util.spec_from_file_location("bop_release_builder", path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(module)
@@ -112,8 +122,19 @@ class TestNuitkaBuildHelper(unittest.TestCase):
         pyproject_text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         self.assertIn('sunvalley = ["sv-ttk>=2.6.1,<3.0"]', pyproject_text)
 
+    def test_release_collector_excludes_optional_upstream_mcp_cli(self):
+        spec_text = (ROOT / "packaging" / "bookmark_organizer.spec").read_text(encoding="utf-8")
+
+        self.assertIn('name != "mcp.cli"', spec_text)
+        self.assertIn("filter_submodules=release_submodule_filter", spec_text)
+        self.assertNotIn("'numpy',", spec_text)
+        self.assertNotIn("'pydoc',", spec_text)
+
     def test_updater_bootstrap_doc_covers_trusted_root_and_target_name(self):
-        doc = (ROOT / "docs" / "distribution" / "updater-bootstrap.md").read_text(encoding="utf-8")
+        doc_path = ROOT / "docs" / "distribution" / "updater-bootstrap.md"
+        if not doc_path.exists():
+            self.skipTest("local updater bootstrap documentation is intentionally untracked")
+        doc = doc_path.read_text(encoding="utf-8")
 
         self.assertIn("updates/metadata/root.json", doc)
         self.assertIn("BookmarkOrganizerPro-6.6.11.tar.gz", doc)
@@ -177,6 +198,34 @@ class TestNuitkaBuildHelper(unittest.TestCase):
         ]
         self.assertEqual(install_lines, [module.INSTALL_LINE])
 
+    def test_release_lock_renders_hash_required_install_input(self):
+        module = _load_package_contract_audit()
+
+        requirements = module.locked_requirements_text()
+
+        self.assertIn("lz4==4.4.5 --hash=sha256:", requirements)
+        self.assertNotIn("bookmark-organizer-pro==", requirements)
+        self.assertTrue(all("--hash=sha256:" in line for line in requirements.splitlines()))
+
+    def test_release_manifest_declares_frozen_runtime_capabilities(self):
+        module = _load_package_contract_audit()
+
+        report = module.validate_dependency_contract()
+        manifest = json.loads(module.RELEASE_MANIFEST.read_text(encoding="utf-8"))
+        capabilities = {item["name"]: item for item in manifest["runtime_capabilities"]}
+
+        self.assertGreater(report["locked_dependencies"], 100)
+        self.assertEqual(manifest["schema_version"], 2)
+        self.assertEqual(manifest["release_profile"], "all")
+        self.assertEqual(capabilities["firefox_jsonlz4"]["distribution"], "lz4")
+        self.assertIn("default_categories", capabilities)
+
+    def test_release_builder_uses_platform_specific_venv_python(self):
+        module = _load_release_builder()
+
+        self.assertEqual(module.venv_python(Path("env"), "win32"), Path("env/Scripts/python.exe"))
+        self.assertEqual(module.venv_python(Path("env"), "linux"), Path("env/bin/python"))
+
     def test_pyinstaller_runtime_hook_guards_multiprocessing(self):
         spec_text = (ROOT / "packaging" / "bookmark_organizer.spec").read_text(encoding="utf-8")
         hook_text = (ROOT / "packaging" / "runtime_hook_multiprocessing.py").read_text(
@@ -186,6 +235,8 @@ class TestNuitkaBuildHelper(unittest.TestCase):
         self.assertIn('RUNTIME_HOOK_MP = SPEC_DIR / "runtime_hook_multiprocessing.py"', spec_text)
         self.assertIn("runtime_hooks=[str(RUNTIME_HOOK_MP)]", spec_text)
         self.assertIn("multiprocessing.freeze_support()", hook_text)
+        self.assertIn('"bookmark_organizer_pro/core"', spec_text)
+        self.assertIn('"release"', spec_text)
 
     def test_public_product_counts_match_live_surfaces(self):
         module = _load_package_contract_audit()
