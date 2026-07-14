@@ -69,6 +69,9 @@ class BoundedEgressClient:
     """Requests-compatible client enforcing one public-network policy."""
 
     exceptions = _requests.exceptions
+    _SENSITIVE_REDIRECT_HEADERS = frozenset(
+        {"authorization", "proxy-authorization", "cookie"}
+    )
 
     def __init__(self, policy: EgressPolicy | None = None, *, session=None):
         self.policy = policy or EgressPolicy()
@@ -99,6 +102,23 @@ class BoundedEgressClient:
                     f"Response exceeded the {max_bytes}-byte egress ceiling"
                 )
         return bytes(chunks)
+
+    @staticmethod
+    def _origin(url: str) -> tuple[str, str, int | None]:
+        """Return the RFC 9110 protection-space origin for a URL."""
+        parsed = urlsplit(url)
+        scheme = parsed.scheme.lower()
+        default_port = 443 if scheme == "https" else 80 if scheme == "http" else None
+        return scheme, (parsed.hostname or "").lower(), parsed.port or default_port
+
+    @classmethod
+    def _strip_cross_origin_credentials(cls, headers: dict, source: str, target: str) -> None:
+        """Remove caller credentials whenever a redirect leaves its origin."""
+        if cls._origin(source) == cls._origin(target):
+            return
+        for name in list(headers):
+            if str(name).lower() in cls._SENSITIVE_REDIRECT_HEADERS:
+                headers.pop(name, None)
 
     def request(self, method: str, url: str, **kwargs):
         allow_redirects = bool(kwargs.pop("allow_redirects", method.upper() != "HEAD"))
@@ -160,10 +180,7 @@ class BoundedEgressClient:
                     f"Exceeded {self.policy.max_redirects} validated redirects"
                 )
             next_url = urljoin(current_url, location)
-            old_host = (urlsplit(current_url).hostname or "").lower()
-            new_host = (urlsplit(next_url).hostname or "").lower()
-            if new_host != old_host:
-                headers.pop("Authorization", None)
+            self._strip_cross_origin_credentials(headers, current_url, next_url)
             if response.status_code == 303 or (
                 response.status_code in (301, 302) and current_method == "POST"
             ):
@@ -185,4 +202,3 @@ class BoundedEgressClient:
 
 
 public_egress = BoundedEgressClient()
-

@@ -75,6 +75,43 @@ class TestBoundedEgress(unittest.TestCase):
         "bookmark_organizer_pro.services.egress.URLUtilities.check_safe_url",
         return_value=(True, "allowed"),
     )
+    def test_redirect_credentials_follow_scheme_host_and_effective_port_origin(self, _safe):
+        cases = (
+            ("https://example.com/start", "/final", True),
+            ("https://EXAMPLE.com:443/start", "https://example.com/final", True),
+            ("https://example.com/start", "https://example.com:8443/final", False),
+            ("http://example.com/start", "https://example.com/final", False),
+            ("https://example.com/start", "http://example.com/final", False),
+            ("https://example.com/start", "https://other.example/final", False),
+        )
+        supplied = {
+            "authorization": "Bearer lowercase-secret",
+            "COOKIE": "session=secret",
+            "Proxy-Authorization": "Basic proxy-secret",
+            "X-Trace": "keep-me",
+        }
+
+        for source, location, same_origin in cases:
+            with self.subTest(source=source, location=location):
+                session = _Session([
+                    _Response(302, headers={"Location": location}),
+                    _Response(200, body=b"done"),
+                ])
+                client = BoundedEgressClient(EgressPolicy(max_redirects=2), session=session)
+                client.get(source, headers=supplied)
+                redirected_headers = session.calls[1][2]["headers"]
+
+                self.assertEqual(redirected_headers["X-Trace"], "keep-me")
+                for name in ("authorization", "COOKIE", "Proxy-Authorization"):
+                    if same_origin:
+                        self.assertIn(name, redirected_headers)
+                    else:
+                        self.assertNotIn(name, redirected_headers)
+
+    @patch(
+        "bookmark_organizer_pro.services.egress.URLUtilities.check_safe_url",
+        return_value=(True, "allowed"),
+    )
     def test_rejects_declared_and_streamed_oversized_responses(self, _safe):
         declared = BoundedEgressClient(
             EgressPolicy(max_bytes=4),
