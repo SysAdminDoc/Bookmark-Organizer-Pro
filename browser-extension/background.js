@@ -1,5 +1,9 @@
-importScripts("i18n.js", "shared.js");
-importScripts("credential-vault.js");
+// Chromium runs this file as a service worker and needs importScripts.
+// Firefox loads the same dependencies first through background.scripts.
+if (typeof importScripts === "function") {
+  importScripts("i18n.js", "shared.js");
+  importScripts("credential-vault.js");
+}
 
 function storageRemove(keys) {
   if (api.storage.local.remove.length === 1) {
@@ -123,6 +127,10 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
       try {
         await api.sidePanel.open({ windowId: tab.windowId });
       } catch { /* sidePanel API unavailable in this browser */ }
+    } else if (api.sidebarAction && api.sidebarAction.open) {
+      try {
+        await api.sidebarAction.open();
+      } catch { /* Firefox sidebar could not be opened for this window */ }
     }
     return;
   }

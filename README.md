@@ -54,6 +54,9 @@ shipping UI or extension changes:
 ```bash
 python scripts/visual_regression_smoke.py
 python scripts/accessibility_contract_smoke.py
+python scripts/build_extension.py all
+python scripts/extension_e2e_smoke.py --extension-dir build/browser-extension/chromium
+python scripts/extension_firefox_smoke.py
 python scripts/dependency_vulnerability_audit.py
 python scripts/release_artifact_smoke.py --artifact dist/BookmarkOrganizerPro.exe
 ```
@@ -62,8 +65,8 @@ The smoke writes screenshots to a temporary directory, captures Windows desktop
 surfaces offscreen without activating them, exercises dark/light desktop and
 MV3 extension surfaces, and fails on blank captures, missing
 critical text, extension console errors, or horizontal overflow. Install
-Playwright browsers once with `python -m playwright install chromium` if the
-extension smoke reports a missing Chromium runtime.
+Playwright browsers once with `python -m playwright install chromium firefox`
+if an extension smoke reports a missing browser runtime.
 The accessibility smoke verifies extension labels, status regions, tab roles,
 valid list/loading recovery structure, reduced-motion styling, Studio token
 parity, and Tk keyboard-focus activation contracts.
@@ -139,10 +142,14 @@ network environment to opt in.
 
 ### Browser extension MVP
 
-The `browser-extension/` folder contains an unpacked Manifest V3 extension that
-saves the active HTTP/HTTPS tab through the local BOP API.
+The `browser-extension/` folder contains shared Manifest V3 extension sources
+that save the active HTTP/HTTPS tab through the local BOP API. Build a clean,
+browser-specific unpacked directory and deterministic archive before loading it:
 
 ```bash
+# Build both `build/browser-extension/{chromium,firefox}` plus ZIP/XPI archives
+python scripts/build_extension.py all
+
 # Terminal 1: keep the local API available
 bop api-server --port 8765
 
@@ -150,13 +157,23 @@ bop api-server --port 8765
 Get-Content "$env:USERPROFILE\.bookmark_organizer\api_token.txt"
 ```
 
-Load `browser-extension/` as an unpacked extension, open its Options page, enter
-the API token and port, then use the toolbar popup to save the current tab. The
+Load `build/browser-extension/chromium` in Chrome/Edge or temporarily load the
+`build/browser-extension/firefox` manifest in Firefox, open Options, enter the
+API token and port, then use the toolbar popup to save the current tab. The
 API stores tokens in the OS keyring when available and only writes the fallback
 file above when keyring storage is unavailable. The extension keeps its bearer
 token in a background-owned IndexedDB vault, restricts Chromium local storage
 to trusted extension contexts, and migrates older `storage.local` tokens on
 startup.
+
+Chromium uses a service worker, Side Panel, and Chrome Reading List import.
+Firefox uses an ordered background page and `sidebar_action`; Firefox does not
+provide `chrome.readingList`, so Reading List import reports that browser-specific
+limitation while popup, sidebar, selection, and context-menu capture remain
+available. Validate the Firefox manifest and a clean-profile temporary install
+with `python scripts/extension_firefox_smoke.py`; set `FIREFOX_BINARY` when
+Firefox is not installed in a standard or Playwright location. The smoke exits
+with status 2 and a structured limitation report when no Firefox runtime exists.
 
 The popup and side panel can optionally save a sanitized offline copy of the
 active signed-in page. Capture removes scripts, forms, event handlers, remote

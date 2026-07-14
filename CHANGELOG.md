@@ -8,6 +8,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 - Added an isolated release builder that installs the verified Python 3.11/Windows lock, pins the packaging toolchain, embeds commit/lock/profile identity plus a CycloneDX SBOM, and runs the frozen artifact contract before publishing.
 - Added a headless `--release-contract` executable probe covering bundled category data, declared runtime capabilities, dependency versions, lock integrity, and SBOM parity.
+- Added deterministic Chromium ZIP and Firefox XPI extension builds with shared-manifest parity checks, Firefox `sidebar_action`/background-page support, web-ext lint, and a clean-profile temporary-install smoke.
 
 ### Changed
 

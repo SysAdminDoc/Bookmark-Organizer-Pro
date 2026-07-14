@@ -175,7 +175,9 @@ def _restart_extension(context, worker):
         raise ExtensionSmokeError(f"service worker did not restart: {exc}") from exc
 
 
-def run_smoke(*, profile_dir: Path, data_dir: Path) -> dict[str, Any]:
+def run_smoke(
+    *, profile_dir: Path, data_dir: Path, extension_dir: Path = EXTENSION_DIR
+) -> dict[str, Any]:
     """Run the loaded-extension smoke and return a machine-readable report."""
     try:
         from playwright.sync_api import sync_playwright
@@ -199,7 +201,9 @@ def run_smoke(*, profile_dir: Path, data_dir: Path) -> dict[str, Any]:
     try:
         api.start()
         fixture_url = f"http://127.0.0.1:{fixture.server_port}/fixture"
-        extension_path = str(EXTENSION_DIR.resolve())
+        extension_path = str(extension_dir.resolve())
+        if not (extension_dir / "manifest.json").is_file():
+            raise ExtensionSmokeError(f"Chromium extension manifest not found: {extension_dir}")
         with sync_playwright() as playwright:
             context = playwright.chromium.launch_persistent_context(
                 str(profile_dir),
@@ -425,6 +429,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", type=Path, help="Persistent Chromium profile directory")
     parser.add_argument("--data-dir", type=Path, help="Temporary BOP data directory")
+    parser.add_argument(
+        "--extension-dir", type=Path, default=EXTENSION_DIR,
+        help="Built Chromium extension directory",
+    )
     return parser.parse_args(argv)
 
 
@@ -445,7 +453,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             data_temp = tempfile.TemporaryDirectory(prefix="bop-extension-data-")
             data_dir = Path(data_temp.name)
-        report = run_smoke(profile_dir=profile, data_dir=data_dir)
+        report = run_smoke(
+            profile_dir=profile,
+            data_dir=data_dir,
+            extension_dir=args.extension_dir.resolve(),
+        )
         print(json.dumps(report, indent=2))
         return 0
     except ExtensionSmokeError as exc:

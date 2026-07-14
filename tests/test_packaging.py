@@ -7,6 +7,7 @@ import json
 import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -44,6 +45,15 @@ def _load_package_contract_audit():
 def _load_release_builder():
     path = ROOT / "scripts" / "build_release.py"
     spec = importlib.util.spec_from_file_location("bop_release_builder", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_extension_builder():
+    path = ROOT / "scripts" / "build_extension.py"
+    spec = importlib.util.spec_from_file_location("bop_extension_builder", path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(module)
@@ -237,6 +247,56 @@ class TestNuitkaBuildHelper(unittest.TestCase):
         self.assertIn("multiprocessing.freeze_support()", hook_text)
         self.assertIn('"bookmark_organizer_pro/core"', spec_text)
         self.assertIn('"release"', spec_text)
+
+
+class TestExtensionDistribution(unittest.TestCase):
+    def test_chromium_and_firefox_manifests_have_explicit_parity_and_api_differences(self):
+        module = _load_extension_builder()
+        chromium = module.load_manifest("chromium")
+        firefox = module.load_manifest("firefox")
+
+        module.validate_manifest("chromium", chromium)
+        module.validate_manifest("firefox", firefox)
+        module.validate_parity(chromium, firefox)
+        self.assertEqual(chromium["background"], {"service_worker": "background.js"})
+        self.assertEqual(firefox["background"]["scripts"][-1], "background.js")
+        self.assertEqual(firefox["sidebar_action"]["default_panel"], "sidepanel.html")
+        self.assertNotIn("sidePanel", firefox["permissions"])
+        self.assertNotIn("readingList", firefox["permissions"])
+        self.assertIn("browser_specific_settings", firefox)
+
+    def test_extension_builder_emits_deterministic_isolated_artifacts(self):
+        module = _load_extension_builder()
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "extension"
+            first = module.build_target("firefox", output)
+            second = module.build_target("firefox", output)
+            chromium = module.build_target("chromium", output)
+
+            self.assertEqual(first["sha256"], second["sha256"])
+            self.assertTrue(str(first["archive"]).endswith(".xpi"))
+            self.assertTrue(str(chromium["archive"]).endswith(".zip"))
+            built = Path(str(first["directory"]))
+            manifest = json.loads((built / "manifest.json").read_text(encoding="utf-8"))
+            self.assertIn("sidebar_action", manifest)
+            self.assertFalse((built / "manifest.firefox.json").exists())
+            with zipfile.ZipFile(str(first["archive"])) as archive:
+                self.assertIn("manifest.json", archive.namelist())
+                self.assertNotIn("manifest.firefox.json", archive.namelist())
+
+    def test_firefox_smoke_uses_clean_profile_and_records_runtime_limitation(self):
+        smoke = (ROOT / "scripts" / "extension_firefox_smoke.py").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        background = (ROOT / "browser-extension" / "background.js").read_text(encoding="utf-8")
+
+        self.assertIn('PROFILE_MARKER = "Creating new Firefox profile"', smoke)
+        self.assertIn('INSTALL_MARKER = "as a temporary add-on"', smoke)
+        self.assertNotIn('"--firefox-profile"', smoke)
+        self.assertIn('"status": "unavailable"', smoke)
+        self.assertIn("chrome.readingList", readme)
+        self.assertIn("status 2", readme)
+        self.assertIn('typeof importScripts === "function"', background)
+        self.assertIn("api.sidebarAction.open", background)
 
     def test_public_product_counts_match_live_surfaces(self):
         module = _load_package_contract_audit()
