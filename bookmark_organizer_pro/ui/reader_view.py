@@ -38,6 +38,7 @@ class ReaderViewDialog(tk.Toplevel):
         self.store = store or ReaderAnnotationStore()
         self.text_content = read_extracted_text(bookmark)
         self.highlight_ids: List[str] = []
+        self._deleted_highlight: ReaderHighlight | None = None
 
         self.title(_("Reader — {title}").format(title=bookmark.title))
         self.geometry("920x700")
@@ -49,6 +50,8 @@ class ReaderViewDialog(tk.Toplevel):
         self._build()
         self._load_highlights()
         self.bind("<Escape>", lambda _event: self.destroy())
+        self.bind("<Control-z>", self._undo_deleted_highlight)
+        self.bind("<Command-z>", self._undo_deleted_highlight)
         self.after(50, self.text.focus_set)
 
     def _build(self) -> None:
@@ -114,6 +117,9 @@ class ReaderViewDialog(tk.Toplevel):
 
         side = tk.Frame(body, bg=theme.bg_secondary, padx=12, pady=12)
         body.add(side, minsize=260)
+        side.grid_columnconfigure(0, weight=1)
+        side.grid_rowconfigure(3, weight=3, minsize=80)
+        side.grid_rowconfigure(6, weight=1, minsize=50)
 
         tk.Label(
             side,
@@ -122,7 +128,7 @@ class ReaderViewDialog(tk.Toplevel):
             fg=theme.text_primary,
             font=FONTS.body(bold=True),
             anchor="w",
-        ).pack(fill=tk.X)
+        ).grid(row=0, column=0, sticky="ew")
         tk.Label(
             side,
             text=_("Select text in the reader, choose a color, then add a highlight."),
@@ -132,7 +138,19 @@ class ReaderViewDialog(tk.Toplevel):
             anchor="w",
             wraplength=250,
             justify=tk.LEFT,
-        ).pack(fill=tk.X, pady=(2, 8))
+        ).grid(row=1, column=0, sticky="ew", pady=(2, 6))
+
+        self.status = tk.Label(
+            side,
+            text="",
+            bg=theme.bg_secondary,
+            fg=theme.text_muted,
+            font=FONTS.small(),
+            anchor="w",
+            justify=tk.LEFT,
+            wraplength=250,
+        )
+        self.status.grid(row=2, column=0, sticky="ew", pady=(0, 6))
 
         self.highlight_list = tk.Listbox(
             side,
@@ -141,14 +159,14 @@ class ReaderViewDialog(tk.Toplevel):
             selectbackground=theme.selection,
             selectforeground=theme.text_primary,
             relief=tk.FLAT,
-            height=10,
+            height=4,
             font=FONTS.small(),
         )
-        self.highlight_list.pack(fill=tk.BOTH, expand=True, pady=(8, 10))
+        self.highlight_list.grid(row=3, column=0, sticky="nsew", pady=(0, 8))
         self.highlight_list.bind("<<ListboxSelect>>", self._on_highlight_selected)
 
         controls = tk.Frame(side, bg=theme.bg_secondary)
-        controls.pack(fill=tk.X)
+        controls.grid(row=4, column=0, sticky="ew")
         self.color_var = tk.StringVar(value="yellow")
         self.color_combo = ttk.Combobox(
             controls,
@@ -175,10 +193,10 @@ class ReaderViewDialog(tk.Toplevel):
             fg=theme.text_secondary,
             font=FONTS.small(),
             anchor="w",
-        ).pack(fill=tk.X, pady=(12, 4))
+        ).grid(row=5, column=0, sticky="ew", pady=(10, 4))
         self.note_text = tk.Text(
             side,
-            height=5,
+            height=2,
             wrap=tk.WORD,
             bg=theme.bg_primary,
             fg=theme.text_primary,
@@ -187,10 +205,10 @@ class ReaderViewDialog(tk.Toplevel):
             padx=8,
             pady=8,
         )
-        self.note_text.pack(fill=tk.X)
+        self.note_text.grid(row=6, column=0, sticky="nsew")
 
         note_actions = tk.Frame(side, bg=theme.bg_secondary)
-        note_actions.pack(fill=tk.X, pady=(8, 0))
+        note_actions.grid(row=7, column=0, sticky="ew", pady=(8, 0))
         ModernButton(
             note_actions,
             text=_("Save"),
@@ -200,7 +218,7 @@ class ReaderViewDialog(tk.Toplevel):
             pady=4,
             font=FONTS.small(),
         ).pack(side=tk.LEFT, padx=(0, 8))
-        ModernButton(
+        self.delete_highlight_button = ModernButton(
             note_actions,
             text=_("Delete"),
             command=self._delete_selected_highlight,
@@ -208,17 +226,19 @@ class ReaderViewDialog(tk.Toplevel):
             padx=10,
             pady=4,
             font=FONTS.small(),
-        ).pack(side=tk.LEFT)
-
-        self.status = tk.Label(
-            side,
-            text="",
-            bg=theme.bg_secondary,
-            fg=theme.text_muted,
-            font=FONTS.small(),
-            anchor="w",
         )
-        self.status.pack(fill=tk.X, pady=(12, 0))
+        self.delete_highlight_button.pack(side=tk.LEFT)
+        self.undo_delete_button = ModernButton(
+            note_actions,
+            text=_("Undo"),
+            command=self._undo_deleted_highlight,
+            state="disabled",
+            padx=10,
+            pady=4,
+            font=FONTS.small(),
+            tooltip=_("Restore the last deleted highlight (Ctrl+Z)"),
+        )
+        self.undo_delete_button.pack(side=tk.LEFT, padx=(8, 0))
 
     def _load_highlights(self) -> None:
         self._clear_highlight_tags()
@@ -315,10 +335,43 @@ class ReaderViewDialog(tk.Toplevel):
         if not highlight_id:
             messagebox.showinfo(_("Reader"), _("Select a highlight first."), parent=self)
             return
-        self.store.delete(highlight_id)
+        deleted = self.store.delete_and_return(highlight_id)
+        if deleted is None:
+            self._load_highlights()
+            self.status.configure(text=_("That highlight no longer exists."))
+            return
+        self._deleted_highlight = deleted
         self.note_text.delete("1.0", tk.END)
         self._load_highlights()
-        self.status.configure(text=_("Highlight deleted"))
+        self.undo_delete_button.set_state("normal")
+        self.undo_delete_button.focus_set()
+        self.status.configure(text=_("Highlight deleted. Undo is available (Ctrl+Z)."))
+
+    def _undo_deleted_highlight(self, _event=None):
+        deleted = self._deleted_highlight
+        if deleted is None:
+            self.status.configure(text=_("No deleted highlight is available to restore."))
+            return "break"
+        if not self.store.restore(deleted):
+            self._deleted_highlight = None
+            self.undo_delete_button.set_state("disabled")
+            self.highlight_list.focus_set()
+            self.status.configure(text=_("The highlight already exists and was not replaced."))
+            return "break"
+
+        self._deleted_highlight = None
+        self.undo_delete_button.set_state("disabled")
+        self._load_highlights()
+        if deleted.id in self.highlight_ids:
+            index = self.highlight_ids.index(deleted.id)
+            self.highlight_list.selection_clear(0, tk.END)
+            self.highlight_list.selection_set(index)
+            self.highlight_list.activate(index)
+            self.highlight_list.see(index)
+            self.highlight_list.focus_set()
+            self._on_highlight_selected()
+        self.status.configure(text=_("Highlight restored."))
+        return "break"
 
     def _export_highlights(self) -> None:
         stem = f"{self.bookmark.id}-reader-highlights"

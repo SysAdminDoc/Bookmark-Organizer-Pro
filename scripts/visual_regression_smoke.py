@@ -55,6 +55,7 @@ DESKTOP_SURFACES = (
     "desktop-snapshot-failures-sidebar",
     "desktop-export-dialog",
     "desktop-reader-view",
+    "desktop-reader-highlight-deleted",
     "desktop-graph-view",
 )
 
@@ -815,6 +816,22 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
                 ("Reader QA Notes", "Highlights", "Select text in the reader"),
             )
         )
+        destroy_window(reader_dialog)
+        reader_dialog = ReaderViewDialog(root, reader_bookmark, store=reader_store)
+        reader_dialog.highlight_list.selection_set(0)
+        reader_dialog._delete_selected_highlight()
+        reader_dialog.update()
+        results.append(
+            capture_tk_window(
+                reader_dialog,
+                output_dir,
+                "desktop-reader-highlight-deleted",
+                ("Reader QA Notes", "Undo", "Highlight deleted"),
+            )
+        )
+        reader_dialog._undo_deleted_highlight()
+        if reader_store.get(reader_dialog.highlight_ids[0]) is None:
+            raise VisualSmokeError("Reader highlight undo did not restore the deleted record")
         destroy_window(reader_dialog)
 
         verify_graph_viewports(root, theme_manager, sample_bookmarks)

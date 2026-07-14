@@ -23,6 +23,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Made custom rows, citations, emoji choices, and recovery lists keyboard-operable with named focus targets and focus restoration, while replacing global wheel hooks with scoped Windows/macOS/Linux scrolling across canvas-based dialogs.
 - Made dependency setup cancellation terminate the active pip process, prevent subsequent packages from starting, keep the dialog visible through terminal cancellation, and report packages changed before cancellation.
 - Made localization coverage executable: desktop UI literals and named/plural placeholders now fail a local gate when they bypass gettext, while extension HTML/JavaScript copy, catalog keys, and Chrome substitutions are audited together.
+- Added one-step reader-highlight deletion recovery with a focusable Undo action, Ctrl/Cmd+Z, and exact persisted restoration of the highlight identity, range, color, note, and review metadata.
 
 ## [v6.12.0] - 2026-07-12
 

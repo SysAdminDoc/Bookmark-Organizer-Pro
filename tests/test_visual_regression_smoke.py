@@ -21,6 +21,7 @@ def test_visual_smoke_surface_matrix_covers_required_desktop_and_extension_views
         "desktop-snapshot-failures-sidebar",
         "desktop-export-dialog",
         "desktop-reader-view",
+        "desktop-reader-highlight-deleted",
         "desktop-graph-view",
     } <= set(smoke.DESKTOP_SURFACES)
 

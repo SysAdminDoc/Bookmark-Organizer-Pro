@@ -186,7 +186,7 @@ msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/categories.py:207
 #: bookmark_organizer_pro/ui/management_dialogs.py:85
-#: bookmark_organizer_pro/ui/reader_view.py:163
+#: bookmark_organizer_pro/ui/reader_view.py:181
 msgid "Add"
 msgstr ""
 
@@ -446,7 +446,7 @@ msgstr ""
 msgid "COLLECTIONS"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/reader_view.py:332
+#: bookmark_organizer_pro/ui/reader_view.py:385
 msgid "CSV"
 msgstr ""
 
@@ -835,7 +835,7 @@ msgstr ""
 #: bookmark_organizer_pro/app_mixins/dashboard.py:162
 #: bookmark_organizer_pro/app_mixins/selection.py:122
 #: bookmark_organizer_pro/ui/management_dialogs.py:224
-#: bookmark_organizer_pro/ui/reader_view.py:205
+#: bookmark_organizer_pro/ui/reader_view.py:223
 #: bookmark_organizer_pro/ui/workflow_detail_panel.py:130
 msgid "Delete"
 msgstr ""
@@ -955,7 +955,7 @@ msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:273
 #: bookmark_organizer_pro/ui/graph_view.py:135
-#: bookmark_organizer_pro/ui/reader_view.py:79
+#: bookmark_organizer_pro/ui/reader_view.py:82
 msgid "Export"
 msgstr ""
 
@@ -997,7 +997,7 @@ msgstr ""
 msgid "Export Learned Patterns"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/reader_view.py:327
+#: bookmark_organizer_pro/ui/reader_view.py:380
 msgid "Export Reader Highlights"
 msgstr ""
 
@@ -1022,7 +1022,7 @@ msgid "Export file"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/graph_view.py:402
-#: bookmark_organizer_pro/ui/reader_view.py:346
+#: bookmark_organizer_pro/ui/reader_view.py:399
 msgid "Exported {name}"
 msgstr ""
 
@@ -1156,15 +1156,19 @@ msgstr ""
 msgid "Hide"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/reader_view.py:321
-msgid "Highlight deleted"
+#: bookmark_organizer_pro/ui/reader_view.py:348
+msgid "Highlight deleted. Undo is available (Ctrl+Z)."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/reader_view.py:71
+#: bookmark_organizer_pro/ui/reader_view.py:74
 msgid "Highlight important passages and save notes for later review."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/reader_view.py:120
+#: bookmark_organizer_pro/ui/reader_view.py:373
+msgid "Highlight restored."
+msgstr ""
+
+#: bookmark_organizer_pro/ui/reader_view.py:126
 msgid "Highlights"
 msgstr ""
 
@@ -1409,7 +1413,7 @@ msgstr ""
 msgid "Issues"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/reader_view.py:333
+#: bookmark_organizer_pro/ui/reader_view.py:386
 msgid "JSON"
 msgstr ""
 
@@ -1520,7 +1524,7 @@ msgstr ""
 msgid "Mark as Needs Review"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/reader_view.py:331
+#: bookmark_organizer_pro/ui/reader_view.py:384
 msgid "Markdown"
 msgstr ""
 
@@ -1673,7 +1677,11 @@ msgstr ""
 msgid "No common tags"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/reader_view.py:107
+#: bookmark_organizer_pro/ui/reader_view.py:353
+msgid "No deleted highlight is available to restore."
+msgstr ""
+
+#: bookmark_organizer_pro/ui/reader_view.py:110
 msgid "No extracted text is available yet.\n\nCapture page text or an archive snapshot, then return here to highlight key passages."
 msgstr ""
 
@@ -1685,7 +1693,7 @@ msgstr ""
 msgid "No high-confidence assistant categorizations are available yet.\n\nRun Categorize Selected on your bookmarks first."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/reader_view.py:235
+#: bookmark_organizer_pro/ui/reader_view.py:255
 msgid "No highlights yet"
 msgstr ""
 
@@ -1722,7 +1730,7 @@ msgstr ""
 msgid "Not installed"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/reader_view.py:173
+#: bookmark_organizer_pro/ui/reader_view.py:191
 msgid "Note"
 msgstr ""
 
@@ -1990,11 +1998,11 @@ msgstr ""
 msgid "Read Later is empty. Add bookmarks from the editor or browser extension."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/reader_view.py:282
-#: bookmark_organizer_pro/ui/reader_view.py:285
-#: bookmark_organizer_pro/ui/reader_view.py:300
-#: bookmark_organizer_pro/ui/reader_view.py:308
-#: bookmark_organizer_pro/ui/reader_view.py:316
+#: bookmark_organizer_pro/ui/reader_view.py:302
+#: bookmark_organizer_pro/ui/reader_view.py:305
+#: bookmark_organizer_pro/ui/reader_view.py:320
+#: bookmark_organizer_pro/ui/reader_view.py:328
+#: bookmark_organizer_pro/ui/reader_view.py:336
 msgid "Reader"
 msgstr ""
 
@@ -2003,7 +2011,7 @@ msgstr ""
 msgid "Reader View"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/reader_view.py:42
+#: bookmark_organizer_pro/ui/reader_view.py:43
 msgid "Reader — {title}"
 msgstr ""
 
@@ -2152,6 +2160,10 @@ msgstr ""
 msgid "Restore selected"
 msgstr ""
 
+#: bookmark_organizer_pro/ui/reader_view.py:239
+msgid "Restore the last deleted highlight (Ctrl+Z)"
+msgstr ""
+
 #: bookmark_organizer_pro/app_mixins/import_export.py:166
 msgid "Restoring Library"
 msgstr ""
@@ -2241,7 +2253,7 @@ msgid "Salvaging Library"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/management_dialogs.py:296
-#: bookmark_organizer_pro/ui/reader_view.py:196
+#: bookmark_organizer_pro/ui/reader_view.py:214
 msgid "Save"
 msgstr ""
 
@@ -2324,8 +2336,8 @@ msgstr ""
 msgid "Select a bookmark to view details"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/reader_view.py:308
-#: bookmark_organizer_pro/ui/reader_view.py:316
+#: bookmark_organizer_pro/ui/reader_view.py:328
+#: bookmark_organizer_pro/ui/reader_view.py:336
 msgid "Select a highlight first."
 msgstr ""
 
@@ -2349,12 +2361,12 @@ msgstr ""
 msgid "Select none"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/reader_view.py:282
-#: bookmark_organizer_pro/ui/reader_view.py:285
+#: bookmark_organizer_pro/ui/reader_view.py:302
+#: bookmark_organizer_pro/ui/reader_view.py:305
 msgid "Select text first."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/reader_view.py:128
+#: bookmark_organizer_pro/ui/reader_view.py:134
 msgid "Select text in the reader, choose a color, then add a highlight."
 msgstr ""
 
@@ -2582,6 +2594,10 @@ msgstr ""
 msgid "That category already exists or the name is not valid."
 msgstr ""
 
+#: bookmark_organizer_pro/ui/reader_view.py:341
+msgid "That highlight no longer exists."
+msgstr ""
+
 #: bookmark_organizer_pro/app_mixins/ai_titles.py:91
 msgid "The AI response was not valid JSON, so no bookmark titles were changed."
 msgstr ""
@@ -2592,6 +2608,10 @@ msgstr ""
 
 #: bookmark_organizer_pro/ui/widget_theme_dialogs.py:618
 msgid "The file is not valid theme JSON."
+msgstr ""
+
+#: bookmark_organizer_pro/ui/reader_view.py:359
+msgid "The highlight already exists and was not replaced."
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/tools.py:513
@@ -2766,6 +2786,7 @@ msgid "Uncategorized"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:55
+#: bookmark_organizer_pro/ui/reader_view.py:233
 msgid "Undo"
 msgstr ""
 
@@ -2913,7 +2934,7 @@ msgstr ""
 msgid "{added} imported. {dupes} duplicates skipped."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/reader_view.py:233
+#: bookmark_organizer_pro/ui/reader_view.py:253
 msgid "{count} saved"
 msgstr ""
 

@@ -1432,6 +1432,64 @@ class TestReaderAnnotations(_IsolatedTestBase):
         self.assertIn("> beta", text)
         self.assertIn("Important", text)
 
+    def test_delete_restore_round_trip_preserves_exact_highlight_without_source(self):
+        from bookmark_organizer_pro.services.reader_annotations import (
+            ReaderAnnotationStore,
+            export_bookmark_highlights,
+        )
+
+        store = ReaderAnnotationStore(self.filepath)
+        highlight = store.add_from_text(
+            12,
+            "Alpha selected passage omega",
+            6,
+            22,
+            color="pink",
+            note="Restore this note",
+        )
+        expected = highlight.to_dict()
+
+        deleted = store.delete_and_return(highlight.id)
+        self.assertIsNotNone(deleted)
+        self.assertEqual(deleted.to_dict(), expected)
+        self.assertIsNone(ReaderAnnotationStore(self.filepath).get(highlight.id))
+
+        # Restore uses the captured record, not an extracted-text file that may be gone.
+        self.assertTrue(store.restore(deleted))
+        self.assertFalse(store.restore(deleted))
+        reopened = ReaderAnnotationStore(self.filepath)
+        restored = reopened.get(highlight.id)
+        self.assertIsNotNone(restored)
+        self.assertEqual(restored.to_dict(), expected)
+
+        bookmark = _make_bookmark(id=12, title="Missing source", extracted_text_path="")
+        export_path = export_bookmark_highlights(
+            bookmark,
+            reopened.list_for_bookmark(12),
+            output_dir=Path(self._tmp) / "restored-reader-export",
+        )
+        exported = export_path.read_text(encoding="utf-8")
+        self.assertIn("> selected passage", exported)
+        self.assertIn("Restore this note", exported)
+
+    def test_one_step_restore_tracks_only_the_most_recent_deletion(self):
+        from bookmark_organizer_pro.services.reader_annotations import ReaderAnnotationStore
+
+        store = ReaderAnnotationStore(self.filepath)
+        first = store.add_from_text(4, "First selection. Second selection.", 0, 15)
+        second = store.add_from_text(4, "First selection. Second selection.", 17, 34, color="green")
+
+        self.assertEqual(store.delete_and_return(first.id).id, first.id)
+        latest = store.delete_and_return(second.id)
+        self.assertEqual(latest.id, second.id)
+        self.assertTrue(store.restore(latest))
+        self.assertIsNone(store.get(first.id))
+        self.assertEqual(store.get(second.id).color, "green")
+
+        latest_again = store.delete_and_return(second.id)
+        self.assertTrue(store.restore(latest_again))
+        self.assertEqual(store.get(second.id).id, second.id)
+
 
 # ── 17. SnapshotArchiver (chain preference) ─────────────────────────
 

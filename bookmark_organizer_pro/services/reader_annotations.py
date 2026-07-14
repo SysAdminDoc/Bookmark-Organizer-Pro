@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from copy import deepcopy
 import io
 import json
 import os
@@ -250,10 +251,27 @@ class ReaderAnnotationStore:
         return self._highlights.get(str(highlight_id))
 
     def delete(self, highlight_id: str) -> bool:
+        return self.delete_and_return(highlight_id) is not None
+
+    def delete_and_return(self, highlight_id: str) -> Optional[ReaderHighlight]:
+        """Delete one highlight and return an exact session-safe copy for undo."""
         with self._lock:
-            if str(highlight_id) not in self._highlights:
+            highlight = self._highlights.pop(str(highlight_id), None)
+            if highlight is None:
+                return None
+            deleted = deepcopy(highlight)
+        self._save()
+        return deleted
+
+    def restore(self, highlight: ReaderHighlight) -> bool:
+        """Restore a previously deleted highlight without changing its identity or metadata."""
+        if not isinstance(highlight, ReaderHighlight):
+            raise TypeError("highlight must be a ReaderHighlight")
+        restored = deepcopy(highlight)
+        with self._lock:
+            if restored.id in self._highlights:
                 return False
-            del self._highlights[str(highlight_id)]
+            self._highlights[restored.id] = restored
         self._save()
         return True
 
