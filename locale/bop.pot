@@ -66,7 +66,7 @@ msgstr ""
 msgid "0"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/live_workflow.py:133
+#: bookmark_organizer_pro/ui/live_workflow.py:147
 msgid "0 / {value_0}"
 msgstr ""
 
@@ -872,7 +872,7 @@ msgstr ""
 msgid "Domain"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/live_workflow.py:160
+#: bookmark_organizer_pro/ui/live_workflow.py:174
 msgid "Done"
 msgstr ""
 
@@ -2510,7 +2510,7 @@ msgid "Starting installation…"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:320
-#: bookmark_organizer_pro/ui/live_workflow.py:153
+#: bookmark_organizer_pro/ui/live_workflow.py:167
 msgid "Starting…"
 msgstr ""
 
@@ -2518,7 +2518,7 @@ msgstr ""
 msgid "Statistics are temporarily unavailable. Showing safe defaults."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/live_workflow.py:158
+#: bookmark_organizer_pro/ui/live_workflow.py:172
 msgid "Stop"
 msgstr ""
 
@@ -2986,8 +2986,8 @@ msgstr ""
 msgid "{value_0} - Setup Check"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/live_workflow.py:305
-#: bookmark_organizer_pro/ui/live_workflow.py:334
+#: bookmark_organizer_pro/ui/live_workflow.py:361
+#: bookmark_organizer_pro/ui/live_workflow.py:390
 msgid "{value_0} / {value_1}"
 msgstr ""
 
@@ -3012,7 +3012,7 @@ msgid "{value_0} match for #{value_1}"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/dashboard.py:173
-#: bookmark_organizer_pro/app_mixins/lifecycle.py:127
+#: bookmark_organizer_pro/app_mixins/lifecycle.py:118
 msgid "{value_0} selected"
 msgstr ""
 
@@ -3020,7 +3020,7 @@ msgstr ""
 msgid "{value_0} {value_1}"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/live_workflow.py:108
+#: bookmark_organizer_pro/ui/live_workflow.py:122
 msgid "{value_0} — Live"
 msgstr ""
 
