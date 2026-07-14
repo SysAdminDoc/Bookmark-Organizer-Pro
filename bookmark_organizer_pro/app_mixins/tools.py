@@ -584,9 +584,9 @@ class ToolsActionsMixin:
                         pool.shutdown(wait=False, cancel_futures=True)
                         break
                     bm_id, http_status, is_valid = future.result()
-                    self.root.after(0, lambda bid=bm_id, hs=http_status, iv=is_valid: _apply_result(bid, hs, iv))
+                    self._post_to_ui(lambda bid=bm_id, hs=http_status, iv=is_valid: _apply_result(bid, hs, iv))
 
-            self.root.after(0, _finish)
+            self._post_to_ui(_finish)
 
         def _apply_result(bm_id, http_status, is_valid):
             bm = self.bookmark_manager.get_bookmark(bm_id)
@@ -669,10 +669,10 @@ class ToolsActionsMixin:
                 bms = self.bookmark_manager.get_all_bookmarks()
                 detector = HybridDuplicateDetector()
                 report = detector.detect(bms)
-                self.root.after(0, lambda: self._show_dup_results(report))
+                self._post_to_ui(lambda: self._show_dup_results(report))
             except Exception as exc:
                 msg = str(exc)
-                self.root.after(0, lambda: self._set_status(f"Duplicate scan failed: {msg}"))
+                self._post_to_ui(lambda: self._set_status(f"Duplicate scan failed: {msg}"))
 
         threading.Thread(target=_run, daemon=True).start()
 
@@ -746,10 +746,10 @@ class ToolsActionsMixin:
                 bms = self.bookmark_manager.get_all_bookmarks()
                 linter = TagLinter()
                 suggestions = linter.lint(bms)
-                self.root.after(0, lambda: self._show_lint_results(suggestions))
+                self._post_to_ui(lambda: self._show_lint_results(suggestions))
             except Exception as exc:
                 msg = str(exc)
-                self.root.after(0, lambda: self._set_status(f"Tag lint failed: {msg}"))
+                self._post_to_ui(lambda: self._set_status(f"Tag lint failed: {msg}"))
 
         threading.Thread(target=_run, daemon=True).start()
 
@@ -1105,10 +1105,10 @@ class ToolsActionsMixin:
             try:
                 from bookmark_organizer_pro.core import migrate_json_to_sqlite
                 count = migrate_json_to_sqlite(MASTER_BOOKMARKS_FILE, sqlite_path)
-                self.root.after(0, lambda: self._on_sqlite_migrate_done(count, sqlite_path))
+                self._post_to_ui(lambda: self._on_sqlite_migrate_done(count, sqlite_path))
             except Exception as exc:
                 err = exc
-                self.root.after(0, lambda: self._on_sqlite_migrate_error(err))
+                self._post_to_ui(lambda: self._on_sqlite_migrate_error(err))
 
         threading.Thread(target=_worker, daemon=True).start()
 

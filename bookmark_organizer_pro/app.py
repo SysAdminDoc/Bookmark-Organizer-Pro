@@ -28,7 +28,7 @@ from bookmark_organizer_pro.core import CategoryManager
 from bookmark_organizer_pro.managers import BookmarkManager, TagManager
 from bookmark_organizer_pro.services import HighSpeedFaviconManager
 from bookmark_organizer_pro.theme_runtime import get_theme, get_theme_manager
-from bookmark_organizer_pro.ui.infrastructure import NonBlockingTaskRunner
+from bookmark_organizer_pro.ui.infrastructure import NonBlockingTaskRunner, TkEventDispatcher
 from bookmark_organizer_pro.ui.shell_widgets import ViewMode
 from bookmark_organizer_pro.ui.widgets import ThemedWidget, apply_window_chrome
 
@@ -120,7 +120,8 @@ class FinalBookmarkOrganizerApp(
         self.tag_manager = TagManager()
         self.bookmark_manager = BookmarkManager(self.category_manager, self.tag_manager)
         self.favicon_manager = HighSpeedFaviconManager(max_workers=15)  # Fast concurrent downloads
-        self.task_runner = NonBlockingTaskRunner(root)
+        self.ui_dispatcher = TkEventDispatcher(root)
+        self.task_runner = NonBlockingTaskRunner(root, dispatcher=self.ui_dispatcher)
         self.command_stack = CommandStack()
         self.ai_config = AIConfigManager()  # AI settings
         
@@ -176,7 +177,7 @@ class FinalBookmarkOrganizerApp(
         self._load_and_display_data()
         self.bookmark_manager.start_file_watcher(
             on_reload=self._refresh_all,
-            callback_scheduler=lambda callback: self.root.after(0, callback),
+            callback_scheduler=self.ui_dispatcher.post,
         )
         
         # Keyboard shortcuts - comprehensive set

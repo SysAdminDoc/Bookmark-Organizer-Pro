@@ -287,7 +287,7 @@ class AiSettingsMixin:
             def worker():
                 mgr = OllamaManager(ollama_url_var.get().strip() or OLLAMA_DEFAULT_URL)
                 status = mgr.detect()
-                self.root.after(0, lambda: _update_ollama_status(status))
+                self._post_to_ui(lambda: _update_ollama_status(status))
 
             threading.Thread(target=worker, daemon=True).start()
 
@@ -298,7 +298,7 @@ class AiSettingsMixin:
             progress_label.pack(fill=tk.X, pady=(4, 0))
 
             def on_progress(msg):
-                self.root.after(0, lambda: progress_var.set(msg))
+                self._post_to_ui(lambda: progress_var.set(msg))
 
             def on_done(ok, msg):
                 def update():
@@ -311,7 +311,7 @@ class AiSettingsMixin:
                     else:
                         progress_var.set(f"Install failed: {msg[:80]}")
                         install_btn.set_state("normal")
-                self.root.after(0, update)
+                self._post_to_ui(update)
 
             OllamaManager().install(on_progress=on_progress, on_done=on_done)
 
@@ -332,7 +332,7 @@ class AiSettingsMixin:
                     else:
                         progress_var.set(f"Start failed: {msg[:80]}")
                         start_btn.set_state("normal")
-                self.root.after(0, update)
+                self._post_to_ui(update)
 
             OllamaManager(ollama_url_var.get().strip() or OLLAMA_DEFAULT_URL).start_server(on_done=on_done)
 
@@ -347,7 +347,7 @@ class AiSettingsMixin:
             progress_label.pack(fill=tk.X, pady=(4, 0))
 
             def on_progress(msg):
-                self.root.after(0, lambda: progress_var.set(msg[:80]))
+                self._post_to_ui(lambda: progress_var.set(msg[:80]))
 
             def on_done(ok, msg):
                 def update():
@@ -360,7 +360,7 @@ class AiSettingsMixin:
                         _refresh_ollama()
                     else:
                         progress_var.set(f"Pull failed: {msg[:80]}")
-                self.root.after(0, update)
+                self._post_to_ui(update)
 
             OllamaManager(ollama_url_var.get().strip() or OLLAMA_DEFAULT_URL).pull_model(
                 model_name, on_progress=on_progress, on_done=on_done,

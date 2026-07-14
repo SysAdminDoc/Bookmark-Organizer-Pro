@@ -50,20 +50,11 @@ class LifecycleActionsMixin:
         self._start_dead_link_scheduler()
 
     def _post_to_ui(self, callback):
-        """Schedule a callback on the Tk main thread from a worker thread.
-
-        Safe during/after shutdown: does nothing once the app is closing or the
-        root is gone, and swallows the TclError that ``root.after()`` raises on a
-        destroyed interpreter. Returns the after-id, or None if not scheduled.
-        """
+        """Enqueue a callback for the main-thread dispatcher without touching Tk."""
         if getattr(self, "_closing", False):
-            return None
-        try:
-            if not self.root.winfo_exists():
-                return None
-            return self.root.after(0, callback)
-        except Exception:
-            return None
+            return False
+        dispatcher = getattr(self, "ui_dispatcher", None)
+        return bool(dispatcher and dispatcher.post(callback))
 
     def _undo(self):
         """Undo"""
@@ -234,6 +225,10 @@ class LifecycleActionsMixin:
                     manager.shutdown()
                 except Exception:
                     log.debug("Error during shutdown", exc_info=True)
+
+        dispatcher = getattr(self, "ui_dispatcher", None)
+        if dispatcher is not None:
+            dispatcher.shutdown()
 
         callback = getattr(self, "_theme_change_callback", None)
         if callback is not None:

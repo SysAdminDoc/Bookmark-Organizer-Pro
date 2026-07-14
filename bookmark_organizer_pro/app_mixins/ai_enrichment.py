@@ -195,7 +195,7 @@ class AiEnrichmentMixin:
             if skipped_urls:
                 summary += f", {skipped_urls} login/auth pages skipped"
             dialog.signal_finish(summary)
-            self.root.after(0, self._refresh_all)
+            self._post_to_ui(self._refresh_all)
 
         dialog.run(_worker)
 
@@ -294,6 +294,6 @@ class AiEnrichmentMixin:
 
             self.bookmark_manager.save_bookmarks()
             dialog.signal_finish(f"Done — {updated} summaries generated")
-            self.root.after(0, self._refresh_all)
+            self._post_to_ui(self._refresh_all)
 
         dialog.run(_worker)

@@ -48,6 +48,7 @@ from bookmark_organizer_pro.ui import (
     contrast_ratio,
     format_compact_count,
     NonBlockingTaskRunner,
+    TkEventDispatcher,
     pick_default_category,
     prepare_quick_add_payload,
     readable_text_on,
@@ -3238,11 +3239,29 @@ class TestNavigationHelpers(unittest.TestCase):
 
     def test_task_runner_delivers_background_errors_to_ui_callback(self):
         class FakeRoot:
+            def __init__(self):
+                self.callbacks = {}
+                self.cancelled = []
+                self._next_id = 0
+
             def after(self, delay, callback):
+                self._next_id += 1
+                after_id = f"after-{self._next_id}"
+                self.callbacks[after_id] = callback
+                return after_id
+
+            def after_cancel(self, after_id):
+                self.cancelled.append(after_id)
+                self.callbacks.pop(after_id, None)
+
+            def run_next(self):
+                after_id = next(iter(self.callbacks))
+                callback = self.callbacks.pop(after_id)
                 callback()
 
         errors = []
-        runner = NonBlockingTaskRunner(FakeRoot())
+        root = FakeRoot()
+        runner = NonBlockingTaskRunner(root)
         try:
             future = runner.run_task(
                 "boom",
@@ -3250,12 +3269,101 @@ class TestNavigationHelpers(unittest.TestCase):
                 on_error=errors.append,
             )
             future.result(timeout=5)
+            self.assertEqual(errors, [])
+            root.run_next()
         finally:
             runner.shutdown()
 
         self.assertEqual(len(errors), 1)
         self.assertIsInstance(errors[0], RuntimeError)
         self.assertEqual(str(errors[0]), "failed")
+
+    def test_dispatcher_never_calls_tk_from_worker_and_discards_late_events(self):
+        class FakeRoot:
+            def __init__(self):
+                self.callbacks = {}
+                self.after_threads = []
+                self.cancelled = []
+                self._next_id = 0
+
+            def after(self, _delay, callback):
+                self.after_threads.append(threading.get_ident())
+                self._next_id += 1
+                after_id = f"after-{self._next_id}"
+                self.callbacks[after_id] = callback
+                return after_id
+
+            def after_cancel(self, after_id):
+                self.after_threads.append(threading.get_ident())
+                self.cancelled.append(after_id)
+                self.callbacks.pop(after_id, None)
+
+            def run_next(self):
+                after_id = next(iter(self.callbacks))
+                callback = self.callbacks.pop(after_id)
+                callback()
+
+        owner_thread = threading.get_ident()
+        root = FakeRoot()
+        dispatcher = TkEventDispatcher(root, poll_interval_ms=1)
+        delivered = []
+        baseline_after_calls = len(root.after_threads)
+
+        worker = threading.Thread(target=lambda: dispatcher.post(delivered.append, "worker"))
+        worker.start()
+        worker.join(timeout=5)
+
+        self.assertEqual(len(root.after_threads), baseline_after_calls)
+        self.assertEqual(delivered, [])
+        root.run_next()
+        self.assertEqual(delivered, ["worker"])
+        self.assertTrue(all(thread_id == owner_thread for thread_id in root.after_threads))
+
+        dispatcher.post(delivered.append, "discarded")
+        dispatcher.shutdown()
+        self.assertFalse(dispatcher.post(delivered.append, "late"))
+        self.assertEqual(delivered, ["worker"])
+        self.assertTrue(root.cancelled)
+
+    def test_task_runner_drops_running_worker_completion_after_shutdown(self):
+        class FakeRoot:
+            def __init__(self):
+                self.callbacks = {}
+                self.after_threads = []
+                self._next_id = 0
+
+            def after(self, _delay, callback):
+                self.after_threads.append(threading.get_ident())
+                self._next_id += 1
+                after_id = f"after-{self._next_id}"
+                self.callbacks[after_id] = callback
+                return after_id
+
+            def after_cancel(self, after_id):
+                self.after_threads.append(threading.get_ident())
+                self.callbacks.pop(after_id, None)
+
+        owner_thread = threading.get_ident()
+        root = FakeRoot()
+        runner = NonBlockingTaskRunner(root)
+        started = threading.Event()
+        release = threading.Event()
+        completed = []
+
+        def work():
+            started.set()
+            release.wait(timeout=5)
+            return "finished"
+
+        future = runner.run_task("late", work, on_complete=completed.append)
+        self.assertTrue(started.wait(timeout=5))
+        runner.shutdown()
+        release.set()
+        self.assertIsNone(future.result(timeout=5))
+
+        self.assertEqual(completed, [])
+        self.assertEqual(root.callbacks, {})
+        self.assertTrue(all(thread_id == owner_thread for thread_id in root.after_threads))
 
 
 class TestLevenshtein(unittest.TestCase):

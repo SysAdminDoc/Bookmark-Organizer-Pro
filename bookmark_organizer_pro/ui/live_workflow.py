@@ -26,7 +26,9 @@ Two behaviours are baked in deliberately:
 from __future__ import annotations
 
 import tkinter as tk
+import threading
 from collections import deque
+from dataclasses import dataclass
 from typing import Callable, Optional
 
 from bookmark_organizer_pro.i18n import _, format_message
@@ -48,6 +50,14 @@ _DRIP_THRESHOLD = 60
 # cannot balloon memory; overflow rows are dropped (they would be trimmed from
 # the visible feed anyway) but still counted toward progress.
 _MAX_PENDING = MAX_FEED_ROWS * 6
+
+
+@dataclass(frozen=True)
+class _WorkerEvent:
+    """Immutable worker-to-main-thread event used without calling Tcl/Tk."""
+
+    callback: Callable
+    args: tuple
 
 
 # status -> (glyph, theme color attribute) for the standard row builder.
@@ -97,6 +107,10 @@ class LiveWorkflowDialog:
         self.cancelled = False
         self._revealed = 0
         self._queue: "deque[Callable]" = deque()
+        self._worker_events: "deque[_WorkerEvent]" = deque()
+        self._worker_event_lock = threading.Lock()
+        self._dispatcher = getattr(parent, "_bop_ui_dispatcher", None)
+        self._accept_events = True
         self._finished = False
         self._finish_summary: Optional[str] = None
         self._finish_outcome = "success"
@@ -165,7 +179,6 @@ class LiveWorkflowDialog:
     # ── Lifecycle ────────────────────────────────────────────────────────
     def run(self, worker: Callable[[], None]):
         """Start the reveal pump and launch ``worker`` on a daemon thread."""
-        import threading
         self.start()
         threading.Thread(target=self._guarded_worker, args=(worker,), daemon=True).start()
 
@@ -209,6 +222,12 @@ class LiveWorkflowDialog:
         self.close()
 
     def close(self):
+        self._accept_events = False
+        if hasattr(self, "_worker_event_lock"):
+            with self._worker_event_lock:
+                self._worker_events.clear()
+        if hasattr(self, "_queue"):
+            self._queue.clear()
         try:
             self.dialog.grab_release()
         except Exception:
@@ -221,10 +240,35 @@ class LiveWorkflowDialog:
     # ── Worker-facing API (thread-safe) ──────────────────────────────────
     def set_status(self, text: str):
         """Update the footer status line (safe from the worker thread)."""
-        try:
-            self.parent.after(0, self._apply_status, text)
-        except Exception:
-            pass
+        self._post_worker_event(self._apply_status, str(text))
+
+    def _post_worker_event(self, callback: Callable, *args) -> bool:
+        """Queue work for the main thread without invoking any widget method."""
+        if not getattr(self, "_accept_events", True):
+            return False
+        dispatcher = getattr(self, "_dispatcher", None)
+        if dispatcher is not None:
+            return bool(dispatcher.post(callback, *args))
+        if not hasattr(self, "_worker_events"):
+            callback(*args)
+            return True
+        with self._worker_event_lock:
+            self._worker_events.append(_WorkerEvent(callback=callback, args=tuple(args)))
+        return True
+
+    def _drain_worker_events(self):
+        """Apply fallback queue events from the dialog's existing main-thread pump."""
+        if not hasattr(self, "_worker_events"):
+            return
+        with self._worker_event_lock:
+            events = list(self._worker_events)
+            self._worker_events.clear()
+        for event in events:
+            try:
+                event.callback(*event.args)
+            except Exception:
+                from bookmark_organizer_pro.logging_config import log
+                log.warning("Live workflow event failed", exc_info=True)
 
     def _apply_status(self, text: str):
         if self._alive():
@@ -239,6 +283,11 @@ class LiveWorkflowDialog:
         Safe to call from the worker thread. The row is revealed later by the
         pump, one at a time, for the drip effect.
         """
+        self._post_worker_event(self._enqueue_entry, render_fn)
+
+    def _enqueue_entry(self, render_fn: Callable[[tk.Widget, object], None]):
+        if not self._accept_events:
+            return
         self._queue.append(render_fn)
         overflow = len(self._queue) - _MAX_PENDING
         while overflow > 0:
@@ -258,6 +307,11 @@ class LiveWorkflowDialog:
     def signal_finish(self, summary: str, *, outcome: str = "success"):
         """Mark the run complete. The dialog flips to "Done" only after every
         queued row has been revealed, so the drip animation always finishes."""
+        self._post_worker_event(self._mark_finished, str(summary), str(outcome))
+
+    def _mark_finished(self, summary: str, outcome: str):
+        if not getattr(self, "_accept_events", True):
+            return
         self._finish_summary = summary
         self._finish_outcome = outcome if outcome in {"success", "warning", "error"} else "error"
         self._finished = True
@@ -274,6 +328,8 @@ class LiveWorkflowDialog:
     def _pump(self):
         if not self._alive():
             return
+
+        self._drain_worker_events()
 
         backlog = len(self._queue)
         if self.cancelled:

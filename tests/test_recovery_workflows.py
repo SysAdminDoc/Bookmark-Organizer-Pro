@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import contextlib
 import json
+import threading
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -89,6 +91,30 @@ def test_live_workflow_external_runner_terminal_state_without_desktop():
     assert dialog._finished
     assert dialog._finish_summary == "Restore failed validation"
     assert dialog._finish_outcome == "error"
+
+
+def test_live_workflow_worker_only_enqueues_until_main_thread_drain():
+    dialog = LiveWorkflowDialog.__new__(LiveWorkflowDialog)
+    dialog._worker_events = deque()
+    dialog._worker_event_lock = threading.Lock()
+    dialog._dispatcher = None
+    dialog._accept_events = True
+    dialog._finished = False
+    dialog._finish_summary = None
+    dialog._finish_outcome = "success"
+
+    worker = threading.Thread(
+        target=lambda: dialog.signal_finish("Worker finished", outcome="warning")
+    )
+    worker.start()
+    worker.join(timeout=5)
+
+    assert not dialog._finished
+    assert len(dialog._worker_events) == 1
+    dialog._drain_worker_events()
+    assert dialog._finished
+    assert dialog._finish_summary == "Worker finished"
+    assert dialog._finish_outcome == "warning"
 
 
 class _CategoryManager:

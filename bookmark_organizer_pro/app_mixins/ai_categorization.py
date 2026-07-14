@@ -218,6 +218,6 @@ class AiCategorizationMixin:
             if failover_count:
                 summary += f", {failover_count} via failover"
             dialog.signal_finish(summary)
-            self.root.after(0, self._refresh_all)
+            self._post_to_ui(self._refresh_all)
 
         dialog.run(_worker)

@@ -43,7 +43,7 @@ from .components import (
 from .density import DENSITY_SETTINGS, DensityManager, DisplayDensity
 from .dependencies import DependencyCheckDialog, check_and_install_dependencies
 from .feedback import EmptyState, FilteredEmptyState, HoverPreview, ToastNotification
-from .infrastructure import NonBlockingTaskRunner, WindowTransparency
+from .infrastructure import NonBlockingTaskRunner, TkEventDispatcher, WindowTransparency
 from .import_center import ImportCenterDialog, ImportSource, build_import_sources
 from .management_dialogs import CategoryManagementDialog, CustomFaviconDialog
 from .navigation import ClipboardMonitor, SearchHighlighter, VimNavigator
@@ -135,6 +135,7 @@ __all__ = [
     "HoverPreview",
     "ToastNotification",
     "NonBlockingTaskRunner",
+    "TkEventDispatcher",
     "WindowTransparency",
     "ImportCenterDialog",
     "ImportSource",

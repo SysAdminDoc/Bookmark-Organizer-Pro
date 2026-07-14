@@ -71,10 +71,10 @@ Respond with ONLY valid JSON in this exact format:
         def _worker():
             try:
                 text = client.complete(prompt, system="You improve bookmark titles to be more descriptive and useful. Respond only with valid JSON.", max_tokens=2048, temperature=0.3)
-                self.root.after(0, lambda: _on_done(text, None))
+                self._post_to_ui(lambda: _on_done(text, None))
             except Exception as exc:
                 err = exc
-                self.root.after(0, lambda: _on_done(None, err))
+                self._post_to_ui(lambda: _on_done(None, err))
 
         def _on_done(text, error):
             if error:

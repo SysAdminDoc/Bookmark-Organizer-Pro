@@ -228,11 +228,11 @@ class BookmarkViewMixin:
     
     def _on_favicon_progress(self, completed: int, total: int, current: str):
         """Favicon progress callback - thread-safe"""
-        self.root.after(0, lambda: self.favicon_status.update_status(completed, total, current))
+        self._post_to_ui(lambda: self.favicon_status.update_status(completed, total, current))
     
     def _on_favicon_ready_threadsafe(self, domain: str, filepath: str, bookmark_id: int):
         """Favicon ready callback - schedules UI update on main thread"""
-        self.root.after(0, lambda: self._update_favicon_in_tree(domain, filepath))
+        self._post_to_ui(lambda: self._update_favicon_in_tree(domain, filepath))
     
     def _update_favicon_in_tree(self, domain: str, filepath: str):
         """Update favicon in treeview (runs on main thread)"""
