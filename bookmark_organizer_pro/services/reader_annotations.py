@@ -159,6 +159,7 @@ class ReaderAnnotationStore:
         )
         self._revision = 0
         self._highlights: Dict[str, ReaderHighlight] = {}
+        self._committed_highlights: Dict[str, ReaderHighlight] = {}
         self._load()
 
     @property
@@ -179,6 +180,7 @@ class ReaderAnnotationStore:
                     self._highlights[highlight.id] = highlight
                 except Exception as exc:
                     log.warning(f"Bad reader annotation entry: {exc}")
+            self._committed_highlights = deepcopy(self._highlights)
 
     def _save(self) -> None:
         with self._lock:
@@ -187,7 +189,13 @@ class ReaderAnnotationStore:
                 key=lambda item: (item.bookmark_id, item.char_start, item.created_at),
             )
             payload = [item.to_dict() for item in highlights]
-        self._revision = self._store.save(payload, expected_revision=self._revision)
+            try:
+                revision = self._store.save(payload, expected_revision=self._revision)
+            except Exception:
+                self._highlights = deepcopy(self._committed_highlights)
+                raise
+            self._revision = revision
+            self._committed_highlights = deepcopy(self._highlights)
 
     def add_from_text(
         self,
@@ -220,8 +228,8 @@ class ReaderAnnotationStore:
         )
         with self._lock:
             self._highlights[highlight.id] = highlight
-        self._save()
-        return highlight
+            self._save()
+            return deepcopy(highlight)
 
     def add_for_bookmark(
         self,
@@ -239,16 +247,18 @@ class ReaderAnnotationStore:
     def list_for_bookmark(self, bookmark_id: int) -> List[ReaderHighlight]:
         bid = int(bookmark_id)
         with self._lock:
-            items = [item for item in self._highlights.values() if item.bookmark_id == bid]
+            items = deepcopy([item for item in self._highlights.values() if item.bookmark_id == bid])
         return sorted(items, key=lambda item: (item.char_start, item.created_at))
 
     def list_all(self) -> List[ReaderHighlight]:
         with self._lock:
-            items = list(self._highlights.values())
+            items = deepcopy(list(self._highlights.values()))
         return sorted(items, key=lambda item: (item.bookmark_id, item.char_start, item.created_at))
 
     def get(self, highlight_id: str) -> Optional[ReaderHighlight]:
-        return self._highlights.get(str(highlight_id))
+        with self._lock:
+            highlight = self._highlights.get(str(highlight_id))
+            return deepcopy(highlight) if highlight is not None else None
 
     def delete(self, highlight_id: str) -> bool:
         return self.delete_and_return(highlight_id) is not None
@@ -260,8 +270,8 @@ class ReaderAnnotationStore:
             if highlight is None:
                 return None
             deleted = deepcopy(highlight)
-        self._save()
-        return deleted
+            self._save()
+            return deleted
 
     def restore(self, highlight: ReaderHighlight) -> bool:
         """Restore a previously deleted highlight without changing its identity or metadata."""
@@ -272,8 +282,8 @@ class ReaderAnnotationStore:
             if restored.id in self._highlights:
                 return False
             self._highlights[restored.id] = restored
-        self._save()
-        return True
+            self._save()
+            return True
 
     def set_note(self, highlight_id: str, note: str) -> bool:
         with self._lock:
@@ -282,8 +292,8 @@ class ReaderAnnotationStore:
                 return False
             highlight.note = str(note or "")
             highlight.modified_at = _now()
-        self._save()
-        return True
+            self._save()
+            return True
 
     def due_for_review(self, today: Optional[datetime] = None) -> List[ReaderHighlight]:
         """Return highlights whose next review date is today or earlier."""
@@ -296,7 +306,7 @@ class ReaderAnnotationStore:
                     due.append(h)
                 elif h.sr_next_review <= today_iso:
                     due.append(h)
-        return sorted(due, key=lambda h: (h.sr_next_review or "", h.created_at))
+        return sorted(deepcopy(due), key=lambda h: (h.sr_next_review or "", h.created_at))
 
     def record_review(self, highlight_id: str, quality: int) -> bool:
         """Record a review using SM-2 algorithm. quality: 0-5 (0=fail, 5=perfect)."""
@@ -322,8 +332,8 @@ class ReaderAnnotationStore:
             next_date = datetime.now() + timedelta(days=h.sr_interval)
             h.sr_next_review = next_date.date().isoformat()
             h.modified_at = _now()
-        self._save()
-        return True
+            self._save()
+            return True
 
 
 def render_highlights_markdown(bookmark: Bookmark, highlights: Iterable[ReaderHighlight]) -> str:

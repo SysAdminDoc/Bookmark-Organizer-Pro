@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import csv
 import html as html_module
 import json
@@ -93,6 +94,10 @@ class BookmarkManager:
         self.storage = self._create_storage(self.filepath, self.storage_backend)
         self.bookmarks: Dict[int, Bookmark] = OrderedDict()
         self._lock = threading.RLock()
+        self._committed_bookmarks: Dict[int, Bookmark] = OrderedDict()
+        self._batch_depth = 0
+        self._batch_dirty = False
+        self._batch_failed = False
         self.search_engine = SearchEngine()
         self._load_bookmarks()
 
@@ -122,9 +127,10 @@ class BookmarkManager:
             return SQLiteStorageManager(filepath)
         return StorageManager(filepath)
 
-    def _assign_unique_id(self, bookmark: Bookmark):
+    def _assign_unique_id(self, bookmark: Bookmark, existing: Optional[Dict[int, Bookmark]] = None):
         """Ensure an incoming bookmark cannot overwrite an existing ID."""
-        while bookmark.id in self.bookmarks:
+        existing = self.bookmarks if existing is None else existing
+        while bookmark.id in existing:
             old_id = bookmark.id
             bookmark.id = int.from_bytes(os.urandom(8), 'big')
             log.warning(f"Regenerated duplicate bookmark id {old_id}")
@@ -148,6 +154,34 @@ class BookmarkManager:
             for bm in loaded:
                 self._assign_unique_id(bm)
                 self.bookmarks[bm.id] = bm
+            self._committed_bookmarks = copy.deepcopy(self.bookmarks)
+
+    def _restore_committed_state(self) -> None:
+        """Restore the last successfully persisted in-memory representation."""
+        self.bookmarks = copy.deepcopy(self._committed_bookmarks)
+
+    def _mapping_from_snapshot(self, snapshot: List[Bookmark]) -> Dict[int, Bookmark]:
+        """Validate stable bookmark identity and rebuild an ordered snapshot map."""
+        mapping: Dict[int, Bookmark] = OrderedDict()
+        for bookmark in snapshot:
+            bookmark_id = self._coerce_bookmark_id(bookmark.id)
+            if bookmark_id is None:
+                raise ValueError("bookmark id must be a non-negative integer")
+            if bookmark_id in mapping:
+                raise ValueError(f"duplicate bookmark id {bookmark_id}")
+            mapping[bookmark_id] = bookmark
+        if list(mapping) != list(self.bookmarks):
+            raise ValueError("bookmark IDs are immutable; use add/delete instead of re-keying an update")
+        return mapping
+
+    def _record_committed_state(self, mapping: Dict[int, Bookmark], revision: int) -> None:
+        self.bookmarks = mapping
+        self._storage_revision = revision
+        self._committed_bookmarks = copy.deepcopy(mapping)
+        if hasattr(self, "_watch_revision"):
+            self._watch_revision = revision
+        if hasattr(self, "_watch_mtime"):
+            self._watch_mtime = self._get_mtime()
 
     @property
     def storage_status(self):
@@ -301,8 +335,12 @@ class BookmarkManager:
 
     def save_bookmarks(self):
         """Save all bookmarks to storage (thread-safe — holds lock through write)."""
-        self._ensure_storage_writable()
         with self._lock:
+            try:
+                self._ensure_storage_writable()
+            except Exception:
+                self._restore_committed_state()
+                raise
             if getattr(self, "_batch_depth", 0) > 0:
                 self._batch_dirty = True
                 return
@@ -317,12 +355,16 @@ class BookmarkManager:
         if getattr(self, "_batch_depth", 0) > 0:
             self._batch_dirty = True
             return
-        self._storage_revision = self.storage.save(
-            [bm.to_dict() for bm in snapshot],
-            expected_revision=getattr(self, "_storage_revision", 0),
-        )
-        if hasattr(self, "_watch_mtime"):
-            self._watch_mtime = self._get_mtime()
+        try:
+            mapping = self._mapping_from_snapshot(snapshot)
+            revision = self.storage.save(
+                [bm.to_dict() for bm in mapping.values()],
+                expected_revision=getattr(self, "_storage_revision", 0),
+            )
+        except Exception:
+            self._restore_committed_state()
+            raise
+        self._record_committed_state(mapping, revision)
 
     @contextlib.contextmanager
     def batch(self):
@@ -335,26 +377,50 @@ class BookmarkManager:
                     manager.add_bookmark_clean(url=url, ...)
             # single save happens here
         """
-        self._sync_before_write()
         with self._lock:
-            self._batch_depth = getattr(self, "_batch_depth", 0) + 1
-            self._batch_dirty = getattr(self, "_batch_dirty", False)
-        try:
-            yield
-        finally:
-            with self._lock:
+            outermost = self._batch_depth == 0
+            if outermost:
+                self._sync_before_write()
+                self._batch_snapshot = copy.deepcopy(self.bookmarks)
+                self._batch_revision = getattr(self, "_storage_revision", 0)
+                self._batch_dirty = False
+                self._batch_failed = False
+            self._batch_depth += 1
+            try:
+                yield
+            except BaseException:
+                self._batch_failed = True
+                raise
+            finally:
                 self._batch_depth -= 1
-                if self._batch_depth == 0 and self._batch_dirty:
-                    self._batch_dirty = False
-                    snapshot = list(self.bookmarks.values())
-                    self._storage_revision = self.storage.save(
-                        [bm.to_dict() for bm in snapshot],
-                        expected_revision=getattr(self, "_storage_revision", 0),
-                    )
+                if self._batch_depth == 0:
+                    snapshot_before = self._batch_snapshot
+                    revision_before = self._batch_revision
+                    try:
+                        if self._batch_failed:
+                            self.bookmarks = snapshot_before
+                            self._storage_revision = revision_before
+                        elif self._batch_dirty:
+                            snapshot = list(self.bookmarks.values())
+                            mapping = self._mapping_from_snapshot(snapshot)
+                            revision = self.storage.save(
+                                [bm.to_dict() for bm in mapping.values()],
+                                expected_revision=revision_before,
+                            )
+                            self._record_committed_state(mapping, revision)
+                    except Exception:
+                        self.bookmarks = snapshot_before
+                        self._storage_revision = revision_before
+                        raise
+                    finally:
+                        self._batch_dirty = False
+                        self._batch_failed = False
+                        del self._batch_snapshot
+                        del self._batch_revision
 
     def add_bookmark(self, bookmark: Bookmark, save: bool = True) -> Bookmark:
         """Add a new bookmark. Set save=False for batch operations."""
-        if save:
+        if save and self._batch_depth == 0:
             self._sync_before_write()
         with self._lock:
             self._assign_unique_id(bookmark)
@@ -366,18 +432,31 @@ class BookmarkManager:
     
     def update_bookmark(self, bookmark_or_id, **kwargs) -> Optional[Bookmark]:
         """Update a bookmark's attributes. Can accept Bookmark object or bookmark_id."""
-        self._sync_before_write()
+        if self._batch_depth == 0:
+            self._sync_before_write()
         # Handle both Bookmark object and ID
         if isinstance(bookmark_or_id, Bookmark):
             bookmark = bookmark_or_id
-            bookmark.modified_at = datetime.now().isoformat()
             with self._lock:
-                if bookmark.id is None:
-                    bookmark.id = int.from_bytes(os.urandom(8), 'big')
-                self.bookmarks[bookmark.id] = bookmark
+                identity_key = next(
+                    (key for key, value in self.bookmarks.items() if value is bookmark),
+                    None,
+                )
+                requested_id = self._coerce_bookmark_id(bookmark.id)
+                if identity_key is not None and requested_id != identity_key:
+                    if self._batch_depth == 0:
+                        self._restore_committed_state()
+                    raise ValueError("bookmark IDs are immutable")
+                bookmark_id = identity_key if identity_key is not None else requested_id
+                if bookmark_id is None or bookmark_id not in self.bookmarks:
+                    return None
+                updated = copy.deepcopy(bookmark)
+                updated.id = bookmark_id
+                updated.modified_at = datetime.now().isoformat()
+                self.bookmarks[bookmark_id] = updated
                 snapshot = list(self.bookmarks.values())
                 self._save_snapshot(snapshot)
-            return bookmark
+            return updated
 
         # Legacy: ID with kwargs
         bookmark_id = self._coerce_bookmark_id(bookmark_or_id)
@@ -386,8 +465,12 @@ class BookmarkManager:
         with self._lock:
             bm = self.bookmarks.get(bookmark_id)
             if bm:
+                if "id" in kwargs:
+                    requested_id = self._coerce_bookmark_id(kwargs["id"])
+                    if requested_id != bookmark_id:
+                        raise ValueError("bookmark IDs are immutable")
                 for key, value in kwargs.items():
-                    if hasattr(bm, key):
+                    if key != "id" and hasattr(bm, key):
                         setattr(bm, key, value)
                 bm.modified_at = datetime.now().isoformat()
                 snapshot = list(self.bookmarks.values())
@@ -396,7 +479,8 @@ class BookmarkManager:
     
     def delete_bookmark(self, bookmark_id: int) -> bool:
         """Delete a bookmark"""
-        self._sync_before_write()
+        if self._batch_depth == 0:
+            self._sync_before_write()
         bookmark_id = self._coerce_bookmark_id(bookmark_id)
         if bookmark_id is None:
             return False

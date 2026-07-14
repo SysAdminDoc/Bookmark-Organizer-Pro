@@ -1253,6 +1253,56 @@ class TestBatchSave(_IsolatedTestBase):
         self.assertEqual(save_count[0], 1)
 
 
+def test_sidecar_managers_restore_committed_state_when_save_fails(tmp_path):
+    from bookmark_organizer_pro.services.flows import FlowManager
+    from bookmark_organizer_pro.services.reader_annotations import ReaderAnnotationStore
+    from bookmark_organizer_pro.services.rss_feeds import FeedRegistry
+    from bookmark_organizer_pro.services.smart_collections import (
+        SmartCollectionFilter,
+        SmartCollectionManager,
+    )
+
+    flow_path = tmp_path / "flows.json"
+    flows = FlowManager(flow_path)
+    flow = flows.create("Original flow")
+    flow_bytes = flow_path.read_bytes()
+    with patch.object(flows._store, "save", side_effect=OSError("flow write failed")):
+        with pytest.raises(OSError, match="flow write failed"):
+            flows.rename(flow.id, "Mutated flow")
+    assert flows.get(flow.id).name == "Original flow"
+    assert flow_path.read_bytes() == flow_bytes
+
+    feed_path = tmp_path / "feeds.json"
+    feeds = FeedRegistry(feed_path)
+    feed = feeds.add("https://example.com/feed", name="Original feed")
+    feed_bytes = feed_path.read_bytes()
+    with patch.object(feeds._store, "save", side_effect=OSError("feed write failed")):
+        with pytest.raises(OSError, match="feed write failed"):
+            feeds.update(feed.id, name="Mutated feed")
+    assert feeds.get(feed.id).name == "Original feed"
+    assert feed_path.read_bytes() == feed_bytes
+
+    collection_path = tmp_path / "collections.json"
+    collections = SmartCollectionManager(collection_path)
+    collection = collections.create("Original collection", SmartCollectionFilter(tags=["python"]))
+    collection_bytes = collection_path.read_bytes()
+    with patch.object(collections._store, "save", side_effect=OSError("collection write failed")):
+        with pytest.raises(OSError, match="collection write failed"):
+            collections.delete(collection.id)
+    assert collections.get(collection.id).name == "Original collection"
+    assert collection_path.read_bytes() == collection_bytes
+
+    annotation_path = tmp_path / "annotations.json"
+    annotations = ReaderAnnotationStore(annotation_path)
+    highlight = annotations.add_from_text(1, "transactional note", 0, 13, note="Original note")
+    annotation_bytes = annotation_path.read_bytes()
+    with patch.object(annotations._store, "save", side_effect=OSError("annotation write failed")):
+        with pytest.raises(OSError, match="annotation write failed"):
+            annotations.set_note(highlight.id, "Mutated note")
+    assert annotations.get(highlight.id).note == "Original note"
+    assert annotation_path.read_bytes() == annotation_bytes
+
+
 class TestBookmarkManagerSQLiteStorage(_IsolatedTestBase):
     """Tests for opt-in SQLite storage backend selection."""
 

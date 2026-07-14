@@ -46,6 +46,77 @@ def test_independent_managers_interleave_writes_without_loss(tmp_path, backend, 
     assert verifier.storage.current_revision() == 4
 
 
+@pytest.mark.parametrize("backend,suffix", [("json", ".json"), ("sqlite", ".sqlite")])
+@pytest.mark.parametrize("operation", ["add", "update", "delete"])
+def test_failed_bookmark_mutations_restore_memory_revision_and_disk(
+    tmp_path, monkeypatch, backend, suffix, operation
+):
+    path = tmp_path / f"transaction{suffix}"
+    manager = BookmarkManager(object(), object(), filepath=path, storage_backend=backend)
+    manager.add_bookmark(_bookmark(1, "Original"))
+    before_state = [bookmark.to_dict() for bookmark in manager.get_all_bookmarks()]
+    before_revision = manager._storage_revision
+    before_bytes = path.read_bytes()
+
+    if operation == "add":
+        mutate = lambda: manager.add_bookmark(_bookmark(2, "Added"))
+    elif operation == "update":
+        bookmark = manager.get_bookmark(1)
+        bookmark.title = "Changed before update"
+        mutate = lambda: manager.update_bookmark(bookmark)
+    else:
+        mutate = lambda: manager.delete_bookmark(1)
+
+    monkeypatch.setattr(manager.storage, "save", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("disk full")))
+    with pytest.raises(OSError, match="disk full"):
+        mutate()
+
+    assert [bookmark.to_dict() for bookmark in manager.get_all_bookmarks()] == before_state
+    assert manager._storage_revision == before_revision
+    assert path.read_bytes() == before_bytes
+
+
+def test_nested_batch_failure_rolls_back_even_when_inner_error_is_caught(tmp_path):
+    path = tmp_path / "nested-batch.json"
+    manager = BookmarkManager(object(), object(), filepath=path, storage_backend="json")
+    manager.add_bookmark(_bookmark(1, "Original"))
+    before_state = [bookmark.to_dict() for bookmark in manager.get_all_bookmarks()]
+    before_revision = manager._storage_revision
+    before_bytes = path.read_bytes()
+
+    with manager.batch():
+        manager.add_bookmark(_bookmark(2, "Outer"))
+        try:
+            with manager.batch():
+                manager.add_bookmark(_bookmark(3, "Inner"))
+                raise RuntimeError("abort nested transaction")
+        except RuntimeError:
+            pass
+        manager.add_bookmark(_bookmark(4, "After caught failure"))
+
+    assert [bookmark.to_dict() for bookmark in manager.get_all_bookmarks()] == before_state
+    assert manager._storage_revision == before_revision
+    assert path.read_bytes() == before_bytes
+
+
+def test_bookmark_update_rejects_identity_changes_and_repairs_live_alias(tmp_path):
+    manager = BookmarkManager(
+        object(), object(), filepath=tmp_path / "immutable-id.json", storage_backend="json"
+    )
+    manager.add_bookmark(_bookmark(1, "Original"))
+
+    with pytest.raises(ValueError, match="immutable"):
+        manager.update_bookmark(1, id=2)
+    aliased = manager.get_bookmark(1)
+    aliased.id = 2
+    with pytest.raises(ValueError, match="immutable"):
+        manager.update_bookmark(aliased)
+
+    assert list(manager.bookmarks) == [1]
+    assert manager.get_bookmark(1).id == 1
+    assert manager.get_bookmark(2) is None
+
+
 @pytest.mark.parametrize("storage_type,suffix", [(StorageManager, ".json"), (SQLiteStorageManager, ".sqlite")])
 def test_simultaneous_stale_writers_commit_once_and_surface_conflict(
     tmp_path, storage_type, suffix

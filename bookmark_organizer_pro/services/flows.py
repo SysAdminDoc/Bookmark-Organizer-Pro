@@ -8,6 +8,7 @@ folders, and fits naturally as a Tk tree-view.
 
 from __future__ import annotations
 
+from copy import deepcopy
 import threading
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -83,6 +84,7 @@ class FlowManager:
         )
         self._revision = 0
         self._flows: Dict[str, Flow] = {}
+        self._committed_flows: Dict[str, Flow] = {}
         self._load()
 
     @property
@@ -101,11 +103,18 @@ class FlowManager:
                     self._flows[flow.id] = flow
                 except Exception as exc:
                     log.warning(f"Bad flow entry: {exc}")
+            self._committed_flows = deepcopy(self._flows)
 
     def _save(self):
         with self._lock:
             payload = [f.to_dict() for f in self._flows.values()]
-        self._revision = self._store.save(payload, expected_revision=self._revision)
+            try:
+                revision = self._store.save(payload, expected_revision=self._revision)
+            except Exception:
+                self._flows = deepcopy(self._committed_flows)
+                raise
+            self._revision = revision
+            self._committed_flows = deepcopy(self._flows)
 
     # ---------- CRUD ----------
     def create(self, name: str, description: str = "", color: str = "#58a6ff", icon: str = "") -> Flow:
@@ -121,16 +130,16 @@ class FlowManager:
         )
         with self._lock:
             self._flows[flow.id] = flow
-        self._save()
-        return flow
+            self._save()
+            return deepcopy(flow)
 
     def delete(self, flow_id: str) -> bool:
         with self._lock:
             if flow_id not in self._flows:
                 return False
             del self._flows[flow_id]
-        self._save()
-        return True
+            self._save()
+            return True
 
     def rename(self, flow_id: str, name: str) -> bool:
         with self._lock:
@@ -139,16 +148,17 @@ class FlowManager:
                 return False
             flow.name = name
             flow.modified_at = datetime.now().isoformat()
-        self._save()
-        return True
+            self._save()
+            return True
 
     def get(self, flow_id: str) -> Optional[Flow]:
         with self._lock:
-            return self._flows.get(flow_id)
+            flow = self._flows.get(flow_id)
+            return deepcopy(flow) if flow is not None else None
 
     def list_flows(self) -> List[Flow]:
         with self._lock:
-            return list(self._flows.values())
+            return deepcopy(list(self._flows.values()))
 
     # ---------- steps ----------
     def add_step(self, flow_id: str, bookmark_id: int, note: str = "", position: Optional[int] = None) -> bool:
@@ -162,8 +172,8 @@ class FlowManager:
             flow.steps.insert(pos, FlowStep(bookmark_id=bookmark_id, note=note, position=pos))
             self._renumber(flow)
             flow.modified_at = datetime.now().isoformat()
-        self._save()
-        return True
+            self._save()
+            return True
 
     def remove_step(self, flow_id: str, bookmark_id: int) -> bool:
         with self._lock:
@@ -176,8 +186,8 @@ class FlowManager:
                 return False
             self._renumber(flow)
             flow.modified_at = datetime.now().isoformat()
-        self._save()
-        return True
+            self._save()
+            return True
 
     def reorder(self, flow_id: str, bookmark_ids_in_order: List[int]) -> bool:
         with self._lock:
@@ -194,8 +204,8 @@ class FlowManager:
             flow.steps = new_steps
             self._renumber(flow)
             flow.modified_at = datetime.now().isoformat()
-        self._save()
-        return True
+            self._save()
+            return True
 
     def set_note(self, flow_id: str, bookmark_id: int, note: str) -> bool:
         with self._lock:
@@ -209,8 +219,8 @@ class FlowManager:
                     break
             else:
                 return False
-        self._save()
-        return True
+            self._save()
+            return True
 
     def _renumber(self, flow: Flow):
         for i, s in enumerate(flow.steps):

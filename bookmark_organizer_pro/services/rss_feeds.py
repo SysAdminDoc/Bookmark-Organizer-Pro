@@ -12,6 +12,7 @@ layer that AI tagging adds to rather than replaces.
 
 from __future__ import annotations
 
+from copy import deepcopy
 import re
 import threading
 import xml.etree.ElementTree as ET
@@ -90,6 +91,7 @@ class FeedRegistry:
         )
         self._revision = 0
         self._feeds: Dict[str, FeedConfig] = {}
+        self._committed_feeds: Dict[str, FeedConfig] = {}
         self._load()
 
     @property
@@ -108,11 +110,18 @@ class FeedRegistry:
                     self._feeds[cfg.id] = cfg
                 except TypeError:
                     continue
+            self._committed_feeds = deepcopy(self._feeds)
 
     def _save(self):
         with self._lock:
             payload = [f.to_dict() for f in self._feeds.values()]
-        self._revision = self._store.save(payload, expected_revision=self._revision)
+            try:
+                revision = self._store.save(payload, expected_revision=self._revision)
+            except Exception:
+                self._feeds = deepcopy(self._committed_feeds)
+                raise
+            self._revision = revision
+            self._committed_feeds = deepcopy(self._feeds)
 
     def add(
         self,
@@ -138,16 +147,16 @@ class FeedRegistry:
         )
         with self._lock:
             self._feeds[cfg.id] = cfg
-        self._save()
-        return cfg
+            self._save()
+            return deepcopy(cfg)
 
     def remove(self, feed_id: str) -> bool:
         with self._lock:
             if feed_id not in self._feeds:
                 return False
             del self._feeds[feed_id]
-        self._save()
-        return True
+            self._save()
+            return True
 
     def update(self, feed_id: str, **kwargs) -> Optional[FeedConfig]:
         with self._lock:
@@ -157,16 +166,17 @@ class FeedRegistry:
             for key, value in kwargs.items():
                 if hasattr(cfg, key):
                     setattr(cfg, key, value)
-        self._save()
-        return cfg
+            self._save()
+            return deepcopy(cfg)
 
     def list_feeds(self) -> List[FeedConfig]:
         with self._lock:
-            return list(self._feeds.values())
+            return deepcopy(list(self._feeds.values()))
 
     def get(self, feed_id: str) -> Optional[FeedConfig]:
         with self._lock:
-            return self._feeds.get(feed_id)
+            cfg = self._feeds.get(feed_id)
+            return deepcopy(cfg) if cfg is not None else None
 
 
 def parse_feed(xml_text: str, base_url: str = "") -> List[FeedItem]:

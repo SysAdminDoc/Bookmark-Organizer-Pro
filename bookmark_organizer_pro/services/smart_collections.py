@@ -8,6 +8,7 @@ change. Powered by the same StructuredQuery evaluation used by nl_query.py.
 
 from __future__ import annotations
 
+from copy import deepcopy
 import threading
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -153,6 +154,7 @@ class SmartCollectionManager:
         )
         self._revision = 0
         self._collections: Dict[str, SmartCollection] = {}
+        self._committed_collections: Dict[str, SmartCollection] = {}
         self._load()
 
     @property
@@ -170,11 +172,18 @@ class SmartCollectionManager:
                     self._collections[sc.id] = sc
                 except Exception as exc:
                     log.warning(f"Bad smart collection entry: {exc}")
+            self._committed_collections = deepcopy(self._collections)
 
     def _save(self):
         with self._lock:
             payload = [sc.to_dict() for sc in self._collections.values()]
-        self._revision = self._store.save(payload, expected_revision=self._revision)
+            try:
+                revision = self._store.save(payload, expected_revision=self._revision)
+            except Exception:
+                self._collections = deepcopy(self._committed_collections)
+                raise
+            self._revision = revision
+            self._committed_collections = deepcopy(self._collections)
 
     def create(self, name: str, filters: SmartCollectionFilter, icon: str = "") -> SmartCollection:
         now = datetime.now().isoformat()
@@ -188,33 +197,34 @@ class SmartCollectionManager:
         )
         with self._lock:
             self._collections[sc.id] = sc
-        self._save()
-        return sc
+            self._save()
+            return deepcopy(sc)
 
     def delete(self, collection_id: str) -> bool:
         with self._lock:
             if collection_id not in self._collections:
                 return False
             del self._collections[collection_id]
-        self._save()
-        return True
+            self._save()
+            return True
 
     def get(self, collection_id: str) -> Optional[SmartCollection]:
         with self._lock:
-            return self._collections.get(collection_id)
+            collection = self._collections.get(collection_id)
+            return deepcopy(collection) if collection is not None else None
 
     def list_all(self) -> List[SmartCollection]:
         with self._lock:
-            return list(self._collections.values())
+            return deepcopy(list(self._collections.values()))
 
     def evaluate(self, collection_id: str, bookmarks: List[Bookmark]) -> List[Bookmark]:
         with self._lock:
-            sc = self._collections.get(collection_id)
+            sc = deepcopy(self._collections.get(collection_id))
         if sc is None:
             return []
         return sc.evaluate(bookmarks)
 
     def evaluate_all(self, bookmarks: List[Bookmark]) -> Dict[str, List[Bookmark]]:
         with self._lock:
-            collections = list(self._collections.values())
+            collections = deepcopy(list(self._collections.values()))
         return {sc.id: sc.evaluate(bookmarks) for sc in collections}
