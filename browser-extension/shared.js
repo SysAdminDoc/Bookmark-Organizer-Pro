@@ -19,7 +19,11 @@ function storageSet(values) {
   if (api.storage.local.set.length === 1) {
     return api.storage.local.set(values);
   }
-  return new Promise(resolve => api.storage.local.set(values, resolve));
+  return new Promise((resolve, reject) => api.storage.local.set(values, () => {
+    const error = api.runtime.lastError;
+    if (error) { reject(new Error("Extension settings could not be stored")); return; }
+    resolve();
+  }));
 }
 
 function runtimeMessage(message) {

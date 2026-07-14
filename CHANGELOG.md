@@ -27,6 +27,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Made bookmark batches and mutable sidecar managers transactional: failed saves, conflicts, and nested batch exceptions restore committed memory/revisions, while bookmark IDs can no longer be changed through update calls.
 - Routed worker completion and progress through one teardown-safe Tk event dispatcher; shutdown cancels polling and discards late callbacks without worker-thread Tcl/Tk calls.
 - Standardized all CLI commands on automation-safe success, operational, usage, and interruption exit codes; diagnostics now use stderr and recovery-key decryption publishes atomically.
+- Made extension Options pair entered credentials before persistence and restore the prior port, category, and vault token if authentication, pairing, network, or storage fails.
 
 ### Security
 

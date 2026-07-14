@@ -177,7 +177,9 @@ API stores tokens in the OS keyring when available and only writes the fallback
 file above when keyring storage is unavailable. The extension keeps its bearer
 token in a background-owned IndexedDB vault, restricts Chromium local storage
 to trusted extension contexts, and migrates older `storage.local` tokens on
-startup.
+startup. Saving Options verifies the entered port and token with the local API
+before replacing a working configuration; pairing, authentication, network, or
+storage failures retain the previous settings.
 
 Chromium uses a service worker, Side Panel, and Chrome Reading List import.
 Firefox uses an ordered background page and `sidebar_action`; Firefox does not

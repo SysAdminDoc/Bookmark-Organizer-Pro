@@ -9,7 +9,11 @@ function storageRemove(keys) {
   if (api.storage.local.remove.length === 1) {
     return api.storage.local.remove(keys);
   }
-  return new Promise(resolve => api.storage.local.remove(keys, resolve));
+  return new Promise((resolve, reject) => api.storage.local.remove(keys, () => {
+    const error = api.runtime.lastError;
+    if (error) { reject(new Error("Legacy credentials could not be removed")); return; }
+    resolve();
+  }));
 }
 
 async function restrictLocalStorageAccess() {
@@ -54,13 +58,21 @@ async function handleTrustedMessage(message) {
     await storageRemove("apiToken");
     return { ok: true };
   }
+  if (message.type === "bop:clear-api-token") {
+    await credentialReady;
+    await CredentialVault.clearToken();
+    await storageRemove("apiToken");
+    return { ok: true };
+  }
   return null;
 }
 
 api.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const trustedRoot = api.runtime.getURL("");
   if (!sender || sender.id !== api.runtime.id || !String(sender.url || "").startsWith(trustedRoot)) return false;
-  if (!message || !["bop:get-config", "bop:set-api-token"].includes(message.type)) return false;
+  if (!message || ![
+    "bop:get-config", "bop:set-api-token", "bop:clear-api-token"
+  ].includes(message.type)) return false;
   handleTrustedMessage(message)
     .then(result => sendResponse(result))
     .catch(() => sendResponse({ ok: false, error: "Credential operation failed" }));

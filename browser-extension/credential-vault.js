@@ -58,5 +58,10 @@ globalThis.CredentialVault = (() => {
     volatileToken = token;
   }
 
-  return Object.freeze({ getToken, setToken });
+  async function clearToken() {
+    await access("readwrite", store => store.delete(TOKEN_KEY));
+    volatileToken = "";
+  }
+
+  return Object.freeze({ clearToken, getToken, setToken });
 })();
