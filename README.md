@@ -140,6 +140,10 @@ python -m bookmark_organizer_pro.cli migration preflight linkwarden linkwarden-e
 # Inspect bounded, local-only capture and indexing health
 python -m bookmark_organizer_pro.cli jobs health
 python -m bookmark_organizer_pro.cli jobs list --outcome failure --retryable
+
+# Create and refine a validated saved collection
+python -m bookmark_organizer_pro.cli smart-collections create "Python research" --tags python --domains docs.python.org,github.com
+python -m bookmark_organizer_pro.cli smart-collections update <id-or-prefix> --after 2026-01-01
 ```
 
 CLI commands use stable automation exit codes: `0` for success, `1` for an

@@ -424,9 +424,32 @@ class BookmarkCLI:
         # ── Collections ────────────────────────────────────────────
         p = sub.add_parser("smart-collections", help="Manage smart collections")
         p.add_argument("action", nargs="?", default="list",
-                        choices=["list", "eval"],
-                        help="Action: list, eval")
-        p.add_argument("collection_id", nargs="?", help="Collection ID (for eval)")
+                        choices=["list", "eval", "create", "update"],
+                        help="Action: list, eval, create, update")
+        p.add_argument(
+            "collection_id",
+            nargs="?",
+            help="Collection ID/prefix, or collection name for create",
+        )
+        p.add_argument("--name", help="Replacement name for update")
+        p.add_argument("--icon", help="Collection icon")
+        p.add_argument("--tags", help="Comma-separated tags")
+        p.add_argument("--categories", help="Comma-separated categories")
+        p.add_argument("--domains", help="Comma-separated exact domains")
+        p.add_argument("--content-types", help="Comma-separated content types")
+        p.add_argument("--keywords", help="Comma-separated keywords")
+        p.add_argument("--after", help="ISO-8601 lower date bound")
+        p.add_argument("--before", help="ISO-8601 upper date bound")
+        p.add_argument(
+            "--read-later-only",
+            action=argparse.BooleanOptionalAction,
+            default=None,
+        )
+        p.add_argument(
+            "--has-snapshot",
+            action=argparse.BooleanOptionalAction,
+            default=None,
+        )
         p.set_defaults(func=self._cmd_smart_collections)
 
         p = sub.add_parser("nl-query", help="Natural language query")
@@ -523,6 +546,8 @@ v6.0.0 commands:
   read-later {{add|next|done|list}} <id>   Manage the read-later queue
   reader {{list|add|note|delete|due|review|export}}   Manage reader highlights/notes
     export <id|all> [--format markdown|csv|json] [--template FILE] [--changed-since ISO]
+  smart-collections {{list|eval|create|update}}
+                                Manage validated saved collection filters.
   api-server [--port N]          Run the local HTTP API for extensions/bookmarklet
   mcp-server                    Run the MCP server (stdio) for compatible clients.
   mcp-http-server [--host H] [--port N] [--path /mcp]
@@ -1988,7 +2013,10 @@ Top Domains:
             api.stop()
 
     def _cmd_smart_collections(self, ns: argparse.Namespace):
-        from bookmark_organizer_pro.services.smart_collections import SmartCollectionManager
+        from bookmark_organizer_pro.services.smart_collections import (
+            SmartCollectionFilter,
+            SmartCollectionManager,
+        )
         mgr = SmartCollectionManager()
         sub = ns.action
         if sub == "list":
@@ -2006,19 +2034,74 @@ Top Domains:
                     parts.append(f"keywords={f.keywords}")
                 if parts:
                     print(f"    Filters: {', '.join(parts)}")
+            for diagnostic in mgr.diagnostics:
+                self._error(diagnostic.message)
+            return 1 if mgr.diagnostics else 0
         elif sub == "eval":
             sc_id = ns.collection_id
             if not sc_id:
                 return self._usage_error(
-                    "usage: smart-collections [list|eval <id>]"
+                    "usage: smart-collections eval <id>"
                 )
+            collection = mgr.resolve(sc_id)
+            if collection is None:
+                return self._failure("Smart collection not found or prefix is ambiguous")
             bms = self.bookmark_manager.get_all_bookmarks()
-            matches = mgr.evaluate(sc_id, bms)
+            matches = collection.evaluate(bms)
             print(f"Matches: {len(matches)}")
             for bm in matches[:20]:
                 print(f"  {bm.title[:60]} — {bm.url[:60]}")
+            return 0
+        elif sub == "create":
+            if not ns.collection_id:
+                return self._usage_error("usage: smart-collections create <name> [filters]")
+            try:
+                collection = mgr.create(
+                    ns.collection_id,
+                    self._smart_collection_filter_from_ns(ns, SmartCollectionFilter()),
+                    icon=ns.icon or "",
+                )
+            except ValueError as exc:
+                return self._usage_error(str(exc))
+            print(f"Created smart collection [{collection.id[:8]}] {collection.name}")
+            return 0
+        elif sub == "update":
+            if not ns.collection_id:
+                return self._usage_error("usage: smart-collections update <id> [changes]")
+            collection = mgr.resolve(ns.collection_id)
+            if collection is None:
+                return self._failure("Smart collection not found or prefix is ambiguous")
+            try:
+                updated = mgr.update(
+                    collection.id,
+                    name=ns.name,
+                    icon=ns.icon,
+                    filters=self._smart_collection_filter_from_ns(ns, collection.filters),
+                )
+            except ValueError as exc:
+                return self._usage_error(str(exc))
+            print(f"Updated smart collection [{updated.id[:8]}] {updated.name}")
+            return 0
         else:
-            return self._usage_error("usage: smart-collections [list|eval <id>]")
+            return self._usage_error(
+                "usage: smart-collections [list|eval|create|update]"
+            )
+
+    @staticmethod
+    def _smart_collection_filter_from_ns(ns, base):
+        from dataclasses import asdict
+        from bookmark_organizer_pro.services.smart_collections import SmartCollectionFilter
+
+        values = asdict(base)
+        for field_name in ("tags", "categories", "domains", "content_types", "keywords"):
+            raw = getattr(ns, field_name, None)
+            if raw is not None:
+                values[field_name] = [item.strip() for item in raw.split(",") if item.strip()]
+        for field_name in ("after", "before", "read_later_only", "has_snapshot"):
+            value = getattr(ns, field_name, None)
+            if value is not None:
+                values[field_name] = value
+        return SmartCollectionFilter(**values)
 
     def _cmd_nl_query(self, ns: argparse.Namespace):
         query = " ".join(ns.query) if ns.query else ""
