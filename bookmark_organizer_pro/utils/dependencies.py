@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import importlib
 import subprocess
 import sys
+import threading
 from typing import Callable, Dict, List, Optional, Tuple
 
 from ..logging_config import log
@@ -14,6 +16,25 @@ FROZEN_REPAIR_GUIDANCE = (
     "This packaged build cannot install Python components at runtime. "
     "Reinstall Bookmark Organizer Pro from the complete release package."
 )
+
+
+@dataclass(frozen=True)
+class DependencyInstallReport:
+    """Terminal state for one bounded dependency-install session."""
+
+    success: bool
+    cancelled: bool = False
+    installed: tuple[str, ...] = ()
+    failed: tuple[str, ...] = ()
+    skipped: tuple[str, ...] = ()
+
+    def summary(self) -> str:
+        changed = ", ".join(self.installed) if self.installed else "none"
+        if self.cancelled:
+            return f"Cancelled. Installed before cancellation: {changed}."
+        if self.failed:
+            return f"Installed: {changed}. Failed: {', '.join(self.failed)}."
+        return f"Installation complete. Installed: {changed}."
 
 
 def is_frozen_runtime() -> bool:
@@ -50,6 +71,11 @@ class DependencyManager:
         self.missing_optional: List[str] = []
         self.installed: Dict[str, bool] = {}
         self.install_errors: Dict[str, str] = {}
+        self.last_install_report = DependencyInstallReport(success=False)
+        self._cancel_install = threading.Event()
+        self._install_session_lock = threading.Lock()
+        self._process_lock = threading.Lock()
+        self._active_process: subprocess.Popen | None = None
 
     def _package_info(self, package: str) -> Optional[dict]:
         return self.REQUIRED_PACKAGES.get(package) or self.OPTIONAL_PACKAGES.get(package)
@@ -112,24 +138,40 @@ class DependencyManager:
         if progress_callback:
             progress_callback(f"Installing {package}...")
 
-        try:
-            result = subprocess.run(
-                [sys.executable, "-m", "pip", "install", package, "--quiet"],
-                capture_output=True,
-                text=True,
-                timeout=120,
-            )
+        if self._cancel_install.is_set():
+            self.install_errors[package] = "Installation cancelled"
+            return False
 
-            if result.returncode == 0:
+        process = None
+        try:
+            process = subprocess.Popen(
+                [sys.executable, "-m", "pip", "install", package, "--quiet"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            with self._process_lock:
+                self._active_process = process
+                cancel_now = self._cancel_install.is_set()
+            if cancel_now:
+                process.terminate()
+            stdout, stderr = process.communicate(timeout=120)
+
+            if process.returncode == 0:
                 log.info(f"Successfully installed {package}")
                 self.installed[package] = True
                 return True
 
-            error_msg = result.stderr or "Unknown error"
+            if self._cancel_install.is_set():
+                self.install_errors[package] = "Installation cancelled"
+                return False
+            error_msg = stderr or stdout or "Unknown error"
             log.error(f"Failed to install {package}: {error_msg}")
             self.install_errors[package] = error_msg
             return False
         except subprocess.TimeoutExpired:
+            if process is not None:
+                self._stop_process(process)
             log.error(f"Timeout installing {package}")
             self.install_errors[package] = "Installation timed out"
             return False
@@ -137,17 +179,72 @@ class DependencyManager:
             log.error(f"Error installing {package}: {e}")
             self.install_errors[package] = str(e)
             return False
+        finally:
+            with self._process_lock:
+                if self._active_process is process:
+                    self._active_process = None
+
+    @staticmethod
+    def _stop_process(process: subprocess.Popen, wait_timeout: float = 3.0) -> None:
+        if process.poll() is not None:
+            return
+        try:
+            process.terminate()
+            process.wait(timeout=wait_timeout)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=wait_timeout)
+        except Exception as exc:
+            log.warning(f"Could not stop dependency installer cleanly: {exc}")
+
+    def cancel_installation(self) -> bool:
+        """Request cancellation and synchronously stop the active pip process."""
+        self._cancel_install.set()
+        with self._process_lock:
+            process = self._active_process
+        if process is not None:
+            self._stop_process(process)
+        return True
 
     def install_all_missing(self, progress_callback: Optional[Callable] = None) -> bool:
         """Install all known missing dependencies."""
         all_missing = self.missing_required + self.missing_optional
-        success = True
+        if not self._install_session_lock.acquire(blocking=False):
+            self.last_install_report = DependencyInstallReport(
+                success=False, failed=tuple(all_missing)
+            )
+            return False
+        self._cancel_install.clear()
+        installed: list[str] = []
+        failed: list[str] = []
+        skipped: list[str] = []
+        try:
+            for index, package in enumerate(all_missing):
+                if self._cancel_install.is_set():
+                    skipped.extend(all_missing[index:])
+                    break
+                if progress_callback:
+                    progress_callback(f"Installing {package} ({index + 1}/{len(all_missing)})...")
 
-        for index, package in enumerate(all_missing):
-            if progress_callback:
-                progress_callback(f"Installing {package} ({index + 1}/{len(all_missing)})...")
+                package_ok = self.install_package(package)
+                if package_ok:
+                    installed.append(package)
+                elif not self._cancel_install.is_set():
+                    failed.append(package)
+                if self._cancel_install.is_set():
+                    skipped.extend(all_missing[index + 1:])
+                    break
 
-            if not self.install_package(package) and package in self.missing_required:
-                success = False
-
-        return success
+            cancelled = self._cancel_install.is_set()
+            required_failed = any(package in self.missing_required for package in failed)
+            success = not cancelled and not required_failed
+            self.last_install_report = DependencyInstallReport(
+                success=success,
+                cancelled=cancelled,
+                installed=tuple(installed),
+                failed=tuple(failed),
+                skipped=tuple(skipped),
+            )
+            return success
+        finally:
+            self._install_session_lock.release()

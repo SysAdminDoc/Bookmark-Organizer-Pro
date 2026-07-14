@@ -47,6 +47,7 @@ DESKTOP_SURFACES = (
     "desktop-bookmark-editor-1280x720",
     "desktop-about-1280x720",
     "desktop-dependency-setup-1280x720",
+    "desktop-dependency-cancelling-1280x720",
     "desktop-assistant-settings",
     "desktop-import-progress",
     "desktop-cleanup-review",
@@ -624,6 +625,17 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
                 output_dir,
                 "desktop-dependency-setup-1280x720",
                 ("Setup Check", "Continue"),
+            )
+        )
+        dependency_dialog._installing = True
+        dependency_dialog._on_cancel()
+        dependency_dialog.update()
+        results.append(
+            capture_tk_window(
+                dependency_dialog,
+                output_dir,
+                "desktop-dependency-cancelling-1280x720",
+                ("Setup Check", "Cancelling installer safely"),
             )
         )
         dependency_dialog.destroy()

@@ -407,7 +407,7 @@ msgstr ""
 #: bookmark_organizer_pro/app_mixins/categories.py:208
 #: bookmark_organizer_pro/app_mixins/import_export.py:213
 #: bookmark_organizer_pro/app_mixins/import_export.py:482
-#: bookmark_organizer_pro/ui/dependencies.py:172
+#: bookmark_organizer_pro/ui/dependencies.py:180
 #: bookmark_organizer_pro/ui/management_dialogs.py:494
 #: bookmark_organizer_pro/ui/widget_bookmark_editor.py:267
 #: bookmark_organizer_pro/ui/widget_theme_dialogs.py:187
@@ -415,6 +415,10 @@ msgstr ""
 #: bookmark_organizer_pro/ui/workflow_quick_add.py:197
 #: bookmark_organizer_pro/ui/workflow_selective_export.py:77
 msgid "Cancel"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/dependencies.py:282
+msgid "Cancelling installer safely..."
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/tools.py:546
@@ -644,7 +648,7 @@ msgstr ""
 msgid "Connections: {count}"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/dependencies.py:162
+#: bookmark_organizer_pro/ui/dependencies.py:170
 msgid "Continue Without Optional"
 msgstr ""
 
@@ -1243,7 +1247,7 @@ msgstr ""
 msgid "Inspecting {source} before import…"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/dependencies.py:150
+#: bookmark_organizer_pro/ui/dependencies.py:157
 msgid "Install All"
 msgstr ""
 
@@ -1252,7 +1256,7 @@ msgstr ""
 msgid "Install Ollama"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/dependencies.py:209
+#: bookmark_organizer_pro/ui/dependencies.py:258
 msgid "Installation complete."
 msgstr ""
 
@@ -1698,7 +1702,7 @@ msgstr ""
 msgid "Opened selected bookmark."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/dependencies.py:102
+#: bookmark_organizer_pro/ui/dependencies.py:109
 msgid "Optional Packages"
 msgstr ""
 
@@ -1966,7 +1970,7 @@ msgstr ""
 msgid "Replace all existing tags (instead of add/remove)"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/dependencies.py:74
+#: bookmark_organizer_pro/ui/dependencies.py:81
 msgid "Required Packages"
 msgstr ""
 
@@ -2254,7 +2258,7 @@ msgstr ""
 msgid "Settings: AI provider, themes, preferences"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/dependencies.py:48
+#: bookmark_organizer_pro/ui/dependencies.py:55
 msgid "Setup Check"
 msgstr ""
 
@@ -2319,7 +2323,7 @@ msgstr ""
 msgid "Snapshot Failure Report"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/dependencies.py:214
+#: bookmark_organizer_pro/ui/dependencies.py:263
 msgid "Some installations failed. Check your internet connection."
 msgstr ""
 

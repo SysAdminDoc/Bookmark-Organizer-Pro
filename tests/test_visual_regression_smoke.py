@@ -13,6 +13,7 @@ def test_visual_smoke_surface_matrix_covers_required_desktop_and_extension_views
         "desktop-bookmark-editor-1280x720",
         "desktop-about-1280x720",
         "desktop-dependency-setup-1280x720",
+        "desktop-dependency-cancelling-1280x720",
         "desktop-assistant-settings",
         "desktop-import-progress",
         "desktop-cleanup-review",

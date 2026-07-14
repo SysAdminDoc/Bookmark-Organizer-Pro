@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import queue
 import threading
 import tkinter as tk
 from tkinter import ttk
 
 from bookmark_organizer_pro.constants import APP_NAME
 from bookmark_organizer_pro.logging_config import log
-from bookmark_organizer_pro.utils.dependencies import DependencyManager
+from bookmark_organizer_pro.utils.dependencies import DependencyInstallReport, DependencyManager
 
 from .foundation import FONTS
 from .window_geometry import apply_screen_aware_geometry
@@ -23,6 +24,10 @@ class DependencyCheckDialog(tk.Toplevel):
         self.parent = parent
         self.dep_manager = dep_manager
         self.result = False
+        self._installing = False
+        self._cancel_requested = False
+        self._closed = False
+        self._ui_queue: queue.Queue = queue.Queue()
 
         theme = get_theme()
 
@@ -35,10 +40,12 @@ class DependencyCheckDialog(tk.Toplevel):
 
         self.transient(parent)
         self.grab_set()
-        self.bind("<Escape>", lambda e: self.destroy())
+        self.bind("<Escape>", lambda e: self._on_cancel())
 
         self._create_ui(theme)
         self.protocol("WM_DELETE_WINDOW", self._on_cancel)
+        self.bind("<Destroy>", self._on_destroy, add="+")
+        self.after(50, self._drain_ui_queue)
 
     def _create_ui(self, theme) -> None:
         install_supported = self.dep_manager.runtime_install_supported
@@ -158,6 +165,7 @@ class DependencyCheckDialog(tk.Toplevel):
             )
             self.install_btn.pack(side=tk.RIGHT)
 
+        self.skip_btn = None
         if not self.dep_manager.missing_required:
             self.skip_btn = ModernButton(
                 btn_frame,
@@ -169,14 +177,39 @@ class DependencyCheckDialog(tk.Toplevel):
             )
             self.skip_btn.pack(side=tk.RIGHT, padx=(0, 10))
 
-        ModernButton(
+        self.cancel_btn = ModernButton(
             btn_frame,
             text="Cancel",
             font=FONTS.small(),
             padx=15,
             pady=8,
             command=self._on_cancel,
-        ).pack(side=tk.LEFT)
+        )
+        self.cancel_btn.pack(side=tk.LEFT)
+
+    def _post_ui(self, callback) -> None:
+        if self._closed:
+            return
+        self._ui_queue.put(callback)
+
+    def _drain_ui_queue(self) -> None:
+        if self._closed:
+            return
+        while True:
+            try:
+                callback = self._ui_queue.get_nowait()
+            except queue.Empty:
+                break
+            try:
+                callback()
+            except tk.TclError:
+                self._closed = True
+                return
+        self.after(50, self._drain_ui_queue)
+
+    def _on_destroy(self, event) -> None:
+        if event.widget is self:
+            self._closed = True
 
     def _on_install(self) -> None:
         if self.install_btn is None:
@@ -186,24 +219,40 @@ class DependencyCheckDialog(tk.Toplevel):
             )
             return
         self.install_btn.set_state("disabled")
+        if self.skip_btn is not None:
+            self.skip_btn.set_state("disabled")
+        self._installing = True
+        self._cancel_requested = False
+        self.cancel_btn.set_text("Cancel")
         self.progress_bar.pack(fill=tk.X, pady=(5, 0))
         self.progress_bar.start(10)
 
         def do_install():
             success = self.dep_manager.install_all_missing(
-                progress_callback=lambda msg: self.after(
-                    0,
-                    lambda: self.progress_label.configure(text=msg),
+                progress_callback=lambda msg: self._post_ui(
+                    lambda message=msg: self.progress_label.configure(text=message),
                 )
             )
-            self.after(0, lambda: self._installation_complete(success))
+            report = self.dep_manager.last_install_report
+            self._post_ui(lambda: self._installation_complete(success, report))
 
         threading.Thread(target=do_install, daemon=True).start()
 
-    def _installation_complete(self, success: bool) -> None:
+    def _installation_complete(self, success: bool, report: DependencyInstallReport) -> None:
+        self._installing = False
         self.progress_bar.stop()
         self.progress_bar.pack_forget()
         theme = self._theme
+
+        if report.cancelled:
+            self.progress_label.configure(text=report.summary(), fg=theme.accent_warning)
+            self.cancel_btn.set_text("Close")
+            if self.install_btn is not None:
+                self.install_btn.set_state("normal")
+                self.install_btn.set_text("Retry Remaining")
+            if self.skip_btn is not None:
+                self.skip_btn.set_state("normal")
+            return
 
         if success or not self.dep_manager.missing_required:
             self.progress_label.configure(text="Installation complete.", fg=theme.accent_success)
@@ -224,7 +273,23 @@ class DependencyCheckDialog(tk.Toplevel):
 
     def _on_cancel(self) -> None:
         self.result = False
-        self.destroy()
+        if not self._installing:
+            self.destroy()
+            return
+        if self._cancel_requested:
+            return
+        self._cancel_requested = True
+        self.progress_label.configure(
+            text="Cancelling installer safely...",
+            fg=self._theme.accent_warning,
+        )
+        self.cancel_btn.set_state("disabled")
+
+        def cancel_worker():
+            self.dep_manager.cancel_installation()
+            self._post_ui(lambda: self.cancel_btn.set_state("normal"))
+
+        threading.Thread(target=cancel_worker, daemon=True).start()
 
 
 def check_and_install_dependencies(root: tk.Tk) -> bool:

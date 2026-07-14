@@ -11,7 +11,7 @@ import tokenize
 import unittest
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 # Ensure package is importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1331,20 +1331,109 @@ class TestDependencyManager(unittest.TestCase):
 
     def test_install_package_source_runtime_retains_pip_path(self):
         manager = DependencyManager()
-        completed = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+        process = Mock(returncode=0)
+        process.communicate.return_value = ("", "")
 
         with (
             patch("bookmark_organizer_pro.utils.dependencies.is_frozen_runtime", return_value=False),
-            patch("bookmark_organizer_pro.utils.dependencies.subprocess.run", return_value=completed) as run_mock,
+            patch("bookmark_organizer_pro.utils.dependencies.subprocess.Popen", return_value=process) as popen_mock,
         ):
             self.assertTrue(manager.install_package("Pillow"))
 
-        run_mock.assert_called_once_with(
+        popen_mock.assert_called_once_with(
             [sys.executable, "-m", "pip", "install", "Pillow", "--quiet"],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=120,
         )
+        process.communicate.assert_called_once_with(timeout=120)
+
+    def test_cancel_stops_active_installer_and_prevents_next_package(self):
+        class BlockingProcess:
+            def __init__(self):
+                self.returncode = None
+                self.terminated = False
+                self.killed = False
+                self.done = threading.Event()
+
+            def communicate(self, timeout=None):
+                if not self.done.wait(timeout=2):
+                    raise subprocess.TimeoutExpired("pip", timeout)
+                return ("", "cancelled")
+
+            def poll(self):
+                return self.returncode
+
+            def terminate(self):
+                self.terminated = True
+                self.returncode = -15
+                self.done.set()
+
+            def kill(self):
+                self.killed = True
+                self.returncode = -9
+                self.done.set()
+
+            def wait(self, timeout=None):
+                if not self.done.wait(timeout=timeout):
+                    raise subprocess.TimeoutExpired("pip", timeout)
+                return self.returncode
+
+        manager = DependencyManager()
+        manager.REQUIRED_PACKAGES = {
+            "first": {"import_name": "first", "required": True, "description": "first"},
+            "second": {"import_name": "second", "required": True, "description": "second"},
+        }
+        manager.OPTIONAL_PACKAGES = {}
+        manager.missing_required = ["first", "second"]
+        process = BlockingProcess()
+        started = threading.Event()
+        calls = []
+
+        def start_process(*args, **kwargs):
+            calls.append((args, kwargs))
+            started.set()
+            return process
+
+        results = []
+        with patch("bookmark_organizer_pro.utils.dependencies.subprocess.Popen", side_effect=start_process):
+            worker = threading.Thread(target=lambda: results.append(manager.install_all_missing()))
+            worker.start()
+            self.assertTrue(started.wait(timeout=2))
+            self.assertTrue(manager.cancel_installation())
+            worker.join(timeout=2)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(results, [False])
+        self.assertTrue(process.terminated)
+        self.assertEqual(len(calls), 1)
+        self.assertTrue(manager.last_install_report.cancelled)
+        self.assertEqual(manager.last_install_report.installed, ())
+        self.assertEqual(manager.last_install_report.skipped, ("second",))
+        self.assertIn("Installed before cancellation: none", manager.last_install_report.summary())
+
+    def test_cancel_after_one_mutation_reports_change_and_skips_remainder(self):
+        manager = DependencyManager()
+        manager.REQUIRED_PACKAGES = {
+            "first": {"import_name": "first", "required": True, "description": "first"},
+            "second": {"import_name": "second", "required": True, "description": "second"},
+        }
+        manager.OPTIONAL_PACKAGES = {}
+        manager.missing_required = ["first", "second"]
+        calls = []
+
+        def install(package, progress_callback=None):
+            calls.append(package)
+            manager.cancel_installation()
+            return True
+
+        with patch.object(manager, "install_package", side_effect=install):
+            self.assertFalse(manager.install_all_missing())
+
+        self.assertEqual(calls, ["first"])
+        self.assertEqual(manager.last_install_report.installed, ("first",))
+        self.assertEqual(manager.last_install_report.skipped, ("second",))
+        self.assertIn("Installed before cancellation: first", manager.last_install_report.summary())
 
 
 class TestMainAppManagers(unittest.TestCase):
