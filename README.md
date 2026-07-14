@@ -142,6 +142,11 @@ python -m bookmark_organizer_pro.cli jobs health
 python -m bookmark_organizer_pro.cli jobs list --outcome failure --retryable
 ```
 
+CLI commands use stable automation exit codes: `0` for success, `1` for an
+operational or not-found failure, `2` for invalid usage, and `130` when
+interrupted. Diagnostics are written to stderr, so stdout remains suitable for
+pipes and machine-readable command output.
+
 Snapshot capture applies the same private/reserved-network, redirect, request,
 time, and byte limits to Python and Playwright fetches. Monolith and SingleFile
 executables cannot expose every internal request, so they are disabled by

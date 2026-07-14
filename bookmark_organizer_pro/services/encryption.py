@@ -320,6 +320,16 @@ class EncryptedStore:
         _atomic_write(dst, self.decrypt(src.read_bytes()))
         return dst
 
+    @staticmethod
+    def decrypt_recovery_file(src: Path, recovery_key: str, dst: Path | None = None) -> Path:
+        """Decrypt a recovery-bearing file without exposing a partial output."""
+        dst = dst or src.with_suffix("")
+        if dst.resolve() == src.resolve():
+            raise ValueError("Destination must differ from source")
+        plaintext = EncryptedStore.decrypt_with_recovery_key(src.read_bytes(), recovery_key)
+        _atomic_write(dst, plaintext)
+        return dst
+
     def is_encrypted(self, path: Path) -> bool:
         try:
             with path.open("rb") as handle:

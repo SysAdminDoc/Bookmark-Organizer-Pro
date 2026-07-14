@@ -26,6 +26,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Added one-step reader-highlight deletion recovery with a focusable Undo action, Ctrl/Cmd+Z, and exact persisted restoration of the highlight identity, range, color, note, and review metadata.
 - Made bookmark batches and mutable sidecar managers transactional: failed saves, conflicts, and nested batch exceptions restore committed memory/revisions, while bookmark IDs can no longer be changed through update calls.
 - Routed worker completion and progress through one teardown-safe Tk event dispatcher; shutdown cancels polling and discards late callbacks without worker-thread Tcl/Tk calls.
+- Standardized all CLI commands on automation-safe success, operational, usage, and interruption exit codes; diagnostics now use stderr and recovery-key decryption publishes atomically.
 
 ### Security
 

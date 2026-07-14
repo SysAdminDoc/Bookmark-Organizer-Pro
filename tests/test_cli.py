@@ -31,14 +31,17 @@ class CLITestBase(unittest.TestCase):
         from bookmark_organizer_pro.cli import BookmarkCLI
         cli = BookmarkCLI()
         old_stdout = sys.stdout
+        old_stderr = sys.stderr
         sys.stdout = captured = StringIO()
+        sys.stderr = captured_errors = StringIO()
         try:
             cli.run(args)
         except SystemExit:
             pass
         finally:
             sys.stdout = old_stdout
-        return captured.getvalue()
+            sys.stderr = old_stderr
+        return captured.getvalue() + captured_errors.getvalue()
 
 
 class TestCLIDispatch(CLITestBase):
@@ -281,7 +284,7 @@ class TestCLIExportSubcommands(CLITestBase):
 
     def test_obsidian_export_no_args(self):
         out = self._run(["obsidian-export"])
-        self.assertIn("Usage", out)
+        self.assertIn("usage", out.lower())
 
     def test_atom_export(self):
         import tempfile, os
@@ -397,13 +400,13 @@ class TestCLIStructuredMetadata(CLITestBase):
 class TestCLINlQuery(CLITestBase):
     def test_nl_query_no_args(self):
         out = self._run(["nl-query"])
-        self.assertIn("Usage", out)
+        self.assertIn("usage", out.lower())
 
 
 class TestCLIImportMatter(CLITestBase):
     def test_import_matter_no_args(self):
         out = self._run(["import-matter"])
-        self.assertIn("Usage", out)
+        self.assertIn("usage", out.lower())
 
 
 if __name__ == "__main__":

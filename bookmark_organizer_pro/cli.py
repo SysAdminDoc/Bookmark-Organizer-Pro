@@ -19,9 +19,7 @@ from bookmark_organizer_pro.url_utils import URLUtilities
 # CLI Tool
 # =============================================================================
 class _CLIParser(argparse.ArgumentParser):
-    """ArgumentParser subclass that prints 'Unknown command' instead of the
-    default argparse error for unrecognised subcommands, then raises SystemExit(2)
-    so callers see the same exit code as before."""
+    """Argument parser with compact, script-safe usage errors."""
 
     def error(self, message: str) -> None:  # noqa: D401 – override
         # When argparse cannot match a subcommand it says
@@ -30,12 +28,10 @@ class _CLIParser(argparse.ArgumentParser):
         if "invalid choice" in message:
             # Extract the bad token from the argparse message.
             token = message.split("'")[1] if "'" in message else message
-            print(f"Unknown command: {token}")
+            print(f"Unknown command: {token}", file=sys.stderr)
         else:
-            # Print a compact usage line to stdout so callers/tests can detect
-            # which subcommand was involved.
             prog = self.prog or "bop"
-            print(f"usage: {prog.split()[-1]} — {message}")
+            print(f"usage: {prog.split()[-1]} — {message}", file=sys.stderr)
         raise SystemExit(2)
 
 
@@ -58,6 +54,18 @@ class BookmarkCLI:
         detect failures. Errors now go to stderr and handlers return non-zero.
         """
         print(message, file=sys.stderr)
+
+    @classmethod
+    def _failure(cls, message: str) -> int:
+        """Report an operational or not-found failure."""
+        cls._error(message)
+        return 1
+
+    @classmethod
+    def _usage_error(cls, message: str) -> int:
+        """Report invalid command usage."""
+        cls._error(message)
+        return 2
 
     # ──────────────────────────────────────────────────────────────────
     # Parser construction
@@ -633,8 +641,7 @@ Examples:
             return 0
 
         if sub not in ("learn-defaults", "defaults", "learn"):
-            self._error(f"Unknown ai-audit subcommand: {sub}")
-            return 1
+            return self._usage_error(f"Unknown ai-audit subcommand: {sub}")
 
         min_conf = ns.min_confidence
         min_support = ns.min_support
@@ -735,7 +742,7 @@ Examples:
         elif filepath.endswith(".md"):
             self.bookmark_manager.export_markdown(filepath)
         else:
-            self._error(f"Note: unrecognized extension; writing HTML to {filepath}.html")
+            print(f"Note: unrecognized extension; writing HTML to {filepath}.html")
             filepath += ".html"
             self.bookmark_manager.export_html(filepath)
 
@@ -753,8 +760,7 @@ Examples:
                 existing_urls=[bookmark.url for bookmark in self.bookmark_manager.get_all_bookmarks()],
             )
         except (OSError, ValueError, json.JSONDecodeError) as exc:
-            print(f"Migration preflight failed: {exc}")
-            return
+            return self._failure(f"Migration preflight failed: {exc}")
         report = plan.report.to_dict()
         rendered = json.dumps(report, indent=2, ensure_ascii=False, sort_keys=True)
         print(rendered)
@@ -765,16 +771,16 @@ Examples:
             print(f"Migration report written: {report_path}")
         if ns.action == "preflight":
             print("Dry run only; library unchanged.")
-            return
+            return 0
         try:
             result = apply_migration(self.bookmark_manager, plan)
         except RuntimeError as exc:
-            print(f"Migration blocked: {exc}")
-            return
+            return self._failure(f"Migration blocked: {exc}")
         print(
             f"Migration applied: {result.added} added, {result.duplicates} duplicates skipped; "
             f"restore safepoint {result.safepoint}"
         )
+        return 0
 
     def _cmd_categories(self, ns: argparse.Namespace):
         """List categories"""
@@ -893,10 +899,11 @@ Top Domains:
         from bookmark_organizer_pro.services.ingest import ContentIngestor
         ing = ContentIngestor(template_path=getattr(ns, "templates", None))
         ids = self._bookmark_ids_from_ns(ns)
-        ok = updated = 0
+        ok = updated = missing = 0
         for bid in ids:
             bm = self.bookmark_manager.get_bookmark(bid)
             if not bm:
+                missing += 1
                 continue
             r = ing.ingest_bookmark(bm)
             if r.success:
@@ -906,6 +913,9 @@ Top Domains:
         if updated:
             self.bookmark_manager.save_bookmarks()
         print(f"Ingested {ok}/{len(ids)} bookmarks; {updated} updated.")
+        if missing:
+            return self._failure(f"{missing} requested bookmark(s) were not found")
+        return 0
 
     def _cmd_structured(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.services.extraction_templates import (
@@ -916,8 +926,7 @@ Top Domains:
 
         bm = self.bookmark_manager.get_bookmark(ns.bookmark_id)
         if not bm:
-            print("not found")
-            return
+            return self._failure("Bookmark not found")
         payload = structured_metadata_payload(bm)
         if not payload:
             print("No structured metadata.")
@@ -936,14 +945,14 @@ Top Domains:
         bid = ns.bookmark_id
         bm = self.bookmark_manager.get_bookmark(bid)
         if not bm:
-            print("not found")
-            return
+            return self._failure("Bookmark not found")
         ok, msg = SnapshotArchiver().snapshot(bm)
         if ok:
             self.bookmark_manager.save_bookmarks()
             print(f"snapshot: {msg} ({bm.snapshot_size} bytes)")
         else:
-            print(f"failed: {msg}")
+            return self._failure(f"Snapshot failed: {msg}")
+        return 0
 
     def _cmd_embed(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.services.embeddings import EmbeddingService, RECOMMENDED_MODELS
@@ -958,14 +967,16 @@ Top Domains:
             self._emb = EmbeddingService(model_name=model_name)
         emb = self._embedder()
         if not emb.available:
-            print("No embedding backend available. Install fastembed or model2vec.")
-            return
+            return self._failure(
+                "No embedding backend available. Install fastembed or model2vec."
+            )
         store = self._vector_store()
         ids = self._bookmark_ids_from_ns(ns)
-        total_chunks = 0
+        total_chunks = missing = 0
         for bid in ids:
             bm = self.bookmark_manager.get_bookmark(bid)
             if not bm:
+                missing += 1
                 continue
             text = ""
             if bm.extracted_text_path:
@@ -986,6 +997,9 @@ Top Domains:
             self.bookmark_manager.save_bookmarks()
         print(f"Indexed {total_chunks} chunks across {len(ids)} bookmarks "
               f"({emb.backend}, dim={emb.dim}).")
+        if missing:
+            return self._failure(f"{missing} requested bookmark(s) were not found")
+        return 0
 
     def _cmd_semantic(self, ns: argparse.Namespace):
         store = self._vector_store()
@@ -1015,8 +1029,7 @@ Top Domains:
         bid = ns.bookmark_id
         bm = self.bookmark_manager.get_bookmark(bid)
         if not bm:
-            print("not found")
-            return
+            return self._failure("Bookmark not found")
         cs = CitationSummarizer(self._ai_config(), self._embedder())
         out = cs.summarize_bookmark(bm)
         print(out.summary)
@@ -1101,20 +1114,20 @@ Top Domains:
             name = " ".join(flow_args) or "Untitled flow"
             f = fm.create(name)
             print(f"Created flow {f.id[:8]} '{f.name}'")
+            return 0
         elif cmd == "add" and len(flow_args) >= 2:
             try:
                 bid = int(flow_args[1])
             except ValueError:
-                print("error: bookmark ID must be an integer")
-                return
+                return self._usage_error("error: bookmark ID must be an integer")
             flow_id = flow_args[0]
             note = " ".join(flow_args[2:])
             for f in fm.list_flows():
                 if f.id.startswith(flow_id):
                     fm.add_step(f.id, bid, note)
                     print(f"Added bookmark {bid} to flow '{f.name}'")
-                    return
-            print("flow not found")
+                    return 0
+            return self._failure("Flow not found")
         elif cmd == "show" and flow_args:
             flow_id = flow_args[0]
             for f in fm.list_flows():
@@ -1126,8 +1139,9 @@ Top Domains:
                         print(f"  {s.position + 1:2d}. [{s.bookmark_id}] {title[:60]}")
                         if s.note:
                             print(f"      note: {s.note}")
-                    return
-            print("flow not found")
+                    return 0
+            return self._failure("Flow not found")
+        return self._usage_error("usage: flow {list|new|add|show} [arguments]")
 
     def _cmd_feed(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.services.rss_feeds import FeedRegistry, FeedIngestor
@@ -1144,13 +1158,14 @@ Top Domains:
             name = " ".join(feed_args[1:]) or url
             cfg = reg.add(url, name=name)
             print(f"Added feed {cfg.id[:8]} '{cfg.name}'")
+            return 0
         elif cmd == "remove" and feed_args:
             for f in reg.list_feeds():
                 if f.id.startswith(feed_args[0]):
                     reg.remove(f.id)
                     print(f"Removed {f.name}")
-                    return
-            print("feed not found")
+                    return 0
+            return self._failure("Feed not found")
         elif cmd == "fetch":
             ing = FeedIngestor(
                 reg, add_bookmark_callable=self.bookmark_manager.add_bookmark
@@ -1159,6 +1174,8 @@ Top Domains:
             for fid, n in results.items():
                 cfg = reg.get(fid)
                 print(f"  {cfg.name if cfg else fid}: {n} new")
+            return 0
+        return self._usage_error("usage: feed {list|add|remove|fetch} [arguments]")
 
     def _cmd_jobs(self, ns: argparse.Namespace):
         """Inspect, retry, or clear the local-only capture/index ledger."""
@@ -1219,17 +1236,17 @@ Top Domains:
 
         if ns.action == "retry":
             if not ns.job_id:
-                print("Usage: jobs retry <job-id>")
-                return
+                return self._usage_error("usage: jobs retry <job-id>")
             record = ledger.get(ns.job_id)
             if record is None:
-                print("Job not found or ID prefix is ambiguous.")
-                return
+                return self._failure("Job not found or ID prefix is ambiguous.")
             if not record.retryable:
-                print("Job is not retryable.")
-                return
+                return self._failure("Job is not retryable.")
             ok, detail = self._retry_local_job(record)
-            print(("Retried: " if ok else "Retry failed: ") + detail)
+            if not ok:
+                return self._failure("Retry failed: " + detail)
+            print("Retried: " + detail)
+            return 0
 
     def _retry_local_job(self, record) -> tuple[bool, str]:
         """Dispatch a durable job record without storing sensitive arguments."""
@@ -1361,8 +1378,7 @@ Top Domains:
 
     def _cmd_import_pocket(self, ns: argparse.Namespace):
         if not ns.file:
-            print(f"Usage: {ns._usage_hint}")
-            return
+            return self._usage_error(f"usage: {ns._usage_hint}")
         from bookmark_organizer_pro.importers_extra import PocketExportImporter, import_into
         importer = PocketExportImporter()
         added, dupes = import_into(self.bookmark_manager, importer, ns.file)
@@ -1371,8 +1387,7 @@ Top Domains:
 
     def _cmd_import_firefox_backup(self, ns: argparse.Namespace):
         if not ns.file:
-            print(f"Usage: {ns._usage_hint}")
-            return
+            return self._usage_error(f"usage: {ns._usage_hint}")
         from bookmark_organizer_pro.importers import FirefoxBookmarkBackupImporter
         from bookmark_organizer_pro.importers_extra import import_into
         importer = FirefoxBookmarkBackupImporter()
@@ -1385,8 +1400,7 @@ Top Domains:
 
     def _cmd_import_readwise(self, ns: argparse.Namespace):
         if not ns.file:
-            print(f"Usage: {ns._usage_hint}")
-            return
+            return self._usage_error(f"usage: {ns._usage_hint}")
         from bookmark_organizer_pro.importers_extra import ReadwiseReaderCSVImporter, import_into
         importer = ReadwiseReaderCSVImporter()
         added, dupes = import_into(self.bookmark_manager, importer, ns.file)
@@ -1395,8 +1409,7 @@ Top Domains:
 
     def _cmd_import_pinboard(self, ns: argparse.Namespace):
         if not ns.file:
-            print(f"Usage: {ns._usage_hint}")
-            return
+            return self._usage_error(f"usage: {ns._usage_hint}")
         from bookmark_organizer_pro.importers_extra import PinboardJSONImporter, import_into
         importer = PinboardJSONImporter()
         added, dupes = import_into(self.bookmark_manager, importer, ns.file)
@@ -1405,8 +1418,7 @@ Top Domains:
 
     def _cmd_import_instapaper(self, ns: argparse.Namespace):
         if not ns.file:
-            print(f"Usage: {ns._usage_hint}")
-            return
+            return self._usage_error(f"usage: {ns._usage_hint}")
         from bookmark_organizer_pro.importers_extra import InstapaperImporter, import_into
         importer = InstapaperImporter()
         added, dupes = import_into(self.bookmark_manager, importer, ns.file)
@@ -1415,8 +1427,7 @@ Top Domains:
 
     def _cmd_import_reddit(self, ns: argparse.Namespace):
         if not ns.file:
-            print(f"Usage: {ns._usage_hint}")
-            return
+            return self._usage_error(f"usage: {ns._usage_hint}")
         from bookmark_organizer_pro.importers_extra import RedditSavedImporter, import_into
         importer = RedditSavedImporter()
         added, dupes = import_into(self.bookmark_manager, importer, ns.file)
@@ -1429,19 +1440,22 @@ Top Domains:
         target = ns.target
         if target == "all":
             ok, path = ze.export_collection(self.bookmark_manager.get_all_bookmarks())
-            print(f"{'wrote' if ok else 'failed'}: {path}")
+            if not ok:
+                return self._failure(f"ZIP export failed: {path}")
+            print(f"wrote: {path}")
         else:
             try:
                 bid = int(target)
             except ValueError:
-                print("error: bookmark ID must be an integer")
-                return
+                return self._usage_error("error: bookmark ID must be an integer")
             bm = self.bookmark_manager.get_bookmark(bid)
             if not bm:
-                print("not found")
-                return
+                return self._failure("Bookmark not found")
             ok, path = ze.export_one(bm)
-            print(f"{'wrote' if ok else 'failed'}: {path}")
+            if not ok:
+                return self._failure(f"ZIP export failed: {path}")
+            print(f"wrote: {path}")
+        return 0
 
     def _cmd_encrypt(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.constants import MASTER_BOOKMARKS_FILE as _MBF
@@ -1454,8 +1468,7 @@ Top Domains:
         if not passphrase:
             passphrase = _getpass.getpass("Passphrase: ")
         if not passphrase:
-            print("error: passphrase required")
-            return
+            return self._usage_error("error: passphrase required")
         try:
             store = EncryptedStore(passphrase)
             if use_recovery:
@@ -1488,7 +1501,8 @@ Top Domains:
                 print(f"encrypted -> {out}")
             store.close()
         except Exception as e:
-            print(f"error: {e}")
+            return self._failure(f"Encryption failed: {e}")
+        return 0
 
     def _cmd_decrypt(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.services.encryption import EncryptedStore
@@ -1498,39 +1512,43 @@ Top Domains:
         dst = Path(ns.dst) if ns.dst else None
         recovery_key = getattr(ns, 'recovery_key', None)
 
-        if passphrase and not src_val:
+        if recovery_key and passphrase:
+            # Recovery mode has no passphrase, so its one or two positional
+            # values are source and optional destination respectively.
+            if src_val and dst is None:
+                dst = Path(src_val)
+            src_val = passphrase
+            passphrase = None
+        elif passphrase and not src_val:
             src_val = passphrase
             passphrase = None
 
         if not src_val:
-            print("usage: decrypt [passphrase] <src> [dst]")
-            return
+            return self._usage_error("usage: decrypt [passphrase] <src> [dst]")
 
         src = Path(src_val)
 
         if recovery_key:
             try:
-                data = src.read_bytes()
-                plaintext = EncryptedStore.decrypt_with_recovery_key(data, recovery_key)
                 out_path = dst or src.with_suffix("")
-                out_path.write_bytes(plaintext)
+                EncryptedStore.decrypt_recovery_file(src, recovery_key, out_path)
                 print(f"decrypted (recovery key) -> {out_path}")
             except Exception as e:
-                print(f"error: {e}")
-            return
+                return self._failure(f"Decryption failed: {e}")
+            return 0
 
         if not passphrase:
             passphrase = _getpass.getpass("Passphrase: ")
         if not passphrase:
-            print("error: passphrase required")
-            return
+            return self._usage_error("error: passphrase required")
         try:
             store = EncryptedStore(passphrase)
             out = store.decrypt_file(src, dst)
             store.close()
             print(f"decrypted -> {out}")
         except Exception as e:
-            print(f"error: {e}")
+            return self._failure(f"Decryption failed: {e}")
+        return 0
 
     def _cmd_read_later(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.services.read_later import ReadLaterQueue
@@ -1549,18 +1567,19 @@ Top Domains:
         if sub in {"add", "done"}:
             bid = ns.bookmark_id
             if bid is None:
-                print("usage: read-later {add|next|done|list} [id]")
-                return
+                return self._usage_error(
+                    "usage: read-later {add|next|done|list} [id]"
+                )
             bm = self.bookmark_manager.get_bookmark(bid)
             if not bm:
-                print("not found")
-                return
+                return self._failure("Bookmark not found")
             if sub == "add":
                 ReadLaterQueue.enqueue(bm)
             else:
                 ReadLaterQueue.complete(bm)
             self.bookmark_manager.save_bookmarks()
             print("ok")
+            return 0
 
     def _cmd_reader(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.services.reader_annotations import (
@@ -1579,8 +1598,7 @@ Top Domains:
         reader_args = ns.reader_args or []
 
         if not sub:
-            print(usage)
-            return
+            return self._usage_error(usage)
 
         store = ReaderAnnotationStore()
 
@@ -1588,18 +1606,17 @@ Top Domains:
             try:
                 bid = int(reader_args[0])
             except ValueError:
-                print("error: bookmark ID must be an integer")
-                return
+                return self._usage_error("error: bookmark ID must be an integer")
             highlights = store.list_for_bookmark(bid)
             if not highlights:
                 print("(no reader highlights)")
-                return
+                return 0
             for item in highlights:
                 preview = " ".join(item.text.split())[:80]
                 note = f" note={item.note[:40]}" if item.note else ""
                 print(f"{item.id} {item.char_start}-{item.char_end} "
                       f"{item.color}: {preview}{note}")
-            return
+            return 0
 
         if sub == "add" and len(reader_args) >= 3:
             try:
@@ -1607,61 +1624,61 @@ Top Domains:
                 start = int(reader_args[1])
                 end = int(reader_args[2])
             except ValueError:
-                print("error: bookmark ID and range must be integers")
-                return
+                return self._usage_error(
+                    "error: bookmark ID and range must be integers"
+                )
             color = ns.color
             note = ns.note
             if color.lower() not in HIGHLIGHT_COLORS:
-                print("error: color must be one of yellow, green, blue, pink")
-                return
+                return self._usage_error(
+                    "error: color must be one of yellow, green, blue, pink"
+                )
             bm = self.bookmark_manager.get_bookmark(bid)
             if not bm:
-                print("not found")
-                return
+                return self._failure("Bookmark not found")
             try:
                 highlight = store.add_for_bookmark(bm, start, end, color=color, note=note)
             except ValueError as exc:
-                print(f"error: {exc}")
-                return
+                return self._usage_error(f"error: {exc}")
             print(f"highlight added: {highlight.id}")
-            return
+            return 0
 
         if sub == "note" and len(reader_args) >= 2:
             if store.set_note(reader_args[0], " ".join(reader_args[1:])):
                 print("ok")
-            else:
-                print("not found")
-            return
+                return 0
+            return self._failure("Highlight not found")
 
         if sub == "delete" and reader_args:
-            print("ok" if store.delete(reader_args[0]) else "not found")
-            return
+            if not store.delete(reader_args[0]):
+                return self._failure("Highlight not found")
+            print("ok")
+            return 0
 
         if sub == "due":
             due = store.due_for_review()
             if not due:
                 print("No highlights due for review.")
-                return
+                return 0
             print(f"{len(due)} highlight(s) due for review:")
             for item in due[:20]:
                 preview = " ".join(item.text.split())[:60]
                 next_r = item.sr_next_review or "new"
                 print(f"  {item.id} [interval={item.sr_interval}d next={next_r}] {preview}")
-            return
+            return 0
 
         if sub == "review" and len(reader_args) >= 2:
             hid = reader_args[0]
             try:
                 quality = int(reader_args[1])
             except ValueError:
-                print("error: quality must be 0-5")
-                return
+                return self._usage_error("error: quality must be 0-5")
             if store.record_review(hid, quality):
                 h = store.get(hid)
                 print(f"reviewed: interval={h.sr_interval}d ease={h.sr_ease:.2f} next={h.sr_next_review}")
             else:
-                print("not found")
-            return
+                return self._failure("Highlight not found")
+            return 0
 
         if sub == "export" and reader_args:
             export_all = reader_args[0].lower() == "all"
@@ -1672,12 +1689,12 @@ Top Domains:
                 try:
                     bid = int(reader_args[0])
                 except ValueError:
-                    print("error: bookmark ID must be an integer or 'all'")
-                    return
+                    return self._usage_error(
+                        "error: bookmark ID must be an integer or 'all'"
+                    )
                 bm = self.bookmark_manager.get_bookmark(bid)
                 if not bm:
-                    print("not found")
-                    return
+                    return self._failure("Bookmark not found")
                 bookmarks = [bm]
                 highlights = store.list_for_bookmark(bid)
 
@@ -1706,12 +1723,11 @@ Top Domains:
                         changed_since=ns.changed_since,
                     )
                 except (OSError, ValueError, json.JSONDecodeError) as exc:
-                    print(f"error: {exc}")
-                    return
+                    return self._failure(f"Reader export failed: {exc}")
             print(f"reader highlights exported: {path}")
-            return
+            return 0
 
-        print(usage)
+        return self._usage_error(usage)
 
     def _cmd_mcp_server(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.mcp_server import main as _mcp_main
@@ -1723,8 +1739,9 @@ Top Domains:
         port = ns.port
         path = ns.path
         if not host or port < 1 or port > 65535 or not path:
-            print("usage: mcp-http-server [--host HOST] [--port N] [--path /mcp]")
-            return
+            return self._usage_error(
+                "usage: mcp-http-server [--host HOST] [--port N] [--path /mcp]"
+            )
         serve_http(host=host, port=port, path=path)
 
     def _cmd_sqlite_migrate(self, ns: argparse.Namespace):
@@ -1779,7 +1796,7 @@ Top Domains:
         for warning in report.warnings:
             print(f"Warning: {warning}")
         for error in report.errors:
-            print(f"Error: {error}")
+            BookmarkCLI._error(f"Error: {error}")
         for index_name, required in sorted(report.rebuild.items()):
             if required is True:
                 print(f"Rebuild after restore: {index_name}")
@@ -1802,31 +1819,30 @@ Top Domains:
             else:
                 print(f"Update check not ready: {result.reason}")
             if result.error:
-                print(f"Error: {result.error}")
-            return
+                self._error(f"Error: {result.error}")
+            return 0 if result.checked and not result.error else 1
         if sub == "configure":
-            self._configure_updates_from_ns(manager, ns)
-            return
+            return self._configure_updates_from_ns(manager, ns)
         if sub == "download":
-            self._print_update_download_result(manager.download_update())
-            return
+            return self._print_update_download_result(manager.download_update())
         if sub == "staged":
-            self._print_staged_update(manager.staged_update())
-            return
+            return self._print_staged_update(manager.staged_update())
         if sub == "clean-staged":
-            self._print_update_cleanup(manager.clear_staged_update())
-            return
+            return self._print_update_cleanup(manager.clear_staged_update())
         if sub == "plan":
             self._print_update_apply_plan(manager.build_apply_plan())
-            return
+            return 0
         if sub == "apply":
             if ns.dry_run:
-                self._print_update_apply_preflight(manager.apply_preflight())
-                return
+                result = manager.apply_preflight()
+                self._print_update_apply_preflight(result)
+                return 1 if result.blockers else 0
             self._print_update_apply_gate(manager)
-            return
-        print("Usage: updates [status|check|configure|download|staged|"
-              "clean-staged|plan|apply [--dry-run]]")
+            return 1
+        return self._usage_error(
+            "usage: updates [status|check|configure|download|staged|"
+            "clean-staged|plan|apply [--dry-run]]"
+        )
 
     def _print_update_status(self, status):
         policy = status.policy
@@ -1846,25 +1862,25 @@ Top Domains:
             for staged_path in result.staged_paths:
                 print(f"Staged: {staged_path}")
             print("Run updates apply after install and rollback gates are available.")
-            return
+            return 0
         if result.error:
-            print(f"Update download failed: {result.reason}")
-            print(f"Error: {result.error}")
-            return
+            self._error(f"Update download failed: {result.reason}")
+            self._error(f"Error: {result.error}")
+            return 1
         if result.update_available:
-            print(f"Update available but not staged: {result.reason}")
-            return
+            return self._failure(f"Update available but not staged: {result.reason}")
         if result.checked:
             print(f"No update available: {result.reason}")
-            return
-        print(f"Update download not ready: {result.reason}")
+            return 0
+        return self._failure(f"Update download not ready: {result.reason}")
 
     def _print_staged_update(self, status):
         if not status.available:
             print(f"Staged update: {status.reason}")
             if status.error:
-                print(f"Error: {status.error}")
-            return
+                self._error(f"Error: {status.error}")
+                return 1
+            return 0
         print(f"Staged update: {status.latest_version}")
         print(f"Current version: {status.current_version}")
         print(f"Channel: {status.channel}")
@@ -1875,7 +1891,9 @@ Top Domains:
         for staged_path in status.staged_paths:
             print(f"Staged: {staged_path}")
         if status.error:
-            print(f"Error: {status.error}")
+            self._error(f"Error: {status.error}")
+            return 1
+        return 0
 
     def _print_update_apply_gate(self, manager):
         status = manager.status()
@@ -1901,7 +1919,8 @@ Top Domains:
         for removed_target in result.removed_targets:
             print(f"Removed target: {removed_target}")
         for error in result.errors:
-            print(f"Error: {error}")
+            self._error(f"Error: {error}")
+        return 1 if result.errors else 0
 
     def _print_update_apply_plan(self, result):
         print(f"Update apply plan: {result.reason}")
@@ -1940,17 +1959,16 @@ Top Domains:
                 allow_prerelease=allow_prerelease,
             )
         except ValueError as exc:
-            print(f"Could not configure updates: {exc}")
-            return
+            return self._failure(f"Could not configure updates: {exc}")
         print(f"Updates configured: {'enabled' if policy.enabled else 'disabled'}")
         print(f"Repository: {'configured' if policy.configured else 'not configured'}")
+        return 0
 
     def _cmd_api_server(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.services.api import BookmarkAPI
         port = ns.port
         if port < 1 or port > 65535:
-            print("usage: api-server [--port N]")
-            return
+            return self._usage_error("usage: api-server [--port N]")
 
         api = BookmarkAPI(self.bookmark_manager, port=port)
         try:
@@ -1962,6 +1980,7 @@ Top Domains:
                 time.sleep(3600)
         except KeyboardInterrupt:
             print("\nStopping local API.")
+            return 130
         finally:
             api.stop()
 
@@ -1987,21 +2006,21 @@ Top Domains:
         elif sub == "eval":
             sc_id = ns.collection_id
             if not sc_id:
-                print("Usage: smart-collections [list|eval <id>]")
-                return
+                return self._usage_error(
+                    "usage: smart-collections [list|eval <id>]"
+                )
             bms = self.bookmark_manager.get_all_bookmarks()
             matches = mgr.evaluate(sc_id, bms)
             print(f"Matches: {len(matches)}")
             for bm in matches[:20]:
                 print(f"  {bm.title[:60]} — {bm.url[:60]}")
         else:
-            print("Usage: smart-collections [list|eval <id>]")
+            return self._usage_error("usage: smart-collections [list|eval <id>]")
 
     def _cmd_nl_query(self, ns: argparse.Namespace):
         query = " ".join(ns.query) if ns.query else ""
         if not query:
-            print("Usage: nl-query <natural language query>")
-            return
+            return self._usage_error("usage: nl-query <natural language query>")
         try:
             from bookmark_organizer_pro.services.nl_query import NLQueryService
             from bookmark_organizer_pro.ai import AIConfigManager
@@ -2013,14 +2032,15 @@ Top Domains:
             for bm in results[:20]:
                 print(f"  {bm.title[:60]} — {bm.url[:60]}")
         except Exception as e:
-            print(f"NL query failed: {e}")
+            return self._failure(f"NL query failed: {e}")
 
     def _cmd_obsidian_export(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.services.obsidian_export import export_collection
         if not ns.vault_path:
-            print("Usage: obsidian-export <vault_path> [--tag TAG] "
-                  "[--category CAT] [--since DATE]")
-            return
+            return self._usage_error(
+                "usage: obsidian-export <vault_path> [--tag TAG] "
+                "[--category CAT] [--since DATE]"
+            )
         vault = Path(ns.vault_path).expanduser()
         bms = self.bookmark_manager.get_all_bookmarks()
         paths = export_collection(bms, vault, tag_filter=ns.tag,
@@ -2089,8 +2109,7 @@ Top Domains:
 
     def _cmd_import_matter(self, ns: argparse.Namespace):
         if not ns.file:
-            print(f"Usage: {ns._usage_hint}")
-            return
+            return self._usage_error(f"usage: {ns._usage_hint}")
         from bookmark_organizer_pro.importers_extra import MatterImporter, import_into
         importer = MatterImporter()
         added, dupes = import_into(self.bookmark_manager, importer, ns.file)
@@ -2099,8 +2118,7 @@ Top Domains:
 
     def _cmd_import_zotero(self, ns: argparse.Namespace):
         if not ns.file:
-            print(f"Usage: {ns._usage_hint}")
-            return
+            return self._usage_error(f"usage: {ns._usage_hint}")
         from bookmark_organizer_pro.services.zotero_interop import import_zotero_rdf
         bookmarks = import_zotero_rdf(ns.file)
         added = 0
@@ -2124,8 +2142,7 @@ Top Domains:
 
     def _cmd_import_wallabag(self, ns: argparse.Namespace):
         if not ns.file:
-            print(f"Usage: {ns._usage_hint}")
-            return
+            return self._usage_error(f"usage: {ns._usage_hint}")
         from bookmark_organizer_pro.importers_extra import WallabagJSONImporter, import_into
         importer = WallabagJSONImporter()
         added, dupes = import_into(self.bookmark_manager, importer, ns.file)
@@ -2134,8 +2151,7 @@ Top Domains:
 
     def _cmd_import_arc(self, ns: argparse.Namespace):
         if not ns.file:
-            print(f"Usage: {ns._usage_hint}")
-            return
+            return self._usage_error(f"usage: {ns._usage_hint}")
         from bookmark_organizer_pro.importers_extra import ArcBrowserImporter, import_into
         importer = ArcBrowserImporter()
         added, dupes = import_into(self.bookmark_manager, importer, ns.file)
@@ -2148,11 +2164,11 @@ Top Domains:
 
         browsers = [ns.browser] if ns.browser else importer.get_available_browsers()
         if not browsers:
-            print("No browser profiles detected on this system.")
-            return 1
+            return self._failure("No browser profiles detected on this system.")
 
         total_added = 0
         total_dupes = 0
+        matched_profiles = 0
         for browser in browsers:
             profiles = importer.get_profiles(browser)
             if not profiles:
@@ -2162,9 +2178,10 @@ Top Domains:
             if ns.profile:
                 target_profiles = [(n, p) for n, p in profiles if n == ns.profile]
                 if not target_profiles:
-                    print(f"  {browser}: profile '{ns.profile}' not found")
+                    self._error(f"{browser}: profile '{ns.profile}' not found")
                     continue
             for profile_name, profile_path in target_profiles:
+                matched_profiles += 1
                 if browser == "firefox":
                     bookmarks = importer.import_from_firefox(profile_path)
                 else:
@@ -2183,6 +2200,8 @@ Top Domains:
                 total_dupes += dupes
                 print(f"  {browser}/{profile_name}: {added} added, {dupes} duplicates")
 
+        if not matched_profiles:
+            return 1
         print(f"Browser import complete: {total_added} added, {total_dupes} duplicates skipped")
         return 0
 
