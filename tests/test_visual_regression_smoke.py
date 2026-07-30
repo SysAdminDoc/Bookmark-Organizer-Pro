@@ -10,6 +10,7 @@ def test_visual_smoke_surface_matrix_covers_required_desktop_and_extension_views
     assert {
         "desktop-main-empty-dark",
         "desktop-main-list-dark",
+        "desktop-search-error-dark",
         "desktop-main-list-light",
         "desktop-bookmark-editor-1280x720",
         "desktop-about-1280x720",

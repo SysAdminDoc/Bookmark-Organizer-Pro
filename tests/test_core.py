@@ -1092,9 +1092,10 @@ class TestSearchQuery(unittest.TestCase):
         self.assertEqual(q.category_filters, ["Development"])
 
     def test_regex_mode(self):
-        q = SearchQuery("/github\\.com/")
+        q = SearchQuery("regex:github\\.com")
         self.assertTrue(q.is_regex)
         self.assertIsNotNone(q.regex_pattern)
+        self.assertTrue(q.valid)
 
     def test_status_filters(self):
         q = SearchQuery("is:pinned has:notes")
@@ -1103,7 +1104,7 @@ class TestSearchQuery(unittest.TestCase):
 
     def test_visit_filter(self):
         q = SearchQuery("visits:>5")
-        self.assertEqual(q.min_visits, 5)
+        self.assertEqual(q.min_visits, 6)
 
     def test_matches_basic(self):
         bm = Bookmark(id=1, url="https://github.com/user", title="Python tutorial")
@@ -1130,9 +1131,11 @@ class TestSearchQuery(unittest.TestCase):
         self.assertTrue(SearchQuery("after:2024-01-01T00:00:00Z").matches(bm))
         self.assertFalse(SearchQuery("after:2024-01-03T00:00:00Z").matches(bm))
 
-    def test_long_regex_query_is_ignored(self):
-        q = SearchQuery(f"/{'a' * 251}/")
+    def test_long_regex_query_fails_closed(self):
+        q = SearchQuery(f"regex:{'a' * 251}")
         self.assertFalse(q.is_regex)
+        self.assertFalse(q.valid)
+        self.assertEqual(q.diagnostics[0].code, "regex_too_long")
 
     def test_empty_typed_filters_do_not_match_everything(self):
         bm = Bookmark(id=1, url="https://example.com", title="Hello")
@@ -1141,7 +1144,12 @@ class TestSearchQuery(unittest.TestCase):
         self.assertEqual(q.category_filters, [])
         self.assertEqual(q.tag_filters, [])
         self.assertEqual(q.domain_filters, [])
-        self.assertTrue(q.matches(bm))
+        self.assertFalse(q.valid)
+        self.assertFalse(q.matches(bm))
+        self.assertEqual(
+            [diagnostic.code for diagnostic in q.diagnostics],
+            ["empty_filter", "empty_filter", "empty_filter", "empty_filter"],
+        )
 
     def test_search_query_accepts_none_and_ignores_negative_visits(self):
         self.assertEqual(SearchQuery(None).text_terms, [])
@@ -1163,7 +1171,8 @@ class TestSearchQuery(unittest.TestCase):
 
         bm = Bookmark(id=1, url="https://example.com", title="Hello World", tags=["docs"])
         engine = SearchEngine()
-        engine.save_search("", "ignored")
+        with self.assertRaises(ValueError):
+            engine.save_search("", "ignored")
         engine.save_search(" Docs ", " tag:docs ")
         self.assertEqual(engine.get_saved_searches(), {"Docs": "tag:docs"})
 
@@ -1186,6 +1195,111 @@ class TestSearchQuery(unittest.TestCase):
         self.assertFalse(SearchQuery("react OR vue").matches(deprecated))
         self.assertTrue(SearchQuery("python AND tutorial").matches(deprecated))
         self.assertFalse(SearchQuery("python -deprecated").matches(deprecated))
+        self.assertTrue(SearchQuery('"OR"').matches(
+            Bookmark(id=4, url="https://example.com", title="OR")
+        ))
+
+    def test_ast_precedence_and_serialization(self):
+        query = SearchQuery('title:"Python guide" tag:docs OR domain:example.com')
+
+        self.assertTrue(query.valid)
+        self.assertEqual(len(query.ast.groups), 2)
+        self.assertEqual(
+            [clause.kind for clause in query.ast.groups[0]],
+            ["title", "tag"],
+        )
+        self.assertEqual(query.ast.groups[0][0].value, "Python guide")
+        self.assertEqual(query.ast.to_dict()["type"], "or")
+
+    def test_invalid_search_conformance_corpus_fails_closed(self):
+        from tests import SEARCH_CONFORMANCE_CASES
+
+        bookmark = Bookmark(id=1, url="https://example.com", title="Python")
+        engine = SearchEngine()
+        for raw_query, expected_code in SEARCH_CONFORMANCE_CASES:
+            with self.subTest(query=raw_query):
+                query = SearchQuery(raw_query)
+                self.assertFalse(query.valid)
+                self.assertEqual(query.diagnostics[0].code, expected_code)
+                self.assertGreaterEqual(query.diagnostics[0].start, 0)
+                self.assertGreater(query.diagnostics[0].end, query.diagnostics[0].start)
+                self.assertEqual(engine.search([bookmark], raw_query), [])
+                self.assertEqual(engine.last_diagnostics[0].code, expected_code)
+
+    def test_valid_field_and_status_conformance(self):
+        bookmark = Bookmark(
+            id=1,
+            url="https://docs.example.com/python",
+            title="Python Guide",
+            category="Development",
+            tags=["docs"],
+            notes="Keep",
+            created_at="2026-07-28T12:00:00Z",
+            visit_count=6,
+            is_pinned=True,
+        )
+        cases = (
+            'title:"Python Guide"',
+            "url:docs.example.com",
+            "domain:example.com",
+            "tag:docs",
+            "category:Develop",
+            "after:2026-07-28",
+            "before:2026-07-29",
+            "has:notes",
+            "is:pinned",
+            "visits:>5",
+            "regex:docs\\.example\\.com",
+            "https://docs.example.com/python",
+        )
+        for raw_query in cases:
+            with self.subTest(query=raw_query):
+                query = SearchQuery(raw_query)
+                self.assertTrue(query.valid, query.diagnostics)
+                self.assertTrue(query.matches(bookmark))
+
+    def test_regex_budget_failure_discards_partial_results(self):
+        bookmark = Bookmark(id=1, url="https://example.com", title="Python")
+        engine = SearchEngine()
+        query = SearchQuery("regex:Python")
+        query.begin_evaluation()
+        query._evaluation_deadline = 0
+
+        self.assertFalse(query.matches(bookmark))
+        self.assertEqual(query.diagnostics[-1].code, "regex_runtime_budget")
+
+        with patch(
+            "bookmark_organizer_pro.search.REGEX_QUERY_BUDGET_SECONDS",
+            -1,
+        ):
+            self.assertEqual(engine.search([bookmark], "regex:Python"), [])
+        self.assertEqual(engine.last_diagnostics[-1].code, "regex_runtime_budget")
+
+    def test_saved_search_migration_and_validation(self):
+        from bookmark_organizer_pro.search import migrate_legacy_search_query
+
+        self.assertEqual(
+            migrate_legacy_search_query("/github\\.com/"),
+            'regex:"github\\\\.com"',
+        )
+        engine = SearchEngine()
+        engine.load_saved_searches({"Legacy": "/github\\.com/"})
+        self.assertEqual(
+            engine.get_saved_searches(),
+            {"Legacy": 'regex:"github\\\\.com"'},
+        )
+        self.assertEqual(engine.export_saved_searches()["version"], 2)
+        with self.assertRaisesRegex(ValueError, "Column"):
+            engine.save_search("Broken", "unknown:value")
+
+    def test_fuzzy_engine_fails_closed_before_fuzzy_matching(self):
+        from bookmark_organizer_pro.search import FuzzySearchEngine
+
+        bookmark = Bookmark(id=1, url="https://example.com", title="/python/")
+        engine = FuzzySearchEngine()
+
+        self.assertEqual(engine.search([bookmark], "/python/"), [])
+        self.assertEqual(engine.last_diagnostics[0].code, "legacy_regex_syntax")
 
 
 class TestValidators(unittest.TestCase):
@@ -1652,6 +1766,38 @@ class TestMainAppManagers(unittest.TestCase):
                 first = manager.create_collection("New")
                 second = manager.create_collection("New")
                 self.assertNotEqual(first.id, second.id)
+                with self.assertRaisesRegex(ValueError, "Column"):
+                    manager.create_collection(
+                        "Broken smart view",
+                        is_smart=True,
+                        smart_query="unknown:value",
+                    )
+            finally:
+                main.CollectionManager.COLLECTIONS_FILE = original_file
+
+    def test_collection_manager_migrates_legacy_regex_queries(self):
+        import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            original_file = main.CollectionManager.COLLECTIONS_FILE
+            try:
+                main.CollectionManager.COLLECTIONS_FILE = Path(tmp) / "collections.json"
+                main.CollectionManager.COLLECTIONS_FILE.write_text(
+                    json.dumps([
+                        {
+                            "id": "legacy",
+                            "name": "Legacy regex",
+                            "is_smart": True,
+                            "smart_query": "/github\\.com/",
+                        },
+                    ]),
+                    encoding="utf-8",
+                )
+                manager = main.CollectionManager()
+                self.assertEqual(
+                    manager.collections["legacy"].smart_query,
+                    'regex:"github\\\\.com"',
+                )
             finally:
                 main.CollectionManager.COLLECTIONS_FILE = original_file
 
@@ -2513,6 +2659,39 @@ class TestRESTAPIEndpoints(unittest.TestCase):
                 self.assertEqual(status, 200)
                 self.assertIn("results", body)
                 self.assertGreaterEqual(len(body["results"]), 1)
+            finally:
+                api.stop()
+
+    def test_api_invalid_search_conformance_corpus_returns_400(self):
+        import urllib.parse
+        import main
+        from tests import SEARCH_CONFORMANCE_CASES
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            manager.add_bookmark(
+                Bookmark(id=1, url="https://example.com", title="Python"),
+                save=False,
+            )
+            api = main.BookmarkAPI(manager, port=0)
+            try:
+                api.start()
+                token = self._get_token()
+                base = f"http://127.0.0.1:{api.port}"
+                for query, expected_code in SEARCH_CONFORMANCE_CASES:
+                    with self.subTest(query=query):
+                        encoded = urllib.parse.quote(query, safe="")
+                        status, body = self._get_json(
+                            base,
+                            f"/search?q={encoded}",
+                            token,
+                        )
+                        self.assertEqual(status, 400)
+                        self.assertEqual(body["error"], "Invalid search query")
+                        self.assertEqual(
+                            body["diagnostics"][0]["code"],
+                            expected_code,
+                        )
             finally:
                 api.stop()
 

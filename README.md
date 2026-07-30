@@ -341,16 +341,25 @@ Browser export tips:
 Use the search bar with advanced syntax:
 
 ```
-python tutorial                    # Basic search
-"machine learning"                 # Exact phrase
-title:react                        # Search in title only
-url:github.com                     # Search in URL only
-tag:programming                    # Filter by tag
-category:Development               # Filter by category
--deprecated                        # Exclude term
-python AND tutorial                # Boolean AND
-react OR vue                       # Boolean OR
+python tutorial                         # Adjacent clauses imply AND
+"machine learning"                      # Exact phrase
+title:react  url:github.com              # Field-restricted clauses
+tag:programming  #python                 # Tag filter or shorthand
+category:Development  domain:github.com  # Category or exact/subdomain filter
+after:2026-01-01  before:2026-07-29      # ISO creation dates
+is:pinned  has:notes  visits:>5          # Status/metadata filters
+regex:"docs\\.example\\.com/.*api"       # Explicit time-bounded regex
+-deprecated  -is:archived                # Negate any clause
+python AND tutorial  react OR vue         # AND binds more tightly than OR
 ```
+
+The grammar is `query := and_expr ("OR" and_expr)*`,
+`and_expr := clause (("AND")? clause)*`, and
+`clause := ["-"] (term | field ":" value)`. Quoted values may contain spaces.
+Unknown fields, malformed dates/operators, incomplete expressions, and invalid
+or over-budget regular expressions fail closed with a one-based column
+diagnostic; they never broaden the result set. The same contract is used by the
+desktop, CLI, REST API, and MCP tool.
 
 #### Structured Metadata Templates
 `bop ingest` applies built-in templates for common domains and can load custom

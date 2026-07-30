@@ -607,11 +607,21 @@ def t_get_bookmark(bookmark_id: int) -> Optional[Dict]:
     return _bm_to_dict(bm) if bm else None
 
 
-def t_search(query: str, limit: int = 25) -> List[Dict]:
+def t_search(query: str, limit: int = 25) -> List[Dict] | Dict[str, Any]:
     query = _sanitize_str(query, 1000)
     limit = _clamp_limit(limit, 25)
     s = _services()
     results = s.bookmark_manager.search_bookmarks(query)[:limit]
+    diagnostics = s.bookmark_manager.search_engine.last_diagnostics
+    if diagnostics:
+        return {
+            "error": "Invalid search query",
+            "query": query,
+            "diagnostics": [
+                diagnostic.to_dict()
+                for diagnostic in diagnostics
+            ],
+        }
     return [_bm_to_dict(b) for b in results]
 
 
@@ -1693,8 +1703,8 @@ def _build_fastmcp_server():
     def get_bookmark(bookmark_id: int) -> dict | None:
         return t_get_bookmark(bookmark_id)
 
-    @tool("search_bookmarks", "Keyword search across bookmark titles, URLs, tags, and descriptions.")
-    def search_bookmarks(query: str, limit: int = 25) -> list[dict]:
+    @tool("search_bookmarks", "Advanced search across bookmark fields with positional diagnostics.")
+    def search_bookmarks(query: str, limit: int = 25) -> list[dict] | dict:
         return t_search(query, limit)
 
     @tool("semantic_search", "Semantic vector search over ingested bookmark content.")

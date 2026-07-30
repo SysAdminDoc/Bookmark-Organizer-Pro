@@ -13,6 +13,11 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Changed
 
+- Replaced permissive advanced-search token handling with one explicit
+  OR-of-AND AST and positional diagnostics across desktop, CLI, REST, and MCP;
+  malformed filters now fail closed, saved slash-regex queries migrate to the
+  explicit `regex:` prefix, and regex evaluation has hard length and time
+  budgets.
 - Routed application preferences through one versioned, checksummed settings
   store with legacy migration, unknown-key preservation, bounded optimistic
   retries, disjoint-write merging, and deterministic same-key conflict errors;

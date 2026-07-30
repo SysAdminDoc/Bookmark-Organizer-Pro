@@ -729,11 +729,22 @@ class BookmarkAPI:
                     query = params.get('q', [''])[0]
                     if query:
                         results = bookmark_manager.search_bookmarks(query)
-                        self._send_json({
-                            "query": query,
-                            "count": len(results),
-                            "results": [asdict(bm) for bm in results[:50]]
-                        })
+                        diagnostics = bookmark_manager.search_engine.last_diagnostics
+                        if diagnostics:
+                            self._send_json({
+                                "error": "Invalid search query",
+                                "query": query,
+                                "diagnostics": [
+                                    diagnostic.to_dict()
+                                    for diagnostic in diagnostics
+                                ],
+                            }, 400)
+                        else:
+                            self._send_json({
+                                "query": query,
+                                "count": len(results),
+                                "results": [asdict(bm) for bm in results[:50]]
+                            })
                     else:
                         self._send_json({"error": "Query parameter 'q' required"}, 400)
                 

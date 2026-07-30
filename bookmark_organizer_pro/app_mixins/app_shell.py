@@ -202,7 +202,7 @@ class AppShellMixin:
         Tooltip(self.search_entry,
                "Search by title, URL, category, or tags.\n"
                "Filters: tag: category: domain: title: url:\n"
-               "  content: before: after: is: has: visits:>N\n"
+               "  content: before: after: is: has: visits:>N regex:\n"
                "Type a prefix (e.g. tag:) for suggestions.")
 
         # Placeholder text

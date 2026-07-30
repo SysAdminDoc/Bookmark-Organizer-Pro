@@ -22,8 +22,8 @@ SEARCH_FILTER_HINTS = [
     ("is:", "is:pinned  is:broken  is:stale  is:archived  is:recent  is:untagged"),
     ("has:", "has:notes  has:tags"),
     ("visits:", "visits:>5 — visited more than N times"),
+    ("regex:", "regex:pattern — time-bounded regular expression"),
     ("#", "#python — tag shorthand"),
-    ("/", "/regex/ — regex search"),
 ]
 
 
@@ -36,7 +36,12 @@ class FilterActionsMixin:
         """Clear placeholder when search entry gains focus"""
         theme = get_theme()
         if hasattr(self, 'search_frame') and self.search_frame:
-            self.search_frame.configure(highlightbackground=theme.accent_primary)
+            border = (
+                theme.accent_error
+                if getattr(self, "_search_diagnostics", [])
+                else theme.accent_primary
+            )
+            self.search_frame.configure(highlightbackground=border)
         if hasattr(self, '_search_icon_label') and self._search_icon_label:
             self._search_icon_label.configure(fg=theme.accent_primary)
         if self.search_entry.get() == self._search_placeholder:
@@ -50,7 +55,12 @@ class FilterActionsMixin:
         self._dismiss_filter_hints()
         theme = get_theme()
         if hasattr(self, 'search_frame') and self.search_frame:
-            self.search_frame.configure(highlightbackground=theme.border_muted)
+            border = (
+                theme.accent_error
+                if getattr(self, "_search_diagnostics", [])
+                else theme.border_muted
+            )
+            self.search_frame.configure(highlightbackground=border)
         if hasattr(self, '_search_icon_label') and self._search_icon_label:
             self._search_icon_label.configure(fg=theme.text_muted)
         if not self.search_entry.get():
@@ -175,6 +185,27 @@ class FilterActionsMixin:
         # Schedule debounced refresh
         self._search_after = self.root.after(200, self._refresh_bookmark_list)
 
+    def _set_search_validation(self, diagnostics) -> None:
+        """Render search diagnostics without broadening the entered query."""
+        self._search_diagnostics = list(diagnostics or [])
+        theme = get_theme()
+        frame = getattr(self, "search_frame", None)
+        if frame:
+            focused = (
+                getattr(self, "search_entry", None) is not None
+                and self.search_entry.focus_get() == self.search_entry
+            )
+            border = (
+                theme.accent_error
+                if self._search_diagnostics
+                else theme.accent_primary if focused else theme.border_muted
+            )
+            frame.configure(highlightbackground=border)
+        if self._search_diagnostics:
+            first = self._search_diagnostics[0]
+            message = getattr(first, "display", str(first))
+            self._set_status(_("Search error: {message}").format(message=message))
+
     def _set_filter_visual(self, filter_name: str, active: bool, hover: bool = False):
         """Apply one consistent visual state to a quick-filter row."""
         parts = getattr(self, 'filter_button_parts', {}).get(filter_name)
@@ -221,6 +252,7 @@ class FilterActionsMixin:
         
         # Clear search state
         self.search_query = ""
+        self._set_search_validation([])
         self.quick_filter = None
         self.current_category = None
         self.active_filter = "All"

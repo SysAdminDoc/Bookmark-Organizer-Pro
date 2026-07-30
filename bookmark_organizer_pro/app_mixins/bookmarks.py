@@ -93,20 +93,17 @@ class BookmarkViewMixin:
             if query:
                 if getattr(self, '_nl_search_mode', False):
                     bookmarks = self._nl_search_sync(query, bookmarks)
+                    if hasattr(self, "_set_search_validation"):
+                        self._set_search_validation([])
                 else:
-                    try:
-                        bookmarks = self.bookmark_manager.search_bookmarks(
-                            query, category=self.current_category
-                        )
-                    except Exception:
-                        query_lower = query.lower()
-                        bookmarks = [
-                            bm for bm in bookmarks
-                            if query_lower in bm.title.lower() or
-                            query_lower in bm.url.lower() or
-                            query_lower in (bm.category or "").lower() or
-                            query_lower in ' '.join(bm.tags).lower()
-                        ]
+                    bookmarks = self.bookmark_manager.search_bookmarks(
+                        query, category=self.current_category
+                    )
+                    diagnostics = self.bookmark_manager.search_engine.last_diagnostics
+                    if hasattr(self, "_set_search_validation"):
+                        self._set_search_validation(diagnostics)
+            elif hasattr(self, "_set_search_validation"):
+                self._set_search_validation([])
         
         if query:
             bookmarks.sort(key=lambda b: not b.is_pinned)

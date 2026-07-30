@@ -44,6 +44,7 @@ class ExtensionSurface:
 DESKTOP_SURFACES = (
     "desktop-main-empty-dark",
     "desktop-main-list-dark",
+    "desktop-search-error-dark",
     "desktop-main-list-light",
     "desktop-bookmark-editor-1280x720",
     "desktop-about-1280x720",
@@ -772,6 +773,29 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
                 ("Bookmark Organizer Pro", "Visual Regression Guide", "Focus", "Tkinter Reference"),
             )
         )
+
+        app.search_var.set("unknown:value")
+        app._refresh_bookmark_list()
+        root.update()
+        if (
+            app.search_frame.cget("highlightbackground")
+            != theme_manager.current_theme.colors.accent_error
+        ):
+            raise VisualSmokeError("invalid search did not expose an error border")
+        results.append(
+            capture_tk_window(
+                root,
+                output_dir,
+                "desktop-search-error-dark",
+                (
+                    "Bookmark Organizer Pro",
+                    "Search error: Column 1: Unknown search field 'unknown'.",
+                    "No bookmarks match this view",
+                ),
+            )
+        )
+        app._clear_search()
+        root.update()
 
         theme_manager.set_theme("github_light")
         root.update()

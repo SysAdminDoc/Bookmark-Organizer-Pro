@@ -176,6 +176,16 @@ class TestCLISearchAndCheck(CLITestBase):
         out = self._run(["search", "nonexistent-term-xyz"])
         self.assertIsNotNone(out)
 
+    def test_invalid_search_conformance_corpus_reports_positions(self):
+        from tests import SEARCH_CONFORMANCE_CASES
+
+        for query, expected_code in SEARCH_CONFORMANCE_CASES:
+            with self.subTest(query=query):
+                out = self._run(["search", query])
+                self.assertIn("Invalid search query", out)
+                self.assertIn("Column ", out)
+
+
     @patch("bookmark_organizer_pro.services.dead_link_scanner.DeadLinkScanner")
     def test_scan_accepts_space_separated_hours(self, scanner_cls):
         scanner = scanner_cls.return_value

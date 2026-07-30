@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 from bookmark_organizer_pro.constants import DATA_DIR
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.search import SearchQuery, migrate_legacy_search_query
 from bookmark_organizer_pro.utils.runtime import atomic_json_write as _atomic_json_write
 
 
@@ -269,6 +270,18 @@ class CollectionManager:
             except (TypeError, ValueError):
                 continue
 
+        smart_query = migrate_legacy_search_query(
+            str(data.get("smart_query") or "")[:500]
+        )
+        if bool(data.get("is_smart", False)) and smart_query:
+            parsed = SearchQuery(smart_query)
+            if not parsed.valid:
+                log.warning(
+                    "Loaded smart collection %r with invalid query: %s",
+                    name,
+                    parsed.diagnostics[0].display,
+                )
+
         return Collection(
             id=coll_id[:120],
             name=name[:120],
@@ -277,7 +290,7 @@ class CollectionManager:
             color=str(data.get("color") or "#58a6ff")[:32],
             bookmark_ids=list(dict.fromkeys(bookmark_ids)),
             is_smart=bool(data.get("is_smart", False)),
-            smart_query=str(data.get("smart_query") or "")[:500],
+            smart_query=smart_query,
             created_at=str(data.get("created_at") or datetime.now().isoformat()),
             updated_at=str(data.get("updated_at") or datetime.now().isoformat()),
         )
@@ -295,6 +308,13 @@ class CollectionManager:
         name = str(name or "").strip()
         if not name:
             raise ValueError("Collection name is required")
+        normalized_query = str(smart_query or "")[:500]
+        if is_smart:
+            if not normalized_query.strip():
+                raise ValueError("Smart collections require a search query")
+            parsed = SearchQuery(normalized_query)
+            if not parsed.valid:
+                raise ValueError(parsed.diagnostics[0].display)
         coll_id = f"coll_{int(datetime.now().timestamp() * 1000)}_{int.from_bytes(os.urandom(2), 'big'):04x}"
         while coll_id in self.collections:
             coll_id = f"coll_{int(datetime.now().timestamp() * 1000)}_{int.from_bytes(os.urandom(2), 'big'):04x}"
@@ -306,7 +326,7 @@ class CollectionManager:
             icon=str(icon or "📁")[:8],
             color=str(color or "#58a6ff")[:32],
             is_smart=is_smart,
-            smart_query=str(smart_query or "")[:500]
+            smart_query=normalized_query,
         )
         
         self.collections[coll_id] = collection

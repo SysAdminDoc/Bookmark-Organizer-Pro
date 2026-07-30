@@ -645,6 +645,12 @@ Examples:
         """Search bookmarks"""
         query = " ".join(ns.query)
         results = self.bookmark_manager.search_bookmarks(query)
+        diagnostics = self.bookmark_manager.search_engine.last_diagnostics
+        if diagnostics:
+            self._error("Invalid search query:")
+            for diagnostic in diagnostics:
+                self._error(f"  {diagnostic.display}")
+            return 2
 
         print(f"\nSearch results for '{query}' ({len(results)} found):")
         for bm in results[:20]:

@@ -112,7 +112,7 @@ msgid "A short note will make this save easier to rediscover."
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:234
-#: bookmark_organizer_pro/app_mixins/filters.py:109
+#: bookmark_organizer_pro/app_mixins/filters.py:119
 msgid "AI"
 msgstr ""
 
@@ -152,7 +152,7 @@ msgstr ""
 msgid "AI did not suggest any title improvements for the selected bookmarks."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/filters.py:107
+#: bookmark_organizer_pro/app_mixins/filters.py:117
 msgid "AI on"
 msgstr ""
 
@@ -1672,7 +1672,7 @@ msgid "Legend"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:500
-#: bookmark_organizer_pro/app_mixins/bookmarks.py:117
+#: bookmark_organizer_pro/app_mixins/bookmarks.py:114
 #: bookmark_organizer_pro/app_mixins/dashboard.py:125
 msgid "Library"
 msgstr ""
@@ -1721,7 +1721,7 @@ msgstr ""
 msgid "Local Job Health"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/bookmarks.py:121
+#: bookmark_organizer_pro/app_mixins/bookmarks.py:118
 msgid "Local and ready"
 msgstr ""
 
@@ -2360,7 +2360,7 @@ msgstr ""
 msgid "Ready"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/bookmarks.py:119
+#: bookmark_organizer_pro/app_mixins/bookmarks.py:116
 msgid "Ready for your first save"
 msgstr ""
 
@@ -2679,6 +2679,10 @@ msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:47
 msgid "Search Syntax Help"
+msgstr ""
+
+#: bookmark_organizer_pro/app_mixins/filters.py:207
+msgid "Search error: {message}"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:209

@@ -93,6 +93,16 @@ class TestSearch(MCPToolTestBase):
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), 0)
 
+    def test_invalid_search_conformance_corpus_returns_diagnostics(self):
+        from tests import SEARCH_CONFORMANCE_CASES
+
+        for query, expected_code in SEARCH_CONFORMANCE_CASES:
+            with self.subTest(query=query):
+                result = self.ms.t_search(query=query, limit=5)
+                self.assertEqual(result["error"], "Invalid search query")
+                self.assertEqual(result["diagnostics"][0]["code"], expected_code)
+                self.assertGreaterEqual(result["diagnostics"][0]["column"], 1)
+
 
 class TestAddBookmark(MCPToolTestBase):
     def test_add_new(self):

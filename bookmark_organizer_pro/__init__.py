@@ -95,8 +95,9 @@ from .ai import (
     GoogleClient, GroqClient, OllamaClient, create_ai_client,
 )
 from .search import (
-    SearchQuery, SearchEngine, FuzzySearchEngine,
-    levenshtein_distance, fuzzy_match,
+    SearchAST, SearchClause, SearchDiagnostic, SearchQuery, SearchEngine,
+    FuzzySearchEngine, levenshtein_distance, fuzzy_match,
+    migrate_legacy_search_query,
 )
 from .importers import (
     BrowserProfileImporter, PocketImporter, RaindropImporter,
@@ -191,8 +192,9 @@ __all__ = [
     "AIConfigManager", "AIClient", "OpenAIClient", "AnthropicClient",
     "GoogleClient", "GroqClient", "OllamaClient", "create_ai_client",
     # Search
-    "SearchQuery", "SearchEngine", "FuzzySearchEngine",
-    "levenshtein_distance", "fuzzy_match",
+    "SearchAST", "SearchClause", "SearchDiagnostic", "SearchQuery",
+    "SearchEngine", "FuzzySearchEngine", "levenshtein_distance",
+    "fuzzy_match", "migrate_legacy_search_query",
     # Importers
     "BrowserProfileImporter", "PocketImporter", "RaindropImporter",
     "OPMLExporter", "TextURLImporter", "OPMLImporter",
