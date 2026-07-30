@@ -45,7 +45,11 @@ from .dependencies import DependencyCheckDialog, check_and_install_dependencies
 from .feedback import EmptyState, FilteredEmptyState, HoverPreview, ToastNotification
 from .infrastructure import NonBlockingTaskRunner, TkEventDispatcher, WindowTransparency
 from .import_center import ImportCenterDialog, ImportSource, build_import_sources
-from .management_dialogs import CategoryManagementDialog, CustomFaviconDialog
+from .management_dialogs import (
+    CategoryManagementDialog,
+    CredentialSecurityDialog,
+    CustomFaviconDialog,
+)
 from .navigation import ClipboardMonitor, SearchHighlighter, VimNavigator
 from .quick_add import (
     DEFAULT_CATEGORY,
@@ -141,6 +145,7 @@ __all__ = [
     "ImportSource",
     "build_import_sources",
     "CategoryManagementDialog",
+    "CredentialSecurityDialog",
     "CustomFaviconDialog",
     "ClipboardMonitor",
     "SearchHighlighter",

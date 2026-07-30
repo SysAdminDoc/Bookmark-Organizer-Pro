@@ -45,7 +45,6 @@ from typing import Any, Callable, Dict, List, Optional
 
 from bookmark_organizer_pro.ai import AIConfigManager
 from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION, SNAPSHOTS_DIR
-from bookmark_organizer_pro.services.mcp_auth import MCPTokenManager
 from bookmark_organizer_pro.core import CategoryManager
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.managers import BookmarkManager, TagManager
@@ -56,6 +55,12 @@ from bookmark_organizer_pro.services.digest import DailyDigestService
 from bookmark_organizer_pro.services.embeddings import EmbeddingService
 from bookmark_organizer_pro.services.flows import FlowManager
 from bookmark_organizer_pro.services.hybrid_search import HybridSearch
+from bookmark_organizer_pro.services.mcp_auth import (
+    MCP_READ_SCOPE,
+    MCP_WRITE_SCOPE,
+    READ_ONLY_TOOLS,
+    MCPTokenManager,
+)
 from bookmark_organizer_pro.services.reader_annotations import (
     ReaderAnnotationStore,
     ReaderHighlight,
@@ -160,7 +165,7 @@ def _check_mcp_auth(token: Optional[str], tool_name: str) -> Optional[str]:
     When no tokens are configured, all calls are allowed (open mode).
     """
     mgr = _auth()
-    if not mgr.list_tokens():
+    if not mgr.has_credentials("mcp"):
         return None
     if not token:
         return "Authentication required. Create a token with MCPTokenManager."
@@ -173,23 +178,41 @@ def _authorize_mcp_operation(token: Optional[str], method: str,
                              name: Optional[str] = None) -> tuple[int, Optional[str]]:
     """Authorize an MCP protocol operation using the raw-server token policy."""
     mgr = _auth()
-    if not mgr.list_tokens():
+    if not mgr.has_credentials("mcp"):
         return 200, None
     if not token:
         return 401, "Authentication required. Provide a Bearer token."
-    scope = mgr.get_scope(token)
-    if scope is None:
-        return 401, "Invalid or revoked Bearer token."
     if method == "tools/call":
-        if not name or not mgr.validate(token, name):
+        if not name:
             return 403, "Token scope does not permit this tool."
-        return 200, None
-    if method in {
+        required_scope = (
+            MCP_READ_SCOPE
+            if name in READ_ONLY_TOOLS
+            else MCP_WRITE_SCOPE
+        )
+        operation = f"mcp:{name}"
+    elif method in {
         "tools/list", "resources/list", "resources/templates/list",
         "resources/read", "prompts/list", "prompts/get",
     }:
+        required_scope = MCP_READ_SCOPE
+        operation = f"mcp:{method}"
+    else:
+        required_scope = MCP_READ_SCOPE
+        operation = f"mcp:{method or 'unknown'}"
+    result = mgr.authorize(
+        token,
+        required_scope,
+        operation=operation,
+        audience="mcp",
+    )
+    if result.allowed:
         return 200, None
-    return 200, None
+    if result.reason == "insufficient_scope":
+        return 403, "Token scope does not permit this operation."
+    if result.reason == "credential_store_recovery_required":
+        return 503, "Credential store recovery is required."
+    return 401, "Invalid, expired, or revoked Bearer token."
 
 
 MCP_TOOL_LIST_TTL_MS = 300_000
@@ -1933,7 +1956,7 @@ def _is_loopback_bind(host: str) -> bool:
 
 def serve_http(host: str = "127.0.0.1", port: int = 8766, path: str = "/mcp") -> int:
     """Run the FastMCP Streamable HTTP server on an explicit local endpoint."""
-    if not _is_loopback_bind(host) and not _auth().list_tokens():
+    if not _is_loopback_bind(host) and not _auth().has_credentials("mcp"):
         print(
             "error: binding to a non-loopback address without auth tokens is unsafe.\n"
             "Configure at least one MCP auth token first, or bind to 127.0.0.1.",

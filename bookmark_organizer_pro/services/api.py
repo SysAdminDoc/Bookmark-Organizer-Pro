@@ -7,7 +7,6 @@ Token is auto-generated on first start and stored in the data directory.
 
 from __future__ import annotations
 
-import hmac
 import json
 import re
 import secrets
@@ -24,6 +23,12 @@ from typing import TYPE_CHECKING
 from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION, DATA_DIR
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.services.feed_export import render_opds, render_opds2
+from bookmark_organizer_pro.services.mcp_auth import (
+    REST_EXTENSION_SCOPE,
+    REST_READ_SCOPE,
+    REST_WRITE_SCOPE,
+    MCPTokenManager,
+)
 from bookmark_organizer_pro.services.private_files import (
     atomic_write_private_bytes,
     atomic_write_private_text,
@@ -331,6 +336,8 @@ class BookmarkAPI:
         header_deadline_seconds: float = _DEFAULT_HEADER_DEADLINE_SECONDS,
         request_deadline_seconds: float = _DEFAULT_REQUEST_DEADLINE_SECONDS,
         io_timeout_seconds: float = _DEFAULT_IO_TIMEOUT_SECONDS,
+        credential_manager: MCPTokenManager | None = None,
+        bootstrap_legacy_token: bool = True,
     ):
         self.bookmark_manager = bookmark_manager
         self.port = port
@@ -340,14 +347,27 @@ class BookmarkAPI:
         self.header_deadline_seconds = max(0.1, float(header_deadline_seconds))
         self.request_deadline_seconds = max(0.1, float(request_deadline_seconds))
         self.io_timeout_seconds = max(0.1, float(io_timeout_seconds))
+        credential_path = (
+            Path(bookmark_manager.filepath).parent / "mcp_tokens.json"
+            if getattr(bookmark_manager, "filepath", None)
+            else DATA_DIR / "mcp_tokens.json"
+        )
+        self.credential_manager = (
+            credential_manager or MCPTokenManager(credential_path)
+        )
+        self.bootstrap_legacy_token = bool(bootstrap_legacy_token)
         self.extension_origins = ExtensionOriginRegistry(
             extension_origins_file or _EXTENSION_ORIGINS_FILE
         )
     
     def start(self):
         """Start the API server"""
+        if self._server:
+            return
         bookmark_manager = self.bookmark_manager
-        api_token = _load_or_create_token()
+        credential_manager = self.credential_manager
+        if self.bootstrap_legacy_token:
+            credential_manager.import_legacy_rest_token(_load_or_create_token())
         extension_origins = self.extension_origins
         header_deadline_seconds = self.header_deadline_seconds
         request_deadline_seconds = self.request_deadline_seconds
@@ -490,13 +510,43 @@ class BookmarkAPI:
                 except OSError:
                     self.close_connection = True
 
-            def _check_auth(self, *, discard_body: bool = False) -> bool:
+            def _check_auth(
+                self,
+                required_scope: str,
+                operation: str,
+                *,
+                discard_body: bool = False,
+            ) -> bool:
                 auth = self.headers.get('Authorization', '')
-                if hmac.compare_digest(auth, f'Bearer {api_token}'):
+                scheme, separator, token = auth.partition(" ")
+                bearer = (
+                    token.strip()
+                    if separator and scheme.lower() == "bearer"
+                    else ""
+                )
+                result = credential_manager.authorize(
+                    bearer,
+                    required_scope,
+                    operation=operation,
+                    audience="rest",
+                )
+                if result.allowed:
                     return True
                 if discard_body:
                     self._discard_request_body()
-                self._send_json({"error": "Unauthorized. Provide Authorization: Bearer <token>"}, 401)
+                if result.reason == "insufficient_scope":
+                    status = 403
+                    message = "Credential scope does not permit this operation"
+                elif result.reason in {
+                    "credential_store_recovery_required",
+                    "credential_store_unavailable",
+                }:
+                    status = 503
+                    message = "Credential store is unavailable; local recovery is required"
+                else:
+                    status = 401
+                    message = "Unauthorized. Provide a valid, active Bearer credential"
+                self._send_json({"error": message}, status)
                 return False
 
             def _check_browser_origin(self, *, discard_body: bool = False) -> bool:
@@ -525,6 +575,17 @@ class BookmarkAPI:
                 path_parts = parsed.path.strip('/').split('/')
                 query_params = urllib.parse.parse_qs(parsed.query)
                 return path_parts, query_params
+
+            @staticmethod
+            def _route_template(path_parts):
+                if not path_parts:
+                    return "/"
+                if path_parts[0] == "bookmarks" and len(path_parts) > 1:
+                    return "/bookmarks/:id"
+                if path_parts[0] == "imports" and len(path_parts) > 1:
+                    suffix = f"/{path_parts[2]}" if len(path_parts) > 2 else ""
+                    return f"/imports/:id{suffix}"
+                return "/" + "/".join(path_parts[:2])
             
             def do_GET(self):
                 path_parts, params = self._parse_path()
@@ -557,10 +618,21 @@ class BookmarkAPI:
                     self._send_json({"status": "ok", "version": APP_VERSION})
                     return
 
-                if not self._check_auth():
+                is_pairing = (
+                    path_parts[0] == 'extension'
+                    and len(path_parts) > 1
+                    and path_parts[1] == 'pair'
+                )
+                required_scope = (
+                    REST_EXTENSION_SCOPE if is_pairing else REST_READ_SCOPE
+                )
+                if not self._check_auth(
+                    required_scope,
+                    f"GET {self._route_template(path_parts)}",
+                ):
                     return
 
-                if path_parts[0] == 'extension' and len(path_parts) > 1 and path_parts[1] == 'pair':
+                if is_pairing:
                     origin = self.headers.get('Origin', '').strip()
                     if not _EXTENSION_ORIGIN_RE.fullmatch(origin):
                         self._send_json({"error": "Pairing requires a valid browser extension Origin"}, 403)
@@ -752,11 +824,19 @@ class BookmarkAPI:
                     self._send_json({"error": "Not found"}, 404)
             
             def do_POST(self):
-                if not self._check_auth(discard_body=True):
-                    return
                 path_parts, _ = self._parse_path()
+                is_pairing = path_parts[:2] == ['extension', 'pair']
+                required_scope = (
+                    REST_EXTENSION_SCOPE if is_pairing else REST_WRITE_SCOPE
+                )
+                if not self._check_auth(
+                    required_scope,
+                    f"POST {self._route_template(path_parts)}",
+                    discard_body=True,
+                ):
+                    return
 
-                if path_parts[:2] == ['extension', 'pair']:
+                if is_pairing:
                     origin = self.headers.get('Origin', '').strip()
                     body = self._read_request_body(4096, label="Pairing request body")
                     if body is None:
@@ -916,11 +996,18 @@ class BookmarkAPI:
                     self._send_json({"error": "Not found"}, 404)
             
             def do_DELETE(self):
-                if not self._check_auth():
-                    return
                 path_parts, _ = self._parse_path()
+                is_pairing = path_parts[:2] == ['extension', 'pair']
+                required_scope = (
+                    REST_EXTENSION_SCOPE if is_pairing else REST_WRITE_SCOPE
+                )
+                if not self._check_auth(
+                    required_scope,
+                    f"DELETE {self._route_template(path_parts)}",
+                ):
+                    return
 
-                if path_parts[:2] == ['extension', 'pair']:
+                if is_pairing:
                     if not self._check_browser_origin():
                         return
                     changed = extension_origins.clear()
@@ -968,9 +1055,6 @@ class BookmarkAPI:
             def log_message(self, format, *args):
                 pass  # Suppress logging
         
-        if self._server:
-            return
-
         self._server = _BoundedThreadingHTTPServer(
             ('127.0.0.1', self.port),
             APIHandler,

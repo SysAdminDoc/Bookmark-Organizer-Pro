@@ -2573,11 +2573,33 @@ class TestRESTAPIEndpoints(unittest.TestCase):
         )
 
     def _get_json(self, base_url, path, token=None):
+        return self._request_json(base_url, path, token=token)
+
+    def _request_json(
+        self,
+        base_url,
+        path,
+        *,
+        token=None,
+        method="GET",
+        body=None,
+        headers=None,
+    ):
+        import urllib.error
         import urllib.request
-        headers = {}
+        request_headers = dict(headers or {})
         if token:
-            headers["Authorization"] = f"Bearer {token}"
-        request = urllib.request.Request(f"{base_url}{path}", headers=headers)
+            request_headers["Authorization"] = f"Bearer {token}"
+        encoded = None
+        if body is not None:
+            encoded = json.dumps(body).encode("utf-8")
+            request_headers["Content-Type"] = "application/json"
+        request = urllib.request.Request(
+            f"{base_url}{path}",
+            data=encoded,
+            headers=request_headers,
+            method=method,
+        )
         try:
             with urllib.request.urlopen(request, timeout=3) as response:
                 return response.status, json.loads(response.read().decode("utf-8"))
@@ -2822,6 +2844,100 @@ class TestRESTAPIEndpoints(unittest.TestCase):
                     self.assertIn("Access-Control-Allow-Headers", response.headers)
             finally:
                 api.stop()
+
+    def test_api_enforces_named_read_write_and_extension_scopes(self):
+        import main
+        from bookmark_organizer_pro.services.mcp_auth import (
+            REST_EXTENSION_SCOPE,
+            REST_READ_SCOPE,
+            REST_WRITE_SCOPE,
+            MCPTokenManager,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            credentials = MCPTokenManager(Path(tmp) / "credentials.json")
+            reader = credentials.create_credential(
+                "Read dashboard",
+                audience="rest",
+                scopes=[REST_READ_SCOPE],
+            )
+            writer = credentials.create_credential(
+                "Bookmark writer",
+                audience="rest",
+                scopes=[REST_READ_SCOPE, REST_WRITE_SCOPE],
+            )
+            extension = credentials.create_credential(
+                "Browser extension",
+                audience="rest",
+                scopes=[REST_EXTENSION_SCOPE],
+            )
+            api = main.BookmarkAPI(
+                manager,
+                port=0,
+                credential_manager=credentials,
+                bootstrap_legacy_token=False,
+                extension_origins_file=Path(tmp) / "extension-origins.json",
+            )
+            try:
+                api.start()
+                base = f"http://127.0.0.1:{api.port}"
+                status, _body = self._get_json(base, "/bookmarks", reader.token)
+                self.assertEqual(status, 200)
+
+                status, _body = self._request_json(
+                    base,
+                    "/bookmarks",
+                    token=reader.token,
+                    method="POST",
+                    body={"url": "https://denied.example", "title": "Denied"},
+                )
+                self.assertEqual(status, 403)
+
+                status, body = self._request_json(
+                    base,
+                    "/bookmarks",
+                    token=writer.token,
+                    method="POST",
+                    body={"url": "https://allowed.example", "title": "Allowed"},
+                )
+                self.assertEqual(status, 201)
+                self.assertEqual(body["title"], "Allowed")
+
+                origin = f"chrome-extension://{'a' * 32}"
+                status, _body = self._request_json(
+                    base,
+                    "/extension/pair",
+                    token=writer.token,
+                    headers={"Origin": origin},
+                )
+                self.assertEqual(status, 403)
+                status, body = self._request_json(
+                    base,
+                    "/extension/pair",
+                    token=extension.token,
+                    headers={"Origin": origin},
+                )
+                self.assertEqual(status, 200)
+                self.assertFalse(body["paired"])
+            finally:
+                api.stop()
+
+            reader_record = next(
+                item
+                for item in credentials.list_credentials(audience="rest")
+                if item["id"] == reader.identifier
+            )
+            self.assertEqual(reader_record["successful_uses"], 1)
+            self.assertEqual(reader_record["failed_uses"], 1)
+            audit = credentials.list_audit(audience="rest")
+            self.assertTrue(
+                any(
+                    event["operation"] == "POST /bookmarks"
+                    and event["result"] == "denied"
+                    for event in audit
+                )
+            )
 
 
 class TestUIFoundation(unittest.TestCase):

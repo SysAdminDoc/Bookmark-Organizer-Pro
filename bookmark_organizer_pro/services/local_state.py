@@ -358,6 +358,13 @@ def build_diagnostics_snapshot(
         log.debug("Could not summarize job ledger", exc_info=True)
         job_health = {"available": False}
 
+    try:
+        from bookmark_organizer_pro.services.mcp_auth import MCPTokenManager
+        credential_health = MCPTokenManager().diagnostics()
+    except Exception:
+        log.debug("Could not summarize credential inventory", exc_info=True)
+        credential_health = {"available": False, "recovery_required": False}
+
     return {
         "schema": "bookmark-organizer-pro/support-diagnostics",
         "schema_version": 1,
@@ -377,6 +384,7 @@ def build_diagnostics_snapshot(
         },
         "recent_errors": recent_errors,
         "job_health": job_health,
+        "credential_health": credential_health,
         "privacy": {
             "bookmark_contents_included": False,
             "free_form_log_messages_included": False,
@@ -421,6 +429,17 @@ def format_diagnostics(snapshot: Dict[str, Any] | None = None) -> str:
             f"- Failures: {jobs['failures']} ({jobs['failure_rate']:.1%})",
             f"- Retryable: {jobs['retryable_failures']}",
             f"- Processed storage (7d): {jobs['storage_growth_7d_bytes']} bytes",
+        ])
+    credentials = snapshot.get("credential_health", {})
+    if credentials.get("credential_count") is not None:
+        lines.extend([
+            "",
+            "Local Credential Health:",
+            f"- Active: {credentials['active']}",
+            f"- Expired: {credentials['expired']}",
+            f"- Revoked: {credentials['revoked']}",
+            f"- Successful uses: {credentials['successful_uses']}",
+            f"- Denied uses: {credentials['failed_uses']}",
         ])
     lines.append("")
     privacy = snapshot.get("privacy", {})

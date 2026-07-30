@@ -14,6 +14,7 @@ import stat
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -108,6 +109,14 @@ class TestMcpTokenAuth(unittest.TestCase):
         self.assertEqual(mgr.get_scope(ro), "read-only")
         self.assertIsNone(mgr.get_scope("nope"))
 
+    def test_default_scope_is_least_privilege_and_invalid_scope_fails(self):
+        mgr = self._manager()
+        token = mgr.create_token("default")
+        self.assertTrue(mgr.validate(token, "list_bookmarks"))
+        self.assertFalse(mgr.validate(token, "delete_bookmark"))
+        with self.assertRaises(ValueError):
+            mgr.create_token("invalid", scope="admin")
+
     def test_revoked_token_is_rejected(self):
         mgr = self._manager()
         tok = mgr.create_token("temp", scope="read-write")
@@ -132,13 +141,17 @@ class TestMcpTokenAuth(unittest.TestCase):
         persisted_text = mgr.filepath.read_text(encoding="utf-8")
         persisted = json.loads(persisted_text)
         self.assertEqual(persisted["schema"], "mcp-token-verifiers")
-        self.assertEqual(persisted["version"], 1)
+        self.assertEqual(persisted["version"], 2)
         self.assertNotIn(token, persisted_text)
-        self.assertEqual(len(persisted["document"]), 1)
-        record = next(iter(persisted["document"].values()))
+        self.assertEqual(len(persisted["document"]["credentials"]), 1)
+        record = next(iter(persisted["document"]["credentials"].values()))
         self.assertEqual(len(bytes.fromhex(record["salt"])), 16)
         self.assertEqual(len(record["verifier"]), 64)
         self.assertNotIn("token", record)
+        self.assertEqual(record["audience"], "mcp")
+        self.assertEqual(record["scopes"], ["mcp:read"])
+        self.assertEqual(len(record["fingerprint"]), 12)
+        self.assertTrue(persisted["document"]["audit"])
 
         from bookmark_organizer_pro.services.mcp_auth import MCPTokenManager
         reloaded = MCPTokenManager(filepath=mgr.filepath)
@@ -165,6 +178,231 @@ class TestMcpTokenAuth(unittest.TestCase):
         self.assertNotIn(legacy_token, Path(f"{path}.bak").read_text(encoding="utf-8"))
         self.assertEqual(mgr.list_tokens()[0]["name"], "legacy client")
         self.assertTrue(mgr.revoke_token(legacy_token))
+
+    def test_schema_v1_verifiers_migrate_without_privilege_expansion(self):
+        from bookmark_organizer_pro.services.atomic_document_store import (
+            AtomicDocumentStore,
+        )
+        from bookmark_organizer_pro.services.mcp_auth import (
+            MCP_READ_SCOPE,
+            MCP_WRITE_SCOPE,
+            MCPTokenManager,
+        )
+
+        path = Path(tempfile.mkdtemp()) / "mcp_tokens.json"
+        read_token = "schema-v1-reader"
+        write_token = "schema-v1-writer"
+        read_id, read_record = MCPTokenManager._legacy_record(
+            read_token,
+            {"name": "reader", "scope": "read-only"},
+        )
+        write_id, write_record = MCPTokenManager._legacy_record(
+            write_token,
+            {"name": "writer", "scope": "read-write"},
+        )
+        AtomicDocumentStore(
+            path,
+            schema="mcp-token-verifiers",
+            current_version=1,
+        ).save({
+            read_id: read_record,
+            write_id: write_record,
+        })
+
+        migrated = MCPTokenManager(path)
+        by_name = {
+            item["name"]: item
+            for item in migrated.list_credentials(audience="mcp")
+        }
+        self.assertEqual(by_name["reader"]["scopes"], [MCP_READ_SCOPE])
+        self.assertEqual(
+            by_name["writer"]["scopes"],
+            [MCP_READ_SCOPE, MCP_WRITE_SCOPE],
+        )
+        self.assertFalse(migrated.validate(read_token, "delete_bookmark"))
+        self.assertTrue(migrated.validate(write_token, "delete_bookmark"))
+        self.assertEqual(
+            json.loads(path.read_text(encoding="utf-8"))["version"],
+            2,
+        )
+
+    def test_named_rest_credential_tracks_scope_expiry_and_usage_without_secret(self):
+        from bookmark_organizer_pro.services.mcp_auth import (
+            REST_READ_SCOPE,
+            REST_WRITE_SCOPE,
+        )
+
+        mgr = self._manager()
+        created = mgr.create_credential(
+            "Read-only dashboard",
+            audience="rest",
+            scopes=[REST_READ_SCOPE],
+            expires_in_seconds=3600,
+        )
+        allowed = mgr.authorize(
+            created.token,
+            REST_READ_SCOPE,
+            operation="GET /bookmarks",
+            audience="rest",
+        )
+        denied = mgr.authorize(
+            created.token,
+            REST_WRITE_SCOPE,
+            operation="POST /bookmarks",
+            audience="rest",
+        )
+
+        self.assertTrue(allowed.allowed)
+        self.assertFalse(denied.allowed)
+        self.assertEqual(denied.reason, "insufficient_scope")
+        listed = mgr.list_credentials(audience="rest")[0]
+        self.assertEqual(listed["id"], created.identifier)
+        self.assertEqual(listed["name"], "Read-only dashboard")
+        self.assertEqual(listed["scopes"], [REST_READ_SCOPE])
+        self.assertEqual(listed["fingerprint"], created.fingerprint)
+        self.assertEqual(listed["successful_uses"], 1)
+        self.assertEqual(listed["failed_uses"], 1)
+        self.assertTrue(listed["created_at"])
+        self.assertTrue(listed["last_used_at"])
+        self.assertTrue(listed["last_failed_at"])
+        self.assertTrue(listed["expires_at"])
+        serialized = json.dumps(mgr.list_credentials()) + json.dumps(mgr.list_audit())
+        self.assertNotIn(created.token, serialized)
+
+    def test_expired_credential_fails_closed_and_is_audited(self):
+        from bookmark_organizer_pro.services import mcp_auth
+
+        mgr = self._manager()
+        start = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+        with mock.patch.object(mcp_auth, "_utc_now", return_value=start):
+            token = mgr.create_token(
+                "Temporary reader",
+                expires_in_seconds=60,
+            )
+        with mock.patch.object(
+            mcp_auth,
+            "_utc_now",
+            return_value=start + timedelta(seconds=61),
+        ):
+            self.assertFalse(mgr.validate(token, "list_bookmarks"))
+            listed = mgr.list_credentials(audience="mcp")[0]
+        self.assertEqual(listed["status"], "expired")
+        self.assertEqual(listed["failed_uses"], 1)
+        self.assertEqual(mgr.list_audit(limit=1)[0]["reason"], "credential_expired")
+
+    def test_rotate_and_revoke_by_identifier_are_immediate(self):
+        from bookmark_organizer_pro.services.mcp_auth import MCP_READ_SCOPE
+
+        mgr = self._manager()
+        original = mgr.create_credential(
+            "Desktop client",
+            audience="mcp",
+            scopes=[MCP_READ_SCOPE],
+        )
+        rotated = mgr.rotate_credential(original.identifier)
+        self.assertEqual(rotated.identifier, original.identifier)
+        self.assertNotEqual(rotated.fingerprint, original.fingerprint)
+        self.assertFalse(mgr.validate(original.token, "list_bookmarks"))
+        self.assertTrue(mgr.validate(rotated.token, "list_bookmarks"))
+        self.assertTrue(mgr.revoke_credential(rotated.identifier))
+        self.assertFalse(mgr.validate(rotated.token, "list_bookmarks"))
+        listed = mgr.list_credentials(audience="mcp")[0]
+        self.assertEqual(listed["status"], "revoked")
+        self.assertEqual(listed["rotation_count"], 1)
+        self.assertTrue(mgr.has_credentials("mcp"))
+
+    def test_invalid_attempt_audit_never_persists_attempted_secret(self):
+        from bookmark_organizer_pro.services.mcp_auth import MCP_READ_SCOPE
+
+        mgr = self._manager()
+        attempted = "not-a-real-secret-value"
+        result = mgr.authorize(
+            attempted,
+            MCP_READ_SCOPE,
+            operation="mcp:list_bookmarks",
+            audience="mcp",
+        )
+        self.assertFalse(result.allowed)
+        event = mgr.list_audit(limit=1)[0]
+        self.assertEqual(event["reason"], "invalid_credential")
+        persisted = mgr.filepath.read_text(encoding="utf-8")
+        self.assertNotIn(attempted, persisted)
+
+    def test_legacy_rest_token_import_is_idempotent_and_preserves_privileges(self):
+        from bookmark_organizer_pro.services.mcp_auth import (
+            REST_EXTENSION_SCOPE,
+            REST_READ_SCOPE,
+            REST_WRITE_SCOPE,
+        )
+
+        mgr = self._manager()
+        peer = type(mgr)(filepath=mgr.filepath)
+        token = "legacy-rest-bearer"
+        identifier = mgr.import_legacy_rest_token(token)
+        self.assertEqual(identifier, peer.import_legacy_rest_token(token))
+        credentials = mgr.list_credentials(audience="rest")
+        self.assertEqual(len(credentials), 1)
+        self.assertEqual(
+            set(credentials[0]["scopes"]),
+            {REST_READ_SCOPE, REST_WRITE_SCOPE, REST_EXTENSION_SCOPE},
+        )
+        self.assertTrue(
+            mgr.authorize(
+                token,
+                REST_WRITE_SCOPE,
+                operation="POST /bookmarks",
+                audience="rest",
+            ).allowed
+        )
+        rotated = mgr.rotate_credential(identifier)
+        self.assertEqual(identifier, mgr.import_legacy_rest_token(token))
+        self.assertFalse(
+            mgr.authorize(
+                token,
+                REST_READ_SCOPE,
+                operation="GET /bookmarks",
+                audience="rest",
+            ).allowed
+        )
+        self.assertTrue(
+            mgr.authorize(
+                rotated.token,
+                REST_READ_SCOPE,
+                operation="GET /bookmarks",
+                audience="rest",
+            ).allowed
+        )
+        self.assertTrue(mgr.revoke_credential(identifier))
+        self.assertEqual(identifier, mgr.import_legacy_rest_token(token))
+        self.assertFalse(
+            mgr.authorize(
+                rotated.token,
+                REST_READ_SCOPE,
+                operation="GET /bookmarks",
+                audience="rest",
+            ).allowed
+        )
+
+    def test_credential_audit_limit_validation_is_bounded(self):
+        mgr = self._manager()
+        token = mgr.create_token("Audit reader")
+        mgr.validate(token, "list_bookmarks")
+        self.assertEqual(len(mgr.list_audit(limit=10_000)), 2)
+        with self.assertRaisesRegex(ValueError, "integer"):
+            mgr.list_audit(limit=True)
+        with self.assertRaisesRegex(ValueError, "integer"):
+            mgr.list_audit(limit="many")
+
+    def test_diagnostics_are_aggregate_and_content_free(self):
+        mgr = self._manager()
+        secret_name = "Private workstation name"
+        token = mgr.create_token(secret_name)
+        mgr.validate(token, "list_bookmarks")
+        diagnostic_text = json.dumps(mgr.diagnostics())
+        self.assertNotIn(secret_name, diagnostic_text)
+        self.assertNotIn(token, diagnostic_text)
+        self.assertEqual(mgr.diagnostics()["active"], 1)
+        self.assertEqual(mgr.diagnostics()["successful_uses"], 1)
 
     def test_failed_legacy_migration_write_keeps_token_usable(self):
         from bookmark_organizer_pro.services.mcp_auth import MCPTokenManager
@@ -325,7 +563,10 @@ class TestPrivateCredentialPersistence(unittest.TestCase):
             with environment, platform, runner, self.assertRaises(PrivateFilePermissionError):
                 manager.create_token("must-not-publish")
             self.assertEqual(path.read_bytes(), prior)
-            self.assertEqual(len(json.loads(prior)["document"]), 1)
+            self.assertEqual(
+                len(json.loads(prior)["document"]["credentials"]),
+                1,
+            )
             self.assertEqual(list(path.parent.glob(f".{path.name}.*.tmp")), [])
 
 

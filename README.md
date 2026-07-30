@@ -35,7 +35,10 @@ Read-only MCP tokens can list and export reader data; review recording, note
 edits, and relinking require read-write scope. Streamable HTTP MCP also validates
 the request Host and requires same-host
 browser Origins; when MCP tokens exist, catalog, prompt, resource, and tool
-operations require a bearer token.
+operations require a bearer token. Create purpose-named, optionally expiring
+MCP credentials under **Settings > Access Credentials**; each secret is shown
+once, while the inventory retains only a truncated fingerprint and salted
+verifier.
 
 ### Local API authentication
 
@@ -45,7 +48,12 @@ endpoints, including `/bookmarks`, `/search`, `/stats`, `/categories`, `/tags`,
 Browser-extension requests additionally require an approved extension Origin.
 Saving extension settings performs the authenticated first pairing; a reinstalled
 extension must use **Replace Pairing** explicitly so a different extension ID
-cannot silently inherit browser access.
+cannot silently inherit browser access. **Settings > Access Credentials** can
+issue separate REST read-only, REST read/write, or Browser extension credentials,
+show their creation/last-use/expiry state, and audit allowed or denied use.
+Rotate or revoke one client without interrupting unrelated integrations.
+Historical local API and MCP credentials migrate into this inventory with their
+existing privileges; migration never grants a broader scope.
 
 ### Local visual verification
 
@@ -179,13 +187,15 @@ python scripts/build_extension.py all
 # Terminal 1: keep the local API available
 bop api-server --port 8765
 
-# Terminal 2: fallback token lookup if OS keyring storage is unavailable
+# Terminal 2: legacy fallback-token lookup if OS keyring storage is unavailable
 Get-Content "$env:USERPROFILE\.bookmark_organizer\api_token.txt"
 ```
 
 Load `build/browser-extension/chromium` in Chrome/Edge or temporarily load the
 `build/browser-extension/firefox` manifest in Firefox, open Options, enter the
-API token and port, then use the toolbar popup to save the current tab. The
+API port and a **Browser extension** credential created under
+**Settings > Access Credentials**, then use the toolbar popup to save the
+current tab. Existing installations can continue using the legacy API token. The
 API stores tokens in the OS keyring when available and only writes the fallback
 file above when keyring storage is unavailable. The extension keeps its bearer
 token in a background-owned IndexedDB vault, restricts Chromium local storage
@@ -434,9 +444,11 @@ pinned download-and-verify commands; it never pipes a remote script to a shell.
 
 - Network tools skip private, localhost, and unsupported URL schemes to avoid leaking or fetching internal resources.
 - API and AI keys are stored in the OS keyring when available. Fallback API-token,
-  AI-config, and MCP-verifier files are published atomically only after owner-only
-  permissions succeed; a missing or failing Windows `icacls` preserves the prior
-  credential and reports keyring/permission recovery guidance.
+  AI-config, and named-credential verifier files are published atomically only
+  after owner-only permissions succeed; a missing or failing Windows `icacls`
+  preserves the prior credential and reports keyring/permission recovery
+  guidance. Bearer secrets are shown only at creation or rotation and are never
+  included in logs or support bundles.
 - New encrypted stores use versioned Argon2id parameters authenticated with the ciphertext. Legacy PBKDF2 v1/v2 stores and recovery keys remain readable; rotation creates and verifies a byte-exact backup before upgrading.
 - Imports, exports, settings, and category files are written defensively with atomic writes where supported.
 - Annotations, flows, feeds, smart collections, jobs, and MCP verifier records use checksummed, revisioned atomic documents with recovery backups and cross-process write coordination.

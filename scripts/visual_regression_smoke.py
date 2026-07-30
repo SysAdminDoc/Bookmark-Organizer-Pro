@@ -52,6 +52,7 @@ DESKTOP_SURFACES = (
     "desktop-dependency-setup-1280x720",
     "desktop-dependency-cancelling-1280x720",
     "desktop-assistant-settings",
+    "desktop-access-credentials",
     "desktop-import-progress",
     "desktop-import-center",
     "desktop-cleanup-review",
@@ -579,6 +580,10 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
     from bookmark_organizer_pro.app_mixins.import_export import ImportProgressModal
     from bookmark_organizer_pro.constants import APP_DIR, ensure_directories
     from bookmark_organizer_pro.models import Bookmark
+    from bookmark_organizer_pro.services.mcp_auth import (
+        MCP_READ_SCOPE,
+        MCPTokenManager,
+    )
     from bookmark_organizer_pro.services.reader_annotations import ReaderAnnotationStore
     from bookmark_organizer_pro.services.snapshot import SnapshotBackendAttempt, SnapshotFailureStore
     from bookmark_organizer_pro.theme_runtime import get_theme_manager
@@ -841,6 +846,50 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
             )
         )
         destroy_window(assistant)
+
+        credential_manager = MCPTokenManager(APP_DIR / "mcp_tokens.json")
+        visual_credential = credential_manager.create_credential(
+            "Visual smoke reader",
+            audience="mcp",
+            scopes=[MCP_READ_SCOPE],
+            expires_in_seconds=2_592_000,
+        )
+        credential_manager.validate(
+            visual_credential.token,
+            "list_bookmarks",
+        )
+        credential_manager.validate(
+            visual_credential.token,
+            "delete_bookmark",
+        )
+        app._credential_manager = credential_manager
+        root.deiconify()
+        root.update()
+        _prepare_background_window(root)
+        app._show_credential_security()
+        credential_dialog = root.winfo_children()[-1]
+        _prepare_background_window(credential_dialog)
+        credential_dialog.deiconify()
+        credential_dialog.update()
+        assert_actionable_controls_inside(credential_dialog)
+        assert_named_controls_visible(
+            credential_dialog,
+            ("New credential", "Rotate selected", "Revoke selected", "Close"),
+        )
+        results.append(
+            capture_tk_window(
+                credential_dialog,
+                output_dir,
+                "desktop-access-credentials",
+                (
+                    "Access Credentials",
+                    "Visual smoke reader",
+                    "Credential inventory",
+                    "Recent credential activity",
+                ),
+            )
+        )
+        destroy_window(credential_dialog)
 
         import_modal = ImportProgressModal(root, source_label="visual-smoke.html")
         import_modal.set_progress(12, 40, 8, 4)

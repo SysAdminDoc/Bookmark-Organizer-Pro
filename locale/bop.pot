@@ -22,11 +22,11 @@ msgstr ""
 msgid "  {value_0}{value_1}"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:65
+#: bookmark_organizer_pro/ui/management_dialogs.py:73
 msgid " Add New Category "
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:94
+#: bookmark_organizer_pro/ui/management_dialogs.py:102
 msgid " Existing Categories "
 msgstr ""
 
@@ -82,6 +82,14 @@ msgstr ""
 msgid "0%"
 msgstr ""
 
+#: bookmark_organizer_pro/ui/management_dialogs.py:612
+msgid "1 day"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:615
+msgid "1 year"
+msgstr ""
+
 #: bookmark_organizer_pro/ui/workflow_selective_export.py:93
 msgid "1. Choose a format"
 msgstr ""
@@ -94,11 +102,19 @@ msgstr ""
 msgid "2. Choose categories"
 msgstr ""
 
+#: bookmark_organizer_pro/ui/management_dialogs.py:613
+msgid "30 days"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:614
+msgid "90 days"
+msgstr ""
+
 #: bookmark_organizer_pro/app_mixins/ai_menu_data.py:223
 msgid ":"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:474
+#: bookmark_organizer_pro/ui/management_dialogs.py:482
 #: bookmark_organizer_pro/ui/widget_controls.py:428
 msgid "?"
 msgstr ""
@@ -194,16 +210,22 @@ msgstr ""
 msgid "Accepts"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:71
+#: bookmark_organizer_pro/app_mixins/tools.py:75
+#: bookmark_organizer_pro/ui/management_dialogs.py:651
+#: bookmark_organizer_pro/ui/management_dialogs.py:668
+msgid "Access Credentials"
+msgstr ""
+
+#: bookmark_organizer_pro/app_mixins/tools.py:80
 msgid "Accessible bookmark table"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:133
+#: bookmark_organizer_pro/app_mixins/tools.py:150
 msgid "Accessible bookmark table {mode}; applies on next launch"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/categories.py:207
-#: bookmark_organizer_pro/ui/management_dialogs.py:87
+#: bookmark_organizer_pro/ui/management_dialogs.py:95
 msgid "Add"
 msgstr ""
 
@@ -306,7 +328,7 @@ msgstr ""
 msgid "Answers grounded in your saved sources"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:505
+#: bookmark_organizer_pro/ui/management_dialogs.py:513
 #: bookmark_organizer_pro/ui/workflow_bulk_tags.py:131
 msgid "Apply"
 msgstr ""
@@ -357,7 +379,7 @@ msgstr ""
 msgid "Assistant Categorize Selected"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:67
+#: bookmark_organizer_pro/app_mixins/tools.py:72
 msgid "Assistant Provider Settings"
 msgstr ""
 
@@ -386,6 +408,11 @@ msgstr ""
 
 #: bookmark_organizer_pro/ui/reader_view.py:262
 msgid "Attach the selected orphan to a new passage"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:716
+#: bookmark_organizer_pro/ui/management_dialogs.py:804
+msgid "Audience"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/workflow_detail_panel.py:31
@@ -426,8 +453,8 @@ msgid "Background"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:19
-#: bookmark_organizer_pro/app_mixins/tools.py:120
-#: bookmark_organizer_pro/app_mixins/tools.py:239
+#: bookmark_organizer_pro/app_mixins/tools.py:129
+#: bookmark_organizer_pro/app_mixins/tools.py:256
 msgid "Backup Now"
 msgstr ""
 
@@ -478,6 +505,10 @@ msgstr ""
 msgid "Browse"
 msgstr ""
 
+#: bookmark_organizer_pro/ui/management_dialogs.py:605
+msgid "Browser extension"
+msgstr ""
+
 #: bookmark_organizer_pro/ui/feedback.py:150
 msgid "Build a library worth returning to"
 msgstr ""
@@ -509,7 +540,8 @@ msgstr ""
 #: bookmark_organizer_pro/app_mixins/import_export.py:482
 #: bookmark_organizer_pro/ui/about.py:531
 #: bookmark_organizer_pro/ui/dependencies.py:183
-#: bookmark_organizer_pro/ui/management_dialogs.py:510
+#: bookmark_organizer_pro/ui/management_dialogs.py:518
+#: bookmark_organizer_pro/ui/management_dialogs.py:1058
 #: bookmark_organizer_pro/ui/widget_bookmark_editor.py:268
 #: bookmark_organizer_pro/ui/widget_theme_dialogs.py:191
 #: bookmark_organizer_pro/ui/workflow_bulk_tags.py:127
@@ -531,7 +563,7 @@ msgid "Cancelling installer safely..."
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:302
-#: bookmark_organizer_pro/app_mixins/tools.py:669
+#: bookmark_organizer_pro/app_mixins/tools.py:686
 msgid "Cancelling…"
 msgstr ""
 
@@ -544,9 +576,9 @@ msgstr ""
 msgid "Categories"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:567
-#: bookmark_organizer_pro/app_mixins/tools.py:611
-#: bookmark_organizer_pro/app_mixins/tools.py:618
+#: bookmark_organizer_pro/app_mixins/tools.py:584
+#: bookmark_organizer_pro/app_mixins/tools.py:628
+#: bookmark_organizer_pro/app_mixins/tools.py:635
 msgid "Categories Import Failed"
 msgstr ""
 
@@ -554,11 +586,11 @@ msgstr ""
 msgid "Categories appear after you import or add bookmarks."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:619
+#: bookmark_organizer_pro/app_mixins/tools.py:636
 msgid "Categories could not be imported.\n\n{value_0}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:215
+#: bookmark_organizer_pro/app_mixins/tools.py:232
 msgid "Categorize All Bookmarks"
 msgstr ""
 
@@ -566,11 +598,11 @@ msgstr ""
 msgid "Categorize Selected"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:543
+#: bookmark_organizer_pro/app_mixins/tools.py:560
 msgid "Categorizing: {value_0}/{value_1} ({value_2} changed)"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:481
+#: bookmark_organizer_pro/app_mixins/tools.py:498
 msgid "Categorizing…"
 msgstr ""
 
@@ -587,7 +619,7 @@ msgstr ""
 msgid "Category Not Added"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:258
+#: bookmark_organizer_pro/ui/management_dialogs.py:266
 msgid "Category not added"
 msgstr ""
 
@@ -596,11 +628,11 @@ msgid "Category patterns exported successfully!\n\nFile: {value_0}\nCategories: 
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:34
-#: bookmark_organizer_pro/app_mixins/tools.py:225
+#: bookmark_organizer_pro/app_mixins/tools.py:242
 msgid "Check All Links"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:717
+#: bookmark_organizer_pro/app_mixins/tools.py:734
 msgid "Checked {value_0}/{value_1} - {value_2} broken"
 msgstr ""
 
@@ -608,7 +640,7 @@ msgstr ""
 msgid "Checking Ollama…"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:649
+#: bookmark_organizer_pro/app_mixins/tools.py:666
 msgid "Checking links…"
 msgstr ""
 
@@ -676,6 +708,10 @@ msgstr ""
 msgid "Choose the exact profile to import"
 msgstr ""
 
+#: bookmark_organizer_pro/ui/management_dialogs.py:986
+msgid "Choose the narrowest purpose that can perform the required work."
+msgstr ""
+
 #: bookmark_organizer_pro/ui/workflow_selective_export.py:71
 msgid "Choose what to include and preview the result before creating a portable file."
 msgstr ""
@@ -693,7 +729,7 @@ msgid "Chrome Reading List import runs from the browser extension side panel. St
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:36
-#: bookmark_organizer_pro/app_mixins/tools.py:231
+#: bookmark_organizer_pro/app_mixins/tools.py:248
 msgid "Clean Tracking Parameters"
 msgstr ""
 
@@ -705,17 +741,17 @@ msgid "Clear"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:40
-#: bookmark_organizer_pro/app_mixins/tools.py:221
+#: bookmark_organizer_pro/app_mixins/tools.py:238
 msgid "Clear All Categories"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:41
-#: bookmark_organizer_pro/app_mixins/tools.py:118
-#: bookmark_organizer_pro/app_mixins/tools.py:222
+#: bookmark_organizer_pro/app_mixins/tools.py:127
+#: bookmark_organizer_pro/app_mixins/tools.py:239
 msgid "Clear All Tags"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:244
+#: bookmark_organizer_pro/app_mixins/tools.py:261
 msgid "Clear Favicon Cache"
 msgstr ""
 
@@ -739,10 +775,11 @@ msgstr ""
 #: bookmark_organizer_pro/app_mixins/import_export.py:593
 #: bookmark_organizer_pro/app_mixins/import_export.py:696
 #: bookmark_organizer_pro/app_mixins/import_export.py:797
-#: bookmark_organizer_pro/app_mixins/tools.py:374
+#: bookmark_organizer_pro/app_mixins/tools.py:391
 #: bookmark_organizer_pro/ui/about.py:163
 #: bookmark_organizer_pro/ui/cleanup_review.py:214
-#: bookmark_organizer_pro/ui/management_dialogs.py:130
+#: bookmark_organizer_pro/ui/management_dialogs.py:138
+#: bookmark_organizer_pro/ui/management_dialogs.py:856
 #: bookmark_organizer_pro/ui/read_later_queue.py:148
 #: bookmark_organizer_pro/ui/widget_analytics.py:151
 #: bookmark_organizer_pro/ui/widget_theme_dialogs.py:506
@@ -848,6 +885,18 @@ msgstr ""
 msgid "Contrast passes — "
 msgstr ""
 
+#: bookmark_organizer_pro/ui/management_dialogs.py:1145
+msgid "Copied. Store it in your client or password manager now."
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:1149
+msgid "Copy"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:1077
+msgid "Copy Credential"
+msgstr ""
+
 #: bookmark_organizer_pro/ui/about.py:149
 msgid "Copy Diagnostics"
 msgstr ""
@@ -860,11 +909,15 @@ msgstr ""
 msgid "Copy URL of Selected"
 msgstr ""
 
+#: bookmark_organizer_pro/ui/management_dialogs.py:1094
+msgid "Copy this credential now"
+msgstr ""
+
 #: bookmark_organizer_pro/ui/about.py:463
 msgid "Could not build support preview: {error}"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:563
+#: bookmark_organizer_pro/ui/management_dialogs.py:571
 msgid "Could not create the favicon wrapper page."
 msgstr ""
 
@@ -876,7 +929,7 @@ msgstr ""
 msgid "Could not export bookmarks:\n\n{value_0}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:1264
+#: bookmark_organizer_pro/app_mixins/tools.py:1281
 msgid "Could not migrate to SQLite:\n\n{value_0}"
 msgstr ""
 
@@ -912,12 +965,52 @@ msgstr ""
 msgid "Create a reusable destination for future bookmark organization."
 msgstr ""
 
+#: bookmark_organizer_pro/ui/management_dialogs.py:1065
+msgid "Create credential"
+msgstr ""
+
 #: bookmark_organizer_pro/ui/widget_theme_dialogs.py:84
 msgid "Create custom theme"
 msgstr ""
 
+#: bookmark_organizer_pro/ui/management_dialogs.py:675
+msgid "Create one-purpose bearer credentials, inspect use, and revoke access without exposing saved secrets."
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:719
+msgid "Created"
+msgstr ""
+
 #: bookmark_organizer_pro/ui/widget_theme_dialogs.py:386
 msgid "Created '{name}'. You can select it from Theme Settings."
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:803
+msgid "Credential"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:940
+msgid "Credential changes are locked until the local credential store is recovered."
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:694
+msgid "Credential inventory"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:1202
+msgid "Credential not revoked"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:1181
+msgid "Credential not rotated"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:892
+msgid "Credential store recovery required"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:1206
+msgid "Credential unchanged"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/about.py:299
@@ -928,7 +1021,7 @@ msgstr ""
 msgid "Ctrl+K"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:453
+#: bookmark_organizer_pro/ui/management_dialogs.py:461
 msgid "Current:"
 msgstr ""
 
@@ -936,7 +1029,7 @@ msgstr ""
 msgid "Current: {value_0}"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:430
+#: bookmark_organizer_pro/ui/management_dialogs.py:438
 msgid "Custom Favicon"
 msgstr ""
 
@@ -966,7 +1059,7 @@ msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/dashboard.py:209
 #: bookmark_organizer_pro/app_mixins/selection.py:149
-#: bookmark_organizer_pro/ui/management_dialogs.py:234
+#: bookmark_organizer_pro/ui/management_dialogs.py:242
 msgid "Delete"
 msgstr ""
 
@@ -1012,6 +1105,7 @@ msgid "Diagnostics copied to clipboard."
 msgstr ""
 
 #: bookmark_organizer_pro/ui/live_workflow.py:194
+#: bookmark_organizer_pro/ui/management_dialogs.py:1157
 msgid "Done"
 msgstr ""
 
@@ -1032,7 +1126,7 @@ msgstr ""
 msgid "Downloading…"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:109
+#: bookmark_organizer_pro/app_mixins/tools.py:118
 msgid "DuckDuckGo — shares missing domains"
 msgstr ""
 
@@ -1060,7 +1154,7 @@ msgstr ""
 msgid "Edit Bookmark"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:268
+#: bookmark_organizer_pro/ui/management_dialogs.py:276
 msgid "Edit Category"
 msgstr ""
 
@@ -1085,8 +1179,8 @@ msgstr ""
 msgid "Edit title, collection, tags, notes, and URL"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:1146
-#: bookmark_organizer_pro/app_mixins/tools.py:1165
+#: bookmark_organizer_pro/app_mixins/tools.py:1163
+#: bookmark_organizer_pro/app_mixins/tools.py:1182
 msgid "Enable Show and fetch site icons in Settings before downloading icons"
 msgstr ""
 
@@ -1108,6 +1202,10 @@ msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:51
 msgid "Exit"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:721
+msgid "Expires"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/graph_view.py:127
@@ -1206,7 +1304,7 @@ msgstr ""
 msgid "Failover provider:"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:114
+#: bookmark_organizer_pro/app_mixins/tools.py:123
 msgid "Fallback icon proxy"
 msgstr ""
 
@@ -1220,7 +1318,7 @@ msgstr ""
 msgid "Favicon Too Large"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:562
+#: bookmark_organizer_pro/ui/management_dialogs.py:570
 msgid "Favicon not applied"
 msgstr ""
 
@@ -1258,8 +1356,16 @@ msgid "Filter library: {name}"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:35
-#: bookmark_organizer_pro/app_mixins/tools.py:228
+#: bookmark_organizer_pro/app_mixins/tools.py:245
 msgid "Find Duplicates"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:722
+msgid "Fingerprint"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:1126
+msgid "Fingerprint: sha256:{value_0}"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/import_center.py:79
@@ -1267,8 +1373,8 @@ msgid "Firefox bookmark backup"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:39
-#: bookmark_organizer_pro/app_mixins/tools.py:117
-#: bookmark_organizer_pro/app_mixins/tools.py:220
+#: bookmark_organizer_pro/app_mixins/tools.py:126
+#: bookmark_organizer_pro/app_mixins/tools.py:237
 msgid "Flatten All Folders"
 msgstr ""
 
@@ -1289,7 +1395,7 @@ msgstr ""
 msgid "Focus rail"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:444
+#: bookmark_organizer_pro/ui/management_dialogs.py:452
 msgid "For: {value_0}"
 msgstr ""
 
@@ -1298,7 +1404,7 @@ msgid "From:"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:31
-#: bookmark_organizer_pro/app_mixins/tools.py:237
+#: bookmark_organizer_pro/app_mixins/tools.py:254
 msgid "Full Analytics"
 msgstr ""
 
@@ -1310,11 +1416,11 @@ msgstr ""
 msgid "Get API key"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:103
+#: bookmark_organizer_pro/app_mixins/tools.py:112
 msgid "Google — shares missing domains"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:236
+#: bookmark_organizer_pro/app_mixins/tools.py:253
 msgid "Graph View"
 msgstr ""
 
@@ -1410,7 +1516,7 @@ msgstr ""
 msgid "Import Bookmarks"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:216
+#: bookmark_organizer_pro/app_mixins/tools.py:233
 msgid "Import Categories File"
 msgstr ""
 
@@ -1645,7 +1751,7 @@ msgstr ""
 msgid "Keep the URL, category, tags, and notes clear enough to find later."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:59
+#: bookmark_organizer_pro/ui/management_dialogs.py:67
 msgid "Keep your collection structure clean and predictable."
 msgstr ""
 
@@ -1661,6 +1767,10 @@ msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:319
 msgid "LIBRARY"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:720
+msgid "Last used"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_menu_data.py:375
@@ -1689,7 +1799,7 @@ msgstr ""
 msgid "Light"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:627
+#: bookmark_organizer_pro/app_mixins/tools.py:644
 msgid "Link Check Unavailable"
 msgstr ""
 
@@ -1705,7 +1815,7 @@ msgstr ""
 msgid "Linkwarden export"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:230
+#: bookmark_organizer_pro/app_mixins/tools.py:247
 msgid "Lint Tags"
 msgstr ""
 
@@ -1725,15 +1835,23 @@ msgstr ""
 msgid "Local and ready"
 msgstr ""
 
+#: bookmark_organizer_pro/ui/management_dialogs.py:593
+msgid "MCP — read and write"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:589
+msgid "MCP — read only"
+msgstr ""
+
 #: bookmark_organizer_pro/ui/widget_theme_dialogs.py:316
 msgid "Main Content Area"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:38
-#: bookmark_organizer_pro/app_mixins/tools.py:115
-#: bookmark_organizer_pro/app_mixins/tools.py:214
-#: bookmark_organizer_pro/ui/management_dialogs.py:40
-#: bookmark_organizer_pro/ui/management_dialogs.py:54
+#: bookmark_organizer_pro/app_mixins/tools.py:124
+#: bookmark_organizer_pro/app_mixins/tools.py:231
+#: bookmark_organizer_pro/ui/management_dialogs.py:48
+#: bookmark_organizer_pro/ui/management_dialogs.py:62
 msgid "Manage Categories"
 msgstr ""
 
@@ -1753,11 +1871,11 @@ msgstr ""
 msgid "Marked bookmark done and removed it from Read Later."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:238
+#: bookmark_organizer_pro/app_mixins/tools.py:255
 msgid "Migrate to SQLite"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:1263
+#: bookmark_organizer_pro/app_mixins/tools.py:1280
 msgid "Migration Failed"
 msgstr ""
 
@@ -1818,6 +1936,14 @@ msgstr ""
 msgid "NOTES"
 msgstr ""
 
+#: bookmark_organizer_pro/ui/management_dialogs.py:715
+msgid "Name"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:979
+msgid "Name and purpose"
+msgstr ""
+
 #: bookmark_organizer_pro/ui/about.py:228
 msgid "Navigation"
 msgstr ""
@@ -1832,6 +1958,19 @@ msgstr ""
 msgid "Nested hierarchy with auto-categorization"
 msgstr ""
 
+#: bookmark_organizer_pro/ui/management_dialogs.py:898
+#: bookmark_organizer_pro/ui/management_dialogs.py:899
+msgid "Never"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:611
+msgid "Never expires"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:962
+msgid "New Access Credential"
+msgstr ""
+
 #: bookmark_organizer_pro/app_mixins/app_shell.py:44
 msgid "New Bookmark"
 msgstr ""
@@ -1840,11 +1979,15 @@ msgstr ""
 msgid "New Name:"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:276
+#: bookmark_organizer_pro/ui/management_dialogs.py:756
+msgid "New credential"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:284
 msgid "New name:"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:469
+#: bookmark_organizer_pro/ui/management_dialogs.py:477
 msgid "New:"
 msgstr ""
 
@@ -1908,7 +2051,7 @@ msgstr ""
 msgid "No categories yet. Add or import bookmarks first."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:183
+#: bookmark_organizer_pro/ui/management_dialogs.py:191
 msgid "No categories yet. Create one above or import bookmarks to seed the list."
 msgstr ""
 
@@ -1969,7 +2112,7 @@ msgstr ""
 msgid "None detected"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:97
+#: bookmark_organizer_pro/app_mixins/tools.py:106
 msgid "None — same-origin only"
 msgstr ""
 
@@ -1989,7 +2132,7 @@ msgstr ""
 msgid "Note"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:487
+#: bookmark_organizer_pro/ui/management_dialogs.py:495
 msgid "Note: This creates a wrapper page with your custom icon.\nThe wrapper redirects instantly to the original site."
 msgstr ""
 
@@ -2147,6 +2290,10 @@ msgstr ""
 
 #: bookmark_organizer_pro/ui/read_later_queue.py:240
 msgid "Opened selected bookmark."
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:805
+msgid "Operation"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/about.py:233
@@ -2310,6 +2457,14 @@ msgstr ""
 msgid "READ LATER"
 msgstr ""
 
+#: bookmark_organizer_pro/ui/management_dialogs.py:601
+msgid "REST API — read and write"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:597
+msgid "REST API — read only"
+msgstr ""
+
 #: bookmark_organizer_pro/ui/import_center.py:144
 msgid "Raindrop CSV"
 msgstr ""
@@ -2326,7 +2481,7 @@ msgstr ""
 msgid "Read Later"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:234
+#: bookmark_organizer_pro/app_mixins/tools.py:251
 #: bookmark_organizer_pro/ui/read_later_queue.py:62
 #: bookmark_organizer_pro/ui/read_later_queue.py:82
 msgid "Read Later Queue"
@@ -2344,7 +2499,7 @@ msgid "Read later"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/selection.py:109
-#: bookmark_organizer_pro/app_mixins/tools.py:235
+#: bookmark_organizer_pro/app_mixins/tools.py:252
 msgid "Reader View"
 msgstr ""
 
@@ -2368,6 +2523,10 @@ msgstr ""
 msgid "Ready for your next save"
 msgstr ""
 
+#: bookmark_organizer_pro/ui/management_dialogs.py:807
+msgid "Reason"
+msgstr ""
+
 #: bookmark_organizer_pro/app_mixins/app_shell.py:873
 msgid "Recent"
 msgstr ""
@@ -2378,6 +2537,10 @@ msgstr ""
 
 #: bookmark_organizer_pro/ui/feedback.py:212
 msgid "Recent activity"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:783
+msgid "Recent credential activity"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/import_export.py:190
@@ -2396,11 +2559,11 @@ msgstr ""
 msgid "Redo"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:242
+#: bookmark_organizer_pro/app_mixins/tools.py:259
 msgid "Redownload All Favicons"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:243
+#: bookmark_organizer_pro/app_mixins/tools.py:260
 msgid "Redownload Missing Favicons"
 msgstr ""
 
@@ -2447,7 +2610,7 @@ msgid "Removed bookmark from Read Later."
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/categories.py:255
-#: bookmark_organizer_pro/ui/management_dialogs.py:224
+#: bookmark_organizer_pro/ui/management_dialogs.py:232
 msgid "Rename"
 msgstr ""
 
@@ -2484,8 +2647,8 @@ msgstr ""
 msgid "Reset view"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:121
-#: bookmark_organizer_pro/app_mixins/tools.py:240
+#: bookmark_organizer_pro/app_mixins/tools.py:130
+#: bookmark_organizer_pro/app_mixins/tools.py:257
 msgid "Restore Last Maintenance Safepoint"
 msgstr ""
 
@@ -2501,7 +2664,7 @@ msgstr ""
 msgid "Restore from Backup…"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:135
+#: bookmark_organizer_pro/ui/management_dialogs.py:143
 msgid "Restore last delete"
 msgstr ""
 
@@ -2523,6 +2686,10 @@ msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/import_export.py:166
 msgid "Restoring Library"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:806
+msgid "Result"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:495
@@ -2605,12 +2772,32 @@ msgstr ""
 msgid "Revisit the source"
 msgstr ""
 
+#: bookmark_organizer_pro/ui/management_dialogs.py:1192
+msgid "Revoke '{value_0}' immediately? This cannot be undone."
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:1191
+msgid "Revoke credential?"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:773
+msgid "Revoke selected"
+msgstr ""
+
 #: bookmark_organizer_pro/app_mixins/import_export.py:810
 msgid "Roll Back"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/import_export.py:698
 msgid "Roll Back Selected"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:1170
+msgid "Rotate credential?"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:765
+msgid "Rotate selected"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:262
@@ -2625,7 +2812,7 @@ msgstr ""
 msgid "Salvaging Library"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:306
+#: bookmark_organizer_pro/ui/management_dialogs.py:314
 msgid "Save"
 msgstr ""
 
@@ -2660,6 +2847,10 @@ msgstr ""
 #: bookmark_organizer_pro/app_mixins/app_shell.py:540
 #: bookmark_organizer_pro/ui/workflow_detail_panel.py:198
 msgid "Saved"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:717
+msgid "Scope"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/widget_theme_dialogs.py:51
@@ -2718,12 +2909,12 @@ msgstr ""
 msgid "Select Bookmark Files to Import"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:554
+#: bookmark_organizer_pro/app_mixins/tools.py:571
 msgid "Select Categories JSON File"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:481
-#: bookmark_organizer_pro/ui/management_dialogs.py:520
+#: bookmark_organizer_pro/ui/management_dialogs.py:489
+#: bookmark_organizer_pro/ui/management_dialogs.py:528
 #: bookmark_organizer_pro/ui/workflow_quick_add.py:282
 msgid "Select Favicon Image"
 msgstr ""
@@ -2809,8 +3000,8 @@ msgstr ""
 msgid "Session {session} · {status} · {duration} ms · {failed} failed · {losses} source losses · causes: {causes}."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:217
-#: bookmark_organizer_pro/ui/management_dialogs.py:439
+#: bookmark_organizer_pro/app_mixins/tools.py:234
+#: bookmark_organizer_pro/ui/management_dialogs.py:447
 msgid "Set Custom Favicon"
 msgstr ""
 
@@ -2826,7 +3017,7 @@ msgstr ""
 msgid "Setup Check"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:169
+#: bookmark_organizer_pro/app_mixins/tools.py:186
 msgid "Share missing favicon domains?"
 msgstr ""
 
@@ -2839,7 +3030,7 @@ msgstr ""
 msgid "Show all bookmarks"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:79
+#: bookmark_organizer_pro/app_mixins/tools.py:88
 msgid "Show and fetch site icons"
 msgstr ""
 
@@ -2879,32 +3070,32 @@ msgstr ""
 msgid "Sidebar"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:458
+#: bookmark_organizer_pro/ui/management_dialogs.py:466
 msgid "Site"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:1144
-#: bookmark_organizer_pro/app_mixins/tools.py:1163
+#: bookmark_organizer_pro/app_mixins/tools.py:1161
+#: bookmark_organizer_pro/app_mixins/tools.py:1180
 msgid "Site icon fetching is disabled"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:200
+#: bookmark_organizer_pro/app_mixins/tools.py:217
 msgid "Site icon privacy set to {provider}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:156
+#: bookmark_organizer_pro/app_mixins/tools.py:173
 msgid "Site icons disabled; queued downloads were cancelled"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:151
+#: bookmark_organizer_pro/app_mixins/tools.py:168
 msgid "Site icons enabled; same-origin sources are tried first"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:233
+#: bookmark_organizer_pro/app_mixins/tools.py:250
 msgid "Smart Collections"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:229
+#: bookmark_organizer_pro/app_mixins/tools.py:246
 msgid "Smart Duplicate Scan"
 msgstr ""
 
@@ -2912,7 +3103,7 @@ msgstr ""
 msgid "Smart Filters"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:227
+#: bookmark_organizer_pro/app_mixins/tools.py:244
 msgid "Snapshot Failure Report"
 msgstr ""
 
@@ -2951,6 +3142,7 @@ msgid "Statistics are temporarily unavailable. Showing safe defaults."
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:543
+#: bookmark_organizer_pro/ui/management_dialogs.py:718
 msgid "Status"
 msgstr ""
 
@@ -3026,7 +3218,7 @@ msgstr ""
 msgid "Text"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:259
+#: bookmark_organizer_pro/ui/management_dialogs.py:267
 msgid "That category already exists or the name is not valid."
 msgstr ""
 
@@ -3037,6 +3229,10 @@ msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_titles.py:91
 msgid "The AI response was not valid JSON, so no bookmark titles were changed."
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:1171
+msgid "The current secret will stop working immediately. Continue and show a replacement secret?"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/workflow_quick_add.py:366
@@ -3051,7 +3247,7 @@ msgstr ""
 msgid "The highlight already exists and was not replaced."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:628
+#: bookmark_organizer_pro/app_mixins/tools.py:645
 msgid "The requests package is required before link checks can run."
 msgstr ""
 
@@ -3059,15 +3255,23 @@ msgstr ""
 msgid "The requests package is required to download favicon URLs."
 msgstr ""
 
+#: bookmark_organizer_pro/ui/management_dialogs.py:1101
+msgid "The secret is shown once. Bookmark Organizer Pro stores only a salted verifier and cannot reveal it later."
+msgstr ""
+
 #: bookmark_organizer_pro/ui/workflow_selective_export.py:420
 msgid "The selected categories do not contain any bookmarks."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:568
+#: bookmark_organizer_pro/ui/management_dialogs.py:1207
+msgid "The selected credential was already revoked or no longer exists."
+msgstr ""
+
+#: bookmark_organizer_pro/app_mixins/tools.py:585
 msgid "The selected file is not a categories JSON object. Choose a file whose top level contains category names."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:612
+#: bookmark_organizer_pro/app_mixins/tools.py:629
 msgid "The selected file is not valid JSON.\n\n{value_0}"
 msgstr ""
 
@@ -3088,7 +3292,7 @@ msgid "Theme Imported"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:30
-#: bookmark_organizer_pro/app_mixins/tools.py:68
+#: bookmark_organizer_pro/app_mixins/tools.py:73
 #: bookmark_organizer_pro/ui/widget_theme_dialogs.py:431
 msgid "Theme Settings"
 msgstr ""
@@ -3148,6 +3352,10 @@ msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:486
 msgid "Threshold:"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:802
+msgid "Time"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:534
@@ -3230,6 +3438,10 @@ msgstr ""
 msgid "URL"
 msgstr ""
 
+#: bookmark_organizer_pro/ui/management_dialogs.py:903
+msgid "Unavailable"
+msgstr ""
+
 #: bookmark_organizer_pro/ui/widget_dashboard_panel.py:78
 #: bookmark_organizer_pro/ui/workflow_detail_panel.py:195
 msgid "Uncategorized"
@@ -3246,6 +3458,10 @@ msgstr ""
 
 #: bookmark_organizer_pro/ui/about.py:229
 msgid "Undo/Redo"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/management_dialogs.py:919
+msgid "Unknown credential"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/workflow_detail_panel.py:267
@@ -3311,7 +3527,7 @@ msgstr ""
 msgid "View"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:226
+#: bookmark_organizer_pro/app_mixins/tools.py:243
 msgid "View Dead Links"
 msgstr ""
 
@@ -3383,11 +3599,11 @@ msgstr ""
 msgid "Zoom Out"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:131
+#: bookmark_organizer_pro/app_mixins/tools.py:148
 msgid "disabled"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:131
+#: bookmark_organizer_pro/app_mixins/tools.py:148
 msgid "enabled"
 msgstr ""
 
@@ -3399,7 +3615,7 @@ msgstr ""
 msgid "none"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:195
+#: bookmark_organizer_pro/app_mixins/tools.py:212
 msgid "same-origin only"
 msgstr ""
 
@@ -3455,11 +3671,11 @@ msgstr ""
 msgid "{nodes} nodes / {edges} edges"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:197
+#: bookmark_organizer_pro/app_mixins/tools.py:214
 msgid "{provider} fallback"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:170
+#: bookmark_organizer_pro/app_mixins/tools.py:187
 msgid "{provider} is a third-party favicon proxy. {disclosure}\n\nBookmark titles, paths, queries, and fragments are not sent. Enable this fallback?"
 msgstr ""
 
@@ -3524,6 +3740,10 @@ msgstr ""
 msgid "{value_0} could not start because the configured AI client could not be created.\n\nOpen Assistant Settings to confirm the provider, model, and credential."
 msgstr ""
 
+#: bookmark_organizer_pro/ui/management_dialogs.py:932
+msgid "{value_0} credentials · {value_1} recent events"
+msgstr ""
+
 #: bookmark_organizer_pro/ui/cleanup_review.py:86
 msgid "{value_0} match for #{value_1}"
 msgstr ""
@@ -3533,7 +3753,7 @@ msgstr ""
 msgid "{value_0} selected"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:207
+#: bookmark_organizer_pro/ui/management_dialogs.py:215
 msgid "{value_0} {value_1}"
 msgstr ""
 
@@ -3564,7 +3784,7 @@ msgstr ""
 msgid "›"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:464
+#: bookmark_organizer_pro/ui/management_dialogs.py:472
 msgid "→"
 msgstr ""
 
@@ -3637,7 +3857,7 @@ msgstr ""
 msgid "⚙"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/management_dialogs.py:539
+#: bookmark_organizer_pro/ui/management_dialogs.py:547
 msgid "✓"
 msgstr ""
 
@@ -3649,8 +3869,8 @@ msgstr ""
 msgid "✕"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/tools.py:494
-#: bookmark_organizer_pro/app_mixins/tools.py:662
+#: bookmark_organizer_pro/app_mixins/tools.py:511
+#: bookmark_organizer_pro/app_mixins/tools.py:679
 msgid "✕ Cancel"
 msgstr ""
 

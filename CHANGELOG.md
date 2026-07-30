@@ -10,6 +10,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Added a headless `--release-contract` executable probe covering bundled category data, declared runtime capabilities, dependency versions, lock integrity, and SBOM parity.
 - Added deterministic Chromium ZIP and Firefox XPI extension builds with shared-manifest parity checks, Firefox `sidebar_action`/background-page support, web-ext lint, and a clean-profile temporary-install smoke.
 - Added one deduplicated extension save journal for popup, side-panel, selection, context-menu, and Reading List captures, with failure details, JSON export, confirmed clearing, and one-step clear recovery.
+- Added an Access Credentials workspace for named MCP, REST, and browser-extension credentials with purpose presets, optional expiry, one-time secret display, truncated fingerprints, per-client rotation/revocation, and a bounded success/denial audit.
 
 ### Changed
 
@@ -61,6 +62,11 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Security
 
+- Replaced single-purpose bearer checks with owner-private, salted credential
+  verifiers and audience-specific least-privilege scopes; existing MCP and local
+  API credentials migrate without privilege expansion, failed uses are audited
+  without attempted secrets, and authorization fails closed when audit
+  persistence or credential recovery is unavailable.
 - Added one bounded, JSON-encoded untrusted-evidence boundary for retrieved page
   text across collection chat and both summarizers; out-of-scope chunks,
   uncited claims, unknown citation IDs, and unsafe pre-validation stream events

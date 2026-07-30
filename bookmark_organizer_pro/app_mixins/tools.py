@@ -25,6 +25,7 @@ from bookmark_organizer_pro.services.favicons import (
     FaviconPrivacyPolicy,
     save_favicon_policy,
 )
+from bookmark_organizer_pro.services.mcp_auth import MCPTokenManager
 from bookmark_organizer_pro.services.snapshot import SnapshotArchiver, SnapshotFailureStore
 from bookmark_organizer_pro.ui.cleanup_review import (
                 CleanupApplyResult,
@@ -35,7 +36,11 @@ from bookmark_organizer_pro.ui.cleanup_review import (
 )
 from bookmark_organizer_pro.ui.foundation import FONTS, readable_text_on
 from bookmark_organizer_pro.ui.graph_view import GraphViewDialog
-from bookmark_organizer_pro.ui.management_dialogs import CategoryManagementDialog, CustomFaviconDialog
+from bookmark_organizer_pro.ui.management_dialogs import (
+    CategoryManagementDialog,
+    CredentialSecurityDialog,
+    CustomFaviconDialog,
+)
 from bookmark_organizer_pro.ui.read_later_queue import ReadLaterQueueDialog
 from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog
 from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable
@@ -66,6 +71,10 @@ class ToolsActionsMixin:
                        activeforeground=theme.text_primary, bd=0)
         menu.add_command(label=_("Assistant Provider Settings"), command=self._show_ai_settings)
         menu.add_command(label=_("Theme Settings"), command=lambda: ThemeSelectorDialog(self.root, self.theme_manager))
+        menu.add_command(
+            label=_("Access Credentials"),
+            command=self._show_credential_security,
+        )
         self._accessible_list_var = tk.BooleanVar(value=accessible_list_mode_enabled())
         menu.add_checkbutton(
             label=_("Accessible bookmark table"),
@@ -123,6 +132,14 @@ class ToolsActionsMixin:
         x = self.settings_btn.winfo_rootx()
         y = self.settings_btn.winfo_rooty() + self.settings_btn.winfo_height()
         menu.tk_popup(x, y)
+
+    def _show_credential_security(self):
+        """Open the named MCP/REST credential inventory."""
+        manager = getattr(self, "_credential_manager", None)
+        if manager is None:
+            manager = MCPTokenManager()
+            self._credential_manager = manager
+        CredentialSecurityDialog(self.root, manager)
 
     def _save_accessible_list_preference(self):
         """Persist the semantic table preference for the next app launch."""

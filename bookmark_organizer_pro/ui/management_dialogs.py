@@ -9,7 +9,15 @@ from typing import Callable
 from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services import FaviconWrapperGenerator
+from bookmark_organizer_pro.services.atomic_document_store import AtomicDocumentError
 from bookmark_organizer_pro.services.category_delete_recovery import CategoryDeleteRecovery
+from bookmark_organizer_pro.services.mcp_auth import (
+    MCP_READ_SCOPE,
+    MCP_WRITE_SCOPE,
+    REST_EXTENSION_SCOPE,
+    REST_READ_SCOPE,
+    REST_WRITE_SCOPE,
+)
 
 from .foundation import FONTS, DesignTokens, pluralize
 from .tk_interactions import bind_scoped_mousewheel, make_keyboard_activatable
@@ -572,3 +580,631 @@ class CustomFaviconDialog(tk.Toplevel):
         x = (self.winfo_screenwidth() // 2) - (width // 2)
         y = (self.winfo_screenheight() // 2) - (height // 2)
         self.geometry(f'+{x}+{y}')
+
+
+class CredentialSecurityDialog(tk.Toplevel):
+    """Inspectable named-credential inventory and bounded usage audit."""
+
+    PURPOSES = {
+        _("MCP — read only"): (
+            "mcp",
+            [MCP_READ_SCOPE],
+        ),
+        _("MCP — read and write"): (
+            "mcp",
+            [MCP_READ_SCOPE, MCP_WRITE_SCOPE],
+        ),
+        _("REST API — read only"): (
+            "rest",
+            [REST_READ_SCOPE],
+        ),
+        _("REST API — read and write"): (
+            "rest",
+            [REST_READ_SCOPE, REST_WRITE_SCOPE],
+        ),
+        _("Browser extension"): (
+            "rest",
+            [REST_READ_SCOPE, REST_WRITE_SCOPE, REST_EXTENSION_SCOPE],
+        ),
+    }
+    LIFETIMES = {
+        _("Never expires"): None,
+        _("1 day"): 86_400,
+        _("30 days"): 2_592_000,
+        _("90 days"): 7_776_000,
+        _("1 year"): 31_536_000,
+    }
+
+    def __init__(self, parent, credential_manager):
+        super().__init__(parent)
+        self.credential_manager = credential_manager
+        self._rows: dict[str, dict] = {}
+        self._theme = get_theme()
+        table_style = ttk.Style(self)
+        native_heading = table_style.theme_use() in {
+            "vista", "xpnative", "winnative", "aqua",
+        }
+        table_style.configure(
+            "Credential.Treeview",
+            background=self._theme.bg_secondary,
+            fieldbackground=self._theme.bg_secondary,
+            foreground=self._theme.text_primary,
+            bordercolor=self._theme.border_muted,
+            rowheight=30,
+            font=FONTS.small(),
+        )
+        table_style.map(
+            "Credential.Treeview",
+            background=[("selected", self._theme.selection)],
+            foreground=[("selected", self._theme.text_primary)],
+        )
+        table_style.configure(
+            "Credential.Treeview.Heading",
+            background=self._theme.bg_tertiary,
+            foreground=(
+                "#111827" if native_heading else self._theme.text_primary
+            ),
+            bordercolor=self._theme.border_muted,
+            font=FONTS.small(bold=True),
+        )
+
+        self.title(_("Access Credentials"))
+        self.configure(bg=self._theme.bg_primary)
+        apply_screen_aware_geometry(self, 1140, 720)
+        self.minsize(860, 600)
+        self.transient(parent)
+        self.grab_set()
+        apply_window_chrome(self)
+
+        header = tk.Frame(
+            self,
+            bg=self._theme.bg_dark,
+            padx=DesignTokens.PANEL_PAD,
+            pady=14,
+        )
+        header.pack(fill=tk.X)
+        tk.Label(
+            header,
+            text=_("Access Credentials"),
+            bg=self._theme.bg_dark,
+            fg=self._theme.text_primary,
+            font=FONTS.title(bold=True),
+        ).pack(anchor="w")
+        tk.Label(
+            header,
+            text=_(
+                "Create one-purpose bearer credentials, inspect use, and revoke "
+                "access without exposing saved secrets."
+            ),
+            bg=self._theme.bg_dark,
+            fg=self._theme.text_secondary,
+            font=FONTS.small(),
+        ).pack(anchor="w", pady=(3, 0))
+
+        body = tk.Frame(
+            self,
+            bg=self._theme.bg_primary,
+            padx=DesignTokens.PANEL_PAD,
+            pady=14,
+        )
+        body.pack(fill=tk.BOTH, expand=True)
+
+        tk.Label(
+            body,
+            text=_("Credential inventory"),
+            bg=self._theme.bg_primary,
+            fg=self._theme.text_primary,
+            font=FONTS.body(bold=True),
+        ).pack(anchor="w", pady=(0, 6))
+
+        inventory_frame = tk.Frame(body, bg=self._theme.bg_primary)
+        inventory_frame.pack(fill=tk.BOTH, expand=True)
+        columns = (
+            "name", "audience", "scope", "status", "created",
+            "last_used", "expires", "fingerprint",
+        )
+        self.inventory = ttk.Treeview(
+            inventory_frame,
+            columns=columns,
+            show="headings",
+            height=4,
+            selectmode="browse",
+            style="Credential.Treeview",
+        )
+        headings = {
+            "name": _("Name"),
+            "audience": _("Audience"),
+            "scope": _("Scope"),
+            "status": _("Status"),
+            "created": _("Created"),
+            "last_used": _("Last used"),
+            "expires": _("Expires"),
+            "fingerprint": _("Fingerprint"),
+        }
+        widths = {
+            "name": 180,
+            "audience": 85,
+            "scope": 110,
+            "status": 70,
+            "created": 155,
+            "last_used": 155,
+            "expires": 155,
+            "fingerprint": 180,
+        }
+        for column in columns:
+            self.inventory.heading(column, text=headings[column])
+            self.inventory.column(
+                column,
+                width=widths[column],
+                minwidth=60,
+                anchor=tk.W,
+            )
+        inventory_scroll = ttk.Scrollbar(
+            inventory_frame,
+            orient=tk.VERTICAL,
+            command=self.inventory.yview,
+        )
+        self.inventory.configure(yscrollcommand=inventory_scroll.set)
+        self.inventory.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        inventory_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.inventory.bind("<<TreeviewSelect>>", self._selection_changed)
+
+        actions = tk.Frame(body, bg=self._theme.bg_primary)
+        actions.pack(fill=tk.X, pady=(9, 14))
+        self.new_button = ModernButton(
+            actions,
+            text=_("New credential"),
+            command=self._create_credential,
+            style="primary",
+            padx=14,
+            pady=7,
+        )
+        self.new_button.pack(side=tk.LEFT)
+        self.rotate_button = ModernButton(
+            actions,
+            text=_("Rotate selected"),
+            command=self._rotate_selected,
+            padx=14,
+            pady=7,
+        )
+        self.rotate_button.pack(side=tk.LEFT, padx=(8, 0))
+        self.revoke_button = ModernButton(
+            actions,
+            text=_("Revoke selected"),
+            command=self._revoke_selected,
+            style="danger",
+            padx=14,
+            pady=7,
+        )
+        self.revoke_button.pack(side=tk.LEFT, padx=(8, 0))
+
+        tk.Label(
+            body,
+            text=_("Recent credential activity"),
+            bg=self._theme.bg_primary,
+            fg=self._theme.text_primary,
+            font=FONTS.body(bold=True),
+        ).pack(anchor="w", pady=(0, 6))
+
+        audit_frame = tk.Frame(body, bg=self._theme.bg_primary)
+        audit_frame.pack(fill=tk.BOTH, expand=True)
+        audit_columns = (
+            "timestamp", "name", "audience", "operation", "result", "reason",
+        )
+        self.audit = ttk.Treeview(
+            audit_frame,
+            columns=audit_columns,
+            show="headings",
+            height=3,
+            style="Credential.Treeview",
+        )
+        audit_headings = {
+            "timestamp": _("Time"),
+            "name": _("Credential"),
+            "audience": _("Audience"),
+            "operation": _("Operation"),
+            "result": _("Result"),
+            "reason": _("Reason"),
+        }
+        audit_widths = {
+            "timestamp": 145,
+            "name": 150,
+            "audience": 70,
+            "operation": 190,
+            "result": 75,
+            "reason": 150,
+        }
+        for column in audit_columns:
+            self.audit.heading(column, text=audit_headings[column])
+            self.audit.column(
+                column,
+                width=audit_widths[column],
+                minwidth=60,
+                anchor=tk.W,
+            )
+        audit_scroll = ttk.Scrollbar(
+            audit_frame,
+            orient=tk.VERTICAL,
+            command=self.audit.yview,
+        )
+        self.audit.configure(yscrollcommand=audit_scroll.set)
+        self.audit.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        audit_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        footer = tk.Frame(
+            self,
+            bg=self._theme.bg_primary,
+            padx=DesignTokens.PANEL_PAD,
+            pady=0,
+        )
+        # Reserve the footer before the expanding body. App-level ttk row
+        # metrics can be much taller than platform defaults at high DPI.
+        body.pack_forget()
+        footer.pack(side=tk.BOTTOM, fill=tk.X, pady=(0, 14))
+        body.pack(fill=tk.BOTH, expand=True)
+        self.status_var = tk.StringVar(value="")
+        tk.Label(
+            footer,
+            textvariable=self.status_var,
+            bg=self._theme.bg_primary,
+            fg=self._theme.text_secondary,
+            font=FONTS.small(),
+            anchor="w",
+        ).pack(side=tk.LEFT, fill=tk.X, expand=True)
+        ModernButton(
+            footer,
+            text=_("Close"),
+            command=self.destroy,
+            padx=18,
+            pady=7,
+        ).pack(side=tk.RIGHT)
+
+        self.bind("<Escape>", lambda _event: self.destroy())
+        self._refresh()
+
+    @staticmethod
+    def _display_time(value: str, fallback: str = "—") -> str:
+        text = str(value or "")
+        if not text:
+            return fallback
+        return text.replace("T", " ")[:16]
+
+    def _refresh(self):
+        selected = self.inventory.selection()
+        selected_id = selected[0] if selected else ""
+        for item in self.inventory.get_children():
+            self.inventory.delete(item)
+        listed_rows = self.credential_manager.list_credentials()
+        self._rows = {
+            row["id"]: row for row in listed_rows if row.get("id")
+        }
+        for index, row in enumerate(listed_rows):
+            identifier = row.get("id") or f"status-{index}"
+            fingerprint = row.get("fingerprint", "")
+            self.inventory.insert(
+                "",
+                tk.END,
+                iid=identifier,
+                values=(
+                    (
+                        row["name"]
+                        if row.get("id")
+                        else _("Credential store recovery required")
+                    ),
+                    row["audience"].upper(),
+                    row["scope"],
+                    row["status"],
+                    self._display_time(row["created_at"]),
+                    self._display_time(row["last_used_at"], _("Never")),
+                    self._display_time(row["expires_at"], _("Never")),
+                    (
+                        f"sha256:{fingerprint}"
+                        if fingerprint and fingerprint != "unavailable"
+                        else _("Unavailable")
+                    ),
+                ),
+            )
+        if selected_id in self._rows:
+            self.inventory.selection_set(selected_id)
+
+        for item in self.audit.get_children():
+            self.audit.delete(item)
+        for index, event in enumerate(self.credential_manager.list_audit(limit=100)):
+            self.audit.insert(
+                "",
+                tk.END,
+                iid=f"audit-{index}",
+                values=(
+                    self._display_time(event["timestamp"]),
+                    event["name"] or _("Unknown credential"),
+                    event["audience"].upper(),
+                    event["operation"],
+                    event["result"],
+                    event["reason"].replace("_", " "),
+                ),
+            )
+        health = self.credential_manager.diagnostics()
+        available = bool(health.get("available"))
+        self.new_button.set_state("normal" if available else "disabled")
+        self._selection_changed()
+        if available:
+            self.status_var.set(
+                format_message(
+                    "{value_0} credentials · {value_1} recent events",
+                    value_0=len(self._rows),
+                    value_1=len(self.audit.get_children()),
+                )
+            )
+        else:
+            self.status_var.set(
+                _(
+                    "Credential changes are locked until the local credential "
+                    "store is recovered."
+                )
+            )
+
+    def _selected(self) -> tuple[str, dict | None]:
+        selection = self.inventory.selection()
+        if not selection:
+            return "", None
+        identifier = selection[0]
+        return identifier, self._rows.get(identifier)
+
+    def _selection_changed(self, _event=None):
+        _identifier, row = self._selected()
+        can_rotate = bool(row and row.get("status") != "revoked")
+        can_revoke = bool(row and row.get("status") != "revoked")
+        self.rotate_button.set_state("normal" if can_rotate else "disabled")
+        self.revoke_button.set_state("normal" if can_revoke else "disabled")
+
+    def _create_credential(self):
+        form = tk.Toplevel(self)
+        form.title(_("New Access Credential"))
+        form.configure(bg=self._theme.bg_primary)
+        form.geometry("500x330")
+        form.resizable(False, False)
+        form.transient(self)
+        form.grab_set()
+        apply_window_chrome(form)
+
+        content = tk.Frame(
+            form,
+            bg=self._theme.bg_primary,
+            padx=24,
+            pady=20,
+        )
+        content.pack(fill=tk.BOTH, expand=True)
+        tk.Label(
+            content,
+            text=_("Name and purpose"),
+            bg=self._theme.bg_primary,
+            fg=self._theme.text_primary,
+            font=FONTS.subtitle(bold=True),
+        ).pack(anchor="w")
+        tk.Label(
+            content,
+            text=_(
+                "Choose the narrowest purpose that can perform the required work."
+            ),
+            bg=self._theme.bg_primary,
+            fg=self._theme.text_secondary,
+            font=FONTS.small(),
+        ).pack(anchor="w", pady=(3, 12))
+
+        name_var = tk.StringVar()
+        name_entry = tk.Entry(
+            content,
+            textvariable=name_var,
+            bg=self._theme.bg_secondary,
+            fg=self._theme.text_primary,
+            insertbackground=self._theme.text_primary,
+            relief=tk.FLAT,
+            font=FONTS.body(),
+        )
+        name_entry.pack(fill=tk.X, ipady=6)
+
+        purpose_var = tk.StringVar(value=next(iter(self.PURPOSES)))
+        ttk.Combobox(
+            content,
+            textvariable=purpose_var,
+            values=list(self.PURPOSES),
+            state="readonly",
+        ).pack(fill=tk.X, pady=(12, 0), ipady=3)
+
+        lifetime_var = tk.StringVar(value=next(iter(self.LIFETIMES)))
+        ttk.Combobox(
+            content,
+            textvariable=lifetime_var,
+            values=list(self.LIFETIMES),
+            state="readonly",
+        ).pack(fill=tk.X, pady=(12, 0), ipady=3)
+
+        status_var = tk.StringVar(value="")
+        tk.Label(
+            content,
+            textvariable=status_var,
+            bg=self._theme.bg_primary,
+            fg=self._theme.accent_error,
+            font=FONTS.small(),
+        ).pack(anchor="w", pady=(8, 0))
+
+        actions = tk.Frame(content, bg=self._theme.bg_primary)
+        actions.pack(fill=tk.X, side=tk.BOTTOM)
+
+        def create():
+            try:
+                audience, scopes = self.PURPOSES[purpose_var.get()]
+                created = self.credential_manager.create_credential(
+                    name_var.get(),
+                    audience=audience,
+                    scopes=scopes,
+                    expires_in_seconds=self.LIFETIMES[lifetime_var.get()],
+                )
+            except (
+                AtomicDocumentError,
+                KeyError,
+                TypeError,
+                ValueError,
+                OSError,
+            ) as exc:
+                status_var.set(str(exc))
+                return
+            form.destroy()
+            self._show_one_time_secret(created)
+            self._refresh()
+
+        ModernButton(
+            actions,
+            text=_("Cancel"),
+            command=form.destroy,
+            padx=15,
+            pady=7,
+        ).pack(side=tk.RIGHT)
+        ModernButton(
+            actions,
+            text=_("Create credential"),
+            command=create,
+            style="success",
+            padx=15,
+            pady=7,
+        ).pack(side=tk.RIGHT, padx=(0, 8))
+        name_entry.bind("<Return>", lambda _event: create())
+        form.bind("<Escape>", lambda _event: form.destroy())
+        name_entry.focus_set()
+
+    def _show_one_time_secret(self, created):
+        dialog = tk.Toplevel(self)
+        dialog.title(_("Copy Credential"))
+        dialog.configure(bg=self._theme.bg_primary)
+        dialog.geometry("620x280")
+        dialog.resizable(False, False)
+        dialog.transient(self)
+        dialog.grab_set()
+        apply_window_chrome(dialog)
+
+        content = tk.Frame(
+            dialog,
+            bg=self._theme.bg_primary,
+            padx=24,
+            pady=20,
+        )
+        content.pack(fill=tk.BOTH, expand=True)
+        tk.Label(
+            content,
+            text=_("Copy this credential now"),
+            bg=self._theme.bg_primary,
+            fg=self._theme.text_primary,
+            font=FONTS.subtitle(bold=True),
+        ).pack(anchor="w")
+        tk.Label(
+            content,
+            text=_(
+                "The secret is shown once. Bookmark Organizer Pro stores only "
+                "a salted verifier and cannot reveal it later."
+            ),
+            bg=self._theme.bg_primary,
+            fg=self._theme.text_secondary,
+            font=FONTS.small(),
+            wraplength=560,
+            justify=tk.LEFT,
+        ).pack(anchor="w", pady=(4, 12))
+
+        token_var = tk.StringVar(value=created.token)
+        token_entry = tk.Entry(
+            content,
+            textvariable=token_var,
+            state="readonly",
+            readonlybackground=self._theme.bg_secondary,
+            fg=self._theme.text_primary,
+            font=FONTS.mono(),
+            relief=tk.FLAT,
+        )
+        token_entry.pack(fill=tk.X, ipady=7)
+        token_entry.selection_range(0, tk.END)
+
+        status_var = tk.StringVar(
+            value=format_message(
+                "Fingerprint: sha256:{value_0}",
+                value_0=created.fingerprint,
+            )
+        )
+        tk.Label(
+            content,
+            textvariable=status_var,
+            bg=self._theme.bg_primary,
+            fg=self._theme.text_secondary,
+            font=FONTS.small(),
+        ).pack(anchor="w", pady=(7, 0))
+
+        actions = tk.Frame(content, bg=self._theme.bg_primary)
+        actions.pack(fill=tk.X, side=tk.BOTTOM)
+
+        def copy_secret():
+            dialog.clipboard_clear()
+            dialog.clipboard_append(created.token)
+            status_var.set(_("Copied. Store it in your client or password manager now."))
+
+        ModernButton(
+            actions,
+            text=_("Copy"),
+            command=copy_secret,
+            style="primary",
+            padx=18,
+            pady=7,
+        ).pack(side=tk.LEFT)
+        ModernButton(
+            actions,
+            text=_("Done"),
+            command=dialog.destroy,
+            padx=18,
+            pady=7,
+        ).pack(side=tk.RIGHT)
+        dialog.bind("<Escape>", lambda _event: dialog.destroy())
+        token_entry.focus_set()
+
+    def _rotate_selected(self):
+        identifier, row = self._selected()
+        if not identifier or row is None:
+            return
+        if not messagebox.askyesno(
+            _("Rotate credential?"),
+            _(
+                "The current secret will stop working immediately. "
+                "Continue and show a replacement secret?"
+            ),
+            parent=self,
+        ):
+            return
+        try:
+            created = self.credential_manager.rotate_credential(identifier)
+        except (AtomicDocumentError, KeyError, ValueError, OSError) as exc:
+            messagebox.showerror(_("Credential not rotated"), str(exc), parent=self)
+            return
+        self._show_one_time_secret(created)
+        self._refresh()
+
+    def _revoke_selected(self):
+        identifier, row = self._selected()
+        if not identifier or row is None:
+            return
+        if not messagebox.askyesno(
+            _("Revoke credential?"),
+            format_message(
+                "Revoke '{value_0}' immediately? This cannot be undone.",
+                value_0=row["name"],
+            ),
+            parent=self,
+        ):
+            return
+        try:
+            changed = self.credential_manager.revoke_credential(identifier)
+        except (AtomicDocumentError, OSError) as exc:
+            messagebox.showerror(_("Credential not revoked"), str(exc), parent=self)
+            return
+        if not changed:
+            messagebox.showinfo(
+                _("Credential unchanged"),
+                _("The selected credential was already revoked or no longer exists."),
+                parent=self,
+            )
+        self._refresh()
