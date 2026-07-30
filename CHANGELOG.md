@@ -13,6 +13,11 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Changed
 
+- Routed application preferences through one versioned, checksummed settings
+  store with legacy migration, unknown-key preservation, bounded optimistic
+  retries, disjoint-write merging, and deterministic same-key conflict errors;
+  theme, density, accessibility, privacy, scheduler, reranker, and screenshot
+  consumers no longer perform independent file read-modify-write cycles.
 - Versioned reader-highlight anchors now combine source digests, exact quotes,
   and bounded context: unchanged content keeps its offsets, uniquely moved
   passages re-anchor deterministically, ambiguous or missing passages surface

@@ -18,6 +18,10 @@ from bookmark_organizer_pro.constants import APP_DIR, DATA_DIR, SETTINGS_FILE
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.egress import public_egress as requests
+from bookmark_organizer_pro.services.settings_store import (
+    SettingsStore,
+    load_settings,
+)
 from bookmark_organizer_pro.url_utils import URLUtilities
 from bookmark_organizer_pro.utils import sanitize_filename
 from bookmark_organizer_pro.utils.runtime import atomic_json_write as _atomic_json_write
@@ -66,10 +70,8 @@ class FaviconPrivacyPolicy:
 def load_favicon_policy(settings_file: Path = SETTINGS_FILE) -> FaviconPrivacyPolicy:
     """Load a fail-closed favicon policy; fresh and invalid profiles stay offline."""
     try:
-        data = json.loads(Path(settings_file).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, TypeError):
-        data = {}
-    if not isinstance(data, dict):
+        data = load_settings(settings_file)
+    except (OSError, TypeError, ValueError):
         data = {}
     return FaviconPrivacyPolicy(
         enabled=data.get(FAVICON_ENABLED_KEY) is True,
@@ -83,16 +85,12 @@ def save_favicon_policy(
 ) -> FaviconPrivacyPolicy:
     """Persist favicon consent without discarding unrelated settings keys."""
     normalized = policy.normalized()
-    path = Path(settings_file)
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, TypeError):
-        data = {}
-    if not isinstance(data, dict):
-        data = {}
-    data[FAVICON_ENABLED_KEY] = normalized.enabled
-    data[FAVICON_PROXY_KEY] = normalized.proxy_provider
-    _atomic_json_write(path, data)
+    SettingsStore(settings_file).patch(
+        {
+            FAVICON_ENABLED_KEY: normalized.enabled,
+            FAVICON_PROXY_KEY: normalized.proxy_provider,
+        }
+    )
     return normalized
 
 

@@ -26,27 +26,28 @@ from bookmark_organizer_pro.ui.widgets import set_widget_window_chrome_provider
 
 def _show_first_run_privacy_notice(root: tk.Tk):
     """Show a one-time privacy banner at the top of the window (non-modal)."""
-    import json
     from bookmark_organizer_pro.constants import SETTINGS_FILE
+    from bookmark_organizer_pro.services.settings_store import SettingsStore
     from bookmark_organizer_pro.ui.foundation import FONTS, readable_text_on
+    settings_store = SettingsStore(SETTINGS_FILE)
     try:
-        if SETTINGS_FILE.exists():
-            settings = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
-            if settings.get("privacy_notice_shown"):
-                return
-        else:
-            settings = {}
-    except Exception:
-        settings = {}
+        settings_snapshot = settings_store.read()
+        if settings_snapshot.get("privacy_notice_shown"):
+            return
+    except Exception as exc:
+        log.warning(f"Could not load privacy-notice preference: {exc}")
+        settings_snapshot = None
 
     def _dismiss_banner():
         banner.destroy()
-        settings["privacy_notice_shown"] = True
         try:
-            SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
-            SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
-        except Exception:
-            pass
+            settings_store.set(
+                "privacy_notice_shown",
+                True,
+                base_snapshot=settings_snapshot,
+            )
+        except Exception as exc:
+            log.warning(f"Could not save privacy-notice preference: {exc}")
 
     try:
         from bookmark_organizer_pro.theme_runtime import get_theme

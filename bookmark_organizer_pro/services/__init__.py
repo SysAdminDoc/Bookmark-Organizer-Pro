@@ -115,6 +115,13 @@ from .snapshot import (
     load_snapshot_manifest,
     open_snapshot_file,
 )
+from .settings_store import (
+    SettingsConflictError,
+    SettingsSnapshot,
+    SettingsStore,
+    load_settings,
+    update_settings,
+)
 from .tag_linter import LintReport, TagLinter, TagSuggestion
 from .updates import (
     StagedUpdateStatus,
@@ -183,6 +190,8 @@ __all__ = [
     "SnapshotFailureStore", "SnapshotFormat", "SnapshotManifest",
     "classify_snapshot_payload", "ensure_snapshot_manifest",
     "load_snapshot_manifest", "open_snapshot_file",
+    "SettingsConflictError", "SettingsSnapshot", "SettingsStore",
+    "load_settings", "update_settings",
     "LintReport", "TagLinter", "TagSuggestion",
     "StagedUpdateStatus", "UpdateApplyPreflightResult", "UpdateApplyPlan",
     "UpdateCheckResult", "UpdateCleanupResult", "UpdateDownloadResult",

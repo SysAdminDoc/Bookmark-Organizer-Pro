@@ -1,5 +1,6 @@
 import hashlib
 import json
+import multiprocessing
 import sqlite3
 import threading
 from pathlib import Path
@@ -16,6 +17,55 @@ from bookmark_organizer_pro.core import (
 )
 from bookmark_organizer_pro.managers.bookmarks import BookmarkManager
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.atomic_document_store import (
+    AtomicDocumentConflictError,
+    AtomicDocumentRecoveryError,
+)
+from bookmark_organizer_pro.services.settings_store import (
+    SETTINGS_SCHEMA,
+    SETTINGS_SCHEMA_VERSION,
+    SettingsConflictError,
+    SettingsStore,
+)
+
+
+def _settings_patch_process(path, key, value, ready, release, outcomes):
+    store = SettingsStore(path)
+    baseline = store.read()
+    ready.put(baseline.revision)
+    if not release.wait(15):
+        outcomes.put(("timeout", key, baseline.revision))
+        return
+    try:
+        saved = store.set(key, value, base_snapshot=baseline)
+        outcomes.put(("saved", key, value, saved.revision))
+    except SettingsConflictError as exc:
+        outcomes.put(("conflict", ",".join(exc.keys), str(exc), exc.actual_revision))
+
+
+def _run_settings_processes(path: Path, patches: list[tuple[str, object]]) -> list[tuple]:
+    context = multiprocessing.get_context("spawn")
+    ready = context.Queue()
+    release = context.Event()
+    outcomes = context.Queue()
+    processes = [
+        context.Process(
+            target=_settings_patch_process,
+            args=(str(path), key, value, ready, release, outcomes),
+        )
+        for key, value in patches
+    ]
+    for process in processes:
+        process.start()
+    for _process in processes:
+        ready.get(timeout=20)
+    release.set()
+    results = [outcomes.get(timeout=20) for _process in processes]
+    for process in processes:
+        process.join(timeout=20)
+        assert not process.is_alive()
+        assert process.exitcode == 0
+    return results
 
 
 def _bookmark(bookmark_id: int, name: str) -> Bookmark:
@@ -26,6 +76,134 @@ def _bookmark(bookmark_id: int, name: str) -> Bookmark:
         tags=["preserved"],
         custom_data={"source_id": f"source-{bookmark_id}"},
     )
+
+
+def test_settings_store_migrates_legacy_and_preserves_unknown_keys(tmp_path):
+    path = tmp_path / "settings.json"
+    legacy = {
+        "theme": "github_dark",
+        "future_plugin": {
+            "enabled": True,
+            "weights": [1, 2, 3],
+        },
+    }
+    path.write_text(json.dumps(legacy), encoding="utf-8")
+
+    store = SettingsStore(path)
+    snapshot = store.read()
+    saved = store.set(
+        "display_density",
+        "spacious",
+        base_snapshot=snapshot,
+    )
+    envelope = json.loads(path.read_text(encoding="utf-8"))
+
+    assert envelope["schema"] == SETTINGS_SCHEMA
+    assert envelope["version"] == SETTINGS_SCHEMA_VERSION
+    assert envelope["revision"] == saved.revision == 2
+    assert saved.values["future_plugin"] == legacy["future_plugin"]
+    assert saved.values["theme"] == "github_dark"
+    assert saved.values["display_density"] == "spacious"
+
+
+def test_settings_store_rejects_invalid_values_without_overwriting(tmp_path):
+    path = tmp_path / "settings.json"
+    store = SettingsStore(path)
+    store.set("theme", "github_dark")
+    before = path.read_bytes()
+
+    with pytest.raises(ValueError, match="finite"):
+        store.set("invalid", float("nan"))
+
+    assert path.read_bytes() == before
+
+
+def test_settings_store_refuses_to_replace_unrecoverable_document(tmp_path):
+    path = tmp_path / "settings.json"
+    damaged = b"{not-json"
+    path.write_bytes(damaged)
+    store = SettingsStore(path)
+
+    assert store.read().values == {}
+    assert store.storage_status.recovery_required
+    with pytest.raises(AtomicDocumentRecoveryError):
+        store.set("theme", "github_dark")
+    assert path.read_bytes() == damaged
+
+
+def test_settings_store_bounds_disjoint_conflict_retries(tmp_path, monkeypatch):
+    store = SettingsStore(tmp_path / "settings.json", conflict_retries=2)
+    baseline = store.read()
+    attempts = []
+
+    def always_conflict(*_args, **_kwargs):
+        attempts.append(True)
+        raise AtomicDocumentConflictError("raced")
+
+    monkeypatch.setattr(store._store, "save", always_conflict)
+    with pytest.raises(SettingsConflictError, match="changed during 2 merge attempts"):
+        store.set("theme", "github_dark", base_snapshot=baseline)
+    assert len(attempts) == 2
+
+
+def test_multiprocess_disjoint_settings_changes_merge_without_loss(tmp_path):
+    path = tmp_path / "settings.json"
+    SettingsStore(path).patch({"unknown_extension_key": {"keep": True}})
+
+    outcomes = _run_settings_processes(
+        path,
+        [
+            ("theme", "github_light"),
+            ("display_density", "compact"),
+        ],
+    )
+    values = SettingsStore(path).read().values
+
+    assert sorted(result[0] for result in outcomes) == ["saved", "saved"]
+    assert values == {
+        "unknown_extension_key": {"keep": True},
+        "theme": "github_light",
+        "display_density": "compact",
+    }
+
+
+def test_multiprocess_same_key_settings_change_surfaces_one_conflict(tmp_path):
+    path = tmp_path / "settings.json"
+    SettingsStore(path).set("theme", "github_dark")
+
+    outcomes = _run_settings_processes(
+        path,
+        [
+            ("theme", "github_light"),
+            ("theme", "dracula"),
+        ],
+    )
+    saved = next(result for result in outcomes if result[0] == "saved")
+    conflict = next(result for result in outcomes if result[0] == "conflict")
+
+    assert sorted(result[0] for result in outcomes) == ["conflict", "saved"]
+    assert conflict[1] == "theme"
+    assert "persisted value was kept" in conflict[2]
+    assert SettingsStore(path).read().values["theme"] == saved[2]
+
+
+def test_production_settings_consumers_use_the_shared_store():
+    root = Path(__file__).resolve().parents[1] / "bookmark_organizer_pro"
+    expected_boundaries = {
+        "launcher.py": "SettingsStore",
+        "ui/theme.py": "SettingsStore",
+        "ui/density.py": "SettingsStore",
+        "ui/treeview.py": "SettingsStore",
+        "services/favicons.py": "SettingsStore",
+        "app_mixins/lifecycle.py": "load_settings",
+        "services/hybrid_search.py": "load_settings",
+        "services/web_tools.py": "load_settings",
+    }
+    for relative, boundary in expected_boundaries.items():
+        source = (root / relative).read_text(encoding="utf-8")
+        assert boundary in source, relative
+        assert "SETTINGS_FILE.write_text" not in source, relative
+        assert "settings_file.write_text" not in source, relative
 
 
 @pytest.mark.parametrize("backend,suffix", [("json", ".json"), ("sqlite", ".sqlite")])

@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import json
-import os
-import tempfile
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Union
+from typing import Any, Callable, Dict, List, Union
 
 from bookmark_organizer_pro.constants import SETTINGS_FILE
 from bookmark_organizer_pro.logging_config import log
+from bookmark_organizer_pro.services.settings_store import SettingsStore
 
 
 class DisplayDensity(Enum):
@@ -55,19 +53,26 @@ class DensityManager:
         default_density: DisplayDensity = DisplayDensity.COMFORTABLE,
     ):
         self.settings_file = Path(settings_file)
+        self._settings_store = SettingsStore(self.settings_file)
+        self._settings_snapshot = None
         self.default_density = default_density
         self._density = default_density
         self._callbacks: List[Callable[[DisplayDensity], None]] = []
         self._load_settings()
 
     def _load_settings(self) -> None:
-        data = _read_json_object(self.settings_file)
-        self._density = _coerce_density(data.get("display_density"), self.default_density)
+        self._settings_snapshot = self._settings_store.read()
+        self._density = _coerce_density(
+            self._settings_snapshot.get("display_density"),
+            self.default_density,
+        )
 
     def _save_settings(self) -> None:
-        data = _read_json_object(self.settings_file)
-        data["display_density"] = self._density.value
-        _atomic_json_write(self.settings_file, data)
+        self._settings_snapshot = self._settings_store.set(
+            "display_density",
+            self._density.value,
+            base_snapshot=self._settings_snapshot,
+        )
 
     @property
     def density(self) -> DisplayDensity:
@@ -77,8 +82,13 @@ class DensityManager:
     def density(self, value: Union[DisplayDensity, str]) -> None:
         next_density = _coerce_density(value, self.default_density)
         if self._density != next_density:
+            previous_density = self._density
             self._density = next_density
-            self._save_settings()
+            try:
+                self._save_settings()
+            except Exception:
+                self._density = previous_density
+                raise
             self._notify_callbacks()
 
     def get_setting(self, key: str, default: Any = None) -> Any:
@@ -110,29 +120,3 @@ def _coerce_density(value: object, default: DisplayDensity) -> DisplayDensity:
         return DisplayDensity(str(value))
     except Exception:
         return default
-
-
-def _read_json_object(filepath: Path) -> Dict[str, object]:
-    try:
-        with Path(filepath).open("r", encoding="utf-8") as handle:
-            data = json.load(handle)
-        return data if isinstance(data, dict) else {}
-    except FileNotFoundError:
-        return {}
-    except Exception as exc:
-        log.warning(f"Could not read settings file {filepath}: {exc}")
-        return {}
-
-
-def _atomic_json_write(filepath: Path, data: Mapping[str, object], indent: int = 2) -> None:
-    filepath = Path(filepath)
-    filepath.parent.mkdir(parents=True, exist_ok=True)
-    fd, temp_path = tempfile.mkstemp(dir=filepath.parent, suffix=".tmp", text=True)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump(dict(data), handle, indent=indent, ensure_ascii=False)
-        os.replace(temp_path, filepath)
-    except Exception:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-        raise

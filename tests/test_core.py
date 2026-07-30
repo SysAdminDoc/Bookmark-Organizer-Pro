@@ -32,6 +32,7 @@ from bookmark_organizer_pro.importers import OPMLExporter, OPMLImporter, Raindro
 from bookmark_organizer_pro.io_formats import XBELHandler
 from bookmark_organizer_pro.link_checker import LinkChecker
 from bookmark_organizer_pro.search import SearchQuery, SearchEngine, levenshtein_distance, fuzzy_match
+from bookmark_organizer_pro.services.settings_store import load_settings
 from bookmark_organizer_pro.ui import (
     DensityManager,
     DisplayDensity,
@@ -2915,7 +2916,7 @@ class TestUITheme(unittest.TestCase):
 
             self.assertTrue(manager.set_theme("light"))
             self.assertEqual(events, ["light"])
-            self.assertEqual(json.loads(settings_file.read_text(encoding="utf-8"))["theme"], "light")
+            self.assertEqual(load_settings(settings_file)["theme"], "light")
 
             reloaded = ThemeManager(
                 self._built_in_themes(),
@@ -2960,7 +2961,7 @@ class TestUIPreferences(unittest.TestCase):
 
             self.assertEqual(manager.density, DisplayDensity.SPACIOUS)
             self.assertEqual(events, [DisplayDensity.SPACIOUS])
-            data = json.loads(settings_file.read_text(encoding="utf-8"))
+            data = load_settings(settings_file)
             self.assertEqual(data["theme"], "github_dark")
             self.assertEqual(data["display_density"], "spacious")
             self.assertEqual(manager.get_setting("icon_size"), 20)
@@ -2971,6 +2972,41 @@ class TestUIPreferences(unittest.TestCase):
             settings_file.write_text(json.dumps({"display_density": "microscopic"}), encoding="utf-8")
             manager = DensityManager(settings_file=settings_file)
             self.assertEqual(manager.density, DisplayDensity.COMFORTABLE)
+
+    def test_theme_and_density_managers_merge_stale_disjoint_preferences(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            settings_file = base / "settings.json"
+            settings_file.write_text(
+                json.dumps({"future_plugin": {"keep": True}}),
+                encoding="utf-8",
+            )
+            theme_manager = ThemeManager(
+                {
+                    "base": ThemeInfo(name="base", display_name="Base"),
+                    "light": ThemeInfo(
+                        name="light",
+                        display_name="Light",
+                        is_dark=False,
+                    ),
+                },
+                settings_file=settings_file,
+                themes_dir=base / "themes",
+                default_theme="base",
+            )
+            density_manager = DensityManager(settings_file=settings_file)
+
+            self.assertTrue(theme_manager.set_theme("light"))
+            density_manager.density = "spacious"
+
+            self.assertEqual(
+                load_settings(settings_file),
+                {
+                    "future_plugin": {"keep": True},
+                    "theme": "light",
+                    "display_density": "spacious",
+                },
+            )
 
     def test_system_theme_detector_monitor_callback(self):
         class FakeRoot:

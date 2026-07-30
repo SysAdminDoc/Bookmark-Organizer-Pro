@@ -3525,7 +3525,7 @@ msgid "{value_0} match for #{value_1}"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/dashboard.py:220
-#: bookmark_organizer_pro/app_mixins/lifecycle.py:118
+#: bookmark_organizer_pro/app_mixins/lifecycle.py:117
 msgid "{value_0} selected"
 msgstr ""
 

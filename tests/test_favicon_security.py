@@ -17,6 +17,7 @@ from bookmark_organizer_pro.services.favicons import (
     load_favicon_policy,
     save_favicon_policy,
 )
+from bookmark_organizer_pro.services.settings_store import load_settings
 
 
 class _Response:
@@ -178,7 +179,7 @@ class TestFaviconSecurity(unittest.TestCase):
             FaviconPrivacyPolicy(enabled=True, proxy_provider="duckduckgo"),
             settings_file,
         )
-        data = json.loads(settings_file.read_text(encoding="utf-8"))
+        data = load_settings(settings_file)
 
         self.assertEqual(
             saved,

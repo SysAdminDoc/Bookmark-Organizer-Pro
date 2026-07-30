@@ -2,6 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from bookmark_organizer_pro.services.bookmark_graph import BookmarkGraph, GraphNode
+from bookmark_organizer_pro.services.settings_store import load_settings
 from bookmark_organizer_pro.ui.graph_view import GraphViewDialog, _directional_node_id
 from bookmark_organizer_pro.ui import treeview
 from bookmark_organizer_pro.ui.tk_interactions import (
@@ -197,7 +198,7 @@ def test_accessible_bookmark_list_preference_is_persistent_and_non_destructive(t
     treeview.save_accessible_list_mode(True, settings)
 
     assert treeview.accessible_list_mode_enabled(settings) is True
-    assert '"theme": "Studio Dark"' in settings.read_text(encoding="utf-8")
+    assert load_settings(settings)["theme"] == "Studio Dark"
     treeview.save_accessible_list_mode(False, settings)
     assert treeview.accessible_list_mode_enabled(settings) is False
 

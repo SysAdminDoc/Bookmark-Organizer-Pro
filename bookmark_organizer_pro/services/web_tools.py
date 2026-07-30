@@ -715,13 +715,11 @@ class ScreenshotCapture:
                 return None
             # thum.io sends the bookmark URL to a third-party service.
             # Only proceed if the user has explicitly opted in via settings.
-            from bookmark_organizer_pro.constants import SETTINGS_FILE
-            import json as _json
+            from bookmark_organizer_pro.services.settings_store import load_settings
             _opt_in = False
             try:
-                if SETTINGS_FILE.exists():
-                    _settings = _json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
-                    _opt_in = bool(_settings.get("screenshot_api_enabled", False))
+                _settings = load_settings()
+                _opt_in = bool(_settings.get("screenshot_api_enabled", False))
             except Exception:
                 pass
             if not _opt_in:

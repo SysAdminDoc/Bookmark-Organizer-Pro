@@ -2,7 +2,7 @@
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **verified offline snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
-Executable product contract: 62 CLI subcommands, 33 MCP tools, 6 AI providers, 3 extension surfaces, 49 service modules, 42 UI modules, and 42 test files.
+Executable product contract: 62 CLI subcommands, 33 MCP tools, 6 AI providers, 3 extension surfaces, 50 service modules, 42 UI modules, and 42 test files.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
 ![Version](https://img.shields.io/badge/Version-v6.12.0-2dd4bf.svg)
@@ -460,18 +460,30 @@ pinned download-and-verify commands; it never pipes a remote script to a shell.
 
 ### Settings File Format
 
+`settings.json` is a revisioned, checksummed document. The app migrates the
+historical plain JSON object automatically; do not hand-edit the envelope or its
+checksum. Preference values live under its `document` key, for example:
+
 ```json
 {
-  "theme": "github_dark",
-  "view_mode": "list",
-  "show_favicons": true,
-  "confirm_delete": true,
-  "auto_backup": true,
-  "backup_count": 10,
-  "sidebar_width": 250,
-  "check_urls_on_import": false
+  "schema": "bookmark-organizer-pro/settings",
+  "version": 1,
+  "revision": 7,
+  "updated_at": "2026-07-29T14:30:00.000",
+  "checksum": "<managed SHA-256>",
+  "document": {
+    "theme": "github_dark",
+    "display_density": "comfortable",
+    "accessible_bookmark_list": false,
+    "favicon_display_enabled": false,
+    "favicon_proxy_provider": "none"
+  }
 }
 ```
+
+All app preference changes use revision checks. Concurrent changes to different
+keys merge; a stale change to the same key is rejected and keeps the persisted
+value.
 
 ### Environment Variables
 

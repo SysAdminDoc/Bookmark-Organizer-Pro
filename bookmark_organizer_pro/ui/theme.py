@@ -18,6 +18,7 @@ from typing import Callable, Dict, List, Mapping, Optional, Union
 
 from bookmark_organizer_pro.constants import SETTINGS_FILE, THEMES_DIR
 from bookmark_organizer_pro.logging_config import log
+from bookmark_organizer_pro.services.settings_store import SettingsStore
 from bookmark_organizer_pro.ui.foundation import contrast_ratio
 
 
@@ -203,6 +204,8 @@ class ThemeManager:
 
         self.built_in_themes = dict(built_in_themes)
         self.settings_file = Path(settings_file)
+        self._settings_store = SettingsStore(self.settings_file)
+        self._settings_snapshot = None
         self.themes_dir = Path(themes_dir)
         self.default_theme = (
             default_theme if default_theme in self.built_in_themes else next(iter(self.built_in_themes))
@@ -224,8 +227,8 @@ class ThemeManager:
         ``darkdetect`` (optional dependency). Falls back to the built-in
         default if darkdetect is unavailable or the OS preference is unknown.
         """
-        settings = _read_json_object(self.settings_file)
-        theme_name = settings.get("theme", "")
+        self._settings_snapshot = self._settings_store.read()
+        theme_name = self._settings_snapshot.get("theme", "")
         if not theme_name:
             theme_name = self._detect_os_theme() or self.default_theme
         if isinstance(theme_name, str):
@@ -261,9 +264,11 @@ class ThemeManager:
 
     def save_settings(self) -> None:
         """Persist the active theme while preserving unrelated settings."""
-        settings = _read_json_object(self.settings_file)
-        settings["theme"] = self.current_theme.name
-        _atomic_json_write(self.settings_file, settings)
+        self._settings_snapshot = self._settings_store.set(
+            "theme",
+            self.current_theme.name,
+            base_snapshot=self._settings_snapshot,
+        )
 
     def get_all_themes(self) -> Dict[str, ThemeInfo]:
         """Return built-in and custom themes in display order."""
@@ -275,8 +280,13 @@ class ThemeManager:
         if not theme:
             return False
 
+        previous_theme = self.current_theme
         self.current_theme = theme
-        self.save_settings()
+        try:
+            self.save_settings()
+        except Exception:
+            self.current_theme = previous_theme
+            raise
         self._notify_theme_change()
         return True
 
