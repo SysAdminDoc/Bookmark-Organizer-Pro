@@ -163,7 +163,11 @@ class VectorStore:
         qvec = self.embedder.embed_one(query)
         if not qvec:
             return []
-        restrict = set(int(x) for x in restrict_ids) if restrict_ids else None
+        restrict = (
+            {int(x) for x in restrict_ids}
+            if restrict_ids is not None
+            else None
+        )
         with self._lock:
             if self._backend == "lancedb":
                 table = self._table()

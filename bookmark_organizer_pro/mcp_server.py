@@ -911,7 +911,7 @@ def _resolve_chat_scope_ids(s: BookmarkServices, restrict_ids: Optional[List[int
                             restrict_category: str = "") -> Optional[List[int]]:
     restrict_tag = _sanitize_str(restrict_tag, 200)
     restrict_category = _sanitize_str(restrict_category, 200)
-    ids = list(restrict_ids) if restrict_ids else None
+    ids = list(restrict_ids) if restrict_ids is not None else None
     if restrict_tag or restrict_category:
         bms = s.bookmark_manager.get_all_bookmarks()
         if restrict_tag:

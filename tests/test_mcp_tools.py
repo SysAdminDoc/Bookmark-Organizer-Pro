@@ -267,6 +267,14 @@ class TestChatStreaming(MCPToolTestBase):
         self.assertTrue(result["done"])
         self.assertEqual(services.chat.calls[0]["restrict_ids"], [1])
 
+    def test_chat_stream_preserves_explicit_empty_scope(self):
+        services = self._fake_services()
+        self.ms.SERVICES = services
+
+        self.ms.t_chat_stream("Scoped?", restrict_ids=[])
+
+        self.assertEqual(services.chat.calls[0]["restrict_ids"], [])
+
 
 class TestDeadLinks(MCPToolTestBase):
     def test_list_dead_links(self):

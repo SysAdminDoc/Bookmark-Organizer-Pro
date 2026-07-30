@@ -57,6 +57,10 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Security
 
+- Added one bounded, JSON-encoded untrusted-evidence boundary for retrieved page
+  text across collection chat and both summarizers; out-of-scope chunks,
+  uncited claims, unknown citation IDs, and unsafe pre-validation stream events
+  now fail closed, including explicit empty collection scopes.
 - Replaced free-form diagnostic export with an allowlisted, preview-before-save
   support bundle that excludes bookmark content, local paths, usernames, URL
   details, credentials, and raw log messages; hostname retention is explicit.

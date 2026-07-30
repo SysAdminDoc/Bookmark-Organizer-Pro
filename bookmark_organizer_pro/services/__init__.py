@@ -7,6 +7,13 @@ from .ai_tools import (
     SemanticDuplicateDetector,
 )
 from .api import BookmarkAPI
+from .ai_context import (
+    CitedOutput,
+    UntrustedEvidenceBundle,
+    UntrustedEvidenceChunk,
+    build_untrusted_evidence,
+    enforce_citation_policy,
+)
 from .citation_summarizer import (
     Citation,
     CitationSummarizer,
@@ -148,6 +155,8 @@ __all__ = [
     # Existing
     "AIBatchProcessor", "AICostTracker", "AITagSuggester",
     "SemanticDuplicateDetector", "BookmarkAPI",
+    "CitedOutput", "UntrustedEvidenceBundle", "UntrustedEvidenceChunk",
+    "build_untrusted_evidence", "enforce_citation_policy",
     "FaviconPrivacyPolicy", "FaviconWrapperGenerator", "HighSpeedFaviconManager",
     "load_favicon_policy", "save_favicon_policy",
     "export_opds", "render_opds",

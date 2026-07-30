@@ -178,11 +178,11 @@ def safe_slice(lst, start: int = 0, end: int = None, default=None):
 
 
 def sanitize_for_prompt(text: str, max_len: int = 2000) -> str:
-    """Sanitize user-supplied text before inserting into an LLM prompt.
+    """Normalize and bound a short trusted prompt field.
 
-    Strips control characters and XML/markdown delimiter sequences that could
-    cause prompt-injection or confuse structured output parsers.  Truncates
-    to *max_len* characters.
+    This helper does not make retrieved or third-party text trustworthy. Page
+    content must use ``services.ai_context.build_untrusted_evidence`` so its
+    data-only role is structurally explicit and provider output is validated.
     """
     if not text:
         return ""

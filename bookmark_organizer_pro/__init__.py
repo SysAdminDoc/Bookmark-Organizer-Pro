@@ -61,6 +61,8 @@ from .services import (
     SettingsProfile, SettingsProfileManager, SmartTagManager, SmartTagRule,
     VersionHistory,
     # v6.0.0 additions
+    CitedOutput, UntrustedEvidenceBundle, UntrustedEvidenceChunk,
+    build_untrusted_evidence, enforce_citation_policy,
     Citation, CitationSummarizer, CitedSummary,
     DeadLinkRecord, DeadLinkScanner, ScanProgress,
     DailyDigest, DailyDigestService, DigestSection,
@@ -161,6 +163,8 @@ __all__ = [
     "SettingsProfile", "SettingsProfileManager", "SmartTagManager", "SmartTagRule",
     "VersionHistory",
     # v6.0.0 additions
+    "CitedOutput", "UntrustedEvidenceBundle", "UntrustedEvidenceChunk",
+    "build_untrusted_evidence", "enforce_citation_policy",
     "Citation", "CitationSummarizer", "CitedSummary",
     "DeadLinkRecord", "DeadLinkScanner", "ScanProgress",
     "DailyDigest", "DailyDigestService", "DigestSection",

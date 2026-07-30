@@ -2,7 +2,7 @@
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **verified offline snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
-Executable product contract: 62 CLI subcommands, 33 MCP tools, 6 AI providers, 3 extension surfaces, 50 service modules, 42 UI modules, and 42 test files.
+Executable product contract: 62 CLI subcommands, 33 MCP tools, 6 AI providers, 3 extension surfaces, 51 service modules, 42 UI modules, and 42 test files.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
 ![Version](https://img.shields.io/badge/Version-v6.12.0-2dd4bf.svg)
@@ -230,6 +230,9 @@ Native messaging and offline category/tag suggestions remain on the roadmap.
 - **Tag Generation**: Automatic tag suggestions using AI
 - **Title Improvement**: Clean up and improve bookmark titles
 - **Content Summarization**: Generate summaries for bookmarks
+- **Evidence-Bound Answers**: Page text is passed to providers only as bounded,
+  explicitly untrusted JSON evidence; assistant answers and summaries retain
+  only sentences citing supplied chunk IDs
 - **Multiple Providers**: OpenAI, Anthropic, Google Gemini, Groq, Ollama (local)
 
 ### UI/UX
