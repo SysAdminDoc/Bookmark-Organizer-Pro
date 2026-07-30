@@ -225,7 +225,10 @@ License: {LICENSE}
             (_("Navigation"), _("Keyboard-friendly navigation and command actions")),
             (_("Undo/Redo"), _("Bookmark-level action history")),
             (_("Link Checker"), _("Validate bookmark URLs")),
-            (_("Favicons"), _("Automatic favicon downloading and caching")),
+            (
+                _("Favicons"),
+                _("Opt-in site icons with same-origin-first fetching and named proxy consent"),
+            ),
         ]
         
         for i, (name, desc) in enumerate(features):

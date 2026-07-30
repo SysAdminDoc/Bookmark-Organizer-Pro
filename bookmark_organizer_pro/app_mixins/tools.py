@@ -19,6 +19,12 @@ from bookmark_organizer_pro.core.category_manager import get_category_icon
 from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Category
+from bookmark_organizer_pro.services.favicons import (
+    FAVICON_PROXY_NONE,
+    FAVICON_PROXY_PROVIDERS,
+    FaviconPrivacyPolicy,
+    save_favicon_policy,
+)
 from bookmark_organizer_pro.services.snapshot import SnapshotArchiver, SnapshotFailureStore
 from bookmark_organizer_pro.ui.cleanup_review import (
                 CleanupApplyResult,
@@ -66,6 +72,46 @@ class ToolsActionsMixin:
             variable=self._accessible_list_var,
             command=self._save_accessible_list_preference,
         )
+        self._favicon_enabled_var = tk.BooleanVar(
+            value=self.favicon_manager.enabled
+        )
+        menu.add_checkbutton(
+            label=_("Show and fetch site icons"),
+            variable=self._favicon_enabled_var,
+            command=self._save_favicon_enabled_preference,
+        )
+        self._favicon_proxy_var = tk.StringVar(
+            value=self.favicon_manager.proxy_provider
+        )
+        proxy_menu = tk.Menu(
+            menu,
+            tearoff=0,
+            bg=theme.bg_secondary,
+            fg=theme.text_primary,
+            font=FONTS.body(),
+            activebackground=theme.bg_hover,
+            activeforeground=theme.text_primary,
+            bd=0,
+        )
+        proxy_menu.add_radiobutton(
+            label=_("None — same-origin only"),
+            variable=self._favicon_proxy_var,
+            value=FAVICON_PROXY_NONE,
+            command=self._save_favicon_proxy_preference,
+        )
+        proxy_menu.add_radiobutton(
+            label=_("Google — shares missing domains"),
+            variable=self._favicon_proxy_var,
+            value="google",
+            command=self._save_favicon_proxy_preference,
+        )
+        proxy_menu.add_radiobutton(
+            label=_("DuckDuckGo — shares missing domains"),
+            variable=self._favicon_proxy_var,
+            value="duckduckgo",
+            command=self._save_favicon_proxy_preference,
+        )
+        menu.add_cascade(label=_("Fallback icon proxy"), menu=proxy_menu)
         menu.add_command(label=_("Manage Categories"), command=self._show_category_manager)
         menu.add_separator()
         menu.add_command(label=_("Flatten All Folders"), command=self._flatten_all_folders)
@@ -85,6 +131,75 @@ class ToolsActionsMixin:
         mode = _("enabled") if enabled else _("disabled")
         self._show_toast(
             _("Accessible bookmark table {mode}; applies on next launch").format(mode=mode),
+            "success",
+        )
+
+    def _save_favicon_enabled_preference(self):
+        """Persist display/fetch consent and immediately cancel when disabled."""
+        policy = FaviconPrivacyPolicy(
+            enabled=bool(self._favicon_enabled_var.get()),
+            proxy_provider=self.favicon_manager.proxy_provider,
+        )
+        policy = save_favicon_policy(policy)
+        self.favicon_manager.set_policy(policy)
+        self._refresh_bookmark_list()
+        if policy.enabled:
+            self.favicon_manager.queue_bookmarks(
+                self.bookmark_manager.get_all_bookmarks()
+            )
+            self._show_toast(
+                _("Site icons enabled; same-origin sources are tried first"),
+                "success",
+            )
+        else:
+            self._show_toast(
+                _("Site icons disabled; queued downloads were cancelled"),
+                "success",
+            )
+
+    def _save_favicon_proxy_preference(self):
+        """Require named consent before a saved domain can reach a proxy."""
+        selected = str(self._favicon_proxy_var.get() or FAVICON_PROXY_NONE)
+        previous = self.favicon_manager.proxy_provider
+        if selected not in FAVICON_PROXY_PROVIDERS:
+            selected = FAVICON_PROXY_NONE
+        if selected != FAVICON_PROXY_NONE:
+            disclosure = str(FAVICON_PROXY_PROVIDERS[selected]["disclosure"])
+            if not messagebox.askyesno(
+                _("Share missing favicon domains?"),
+                _(
+                    "{provider} is a third-party favicon proxy. {disclosure}\n\n"
+                    "Bookmark titles, paths, queries, and fragments are not sent. "
+                    "Enable this fallback?"
+                ).format(
+                    provider=selected.title(),
+                    disclosure=disclosure,
+                ),
+                parent=self.root,
+            ):
+                self._favicon_proxy_var.set(previous)
+                return
+
+        policy = save_favicon_policy(
+            FaviconPrivacyPolicy(
+                enabled=self.favicon_manager.enabled,
+                proxy_provider=selected,
+            )
+        )
+        self.favicon_manager.set_policy(policy)
+        if policy.enabled:
+            self.favicon_manager.queue_bookmarks(
+                self.bookmark_manager.get_all_bookmarks()
+            )
+        provider_label = (
+            _("same-origin only")
+            if selected == FAVICON_PROXY_NONE
+            else _("{provider} fallback").format(provider=selected.title())
+        )
+        self._show_toast(
+            _("Site icon privacy set to {provider}").format(
+                provider=provider_label
+            ),
             "success",
         )
 
@@ -1025,6 +1140,13 @@ class ToolsActionsMixin:
 
     def _redownload_all_favicons(self):
         """Redownload all favicons"""
+        if not self.favicon_manager.enabled:
+            self._set_status(_("Site icon fetching is disabled"))
+            self._toast(
+                _("Enable Show and fetch site icons in Settings before downloading icons"),
+                "info",
+            )
+            return
         bookmarks = self.bookmark_manager.get_all_bookmarks()
         if not bookmarks:
             self._set_status("Add bookmarks before fetching favicons")
@@ -1037,6 +1159,13 @@ class ToolsActionsMixin:
 
     def _redownload_missing_favicons(self):
         """Redownload only missing favicons"""
+        if not self.favicon_manager.enabled:
+            self._set_status(_("Site icon fetching is disabled"))
+            self._toast(
+                _("Enable Show and fetch site icons in Settings before downloading icons"),
+                "info",
+            )
+            return
         bookmarks = self.bookmark_manager.get_all_bookmarks()
         if not bookmarks:
             self._set_status("Add bookmarks before fetching favicons")

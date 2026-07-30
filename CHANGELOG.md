@@ -13,6 +13,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Changed
 
+- Made site icons private by default: fresh profiles perform no favicon egress or display, enabled fetching tries cache/same-origin paths first, Google/DuckDuckGo fallback requires named consent with domain-sharing disclosure, and disabling the preference cancels queued work.
 - Replaced unpinned Ollama setup with an explicitly confirmed, cancellable `v0.32.5` install contract: allowlisted HTTPS redirects, bounded downloads, SHA-256 verification before Windows execution, fail-closed cleanup, and verify-before-install guidance for macOS/Linux.
 - Reworked the desktop library toward the v6.14 focus-workspace design target: a laptop-safe command bar, clearer My Library/Inbox navigation, two-line sortable bookmark rows with direct favorite controls, a contextual Focus inspector with one state-aware next action, an on-demand assistant, and Ctrl+K search focus.
 - Declared the maintained BSD-3-Clause `lz4` runtime dependency for Firefox JSONLZ4 imports and made PyInstaller collect all release-profile modules, binaries, data, and metadata explicitly.

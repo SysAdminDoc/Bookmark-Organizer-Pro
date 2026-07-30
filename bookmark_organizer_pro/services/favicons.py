@@ -8,11 +8,13 @@ import json
 import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from io import BytesIO
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse
 
-from bookmark_organizer_pro.constants import APP_DIR, DATA_DIR
+from bookmark_organizer_pro.constants import APP_DIR, DATA_DIR, SETTINGS_FILE
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.egress import public_egress as requests
@@ -26,6 +28,72 @@ try:
 except Exception as exc:
     Image = None
     log.debug(f"Pillow unavailable for favicon normalization: {exc}")
+
+
+FAVICON_ENABLED_KEY = "favicon_display_enabled"
+FAVICON_PROXY_KEY = "favicon_proxy_provider"
+FAVICON_PROXY_NONE = "none"
+FAVICON_PROXY_PROVIDERS = {
+    FAVICON_PROXY_NONE: {
+        "sources": (),
+        "disclosure": "No third party receives saved bookmark domains.",
+    },
+    "google": {
+        "sources": ("https://www.google.com/s2/favicons?domain={domain}&sz=32",),
+        "disclosure": "Google receives each domain whose same-origin icon is unavailable.",
+    },
+    "duckduckgo": {
+        "sources": ("https://icons.duckduckgo.com/ip3/{domain}.ico",),
+        "disclosure": "DuckDuckGo receives each domain whose same-origin icon is unavailable.",
+    },
+}
+
+
+@dataclass(frozen=True)
+class FaviconPrivacyPolicy:
+    """Persisted opt-in state for icon display and third-party proxy use."""
+
+    enabled: bool = False
+    proxy_provider: str = FAVICON_PROXY_NONE
+
+    def normalized(self) -> "FaviconPrivacyPolicy":
+        provider = str(self.proxy_provider or FAVICON_PROXY_NONE).strip().lower()
+        if provider not in FAVICON_PROXY_PROVIDERS:
+            provider = FAVICON_PROXY_NONE
+        return FaviconPrivacyPolicy(enabled=bool(self.enabled), proxy_provider=provider)
+
+
+def load_favicon_policy(settings_file: Path = SETTINGS_FILE) -> FaviconPrivacyPolicy:
+    """Load a fail-closed favicon policy; fresh and invalid profiles stay offline."""
+    try:
+        data = json.loads(Path(settings_file).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    return FaviconPrivacyPolicy(
+        enabled=data.get(FAVICON_ENABLED_KEY) is True,
+        proxy_provider=str(data.get(FAVICON_PROXY_KEY) or FAVICON_PROXY_NONE),
+    ).normalized()
+
+
+def save_favicon_policy(
+    policy: FaviconPrivacyPolicy,
+    settings_file: Path = SETTINGS_FILE,
+) -> FaviconPrivacyPolicy:
+    """Persist favicon consent without discarding unrelated settings keys."""
+    normalized = policy.normalized()
+    path = Path(settings_file)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    data[FAVICON_ENABLED_KEY] = normalized.enabled
+    data[FAVICON_PROXY_KEY] = normalized.proxy_provider
+    _atomic_json_write(path, data)
+    return normalized
 
 
 class HighSpeedFaviconManager:
@@ -43,18 +111,19 @@ class HighSpeedFaviconManager:
     MAX_FAVICON_BYTES = 1_000_000
     MAX_FAVICON_PIXELS = 20_000_000
     
-    # Fast favicon sources (ordered by speed/reliability)
-    FAVICON_SOURCES = [
-        "https://www.google.com/s2/favicons?domain={domain}&sz=32",
-        "https://icons.duckduckgo.com/ip3/{domain}.ico",
-        "https://api.faviconkit.com/{domain}/64",
-        "https://favicone.com/{domain}?s=64",
-        "https://icon.horse/icon/{domain}",
+    # Same-origin fetches are the only network sources enabled by default.
+    SAME_ORIGIN_SOURCES = [
         "https://{domain}/favicon.ico",
         "https://{domain}/favicon.png",
     ]
     
-    def __init__(self, max_workers: int = 10):
+    def __init__(
+        self,
+        max_workers: int = 10,
+        *,
+        enabled: bool = False,
+        proxy_provider: str = FAVICON_PROXY_NONE,
+    ):
         self.CACHE_DIR.mkdir(parents=True, exist_ok=True)
         self._cache: Dict[str, Optional[str]] = {}
         self._pending: Set[str] = set()
@@ -71,6 +140,14 @@ class HighSpeedFaviconManager:
         self._completed = 0
         self._lock = threading.Lock()
         self._failed_domains: Set[str] = set()
+        self._enabled = bool(enabled)
+        provider = str(proxy_provider or FAVICON_PROXY_NONE).strip().lower()
+        self._proxy_provider = (
+            provider if provider in FAVICON_PROXY_PROVIDERS else FAVICON_PROXY_NONE
+        )
+        self._cancel_event = threading.Event()
+        if not self._enabled:
+            self._cancel_event.set()
         
         self._max_cache_mb = 500  # Evict oldest when exceeded
 
@@ -78,6 +155,50 @@ class HighSpeedFaviconManager:
         self._load_cache_index()
         self._load_failed_domains()
         self._evict_if_needed()
+
+    @property
+    def enabled(self) -> bool:
+        """Whether cached icons may be displayed and network fetches may run."""
+        with self._lock:
+            return self._enabled
+
+    @property
+    def proxy_provider(self) -> str:
+        """Named third-party provider, or ``none`` for same-origin-only mode."""
+        with self._lock:
+            return self._proxy_provider
+
+    def set_policy(self, policy: FaviconPrivacyPolicy) -> None:
+        """Apply consent changes and cancel every job from the prior policy."""
+        normalized = policy.normalized()
+        with self._lock:
+            if (
+                self._enabled == normalized.enabled
+                and self._proxy_provider == normalized.proxy_provider
+            ):
+                return
+            previous_cancel = self._cancel_event
+            previous_cancel.set()
+            futures = list(self._futures.values())
+            self._pending.clear()
+            self._callbacks.clear()
+            self._enabled = normalized.enabled
+            self._proxy_provider = normalized.proxy_provider
+            self._cancel_event = threading.Event()
+            if not normalized.enabled:
+                self._cancel_event.set()
+        for future in futures:
+            try:
+                future.cancel()
+            except Exception:
+                pass
+
+    def _network_sources(self) -> Tuple[str, ...]:
+        """Snapshot the consented source order for one download job."""
+        with self._lock:
+            provider = self._proxy_provider
+        proxy_sources = FAVICON_PROXY_PROVIDERS[provider]["sources"]
+        return tuple(self.SAME_ORIGIN_SOURCES) + tuple(proxy_sources)
 
     def _load_cache_index(self):
         """Load index of cached favicons"""
@@ -174,6 +295,8 @@ class HighSpeedFaviconManager:
     
     def get_cached(self, domain: str) -> Optional[str]:
         """Get cached favicon path (instant, non-blocking). Returns None for failed domains."""
+        if not self.enabled:
+            return None
         domain = self._normalize_domain(domain)
         if not domain:
             return None
@@ -187,6 +310,8 @@ class HighSpeedFaviconManager:
 
         callback receives (domain, filepath) when a favicon is available.
         """
+        if not self.enabled:
+            return
         domain = self._normalize_domain(urlparse(url).netloc)
         if not domain:
             return
@@ -216,6 +341,9 @@ class HighSpeedFaviconManager:
 
         # Skip if already cached or pending
         with self._lock:
+            if not self._enabled:
+                return
+            cancel_event = self._cancel_event
             if domain in self._pending:
                 cached = None
                 should_notify = False
@@ -239,7 +367,12 @@ class HighSpeedFaviconManager:
             return
         
         # Submit to thread pool
-        future = self._executor.submit(self._download_favicon, domain, bookmark_id)
+        future = self._executor.submit(
+            self._download_favicon,
+            domain,
+            bookmark_id,
+            cancel_event,
+        )
         with self._lock:
             self._futures[domain] = future
         future.add_done_callback(lambda _future, favicon_domain=domain: self._forget_future(favicon_domain))
@@ -249,8 +382,19 @@ class HighSpeedFaviconManager:
         with self._lock:
             self._futures.pop(domain, None)
     
-    def _download_favicon(self, domain: str, bookmark_id: int) -> Optional[str]:
+    def _download_favicon(
+        self,
+        domain: str,
+        bookmark_id: int,
+        cancel_event: Optional[threading.Event] = None,
+    ) -> Optional[str]:
         """Download favicon (runs in thread pool) with multiple fallback sources"""
+        cancel_event = cancel_event or self._cancel_event
+        if cancel_event.is_set() or not self.enabled:
+            with self._lock:
+                self._pending.discard(domain)
+                self._callbacks.pop(domain, None)
+            return None
         filepath = None
         if not URLUtilities._is_safe_url(f"https://{domain}"):
             with self._lock:
@@ -268,7 +412,11 @@ class HighSpeedFaviconManager:
                     pass
             return None
         
-        for source_template in self.FAVICON_SOURCES:
+        cancelled = False
+        for source_template in self._network_sources():
+            if cancel_event.is_set():
+                cancelled = True
+                break
             try:
                 url = source_template.format(domain=domain)
                 if not URLUtilities._is_safe_url(url):
@@ -293,6 +441,9 @@ class HighSpeedFaviconManager:
                 content = bytearray()
                 try:
                     for chunk in response.iter_content(chunk_size=8192):
+                        if cancel_event.is_set():
+                            cancelled = True
+                            break
                         if not chunk:
                             continue
                         content.extend(chunk)
@@ -301,6 +452,8 @@ class HighSpeedFaviconManager:
                 finally:
                     response.close()
 
+                if cancelled:
+                    break
                 if response.status_code == 200 and 100 < len(content) <= self.MAX_FAVICON_BYTES:
                     # Try to open as image to validate
                     try:
@@ -337,6 +490,12 @@ class HighSpeedFaviconManager:
                         continue
             except Exception:
                 continue
+
+        if cancelled:
+            with self._lock:
+                self._pending.discard(domain)
+                self._callbacks.pop(domain, None)
+            return None
         
         # Update state
         with self._lock:
@@ -379,6 +538,8 @@ class HighSpeedFaviconManager:
     
     def queue_bookmarks(self, bookmarks: List[Bookmark]):
         """Queue all bookmarks for favicon download - skips failed domains"""
+        if not self.enabled:
+            return
         domains_seen = set()
         
         for bm in bookmarks:
@@ -396,6 +557,8 @@ class HighSpeedFaviconManager:
     def redownload_all_favicons(self, bookmarks: List, callback: Callable = None,
                                 progress_callback: Callable = None):
         """Redownload all favicons - clears cache first"""
+        if not self.enabled:
+            return
         # Clear cache
         for f in self.CACHE_DIR.glob("*.*"):
             try:
@@ -422,6 +585,8 @@ class HighSpeedFaviconManager:
     def redownload_missing_favicons(self, bookmarks: List, callback: Callable = None,
                                     progress_callback: Callable = None):
         """Redownload only missing favicons - clears failed list first"""
+        if not self.enabled:
+            return
         # Clear failed domains to retry
         self._failed_domains.clear()
         self._save_failed_domains()
@@ -462,6 +627,16 @@ class HighSpeedFaviconManager:
     
     def shutdown(self):
         """Shutdown the executor"""
+        with self._lock:
+            self._enabled = False
+            self._cancel_event.set()
+            futures = list(self._futures.values())
+            self._pending.clear()
+        for future in futures:
+            try:
+                future.cancel()
+            except Exception:
+                pass
         self._executor.shutdown(wait=False)
     
     def get_cache_stats(self) -> Dict:

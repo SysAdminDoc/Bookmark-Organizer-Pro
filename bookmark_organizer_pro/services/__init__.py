@@ -25,7 +25,13 @@ from .dup_hybrid import (
 )
 from .embeddings import EmbeddingService
 from .encryption import CryptoUnavailable, EncryptedStore
-from .favicons import FaviconWrapperGenerator, HighSpeedFaviconManager
+from .favicons import (
+    FaviconPrivacyPolicy,
+    FaviconWrapperGenerator,
+    HighSpeedFaviconManager,
+    load_favicon_policy,
+    save_favicon_policy,
+)
 from .feed_export import export_opds, render_opds
 from .flows import Flow, FlowManager, FlowStep
 from .bookmark_graph import (
@@ -129,7 +135,8 @@ __all__ = [
     # Existing
     "AIBatchProcessor", "AICostTracker", "AITagSuggester",
     "SemanticDuplicateDetector", "BookmarkAPI",
-    "FaviconWrapperGenerator", "HighSpeedFaviconManager",
+    "FaviconPrivacyPolicy", "FaviconWrapperGenerator", "HighSpeedFaviconManager",
+    "load_favicon_policy", "save_favicon_policy",
     "export_opds", "render_opds",
     "AIIconSuggester", "IconLibrary",
     "BackupScheduler", "CategoryColorManager", "FontManager", "VersionHistory",

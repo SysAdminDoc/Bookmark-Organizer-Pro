@@ -26,7 +26,7 @@ from bookmark_organizer_pro.commands import CommandStack
 from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION
 from bookmark_organizer_pro.core import CategoryManager
 from bookmark_organizer_pro.managers import BookmarkManager, TagManager
-from bookmark_organizer_pro.services import HighSpeedFaviconManager
+from bookmark_organizer_pro.services import HighSpeedFaviconManager, load_favicon_policy
 from bookmark_organizer_pro.theme_runtime import get_theme, get_theme_manager
 from bookmark_organizer_pro.ui.infrastructure import NonBlockingTaskRunner, TkEventDispatcher
 from bookmark_organizer_pro.ui.shell_widgets import ViewMode
@@ -119,7 +119,12 @@ class FinalBookmarkOrganizerApp(
         self.category_manager = CategoryManager()
         self.tag_manager = TagManager()
         self.bookmark_manager = BookmarkManager(self.category_manager, self.tag_manager)
-        self.favicon_manager = HighSpeedFaviconManager(max_workers=15)  # Fast concurrent downloads
+        favicon_policy = load_favicon_policy()
+        self.favicon_manager = HighSpeedFaviconManager(
+            max_workers=15,
+            enabled=favicon_policy.enabled,
+            proxy_provider=favicon_policy.proxy_provider,
+        )
         self.ui_dispatcher = TkEventDispatcher(root)
         self.task_runner = NonBlockingTaskRunner(root, dispatcher=self.ui_dispatcher)
         self.command_stack = CommandStack()
