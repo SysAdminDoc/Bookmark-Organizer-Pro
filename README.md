@@ -524,9 +524,14 @@ Log file location: `~/.bookmark_organizer/logs/bookmark_organizer.log`
 ### Diagnostics and Support Bundle
 
 - **Help > About > Open Logs** opens the log directory.
-- **Copy Diagnostics** copies app/version/platform/dependency status and recent redacted errors.
-- **Export Redacted Bundle** writes a ZIP under `~/.bookmark_organizer/exports/support_bundles/` with diagnostics and redacted recent logs.
-- Support bundles exclude bookmark contents and redact API keys, bearer tokens, passwords, and secret-like values.
+- **Copy Diagnostics** copies allowlisted app/version/platform/dependency status and
+  content-free log event fingerprints.
+- **Preview Support Bundle** shows the exact four text files before anything is
+  written, then lets you choose where to save the ZIP.
+- Support bundles exclude bookmark titles/content, free-form log messages,
+  usernames, local paths, URL paths/queries/fragments, credentials, and
+  secret-like values. Website hostnames are omitted by default and can be
+  included only with the named preview option.
 
 ### Backup and Recovery
 

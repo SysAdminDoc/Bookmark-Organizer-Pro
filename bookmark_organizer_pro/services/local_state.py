@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import platform
 import re
+import secrets
 import sys
 import threading
 import zipfile
+from dataclasses import dataclass
 from datetime import datetime
 from importlib import metadata, util
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from urllib.parse import unquote, urlsplit
 
 from bookmark_organizer_pro.constants import (
     APP_NAME,
@@ -40,22 +45,148 @@ _DEPENDENCY_MODULES = {
     "OpenAI": ("openai", "openai"),
 }
 
+_LOG_LINE_RE = re.compile(
+    r"^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})"
+    r"\s+\|\s+(?P<level>DEBUG|INFO|WARNING|ERROR|CRITICAL)"
+    r"\s+\|\s+(?P<logger>[A-Za-z0-9_.-]{1,80})\s+\|\s*(?P<message>.*)$",
+    re.IGNORECASE,
+)
+_URL_RE = re.compile(r"https?://[^\s<>'\"\])}]+", re.IGNORECASE)
+_EXCEPTION_RE = re.compile(
+    r"\b([A-Za-z_][A-Za-z0-9_.]{0,79}(?:Error|Exception))\b"
+)
+_SAFE_EXCEPTION_TYPES = {
+    "ConnectionError",
+    "Exception",
+    "FileNotFoundError",
+    "HTTPError",
+    "IOError",
+    "JSONDecodeError",
+    "OSError",
+    "PermissionError",
+    "RuntimeError",
+    "TclError",
+    "TimeoutError",
+    "TypeError",
+    "ValueError",
+}
+_SAFE_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+_SUPPORT_FILE_NAMES = (
+    "diagnostics.json",
+    "diagnostics.txt",
+    "recent_log_redacted.txt",
+    "README.txt",
+)
 
-def redact_text(text: str) -> str:
-    """Remove credentials and token-like values from diagnostic text."""
+
+def _pseudonym(kind: str, value: str, key: bytes) -> str:
+    digest = hmac.new(key, value.encode("utf-8", errors="replace"), hashlib.sha256)
+    return f"[{kind}:{digest.hexdigest()[:12]}]"
+
+
+def _safe_url_label(
+    raw_url: str,
+    *,
+    retain_url_hosts: bool,
+    key: bytes,
+) -> str:
+    try:
+        parsed = urlsplit(raw_url)
+        host = (parsed.hostname or "").encode("idna").decode("ascii").lower()
+    except Exception:
+        host = ""
+    if retain_url_hosts and host:
+        return f"[URL_HOST:{host}]"
+    return _pseudonym("URL", raw_url, key)
+
+
+def redact_text(
+    text: str,
+    *,
+    retain_url_hosts: bool = False,
+    pseudonym_key: bytes | None = None,
+) -> str:
+    """Pseudonymize diagnostic text without retaining content-bearing values."""
     if not text:
         return ""
-    redacted = str(text)
-    redacted = re.sub(r"(?i)(Bearer\s+)[A-Za-z0-9._~+/\-=]+", r"\1[REDACTED]", redacted)
-    redacted = re.sub(r"(?i)(Authorization\s*[:=]\s*)[^\r\n]+", r"\1[REDACTED]", redacted)
+    key = pseudonym_key or secrets.token_bytes(32)
+    redacted = unquote(str(text))
     redacted = re.sub(
-        r"(?i)((?:api[_-]?key|apiToken|token|secret|password)\s*[\"']?\s*[:=]\s*[\"']?)[^\"'\s,}]+",
+        r"\\u([0-9a-fA-F]{4})",
+        lambda match: chr(int(match.group(1), 16)),
+        redacted,
+    )
+    redacted = _URL_RE.sub(
+        lambda match: _safe_url_label(
+            match.group(0),
+            retain_url_hosts=retain_url_hosts,
+            key=key,
+        ),
+        redacted,
+    )
+    redacted = re.sub(
+        r"(?i)\b[A-Z]:\\Users\\[^\\\r\n]+(?:\\[^\s\r\n|]*)?",
+        lambda match: _pseudonym("LOCAL_PATH", match.group(0), key),
+        redacted,
+    )
+    redacted = re.sub(
+        r"(?i)(?:/home/|/Users/)[^/\s\r\n]+(?:/[^\s\r\n|]*)?",
+        lambda match: _pseudonym("LOCAL_PATH", match.group(0), key),
+        redacted,
+    )
+    redacted = re.sub(
+        r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
+        lambda match: _pseudonym("EMAIL", match.group(0), key),
+        redacted,
+    )
+    redacted = re.sub(
+        r"""(?ix)
+        (
+            ["']?(?:title|bookmark[_-]?title|content|snippet|page[_-]?text|username)
+            ["']?\s*[:=]\s*
+        )
+        (?:
+            ["']([^"'\r\n]{1,4096})["']
+            |
+            ([^\r\n,}]{1,4096})
+        )
+        """,
+        lambda match: (
+            f"{match.group(1)}"
+            f"{_pseudonym('CONTENT', (match.group(2) or match.group(3) or '').strip(), key)}"
+        ),
+        redacted,
+    )
+    redacted = re.sub(
+        r"(?i)(Bearer\s+)[A-Za-z0-9._~+/\-=]+",
+        r"\1[REDACTED]",
+        redacted,
+    )
+    redacted = re.sub(
+        r"(?i)(Authorization\s*[:=]\s*)[^\r\n]+",
+        r"\1[REDACTED]",
+        redacted,
+    )
+    redacted = re.sub(
+        r"""(?ix)
+        (
+            (?:api[_-]?key|apiToken|access[_-]?token|refresh[_-]?token|
+               token|secret|password|passwd|cookie|session)
+            \s*["']?\s*[:=]\s*["']?\s*
+        )
+        [^"'\s,}]+
+        """,
         r"\1[REDACTED]",
         redacted,
     )
     redacted = re.sub(
         r"(?i)((?:api[_-]?key|token|secret|password)=)[^&\s]+",
         r"\1[REDACTED]",
+        redacted,
+    )
+    redacted = re.sub(
+        r"(?<![A-Za-z0-9])[A-Za-z0-9+/]{20,}={0,2}(?![A-Za-z0-9])",
+        "[ENCODED_VALUE]",
         redacted,
     )
     return redacted
@@ -65,13 +196,12 @@ def _file_metadata(path: Path) -> Dict[str, Any]:
     try:
         stat = path.stat()
         return {
-            "name": path.name,
             "exists": True,
             "size_bytes": stat.st_size,
             "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
         }
     except OSError:
-        return {"name": path.name, "exists": False, "size_bytes": 0, "modified": ""}
+        return {"exists": False, "size_bytes": 0, "modified": ""}
 
 
 def _dependency_status() -> Dict[str, Dict[str, Any]]:
@@ -88,18 +218,134 @@ def _dependency_status() -> Dict[str, Dict[str, Any]]:
     return status
 
 
-def _recent_log_lines(limit: int = 250) -> List[str]:
+def _sanitize_log_line(
+    line: str,
+    *,
+    retain_url_hosts: bool,
+    pseudonym_key: bytes,
+) -> str:
+    """Keep operational log shape while replacing all free-form detail."""
+    decoded = unquote(str(line or ""))
+    match = _LOG_LINE_RE.match(decoded)
+    if match:
+        timestamp = match.group("timestamp")
+        level = match.group("level").upper()
+        if level not in _SAFE_LOG_LEVELS:
+            level = "INFO"
+        logger_name = (
+            "BookmarkOrganizer"
+            if match.group("logger") == "BookmarkOrganizer"
+            else "application"
+        )
+        message = match.group("message")
+        parts = [
+            timestamp,
+            level,
+            logger_name,
+            f"detail={_pseudonym('REDACTED', message, pseudonym_key)}",
+        ]
+    else:
+        marker = "TRACEBACK" if decoded.lstrip().startswith("Traceback") else "DETAIL"
+        parts = [
+            marker,
+            f"detail={_pseudonym('REDACTED', decoded, pseudonym_key)}",
+        ]
+        message = decoded
+
+    exception_types = sorted(
+        name for name in set(_EXCEPTION_RE.findall(message))
+        if name in _SAFE_EXCEPTION_TYPES
+    )[:3]
+    if exception_types:
+        parts.append(f"exception_type={','.join(exception_types)}")
+    if retain_url_hosts:
+        hosts = []
+        for raw_url in _URL_RE.findall(message):
+            try:
+                host = (urlsplit(raw_url).hostname or "").encode("idna").decode("ascii")
+            except Exception:
+                host = ""
+            host = host.lower()
+            if host and host not in hosts:
+                hosts.append(host)
+        if hosts:
+            parts.append(f"url_hosts={','.join(hosts[:5])}")
+    return " | ".join(parts)
+
+
+def _recent_log_lines(
+    limit: int = 250,
+    *,
+    retain_url_hosts: bool = False,
+    pseudonym_key: bytes | None = None,
+) -> List[str]:
+    key = pseudonym_key or secrets.token_bytes(32)
     if not LOG_FILE.exists():
         return []
     try:
-        return [redact_text(line) for line in LOG_FILE.read_text(encoding="utf-8", errors="replace").splitlines()[-limit:]]
-    except OSError as exc:
-        return [f"Could not read log file: {exc}"]
+        raw_lines = LOG_FILE.read_text(
+            encoding="utf-8",
+            errors="replace",
+        ).splitlines()[-max(0, min(int(limit), 1000)):]
+        return [
+            _sanitize_log_line(
+                line,
+                retain_url_hosts=retain_url_hosts,
+                pseudonym_key=key,
+            )
+            for line in raw_lines
+        ]
+    except (OSError, TypeError, ValueError):
+        return ["ERROR | detail=[LOG_READ_ERROR]"]
 
 
-def build_diagnostics_snapshot() -> Dict[str, Any]:
+def _allowlisted_job_health(raw: Any) -> Dict[str, Any]:
+    if not isinstance(raw, dict):
+        return {"available": False}
+    result: Dict[str, Any] = {"available": True}
+    integer_keys = (
+        "jobs",
+        "running",
+        "failures",
+        "retryable_failures",
+        "average_duration_ms",
+        "processed_bytes",
+        "storage_growth_7d_bytes",
+        "ledger_bytes",
+    )
+    for key in integer_keys:
+        try:
+            result[key] = max(0, int(raw.get(key, 0)))
+        except (TypeError, ValueError):
+            result[key] = 0
+    try:
+        result["failure_rate"] = min(1.0, max(0.0, float(raw.get("failure_rate", 0.0))))
+    except (TypeError, ValueError):
+        result["failure_rate"] = 0.0
+    result["privacy"] = {
+        "content_stored": False,
+        "urls_stored": False,
+        "telemetry": False,
+    }
+    return result
+
+
+def build_diagnostics_snapshot(
+    *,
+    retain_url_hosts: bool = False,
+    pseudonym_key: bytes | None = None,
+    _recent_log: List[str] | None = None,
+) -> Dict[str, Any]:
     """Build a redacted diagnostics snapshot without bookmark contents."""
-    recent_log = _recent_log_lines()
+    key = pseudonym_key or secrets.token_bytes(32)
+    recent_log = (
+        list(_recent_log)
+        if _recent_log is not None
+        else _recent_log_lines(
+            retain_url_hosts=retain_url_hosts,
+            pseudonym_key=key,
+        )
+    )
     recent_errors = [
         line for line in recent_log
         if any(marker in line.upper() for marker in ("ERROR", "CRITICAL", "TRACEBACK", "EXCEPTION"))
@@ -107,12 +353,14 @@ def build_diagnostics_snapshot() -> Dict[str, Any]:
 
     try:
         from bookmark_organizer_pro.services.job_ledger import JobLedger
-        job_health = JobLedger().health()
-    except Exception as exc:
-        log.debug("Could not summarize job ledger: %s", exc)
+        job_health = _allowlisted_job_health(JobLedger().health())
+    except Exception:
+        log.debug("Could not summarize job ledger", exc_info=True)
         job_health = {"available": False}
 
     return {
+        "schema": "bookmark-organizer-pro/support-diagnostics",
+        "schema_version": 1,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "application": {
             "name": APP_NAME,
@@ -131,7 +379,9 @@ def build_diagnostics_snapshot() -> Dict[str, Any]:
         "job_health": job_health,
         "privacy": {
             "bookmark_contents_included": False,
+            "free_form_log_messages_included": False,
             "secrets_redacted": True,
+            "url_hosts_included": bool(retain_url_hosts),
             "recent_log_lines": len(recent_log),
         },
     }
@@ -173,13 +423,85 @@ def format_diagnostics(snapshot: Dict[str, Any] | None = None) -> str:
             f"- Processed storage (7d): {jobs['storage_growth_7d_bytes']} bytes",
         ])
     lines.append("")
-    lines.append("Privacy: bookmark contents excluded; secrets redacted.")
+    privacy = snapshot.get("privacy", {})
+    host_state = "included by user choice" if privacy.get("url_hosts_included") else "excluded"
+    lines.append(
+        "Privacy: bookmark contents excluded; free-form log messages excluded; "
+        f"secrets redacted; URL hosts {host_state}."
+    )
     return "\n".join(lines)
 
 
-def export_redacted_support_bundle(destination: str | Path | None = None) -> Path:
-    """Write a support ZIP with diagnostics and redacted recent logs."""
-    snapshot = build_diagnostics_snapshot()
+@dataclass(frozen=True)
+class SupportBundlePreview:
+    """Immutable text payload shown before the exact same files are saved."""
+
+    generated_at: str
+    files: Tuple[Tuple[str, str], ...]
+    retain_url_hosts: bool = False
+
+    def as_dict(self) -> Dict[str, str]:
+        return dict(self.files)
+
+    def render(self) -> str:
+        sections = []
+        for name, content in self.files:
+            sections.append(f"===== {name} =====\n{content}")
+        return "\n\n".join(sections)
+
+
+def build_support_bundle_preview(
+    *,
+    retain_url_hosts: bool = False,
+) -> SupportBundlePreview:
+    """Build the complete allowlisted bundle payload without writing a file."""
+    pseudonym_key = secrets.token_bytes(32)
+    recent_log_lines = _recent_log_lines(
+        retain_url_hosts=retain_url_hosts,
+        pseudonym_key=pseudonym_key,
+    )
+    snapshot = build_diagnostics_snapshot(
+        retain_url_hosts=retain_url_hosts,
+        pseudonym_key=pseudonym_key,
+        _recent_log=recent_log_lines,
+    )
+    recent_log = "\n".join(recent_log_lines)
+    readme = (
+        "Content-private support bundle.\n\n"
+        "This archive contains only allowlisted runtime metadata and keyed event "
+        "fingerprints. It excludes bookmark titles/content, free-form log messages, "
+        "URL paths/queries/fragments, usernames, local paths, credentials, and "
+        "settings values. URL hosts are "
+        f"{'included by explicit preview choice' if retain_url_hosts else 'excluded'}.\n"
+    )
+    files = (
+        ("diagnostics.json", json.dumps(snapshot, indent=2, sort_keys=True)),
+        ("diagnostics.txt", format_diagnostics(snapshot)),
+        (
+            "recent_log_redacted.txt",
+            recent_log or "No log file was available.",
+        ),
+        ("README.txt", readme),
+    )
+    if tuple(name for name, _content in files) != _SUPPORT_FILE_NAMES:
+        raise RuntimeError("Support bundle file allowlist drifted")
+    return SupportBundlePreview(
+        generated_at=snapshot["generated_at"],
+        files=files,
+        retain_url_hosts=bool(retain_url_hosts),
+    )
+
+
+def export_redacted_support_bundle(
+    destination: str | Path | None = None,
+    *,
+    preview: SupportBundlePreview | None = None,
+) -> Path:
+    """Write the exact content-private files previously exposed by a preview."""
+    payload = preview or build_support_bundle_preview()
+    names = tuple(name for name, _content in payload.files)
+    if names != _SUPPORT_FILE_NAMES:
+        raise ValueError("Support bundle preview contains files outside the allowlist")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if destination is None:
         SUPPORT_BUNDLES_DIR.mkdir(parents=True, exist_ok=True)
@@ -193,15 +515,9 @@ def export_redacted_support_bundle(destination: str | Path | None = None) -> Pat
             target.mkdir(parents=True, exist_ok=True)
             bundle_path = target / f"support_bundle_{timestamp}.zip"
 
-    recent_log = "\n".join(_recent_log_lines())
     with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
-        bundle.writestr("diagnostics.json", json.dumps(snapshot, indent=2))
-        bundle.writestr("diagnostics.txt", format_diagnostics(snapshot))
-        bundle.writestr("recent_log_redacted.txt", recent_log or "No log file was available.")
-        bundle.writestr(
-            "README.txt",
-            "Redacted support bundle. Bookmark contents, API keys, tokens, passwords, and secrets are excluded or redacted.\n",
-        )
+        for name, content in payload.files:
+            bundle.writestr(name, content)
     return bundle_path
 
 

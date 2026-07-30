@@ -38,6 +38,9 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Security
 
+- Replaced free-form diagnostic export with an allowlisted, preview-before-save
+  support bundle that excludes bookmark content, local paths, usernames, URL
+  details, credentials, and raw log messages; hostname retention is explicit.
 - Stripped authorization, proxy-authorization, and cookie headers case-insensitively whenever a validated redirect changes scheme, host, or effective port, including HTTPS downgrades.
 
 ## [v6.12.0] - 2026-07-12

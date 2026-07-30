@@ -47,6 +47,7 @@ DESKTOP_SURFACES = (
     "desktop-main-list-light",
     "desktop-bookmark-editor-1280x720",
     "desktop-about-1280x720",
+    "desktop-support-bundle-preview",
     "desktop-dependency-setup-1280x720",
     "desktop-dependency-cancelling-1280x720",
     "desktop-assistant-settings",
@@ -426,6 +427,58 @@ def assert_actionable_controls_inside(window) -> None:
         raise VisualSmokeError("actionable controls clipped: " + ", ".join(failures[:8]))
 
 
+def assert_named_controls_visible(window, expected_labels: Iterable[str]) -> None:
+    """Require named controls to be mapped and fully inside the client area."""
+    window.update_idletasks()
+    left = window.winfo_rootx()
+    top = window.winfo_rooty()
+    right = left + window.winfo_width()
+    bottom = top + window.winfo_height()
+    text_widgets: dict[str, list] = {label: [] for label in expected_labels}
+    stack = list(window.winfo_children())
+    while stack:
+        widget = stack.pop()
+        stack.extend(widget.winfo_children())
+        if "text" not in widget.keys():
+            continue
+        text = str(widget.cget("text"))
+        for label in expected_labels:
+            if label in text:
+                text_widgets[label].append(widget)
+
+    failures: list[str] = []
+    for label, widgets in text_widgets.items():
+        visible = False
+        states: list[str] = []
+        for widget in widgets:
+            states.append(
+                f"{widget.winfo_class()} mapped={widget.winfo_ismapped()} "
+                f"at {widget.winfo_rootx() - left},{widget.winfo_rooty() - top} "
+                f"size {widget.winfo_width()}x{widget.winfo_height()}"
+            )
+            if not widget.winfo_ismapped() or widget.winfo_width() <= 1 or widget.winfo_height() <= 1:
+                continue
+            widget_left = widget.winfo_rootx()
+            widget_top = widget.winfo_rooty()
+            widget_right = widget_left + widget.winfo_width()
+            widget_bottom = widget_top + widget.winfo_height()
+            if (
+                widget_left >= left
+                and widget_top >= top
+                and widget_right <= right
+                and widget_bottom <= bottom
+            ):
+                visible = True
+                break
+        if not visible:
+            detail = "; ".join(states) if states else "not found"
+            failures.append(f"{label} ({detail})")
+    if failures:
+        raise VisualSmokeError(
+            "named controls not visible: " + ", ".join(failures)
+        )
+
+
 def assert_realized_viewport(window, width: int, height: int) -> None:
     """Require Tk to honor the requested client viewport exactly."""
     actual = (window.winfo_width(), window.winfo_height())
@@ -612,6 +665,29 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
                 ("Bookmark Organizer Pro", "Version"),
             )
         )
+        about.deiconify()
+        about.update()
+        about._export_support_bundle()
+        support_preview = next(
+            child for child in about.winfo_children()
+            if isinstance(child, tk.Toplevel)
+        )
+        support_preview.update()
+        assert_actionable_controls_inside(support_preview)
+        assert_named_controls_visible(support_preview, ("Save Bundle", "Cancel"))
+        results.append(
+            capture_tk_window(
+                support_preview,
+                output_dir,
+                "desktop-support-bundle-preview",
+                (
+                    "Review the exact files before saving",
+                    "diagnostics.json",
+                    "Save Bundle",
+                ),
+            )
+        )
+        destroy_window(support_preview)
         about.destroy()
 
         dependencies = DependencyManager()

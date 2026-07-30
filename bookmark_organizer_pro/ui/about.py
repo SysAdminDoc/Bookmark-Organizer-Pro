@@ -7,7 +7,8 @@ import platform
 import subprocess
 import sys
 import tkinter as tk
-from tkinter import ttk
+from datetime import datetime
+from tkinter import filedialog, ttk
 
 try:
     import PIL  # noqa: F401
@@ -23,10 +24,12 @@ from bookmark_organizer_pro.constants import (
     LOG_FILE,
     MASTER_BOOKMARKS_FILE,
     SETTINGS_FILE,
+    SUPPORT_BUNDLES_DIR,
 )
 from bookmark_organizer_pro.i18n import _, layout_anchor, layout_side
 from bookmark_organizer_pro.services.local_state import (
     build_diagnostics_snapshot,
+    build_support_bundle_preview,
     export_redacted_support_bundle,
     format_diagnostics,
 )
@@ -150,7 +153,7 @@ class AboutDialog(tk.Toplevel):
         copy_btn.pack(side=layout_side(tk.LEFT), padx=(0, 8))
 
         bundle_btn = ModernButton(
-            actions, text=_("Export Redacted Bundle"),
+            actions, text=_("Preview Support Bundle"),
             font=FONTS.small(), command=self._export_support_bundle,
             padx=12, pady=6
         )
@@ -352,12 +355,189 @@ to deal in the Software without restriction.
             self._set_status(_("Could not open logs: {error}").format(error=exc))
 
     def _export_support_bundle(self):
-        """Export a redacted support bundle."""
-        try:
-            bundle_path = export_redacted_support_bundle()
-            self._set_status(_("Redacted support bundle exported: {path}").format(path=bundle_path))
-        except Exception as exc:
-            self._set_status(_("Support bundle export failed: {error}").format(error=exc))
+        """Preview every exact text payload before offering a save destination."""
+        theme = get_theme()
+        preview_window = tk.Toplevel(self)
+        preview_window.title(_("Content-private support bundle preview"))
+        apply_screen_aware_geometry(preview_window, 840, 680)
+        preview_window.minsize(640, 480)
+        preview_window.configure(bg=theme.bg_primary)
+        preview_window.transient(self)
+        preview_window.grab_set()
+
+        header = tk.Frame(preview_window, bg=theme.bg_secondary, padx=18, pady=14)
+        header.pack(fill=tk.X)
+        tk.Label(
+            header,
+            text=_("Review the exact files before saving"),
+            bg=theme.bg_secondary,
+            fg=theme.text_primary,
+            font=FONTS.header(bold=True),
+            anchor="w",
+        ).pack(fill=tk.X)
+        tk.Label(
+            header,
+            text=_(
+                "Nothing is written until Save Bundle. Free-form log messages, "
+                "bookmark content, local paths, and URL details are excluded."
+            ),
+            bg=theme.bg_secondary,
+            fg=theme.text_secondary,
+            font=FONTS.small(),
+            anchor="w",
+            justify=tk.LEFT,
+            wraplength=790,
+        ).pack(fill=tk.X, pady=(5, 0))
+
+        retain_hosts = tk.BooleanVar(value=False)
+        host_option = tk.Checkbutton(
+            preview_window,
+            text=_("Include website hostnames (paths, queries, and fragments stay excluded)"),
+            variable=retain_hosts,
+            bg=theme.bg_primary,
+            fg=theme.text_primary,
+            activebackground=theme.bg_primary,
+            activeforeground=theme.text_primary,
+            selectcolor=theme.bg_secondary,
+            font=FONTS.small(),
+            anchor="w",
+        )
+        host_option.pack(fill=tk.X, padx=18, pady=(12, 6))
+
+        text_frame = tk.Frame(preview_window, bg=theme.bg_primary)
+        text_frame.pack(fill=tk.BOTH, expand=True, padx=18, pady=(0, 10))
+        preview_text = tk.Text(
+            text_frame,
+            wrap=tk.NONE,
+            bg=theme.bg_dark,
+            fg=theme.text_primary,
+            insertbackground=theme.text_primary,
+            selectbackground=theme.accent_primary,
+            selectforeground=readable_text_on(theme.accent_primary),
+            font=FONTS.mono(),
+            relief=tk.FLAT,
+            padx=10,
+            pady=10,
+        )
+        y_scroll = ttk.Scrollbar(
+            text_frame,
+            orient=tk.VERTICAL,
+            command=preview_text.yview,
+        )
+        x_scroll = ttk.Scrollbar(
+            text_frame,
+            orient=tk.HORIZONTAL,
+            command=preview_text.xview,
+        )
+        preview_text.configure(
+            yscrollcommand=y_scroll.set,
+            xscrollcommand=x_scroll.set,
+        )
+        preview_text.grid(row=0, column=0, sticky="nsew")
+        y_scroll.grid(row=0, column=1, sticky="ns")
+        x_scroll.grid(row=1, column=0, sticky="ew")
+        text_frame.grid_rowconfigure(0, weight=1)
+        text_frame.grid_columnconfigure(0, weight=1)
+
+        status_var = tk.StringVar(value="")
+        preview_payload = {"value": None}
+
+        def refresh_preview():
+            try:
+                payload = build_support_bundle_preview(
+                    retain_url_hosts=bool(retain_hosts.get())
+                )
+                preview_payload["value"] = payload
+                preview_text.configure(state=tk.NORMAL)
+                preview_text.delete("1.0", tk.END)
+                preview_text.insert("1.0", payload.render())
+                preview_text.configure(state=tk.DISABLED)
+                status_var.set(
+                    _("{count} allowlisted text files ready for review").format(
+                        count=len(payload.files)
+                    )
+                )
+            except Exception as exc:
+                preview_payload["value"] = None
+                status_var.set(
+                    _("Could not build support preview: {error}").format(error=exc)
+                )
+
+        host_option.configure(command=refresh_preview)
+
+        footer = tk.Frame(preview_window, bg=theme.bg_secondary, padx=18, pady=12)
+        text_frame.pack_forget()
+        footer.pack(fill=tk.X, side=tk.BOTTOM)
+        text_frame.pack(fill=tk.BOTH, expand=True, padx=18, pady=(0, 10))
+        tk.Label(
+            footer,
+            textvariable=status_var,
+            bg=theme.bg_secondary,
+            fg=theme.text_secondary,
+            font=FONTS.small(),
+            anchor="w",
+        ).pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        def close_preview():
+            try:
+                preview_window.grab_release()
+            except tk.TclError:
+                pass
+            preview_window.destroy()
+            if self.winfo_exists():
+                self.grab_set()
+
+        def save_preview():
+            payload = preview_payload["value"]
+            if payload is None:
+                return
+            SUPPORT_BUNDLES_DIR.mkdir(parents=True, exist_ok=True)
+            destination = filedialog.asksaveasfilename(
+                parent=preview_window,
+                title=_("Save content-private support bundle"),
+                initialdir=str(SUPPORT_BUNDLES_DIR),
+                initialfile=f"support_bundle_{datetime.now():%Y%m%d_%H%M%S}.zip",
+                defaultextension=".zip",
+                filetypes=[(_("ZIP archive"), "*.zip")],
+            )
+            if not destination:
+                return
+            try:
+                bundle_path = export_redacted_support_bundle(
+                    destination,
+                    preview=payload,
+                )
+                self._set_status(
+                    _("Content-private support bundle exported: {path}").format(
+                        path=bundle_path
+                    )
+                )
+                close_preview()
+            except Exception as exc:
+                status_var.set(
+                    _("Support bundle export failed: {error}").format(error=exc)
+                )
+
+        ModernButton(
+            footer,
+            text=_("Save Bundle…"),
+            command=save_preview,
+            style="primary",
+            padx=16,
+            pady=6,
+        ).pack(side=tk.RIGHT, padx=(8, 0))
+        ModernButton(
+            footer,
+            text=_("Cancel"),
+            command=close_preview,
+            padx=14,
+            pady=6,
+        ).pack(side=tk.RIGHT)
+
+        preview_window.protocol("WM_DELETE_WINDOW", close_preview)
+        preview_window.bind("<Escape>", lambda _event: close_preview())
+        refresh_preview()
+        preview_text.focus_set()
 
     def _set_status(self, message: str):
         self.status_var.set(message)

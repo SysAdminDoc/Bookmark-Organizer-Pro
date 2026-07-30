@@ -13,6 +13,7 @@ def test_visual_smoke_surface_matrix_covers_required_desktop_and_extension_views
         "desktop-main-list-light",
         "desktop-bookmark-editor-1280x720",
         "desktop-about-1280x720",
+        "desktop-support-bundle-preview",
         "desktop-dependency-setup-1280x720",
         "desktop-dependency-cancelling-1280x720",
         "desktop-assistant-settings",
@@ -61,6 +62,11 @@ def test_tk_capture_path_never_requests_foreground_activation():
     assert "focus_force" not in source
     assert ".lift(" not in source
     assert '"-topmost", True' not in source
+
+
+def test_support_bundle_preview_requires_visible_save_controls():
+    source = inspect.getsource(smoke.run_desktop_smoke)
+    assert 'assert_named_controls_visible(support_preview, ("Save Bundle", "Cancel"))' in source
 
 
 def test_windows_capture_resolves_top_level_hwnd_contract():
