@@ -233,6 +233,9 @@ Native messaging and offline category/tag suggestions remain on the roadmap.
 - **Evidence-Bound Answers**: Page text is passed to providers only as bounded,
   explicitly untrusted JSON evidence; assistant answers and summaries retain
   only sentences citing supplied chunk IDs
+- **Versioned Local Retrieval**: Semantic indexes and answer caches are bound
+  to their embedder, chunker, source, and AI configuration; stale generations
+  are bypassed with a clear `bop embed` rebuild instruction
 - **Multiple Providers**: OpenAI, Anthropic, Google Gemini, Groq, Ollama (local)
 
 ### UI/UX

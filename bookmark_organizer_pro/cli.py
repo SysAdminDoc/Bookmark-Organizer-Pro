@@ -914,9 +914,19 @@ Top Domains:
         return self._emb
 
     def _vector_store(self):
+        from bookmark_organizer_pro.services.embeddings import EmbeddingService
         from bookmark_organizer_pro.services.vector_store import VectorStore
         if not hasattr(self, "_vstore"):
-            self._vstore = VectorStore(self._embedder())
+            def _source_digest(bookmark_id: int):
+                bookmark = self.bookmark_manager.get_bookmark(bookmark_id)
+                if bookmark is None:
+                    return None
+                return EmbeddingService.bookmark_source_digest(bookmark)
+
+            self._vstore = VectorStore(
+                self._embedder(),
+                source_digest_resolver=_source_digest,
+            )
         return self._vstore
 
     def _bookmark_ids_from_ns(self, ns: argparse.Namespace):
@@ -996,6 +1006,8 @@ Top Domains:
                 model_name = key
         if model_name:
             self._emb = EmbeddingService(model_name=model_name)
+            if hasattr(self, "_vstore"):
+                del self._vstore
         emb = self._embedder()
         if not emb.available:
             return self._failure(
@@ -1009,19 +1021,11 @@ Top Domains:
             if not bm:
                 missing += 1
                 continue
-            text = ""
-            if bm.extracted_text_path:
-                from pathlib import Path as _P
-                try:
-                    text = _P(bm.extracted_text_path).read_text(encoding="utf-8")
-                except OSError:
-                    pass
-            if not text:
-                text = "\n".join(filter(None, [bm.title, bm.description]))
+            text = EmbeddingService.bookmark_source_text(bm)
             chunks = EmbeddingService.chunk_text(text)
             n = store.upsert_bookmark(bm.id, chunks)
             if n:
-                bm.embedding_model = emb.backend
+                bm.embedding_model = emb.identity["id"]
                 bm.embedding_dim = emb.dim
                 total_chunks += n
         if total_chunks:
@@ -1036,7 +1040,14 @@ Top Domains:
         store = self._vector_store()
         hits = store.search(" ".join(ns.query), k=10)
         if not hits:
-            print("(no results — did you `embed` first?)")
+            status = store.index_status()
+            if status["rebuild_required"]:
+                reasons = ", ".join(status["diagnostics"]) or "incompatible generation"
+                print(f"(semantic index is stale: {reasons}; run `bop embed` to rebuild)")
+            elif status["status"] == "missing":
+                print("(semantic index is missing; run `bop embed` first)")
+            else:
+                print("(no semantic results)")
             return
         for h in hits:
             bm = self.bookmark_manager.get_bookmark(h["bookmark_id"])
@@ -1305,16 +1316,11 @@ Top Domains:
             return result.success, result.error or "content ingested"
         if record.job_type == "embedding":
             from bookmark_organizer_pro.services.embeddings import EmbeddingService
-            text = "\n".join(filter(None, [bookmark.title, bookmark.description]))
-            if bookmark.extracted_text_path:
-                try:
-                    text = Path(bookmark.extracted_text_path).read_text(encoding="utf-8")
-                except OSError:
-                    pass
+            text = EmbeddingService.bookmark_source_text(bookmark)
             chunks = EmbeddingService.chunk_text(text)
             count = self._vector_store().upsert_bookmark(bookmark.id, chunks)
             if count:
-                bookmark.embedding_model = self._embedder().backend
+                bookmark.embedding_model = self._embedder().identity["id"]
                 bookmark.embedding_dim = self._embedder().dim
                 self.bookmark_manager.save_bookmarks()
             return bool(count), f"indexed {count} chunk(s)"

@@ -13,9 +13,11 @@ from __future__ import annotations
 
 import hashlib
 import importlib
+import importlib.metadata
 import threading
+import unicodedata
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import Any, List, Optional, Sequence
 
 from bookmark_organizer_pro.constants import EMBEDDINGS_DIR
 from bookmark_organizer_pro.logging_config import log
@@ -25,6 +27,10 @@ DEFAULT_MODEL = "BAAI/bge-small-en-v1.5"   # 384 dims, fastembed default
 NOMIC_MODEL = "nomic-ai/nomic-embed-text-v1.5"  # 768 dims, CPU-first, 8192 context
 MODEL2VEC_DEFAULT = "minishlab/potion-base-8M"
 ST_DEFAULT = "sentence-transformers/all-MiniLM-L6-v2"
+EMBEDDER_IDENTITY_SCHEMA_VERSION = 1
+CHUNKER_VERSION = 2
+DEFAULT_CHUNK_CHARS = 1500
+DEFAULT_CHUNK_OVERLAP = 200
 
 RECOMMENDED_MODELS = {
     "default": {
@@ -62,6 +68,7 @@ class EmbeddingService:
                  cache_dir: Path = EMBEDDINGS_DIR):
         self._model_name_explicit = model_name is not None
         self.model_name = model_name or DEFAULT_MODEL
+        self.resolved_model_name = self.model_name
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self._backend = None
@@ -84,6 +91,31 @@ class EmbeddingService:
     def available(self) -> bool:
         self._ensure()
         return self._backend not in (None, "none")
+
+    @property
+    def identity(self) -> dict[str, Any]:
+        """Return a content-free identity for persisted vector compatibility."""
+        self._ensure()
+        distribution = {
+            "fastembed": "fastembed",
+            "model2vec": "model2vec",
+            "sentence_transformers": "sentence-transformers",
+        }.get(self._backend or "")
+        revision = "unavailable"
+        if distribution:
+            try:
+                revision = importlib.metadata.version(distribution)
+            except importlib.metadata.PackageNotFoundError:
+                revision = "unknown"
+        backend = self._backend or "none"
+        return {
+            "schema_version": EMBEDDER_IDENTITY_SCHEMA_VERSION,
+            "id": f"{backend}:{self.resolved_model_name}",
+            "backend": backend,
+            "model": self.resolved_model_name,
+            "revision": revision,
+            "dimension": self._dim or 0,
+        }
 
     # ------------------------------------------------------------------
     def _ensure(self):
@@ -115,6 +147,7 @@ class EmbeddingService:
         sample = list(self._embedder.embed(["probe"]))[0]
         self._dim = len(sample)
         self._backend = "fastembed"
+        self.resolved_model_name = self.model_name
         log.info(f"Embeddings: fastembed ({self.model_name}, dim={self._dim})")
         return True
 
@@ -130,6 +163,7 @@ class EmbeddingService:
         sample = self._embedder.encode(["probe"])
         self._dim = int(sample.shape[1])
         self._backend = "model2vec"
+        self.resolved_model_name = selected_model
         log.info(f"Embeddings: model2vec ({selected_model}, dim={self._dim})")
         return True
 
@@ -144,6 +178,7 @@ class EmbeddingService:
         self._embedder = SentenceTransformer(selected_model)
         self._dim = int(self._embedder.get_sentence_embedding_dimension())
         self._backend = "sentence_transformers"
+        self.resolved_model_name = selected_model
         log.info(f"Embeddings: sentence_transformers ({selected_model}, dim={self._dim})")
         return True
 
@@ -171,8 +206,8 @@ class EmbeddingService:
 
     # ------------------------------------------------------------------
     @staticmethod
-    def chunk_text(text: str, chunk_chars: int = 1500,
-                   overlap: int = 200) -> List[dict]:
+    def chunk_text(text: str, chunk_chars: int = DEFAULT_CHUNK_CHARS,
+                   overlap: int = DEFAULT_CHUNK_OVERLAP) -> List[dict]:
         """Sliding-window chunker that records char offsets for citation."""
         if isinstance(chunk_chars, bool) or not isinstance(chunk_chars, int):
             raise TypeError("chunk_chars must be an integer")
@@ -186,6 +221,7 @@ class EmbeddingService:
         if not text:
             return []
         chunks = []
+        source_digest = EmbeddingService.normalized_source_digest(text)
         start = 0
         n = len(text)
         idx = 0
@@ -204,6 +240,10 @@ class EmbeddingService:
                 "text": chunk,
                 "char_start": start,
                 "char_end": end,
+                "source_digest": source_digest,
+                "chunker_version": CHUNKER_VERSION,
+                "chunk_chars": chunk_chars,
+                "overlap": overlap,
             })
             idx += 1
             if end >= n:
@@ -217,3 +257,41 @@ class EmbeddingService:
     @staticmethod
     def stable_hash(text: str) -> str:
         return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()
+
+    @staticmethod
+    def normalize_source_text(text: str) -> str:
+        """Normalize only representation differences before provenance hashing."""
+        normalized = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
+        return unicodedata.normalize("NFC", normalized)
+
+    @staticmethod
+    def normalized_source_digest(text: str) -> str:
+        normalized = EmbeddingService.normalize_source_text(text)
+        return hashlib.sha256(
+            normalized.encode("utf-8", errors="replace")
+        ).hexdigest()
+
+    @staticmethod
+    def bookmark_source_text(bookmark: Any) -> str:
+        """Load the exact text used by embedding commands for one bookmark."""
+        path_value = str(getattr(bookmark, "extracted_text_path", "") or "")
+        if path_value:
+            try:
+                return Path(path_value).read_text(encoding="utf-8")
+            except OSError:
+                pass
+        return "\n".join(
+            filter(
+                None,
+                [
+                    str(getattr(bookmark, "title", "") or ""),
+                    str(getattr(bookmark, "description", "") or ""),
+                ],
+            )
+        )
+
+    @staticmethod
+    def bookmark_source_digest(bookmark: Any) -> str:
+        return EmbeddingService.normalized_source_digest(
+            EmbeddingService.bookmark_source_text(bookmark)
+        )

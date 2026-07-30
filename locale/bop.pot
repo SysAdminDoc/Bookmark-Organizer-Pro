@@ -10,7 +10,7 @@ msgstr ""
 msgid "  [{value_0}]"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:1001
+#: bookmark_organizer_pro/app_mixins/app_shell.py:1010
 msgid "  {value_0}"
 msgstr ""
 
@@ -1892,7 +1892,7 @@ msgstr ""
 msgid "No active categories yet."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:1044
+#: bookmark_organizer_pro/app_mixins/app_shell.py:1053
 msgid "No active workflows"
 msgstr ""
 
@@ -2006,7 +2006,7 @@ msgid "Nothing needs review\nYour library is already clean for this check."
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:439
-#: bookmark_organizer_pro/app_mixins/app_shell.py:992
+#: bookmark_organizer_pro/app_mixins/app_shell.py:1001
 msgid "Nothing queued"
 msgstr ""
 
@@ -2056,7 +2056,7 @@ msgstr ""
 msgid "Open Offline Copy"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:1009
+#: bookmark_organizer_pro/app_mixins/app_shell.py:1018
 msgid "Open Read Later bookmark: {title}"
 msgstr ""
 
@@ -2472,7 +2472,7 @@ msgstr ""
 msgid "Required: {value_0}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:1048
+#: bookmark_organizer_pro/app_mixins/app_shell.py:1057
 msgid "Research trails appear here when you start one."
 msgstr ""
 

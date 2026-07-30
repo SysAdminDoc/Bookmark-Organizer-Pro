@@ -24,6 +24,10 @@ from bookmark_organizer_pro.services.vector_store import VectorStore
 
 
 NO_CITED_ANSWER = "The supplied bookmark evidence does not support a cited answer."
+CHAT_CACHE_SCHEMA_VERSION = 2
+CHAT_PROMPT_VERSION = 2
+CHAT_MAX_TOKENS = 500
+CHAT_TEMPERATURE = 0.2
 SYSTEM_PROMPT = (
     "You are an assistant that answers questions about a personal bookmark "
     "library. The UNTRUSTED_EVIDENCE_JSON block contains data copied from saved "
@@ -50,6 +54,17 @@ class ChatTurn:
     sources: List[dict] = field(default_factory=list)
     used_chunks: int = 0
     chunk_provenance: List[dict] = field(default_factory=list)
+
+
+@dataclass
+class ChatCacheEntry:
+    schema_version: int
+    prompt_version: int
+    ai_config_digest: str
+    index_generation: str
+    source_set_digest: str
+    context_digest: str
+    turn: ChatTurn
 
 
 @dataclass
@@ -154,17 +169,81 @@ class CollectionChat:
         self.max_history = max_history
         self.retrieval_k = retrieval_k
         self.history: List[ChatMessage] = []
-        self._cache: OrderedDict[str, ChatTurn] = OrderedDict()
+        self._cache: OrderedDict[str, ChatCacheEntry] = OrderedDict()
         self._cache_size = cache_size
 
-    def _cache_key(self, question: str, restrict_ids: Optional[Iterable[int]]) -> str:
+    @staticmethod
+    def _digest_payload(payload: object) -> str:
+        encoded = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8", errors="replace")
+        return hashlib.sha256(encoded).hexdigest()
+
+    def _ai_config_digest(self) -> str:
+        def _value(method_name: str, default: object) -> object:
+            method = getattr(self.ai_config, method_name, None)
+            if not callable(method):
+                return default
+            try:
+                return method()
+            except Exception:
+                return default
+
+        # Deliberately omit API keys and endpoints. Only settings that can alter
+        # answer semantics participate in cache compatibility.
+        return self._digest_payload({
+            "provider": _value("get_provider", "unknown"),
+            "model": _value("get_model", "unknown"),
+            "failover_enabled": _value("get_failover_enabled", False),
+            "failover_provider": _value("get_failover_provider", "unknown"),
+            "failover_model": _value("get_failover_model", "unknown"),
+            "max_tokens": CHAT_MAX_TOKENS,
+            "temperature": CHAT_TEMPERATURE,
+        })
+
+    def _vector_cache_identity(self) -> Dict[str, object]:
+        method = getattr(self.vector_store, "cache_identity", None)
+        if callable(method):
+            try:
+                identity = method()
+                if isinstance(identity, dict):
+                    return {
+                        "valid": bool(identity.get("valid", False)),
+                        "generation_id": str(identity.get("generation_id") or ""),
+                        "contract_digest": str(identity.get("contract_digest") or ""),
+                        "source_set_digest": str(identity.get("source_set_digest") or ""),
+                    }
+            except Exception:
+                pass
+        return {
+            "valid": True,
+            "generation_id": "ephemeral",
+            "contract_digest": "ephemeral",
+            "source_set_digest": "ephemeral",
+        }
+
+    def _cache_key(
+        self,
+        question: str,
+        restrict_ids: Optional[Iterable[int]],
+        context_digest: str = "",
+    ) -> str:
         scope = (
             "ALL"
             if restrict_ids is None
             else "IDS:" + ",".join(str(i) for i in sorted(restrict_ids))
         )
-        raw = f"{question.strip().lower()}|{scope}"
-        return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+        return self._digest_payload({
+            "schema_version": CHAT_CACHE_SCHEMA_VERSION,
+            "prompt_version": CHAT_PROMPT_VERSION,
+            "question": question.strip().lower(),
+            "scope": scope,
+            "ai_config_digest": self._ai_config_digest(),
+            "context_digest": context_digest,
+        })
 
     def reset(self):
         self.history = []
@@ -174,22 +253,76 @@ class CollectionChat:
 
     @property
     def cache_stats(self) -> Dict[str, int]:
-        return {"size": len(self._cache), "max": self._cache_size}
+        return {
+            "size": len(self._cache),
+            "max": self._cache_size,
+            "schema_version": CHAT_CACHE_SCHEMA_VERSION,
+            "prompt_version": CHAT_PROMPT_VERSION,
+        }
 
     def _cache_lookup(self, question: str,
                       restrict_ids: Optional[Iterable[int]],
-                      use_cache: bool) -> Tuple[bool, Optional[ChatTurn]]:
+                      context_identity: Dict[str, str],
+                      use_cache: bool) -> Optional[ChatTurn]:
         is_first_turn = not self.history
         if use_cache and is_first_turn:
-            key = self._cache_key(question, restrict_ids)
-            if key in self._cache:
+            context_digest = context_identity["context_digest"]
+            key = self._cache_key(question, restrict_ids, context_digest)
+            entry = self._cache.get(key)
+            if (
+                entry is not None
+                and entry.schema_version == CHAT_CACHE_SCHEMA_VERSION
+                and entry.prompt_version == CHAT_PROMPT_VERSION
+                and entry.ai_config_digest == self._ai_config_digest()
+                and entry.index_generation == context_identity["index_generation"]
+                and entry.source_set_digest == context_identity["source_set_digest"]
+                and entry.context_digest == context_digest
+            ):
                 self._cache.move_to_end(key)
-                return is_first_turn, self._cache[key]
-        return is_first_turn, None
+                return entry.turn
+            if entry is not None:
+                self._cache.pop(key, None)
+        return None
+
+    def _index_diagnostic_turn(self) -> Optional[ChatTurn]:
+        method = getattr(self.vector_store, "index_status", None)
+        if not callable(method):
+            return None
+        try:
+            status = method()
+        except Exception:
+            return None
+        if not isinstance(status, dict):
+            return None
+        state = status.get("status")
+        if state == "stale":
+            reasons = ", ".join(status.get("diagnostics") or [])
+            detail = f" ({reasons})" if reasons else ""
+            return ChatTurn(
+                answer=(
+                    f"Semantic index is stale{detail}. Rebuild embeddings with "
+                    "`bop embed` before asking collection questions."
+                ),
+                sources=[],
+            )
+        if state in {"missing", "empty"}:
+            return ChatTurn(
+                answer=(
+                    "Semantic index is not built. Run `bop embed` before asking "
+                    "collection questions."
+                ),
+                sources=[],
+            )
+        return None
 
     def _prepare_prompt(self, question: str,
                         restrict_ids: Optional[Iterable[int]]) -> Tuple[
-                            Optional[Tuple[List[dict], List[dict], str]],
+                            Optional[Tuple[
+                                List[dict],
+                                List[dict],
+                                str,
+                                Dict[str, str],
+                            ]],
                             Optional[ChatTurn],
                         ]:
         retrieved = self.vector_store.search(
@@ -208,6 +341,9 @@ class CollectionChat:
                 if int(hit.get("bookmark_id", -1)) in allowed_ids
             ]
         if not retrieved:
+            diagnostic_turn = self._index_diagnostic_turn()
+            if diagnostic_turn is not None:
+                return None, diagnostic_turn
             return None, ChatTurn(answer=NO_CITED_ANSWER, sources=[])
 
         raw_chunks = []
@@ -266,7 +402,38 @@ class CollectionChat:
             "TASK: Answer the user request under the system citation policy using "
             "only the supplied evidence."
         )
-        return (bounded_retrieved, provenance, "\n".join(prompt_parts)), None
+        vector_identity = self._vector_cache_identity()
+        evidence_identity = [
+            {
+                "bookmark_id": int(hit.get("bookmark_id", 0)),
+                "char_start": int(hit.get("char_start", 0)),
+                "char_end": int(hit.get("char_end", 0)),
+                "source_digest": str(
+                    hit.get("source_digest")
+                    or hashlib.sha256(
+                        str(hit.get("text") or "").encode(
+                            "utf-8",
+                            errors="replace",
+                        )
+                    ).hexdigest()
+                ),
+            }
+            for hit in bounded_retrieved
+        ]
+        context_identity = {
+            "index_generation": str(vector_identity["generation_id"]),
+            "source_set_digest": str(vector_identity["source_set_digest"]),
+            "context_digest": self._digest_payload({
+                "vector": vector_identity,
+                "evidence": evidence_identity,
+            }),
+        }
+        return (
+            bounded_retrieved,
+            provenance,
+            "\n".join(prompt_parts),
+            context_identity,
+        ), None
 
     def _sanitize_answer(
         self,
@@ -287,6 +454,7 @@ class CollectionChat:
                      retrieved: List[dict], provenance: List[dict],
                      is_first_turn: bool,
                      restrict_ids: Optional[Iterable[int]],
+                     context_identity: Dict[str, str],
                      use_cache: bool) -> ChatTurn:
         self.history.append(ChatMessage(role="user", content=question))
         self.history.append(ChatMessage(role="assistant", content=answer))
@@ -299,8 +467,17 @@ class CollectionChat:
         )
 
         if use_cache and is_first_turn:
-            key = self._cache_key(question, restrict_ids)
-            self._cache[key] = turn
+            context_digest = context_identity["context_digest"]
+            key = self._cache_key(question, restrict_ids, context_digest)
+            self._cache[key] = ChatCacheEntry(
+                schema_version=CHAT_CACHE_SCHEMA_VERSION,
+                prompt_version=CHAT_PROMPT_VERSION,
+                ai_config_digest=self._ai_config_digest(),
+                index_generation=context_identity["index_generation"],
+                source_set_digest=context_identity["source_set_digest"],
+                context_digest=context_digest,
+                turn=turn,
+            )
             while len(self._cache) > self._cache_size:
                 self._cache.popitem(last=False)
 
@@ -312,24 +489,29 @@ class CollectionChat:
         if not question.strip():
             return ChatTurn(answer="")
         restrict_ids = list(restrict_ids) if restrict_ids is not None else None
-
-        is_first_turn, cached = self._cache_lookup(question, restrict_ids, use_cache)
-        if cached is not None:
-            return cached
+        is_first_turn = not self.history
 
         prepared, early_turn = self._prepare_prompt(question, restrict_ids)
         if early_turn is not None:
             return early_turn
         assert prepared is not None
-        retrieved, provenance, prompt = prepared
+        retrieved, provenance, prompt, context_identity = prepared
+        cached = self._cache_lookup(
+            question,
+            restrict_ids,
+            context_identity,
+            use_cache,
+        )
+        if cached is not None:
+            return cached
 
         try:
             client = create_ai_client(self.ai_config)
             answer = client.complete(
                 system=SYSTEM_PROMPT,
                 prompt=prompt,
-                max_tokens=500,
-                temperature=0.2,
+                max_tokens=CHAT_MAX_TOKENS,
+                temperature=CHAT_TEMPERATURE,
             )
         except Exception as exc:
             log.warning(f"RAG chat failed: {exc}")
@@ -338,7 +520,7 @@ class CollectionChat:
         answer = self._sanitize_answer(answer, retrieved).text
         return self._finish_turn(
             question, answer, retrieved, provenance, is_first_turn,
-            restrict_ids, use_cache,
+            restrict_ids, context_identity, use_cache,
         )
 
     def stream_answer(self, question: str,
@@ -352,12 +534,7 @@ class CollectionChat:
             emit_chunk_events(events, on_event)
             return ChatStreamResult(turn, events)
         restrict_ids = list(restrict_ids) if restrict_ids is not None else None
-
-        is_first_turn, cached = self._cache_lookup(question, restrict_ids, use_cache)
-        if cached is not None:
-            events = build_chat_stream_events(cached, chunk_chars)
-            emit_chunk_events(events, on_event)
-            return ChatStreamResult(cached, events)
+        is_first_turn = not self.history
 
         prepared, early_turn = self._prepare_prompt(question, restrict_ids)
         if early_turn is not None:
@@ -368,7 +545,17 @@ class CollectionChat:
                 events,
             )
         assert prepared is not None
-        retrieved, provenance, prompt = prepared
+        retrieved, provenance, prompt, context_identity = prepared
+        cached = self._cache_lookup(
+            question,
+            restrict_ids,
+            context_identity,
+            use_cache,
+        )
+        if cached is not None:
+            events = build_chat_stream_events(cached, chunk_chars)
+            emit_chunk_events(events, on_event)
+            return ChatStreamResult(cached, events)
 
         try:
             client = create_ai_client(self.ai_config)
@@ -376,8 +563,8 @@ class CollectionChat:
             for chunk in client.stream_complete(
                 system=SYSTEM_PROMPT,
                 prompt=prompt,
-                max_tokens=500,
-                temperature=0.2,
+                max_tokens=CHAT_MAX_TOKENS,
+                temperature=CHAT_TEMPERATURE,
             ):
                 if not chunk:
                     continue
@@ -392,7 +579,7 @@ class CollectionChat:
 
         turn = self._finish_turn(
             question, answer, retrieved, provenance, is_first_turn,
-            restrict_ids, use_cache,
+            restrict_ids, context_identity, use_cache,
         )
         events = build_chat_stream_events(turn, chunk_chars)
         emit_chunk_events(events, on_event)

@@ -109,7 +109,10 @@ class BookmarkServices:
         self.bookmark_manager = BookmarkManager(self.category_manager, self.tag_manager)
         self.ai_config = AIConfigManager()
         self.embedder = EmbeddingService()
-        self.vector_store = VectorStore(self.embedder)
+        self.vector_store = VectorStore(
+            self.embedder,
+            source_digest_resolver=self._source_digest,
+        )
         self.hybrid = HybridSearch(self.vector_store)
         self.summarizer = CitationSummarizer(self.ai_config, self.embedder)
         self.chat = CollectionChat(self.ai_config, self.vector_store)
@@ -120,6 +123,12 @@ class BookmarkServices:
         self.dead_links = DeadLinkScanner(
             get_bookmarks=lambda: self.bookmark_manager.get_all_bookmarks(),
         )
+
+    def _source_digest(self, bookmark_id: int) -> Optional[str]:
+        bookmark = self.bookmark_manager.get_bookmark(bookmark_id)
+        if bookmark is None:
+            return None
+        return EmbeddingService.bookmark_source_digest(bookmark)
 
 
 SERVICES: Optional[BookmarkServices] = None

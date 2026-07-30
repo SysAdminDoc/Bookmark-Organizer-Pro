@@ -954,7 +954,16 @@ class AppShellMixin:
 
                 if not hasattr(self, "_chat_service") or self._chat_service is None:
                     emb = EmbeddingService()
-                    vs = VectorStore(emb)
+                    def _source_digest(bookmark_id: int):
+                        bookmark = self.bookmark_manager.get_bookmark(bookmark_id)
+                        if bookmark is None:
+                            return None
+                        return EmbeddingService.bookmark_source_digest(bookmark)
+
+                    vs = VectorStore(
+                        emb,
+                        source_digest_resolver=_source_digest,
+                    )
                     self._chat_service = CollectionChat(self.ai_config, vs)
 
                 turn = self._chat_service.ask(question)

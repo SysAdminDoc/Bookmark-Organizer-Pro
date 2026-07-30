@@ -454,6 +454,20 @@ class TestEmbeddingChunker(_IsolatedTestBase):
         self.assertNotEqual(h1, h3, "Different input must produce different hash")
         self.assertEqual(len(h1), 64, "SHA-256 hex digest is 64 chars")
 
+    def test_source_digest_normalizes_line_endings_and_unicode(self):
+        from bookmark_organizer_pro.services.embeddings import EmbeddingService
+
+        composed = "Caf\u00e9\r\nLine two"
+        decomposed = "Cafe\u0301\nLine two"
+        self.assertEqual(
+            EmbeddingService.normalized_source_digest(composed),
+            EmbeddingService.normalized_source_digest(decomposed),
+        )
+        self.assertNotEqual(
+            EmbeddingService.normalized_source_digest(composed),
+            EmbeddingService.normalized_source_digest("Caf\u00e9\nChanged"),
+        )
+
 
 class TestChatStreamEvents(_IsolatedTestBase):
     """Tests for RAG chat response event chunking."""
@@ -526,6 +540,97 @@ class TestChatStreamEvents(_IsolatedTestBase):
         self.assertEqual([event.text for event in chunks], ["Streamed answer [#c0]."])
         self.assertEqual(result.events[-1].type, "complete")
         self.assertEqual(result.events[-1].sources[0]["bookmark_id"], 7)
+
+    def test_chat_cache_tracks_index_evidence_and_ai_configuration(self):
+        from types import SimpleNamespace
+        from bookmark_organizer_pro.services.rag_chat import (
+            CHAT_CACHE_SCHEMA_VERSION,
+            CHAT_PROMPT_VERSION,
+            CollectionChat,
+        )
+
+        class FakeConfig:
+            provider = "openai"
+            model = "model-a"
+
+            def get_provider(self):
+                return self.provider
+
+            def get_model(self):
+                return self.model
+
+            @staticmethod
+            def get_failover_enabled():
+                return False
+
+        class FakeVectorStore:
+            embedder = SimpleNamespace(available=True)
+
+            def __init__(self):
+                self.generation = "generation-a"
+                self.source_set = "sources-a"
+                self.source_digest = "source-a"
+
+            def search(self, _question, k=6, restrict_ids=None):
+                return [{
+                    "bookmark_id": 7,
+                    "text": f"Evidence from {self.source_digest}",
+                    "char_start": 0,
+                    "char_end": 20,
+                    "source_digest": self.source_digest,
+                    "generation_id": self.generation,
+                }]
+
+            def cache_identity(self):
+                return {
+                    "valid": True,
+                    "generation_id": self.generation,
+                    "contract_digest": "contract-a",
+                    "source_set_digest": self.source_set,
+                }
+
+        class FakeClient:
+            def __init__(self):
+                self.calls = 0
+
+            def complete(self, *_args, **_kwargs):
+                self.calls += 1
+                return f"Answer {self.calls} [#c0]."
+
+        config = FakeConfig()
+        vectors = FakeVectorStore()
+        client = FakeClient()
+        chat = CollectionChat(config, vectors)
+        with patch(
+            "bookmark_organizer_pro.services.rag_chat.create_ai_client",
+            return_value=client,
+        ):
+            first = chat.ask("What changed?")
+            chat.reset()
+            cached = chat.ask("What changed?")
+            self.assertEqual(cached.answer, first.answer)
+            self.assertEqual(client.calls, 1)
+
+            vectors.generation = "generation-b"
+            vectors.source_set = "sources-b"
+            vectors.source_digest = "source-b"
+            chat.reset()
+            reindexed = chat.ask("What changed?")
+            self.assertEqual(reindexed.answer, "Answer 2 [#c0].")
+
+            config.model = "model-b"
+            chat.reset()
+            reconfigured = chat.ask("What changed?")
+            self.assertEqual(reconfigured.answer, "Answer 3 [#c0].")
+
+        self.assertTrue(chat._cache)
+        for entry in chat._cache.values():
+            self.assertEqual(entry.schema_version, CHAT_CACHE_SCHEMA_VERSION)
+            self.assertEqual(entry.prompt_version, CHAT_PROMPT_VERSION)
+            self.assertTrue(entry.ai_config_digest)
+            self.assertTrue(entry.index_generation)
+            self.assertTrue(entry.source_set_digest)
+            self.assertTrue(entry.context_digest)
 
 
 class TestAIContextTrustBoundary(_IsolatedTestBase):
@@ -823,11 +928,24 @@ class TestAIContextTrustBoundary(_IsolatedTestBase):
         self.assertIn("Every factual sentence", client.system)
 
     def test_vector_store_distinguishes_empty_scope_from_all_bookmarks(self):
+        from bookmark_organizer_pro.services.embeddings import EmbeddingService
         from bookmark_organizer_pro.services.vector_store import VectorStore
 
         class FakeEmbedder:
             available = True
             backend = "fake"
+            dim = 2
+            identity = {
+                "schema_version": 1,
+                "id": "fake:test",
+                "backend": "fake",
+                "model": "test",
+                "revision": "1",
+                "dimension": 2,
+            }
+
+            def embed(self, texts):
+                return [[1.0, 0.0] for _text in texts]
 
             def embed_one(self, text):
                 return [1.0, 0.0]
@@ -840,19 +958,272 @@ class TestAIContextTrustBoundary(_IsolatedTestBase):
                 FakeEmbedder(),
                 store_dir=Path(self._tmp) / "scope_vectors",
             )
-        store._memory = {
-            "7:c0": {
-                "bookmark_id": 7,
-                "chunk_id": "c0",
-                "text": "Scoped",
-                "char_start": 0,
-                "char_end": 6,
-                "vector": [1.0, 0.0],
-            },
-        }
+        self.assertEqual(
+            store.upsert_bookmark(7, EmbeddingService.chunk_text("Scoped")),
+            1,
+        )
 
         self.assertEqual(len(store.search("query", restrict_ids=None)), 1)
         self.assertEqual(store.search("query", restrict_ids=[]), [])
+
+
+class TestVersionedVectorStore(_IsolatedTestBase):
+    """Semantic generations fail closed when provenance no longer matches."""
+
+    class FakeEmbedder:
+        available = True
+        backend = "fake"
+        dim = 2
+
+        def __init__(self, model="alpha", revision="1"):
+            self.model = model
+            self.revision = revision
+
+        @property
+        def identity(self):
+            return {
+                "schema_version": 1,
+                "id": f"fake:{self.model}",
+                "backend": "fake",
+                "model": self.model,
+                "revision": self.revision,
+                "dimension": self.dim,
+            }
+
+        @staticmethod
+        def embed(texts):
+            return [[1.0, 0.0] for _text in texts]
+
+        @staticmethod
+        def embed_one(_text):
+            return [1.0, 0.0]
+
+    def _memory_store(self, path, embedder=None, resolver=None):
+        from bookmark_organizer_pro.services.vector_store import VectorStore
+
+        with patch(
+            "bookmark_organizer_pro.services.vector_store._try_import",
+            return_value=None,
+        ):
+            return VectorStore(
+                embedder or self.FakeEmbedder(),
+                store_dir=path,
+                source_digest_resolver=resolver,
+            )
+
+    def test_manifest_and_rows_record_complete_generation_provenance(self):
+        from bookmark_organizer_pro.services.embeddings import EmbeddingService
+        from bookmark_organizer_pro.services.vector_store import (
+            VECTOR_INDEX_DOCUMENT_SCHEMA,
+            VECTOR_INDEX_SCHEMA_VERSION,
+        )
+
+        path = Path(self._tmp) / "versioned_manifest"
+        source = "Private source body"
+        store = self._memory_store(path)
+        self.assertEqual(
+            store.upsert_bookmark(9, EmbeddingService.chunk_text(source)),
+            1,
+        )
+
+        payload = json.loads((path / "vectors.json").read_text(encoding="utf-8"))
+        manifest = payload["manifest"]
+        row = next(iter(payload["rows"].values()))
+        self.assertEqual(payload["schema"], VECTOR_INDEX_DOCUMENT_SCHEMA)
+        self.assertEqual(payload["schema_version"], VECTOR_INDEX_SCHEMA_VERSION)
+        self.assertEqual(manifest["contract"]["embedder"]["id"], "fake:alpha")
+        self.assertEqual(manifest["contract"]["embedder"]["revision"], "1")
+        self.assertEqual(manifest["contract"]["embedder"]["dimension"], 2)
+        self.assertEqual(manifest["contract"]["chunker"]["version"], 2)
+        self.assertEqual(manifest["contract"]["chunker"]["chunk_chars"], 1500)
+        self.assertEqual(manifest["contract"]["ai_config_digest"], "not-applicable")
+        self.assertEqual(row["generation_id"], manifest["generation_id"])
+        self.assertEqual(row["source_digest"], manifest["sources"]["9"])
+        self.assertEqual(row["vector_dimension"], 2)
+        self.assertEqual(row["chunker_version"], 2)
+
+    def test_mismatched_embedder_is_bypassed_then_atomically_rebuilt(self):
+        from bookmark_organizer_pro.services.embeddings import EmbeddingService
+
+        path = Path(self._tmp) / "versioned_rebuild"
+        chunks = EmbeddingService.chunk_text("Stable source")
+        first = self._memory_store(path, self.FakeEmbedder("alpha", "1"))
+        self.assertEqual(first.upsert_bookmark(3, chunks), 1)
+        first_generation = first.index_status()["generation_id"]
+
+        changed = self._memory_store(path, self.FakeEmbedder("beta", "2"))
+        self.assertEqual(changed.search("query"), [])
+        self.assertIn("embedder_id_mismatch", changed.diagnostics)
+        self.assertTrue(changed.index_status()["rebuild_required"])
+        self.assertEqual(changed.upsert_bookmark(3, chunks), 1)
+        self.assertNotEqual(
+            changed.index_status()["generation_id"],
+            first_generation,
+        )
+        self.assertEqual(len(changed.search("query")), 1)
+        payload = json.loads((path / "vectors.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(payload["rows"]), 1)
+        self.assertEqual(
+            payload["manifest"]["contract"]["embedder"]["id"],
+            "fake:beta",
+        )
+
+    def test_changed_or_missing_source_is_bypassed_with_private_diagnostics(self):
+        from bookmark_organizer_pro.services.embeddings import EmbeddingService
+
+        path = Path(self._tmp) / "versioned_source"
+        original = "Sensitive source text"
+        current = {
+            4: EmbeddingService.normalized_source_digest(original),
+        }
+        store = self._memory_store(
+            path,
+            resolver=lambda bookmark_id: current.get(bookmark_id),
+        )
+        self.assertEqual(
+            store.upsert_bookmark(4, EmbeddingService.chunk_text(original)),
+            1,
+        )
+        self.assertEqual(len(store.search("query")), 1)
+
+        current[4] = EmbeddingService.normalized_source_digest("Changed")
+        self.assertEqual(store.search("query"), [])
+        self.assertEqual(store.diagnostics, ("source_content_changed",))
+        status_json = json.dumps(store.index_status())
+        self.assertNotIn(original, status_json)
+        self.assertNotIn(str(path), status_json)
+
+        current.pop(4)
+        self.assertEqual(store.search("query"), [])
+        self.assertEqual(store.diagnostics, ("source_missing",))
+
+    def test_legacy_index_is_never_queried_and_migrates_on_rebuild(self):
+        from bookmark_organizer_pro.services.embeddings import EmbeddingService
+        from bookmark_organizer_pro.services.vector_store import (
+            VECTOR_INDEX_DOCUMENT_SCHEMA,
+        )
+
+        path = Path(self._tmp) / "legacy_vectors"
+        path.mkdir(parents=True)
+        (path / "vectors.json").write_text(
+            json.dumps({
+                "7:c0": {
+                    "bookmark_id": 7,
+                    "chunk_id": "c0",
+                    "text": "Legacy private text",
+                    "vector": [1.0, 0.0],
+                },
+            }),
+            encoding="utf-8",
+        )
+        store = self._memory_store(path)
+        self.assertEqual(store.search("query"), [])
+        self.assertEqual(store.diagnostics, ("legacy_index",))
+
+        self.assertEqual(
+            store.upsert_bookmark(
+                8,
+                EmbeddingService.chunk_text("Replacement content"),
+            ),
+            1,
+        )
+        payload = json.loads((path / "vectors.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload["schema"], VECTOR_INDEX_DOCUMENT_SCHEMA)
+        self.assertNotIn("Legacy private text", json.dumps(payload))
+
+    def test_corrupt_row_dimension_is_bypassed_before_similarity(self):
+        from bookmark_organizer_pro.services.embeddings import EmbeddingService
+
+        store = self._memory_store(Path(self._tmp) / "corrupt_dimension")
+        self.assertEqual(
+            store.upsert_bookmark(2, EmbeddingService.chunk_text("Content")),
+            1,
+        )
+        row = next(iter(store._memory.values()))
+        row["vector"].append(0.0)
+        self.assertEqual(store.search("query"), [])
+        self.assertEqual(
+            store.diagnostics,
+            ("row_vector_dimension_mismatch",),
+        )
+
+    def test_lancedb_backend_enforces_the_same_source_contract(self):
+        from bookmark_organizer_pro.services.embeddings import EmbeddingService
+        from bookmark_organizer_pro.services.vector_store import VectorStore
+
+        class FakeQuery:
+            def __init__(self, rows):
+                self.rows = rows
+
+            def limit(self, _count):
+                return self
+
+            def to_list(self):
+                return [
+                    {**row, "_distance": 0.0}
+                    for row in self.rows
+                ]
+
+        class FakeTable:
+            def __init__(self, rows):
+                self.rows = list(rows)
+
+            def add(self, rows):
+                self.rows.extend(rows)
+
+            def count_rows(self):
+                return len(self.rows)
+
+            def delete(self, predicate):
+                bookmark_id = int(predicate.rsplit(" ", 1)[1])
+                self.rows = [
+                    row for row in self.rows
+                    if int(row["bookmark_id"]) != bookmark_id
+                ]
+
+            def search(self, _query, query_type=None):
+                return FakeQuery(self.rows)
+
+            def create_fts_index(self, *_args, **_kwargs):
+                return None
+
+        class FakeDatabase:
+            def __init__(self):
+                self.tables = {}
+
+            def create_table(self, name, data):
+                table = FakeTable(data)
+                self.tables[name] = table
+                return table
+
+            def open_table(self, name):
+                return self.tables[name]
+
+            def table_names(self):
+                return list(self.tables)
+
+        database = FakeDatabase()
+        lancedb = type("FakeLanceModule", (), {"connect": lambda *_args: database})
+        source = "Lance source"
+        current = {5: EmbeddingService.normalized_source_digest(source)}
+        with patch(
+            "bookmark_organizer_pro.services.vector_store._try_import",
+            return_value=lancedb,
+        ):
+            store = VectorStore(
+                self.FakeEmbedder(),
+                store_dir=Path(self._tmp) / "fake_lance",
+                source_digest_resolver=lambda bookmark_id: current.get(bookmark_id),
+            )
+        self.assertEqual(
+            store.upsert_bookmark(5, EmbeddingService.chunk_text(source)),
+            1,
+        )
+        self.assertEqual(store.backend, "lancedb")
+        self.assertEqual(len(store.search("query")), 1)
+        current[5] = EmbeddingService.normalized_source_digest("Changed")
+        self.assertEqual(store.search("query"), [])
+        self.assertEqual(store.diagnostics, ("source_content_changed",))
 
 
 # ── 2. EncryptedStore ─────────────────────────────────────────────────

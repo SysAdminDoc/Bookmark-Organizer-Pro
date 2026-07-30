@@ -13,6 +13,10 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Changed
 
+- Versioned semantic indexes and collection-answer caches by embedder/model
+  revision, vector dimension, chunker contract, normalized source digest, AI
+  configuration, and generation; incompatible, legacy, or source-stale rows
+  now fail closed with content-free rebuild diagnostics.
 - Replaced permissive advanced-search token handling with one explicit
   OR-of-AND AST and positional diagnostics across desktop, CLI, REST, and MCP;
   malformed filters now fail closed, saved slash-regex queries migrate to the
