@@ -2,7 +2,7 @@
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **verified offline snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
-Executable product contract: 62 CLI subcommands, 32 MCP tools, 6 AI providers, 3 extension surfaces, 49 service modules, 42 UI modules, and 42 test files.
+Executable product contract: 62 CLI subcommands, 33 MCP tools, 6 AI providers, 3 extension surfaces, 49 service modules, 42 UI modules, and 42 test files.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
 ![Version](https://img.shields.io/badge/Version-v6.12.0-2dd4bf.svg)
@@ -30,9 +30,10 @@ Add to your MCP config:
 After restart, the MCP-compatible client can query your bookmark library directly.
 The server exposes bookmark search, semantic/hybrid retrieval, snapshots,
 research flows, reader highlights, due SM-2 reviews, per-bookmark highlight
-Markdown export, and scoped reader review/note updates. Read-only MCP tokens can
-list and export reader data; review recording and note edits require read-write
-scope. Streamable HTTP MCP also validates the request Host and requires same-host
+Markdown export, and scoped reader review, note, and orphan-relink updates.
+Read-only MCP tokens can list and export reader data; review recording, note
+edits, and relinking require read-write scope. Streamable HTTP MCP also validates
+the request Host and requires same-host
 browser Origins; when MCP tokens exist, catalog, prompt, resource, and tool
 operations require a bearer token.
 
@@ -250,6 +251,7 @@ Native messaging and offline category/tag suggestions remain on the roadmap.
 - **Duplicate Review**: URL and smart duplicate scans open selectable cleanup previews with safepoint restore
 - **Tag Cleanup Review**: Tag-lint suggestions can be selected, applied, skipped, and restored from the GUI
 - **Read Later Queue**: Dedicated desktop queue for opening, reordering, completing, and removing saved read-later items
+- **Resilient Reader Highlights**: Source digests plus exact quote and bounded context selectors keep highlights attached across deterministic re-extraction changes; ambiguous or missing passages remain visible as repairable orphans without losing notes, tags, or review history
 - **Favicon Caching**: Fast, cached favicon display with multi-size support
 
 ### Bookmark Intelligence

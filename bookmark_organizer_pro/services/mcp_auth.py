@@ -36,7 +36,7 @@ WRITE_TOOLS = {
     "create_flow", "append_to_flow",
     "export_zip", "export_to_obsidian",
     "chat_with_collection", "chat_with_collection_stream", "summarize_bookmark",
-    "update_reader_highlight_note", "record_reader_review",
+    "update_reader_highlight_note", "relink_reader_highlight", "record_reader_review",
 }
 
 

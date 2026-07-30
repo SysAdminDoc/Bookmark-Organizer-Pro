@@ -13,6 +13,11 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Changed
 
+- Versioned reader-highlight anchors now combine source digests, exact quotes,
+  and bounded context: unchanged content keeps its offsets, uniquely moved
+  passages re-anchor deterministically, ambiguous or missing passages surface
+  as visible orphans, and desktop/MCP repair preserves notes, tags, and review
+  history.
 - Made offline snapshots content-aware and transactional: final MIME plus byte
   signatures select bundled HTML or byte-exact PDF/raster storage, unsupported
   content leaves no artifact, and a versioned SHA-256 manifest now drives

@@ -249,8 +249,21 @@ class ReaderViewDialog(tk.Toplevel):
             font=FONTS.small(),
         )
         self.delete_button.pack(side=tk.LEFT)
+        secondary_note_actions = tk.Frame(note_actions, bg=theme.bg_secondary)
+        secondary_note_actions.pack(fill=tk.X, pady=(8, 0))
+        self.relink_button = ModernButton(
+            secondary_note_actions,
+            text=_("Relink orphan to selection"),
+            command=self._relink_selected_highlight,
+            state="disabled",
+            padx=10,
+            pady=4,
+            font=FONTS.small(),
+            tooltip=_("Attach the selected orphan to a new passage"),
+        )
+        self.relink_button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
         self.undo_delete_button = ModernButton(
-            note_actions,
+            secondary_note_actions,
             text=_("Undo"),
             command=self._undo_deleted_highlight,
             state="disabled",
@@ -259,28 +272,71 @@ class ReaderViewDialog(tk.Toplevel):
             font=FONTS.small(),
             tooltip=_("Restore the last deleted highlight (Ctrl+Z)"),
         )
-        self.undo_delete_button.pack(fill=tk.X, pady=(8, 0))
+        self.undo_delete_button.pack(side=tk.LEFT)
 
-    def _load_highlights(self) -> None:
+    def _load_highlights(self, select_id: str | None = None) -> None:
         self._clear_highlight_tags()
         self.highlight_list.delete(0, tk.END)
         self.highlight_ids = []
-        for highlight in self.store.list_for_bookmark(int(self.bookmark.id)):
-            self._apply_text_tag(highlight)
+        highlights = self.store.reconcile_for_bookmark(
+            int(self.bookmark.id),
+            self.text_content,
+        )
+        orphan_count = 0
+        for highlight in highlights:
+            if highlight.anchor_status == "orphaned":
+                orphan_count += 1
+            else:
+                self._apply_text_tag(highlight)
             preview = " ".join(highlight.text.split())[:64]
-            self.highlight_list.insert(tk.END, f"{highlight.color} {highlight.char_start}-{highlight.char_end}: {preview}")
+            state = (
+                _("ORPHAN")
+                if highlight.anchor_status == "orphaned"
+                else highlight.color
+            )
+            self.highlight_list.insert(
+                tk.END,
+                f"{state} {highlight.char_start}-{highlight.char_end}: {preview}",
+            )
             self.highlight_ids.append(highlight.id)
         if self.highlight_ids:
-            self.status.configure(text=_("{count} highlight(s) saved locally").format(count=len(self.highlight_ids)))
+            if orphan_count:
+                self.status.configure(
+                    text=_(
+                        "{count} saved · {orphans} orphaned; select one to relink or delete"
+                    ).format(
+                        count=len(self.highlight_ids),
+                        orphans=orphan_count,
+                    )
+                )
+            else:
+                self.status.configure(
+                    text=_("{count} highlight(s) saved locally").format(
+                        count=len(self.highlight_ids)
+                    )
+                )
         else:
             self.status.configure(text=_("No highlights yet. Select a passage to create the first one."))
         self.export_button.set_state("normal" if self.highlight_ids else "disabled")
+        if select_id in self.highlight_ids:
+            index = self.highlight_ids.index(select_id)
+            self.highlight_list.selection_set(index)
+            self.highlight_list.activate(index)
+            self.highlight_list.see(index)
         self._sync_selection_actions()
 
     def _sync_selection_actions(self) -> None:
-        selected = bool(self._selected_highlight_id())
+        highlight_id = self._selected_highlight_id()
+        selected = bool(highlight_id)
+        highlight = self.store.get(highlight_id) if highlight_id else None
         self.save_note_button.set_state("normal" if selected else "disabled")
         self.delete_button.set_state("normal" if selected else "disabled")
+        can_relink = bool(
+            highlight
+            and highlight.anchor_status == "orphaned"
+            and self.text_content
+        )
+        self.relink_button.set_state("normal" if can_relink else "disabled")
 
     def _clear_highlight_tags(self) -> None:
         self.text.configure(state=tk.NORMAL)
@@ -290,6 +346,8 @@ class ReaderViewDialog(tk.Toplevel):
         self.text.configure(state=tk.DISABLED)
 
     def _apply_text_tag(self, highlight: ReaderHighlight) -> None:
+        if highlight.anchor_status == "orphaned":
+            return
         theme = get_theme()
         tag = f"reader-highlight-{highlight.id}"
         start = f"1.0 + {highlight.char_start} chars"
@@ -322,7 +380,14 @@ class ReaderViewDialog(tk.Toplevel):
             return
         self.note_text.delete("1.0", tk.END)
         self.note_text.insert("1.0", highlight.note)
-        self.text.see(f"1.0 + {highlight.char_start} chars")
+        if highlight.anchor_status == "orphaned":
+            self.status.configure(
+                text=_("Orphaned highlight: {reason}").format(
+                    reason=highlight.orphan_reason or _("source passage changed")
+                )
+            )
+        else:
+            self.text.see(f"1.0 + {highlight.char_start} chars")
         self._sync_selection_actions()
 
     def _add_highlight_from_selection(self) -> None:
@@ -359,6 +424,46 @@ class ReaderViewDialog(tk.Toplevel):
             return
         self.store.set_note(highlight_id, self.note_text.get("1.0", tk.END).strip())
         self._load_highlights()
+
+    def _relink_selected_highlight(self) -> None:
+        highlight_id = self._selected_highlight_id()
+        highlight = self.store.get(highlight_id) if highlight_id else None
+        if not highlight or highlight.anchor_status != "orphaned":
+            self.status.configure(
+                text=_("Choose an orphaned highlight before relinking it.")
+            )
+            return
+        ranges = self.text.tag_ranges(tk.SEL)
+        if len(ranges) != 2:
+            self.status.configure(
+                text=_("Select the replacement passage in the reader first.")
+            )
+            return
+        start = text_index_offset(self.text, str(ranges[0]))
+        end = text_index_offset(self.text, str(ranges[1]))
+        try:
+            repaired = self.store.relink(
+                highlight_id,
+                self.text_content,
+                start,
+                end,
+            )
+        except ValueError as exc:
+            self.status.configure(
+                text=_("Could not relink this highlight: {error}").format(
+                    error=str(exc)
+                )
+            )
+            return
+        if repaired is None:
+            self._load_highlights()
+            self.status.configure(text=_("That highlight no longer exists."))
+            return
+        self._load_highlights(select_id=repaired.id)
+        self._on_highlight_selected()
+        self.status.configure(
+            text=_("Highlight relinked; its note, tags, and review history were preserved.")
+        )
 
     def _delete_selected_highlight(self) -> None:
         highlight_id = self._selected_highlight_id()

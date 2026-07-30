@@ -20,6 +20,7 @@ Tools exposed:
     list_due_reader_reviews(limit, offset) -> list
     export_reader_highlights(bookmark_id) -> dict
     update_reader_highlight_note(highlight_id, note) -> dict
+    relink_reader_highlight(highlight_id, char_start, char_end) -> dict
     record_reader_review(highlight_id, quality) -> dict
     chat_with_collection(question, restrict_ids) -> dict
     chat_with_collection_stream(question, restrict_ids, chunk_chars) -> dict
@@ -37,6 +38,7 @@ import importlib
 import json
 import sys
 import threading
+from datetime import date
 from urllib.parse import urlsplit
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -57,6 +59,7 @@ from bookmark_organizer_pro.services.hybrid_search import HybridSearch
 from bookmark_organizer_pro.services.reader_annotations import (
     ReaderAnnotationStore,
     ReaderHighlight,
+    read_extracted_text,
     render_highlights_markdown,
 )
 from bookmark_organizer_pro.services.zip_export import ZipExporter
@@ -722,6 +725,38 @@ def _reader_highlight_to_dict(
     return payload
 
 
+def _preview_reconciled_reader_highlights(
+    services: BookmarkServices,
+    bookmark_id: int | None = None,
+) -> List[ReaderHighlight]:
+    if bookmark_id is not None:
+        bookmark_ids = [int(bookmark_id)]
+    else:
+        bookmark_ids = sorted({
+            item.bookmark_id
+            for item in services.reader_annotations.list_all()
+        })
+    highlights: List[ReaderHighlight] = []
+    for current_id in bookmark_ids:
+        bookmark = services.bookmark_manager.get_bookmark(current_id)
+        source = read_extracted_text(bookmark) if bookmark is not None else ""
+        highlights.extend(
+            services.reader_annotations.reconcile_for_bookmark(
+                current_id,
+                source,
+                persist=False,
+            )
+        )
+    return sorted(
+        highlights,
+        key=lambda item: (item.bookmark_id, item.char_start, item.created_at),
+    )
+
+
+def _reader_highlight_due(highlight: ReaderHighlight, today_iso: str) -> bool:
+    return not highlight.sr_next_review or highlight.sr_next_review <= today_iso
+
+
 def t_list_reader_highlights(
     bookmark_id: Optional[int] = None,
     limit: int = 50,
@@ -732,15 +767,15 @@ def t_list_reader_highlights(
     limit = _clamp_limit(limit)
     offset = _clamp_offset(offset)
     s = _services()
+    highlights = _preview_reconciled_reader_highlights(s, bookmark_id)
     if due_only:
-        highlights = s.reader_annotations.due_for_review()
-        if bookmark_id is not None:
-            bid = int(bookmark_id)
-            highlights = [item for item in highlights if item.bookmark_id == bid]
-    elif bookmark_id is not None:
-        highlights = s.reader_annotations.list_for_bookmark(int(bookmark_id))
-    else:
-        highlights = s.reader_annotations.list_all()
+        today_iso = date.today().isoformat()
+        highlights = [
+            item
+            for item in highlights
+            if _reader_highlight_due(item, today_iso)
+        ]
+        highlights.sort(key=lambda item: (item.sr_next_review or "", item.created_at))
     window = highlights[offset: offset + limit]
     return [_reader_highlight_to_dict(item, s) for item in window]
 
@@ -750,7 +785,13 @@ def t_list_due_reader_reviews(limit: int = 50, offset: int = 0) -> List[Dict]:
     limit = _clamp_limit(limit)
     offset = _clamp_offset(offset)
     s = _services()
-    due = s.reader_annotations.due_for_review()
+    today_iso = date.today().isoformat()
+    due = [
+        item
+        for item in _preview_reconciled_reader_highlights(s)
+        if _reader_highlight_due(item, today_iso)
+    ]
+    due.sort(key=lambda item: (item.sr_next_review or "", item.created_at))
     return [_reader_highlight_to_dict(item, s) for item in due[offset: offset + limit]]
 
 
@@ -760,7 +801,11 @@ def t_export_reader_highlights(bookmark_id: int) -> Dict:
     bm = s.bookmark_manager.get_bookmark(int(bookmark_id))
     if bm is None:
         return {"error": "Bookmark not found"}
-    highlights = s.reader_annotations.list_for_bookmark(int(bookmark_id))
+    highlights = s.reader_annotations.reconcile_for_bookmark(
+        int(bookmark_id),
+        read_extracted_text(bm),
+        persist=False,
+    )
     return {
         "bookmark": _bookmark_brief(s, int(bookmark_id)),
         "highlight_count": len(highlights),
@@ -780,6 +825,54 @@ def t_update_reader_highlight_note(highlight_id: str, note: str = "") -> Dict:
     return {
         "updated": True,
         "highlight": _reader_highlight_to_dict(highlight, s) if highlight else None,
+    }
+
+
+def t_relink_reader_highlight(
+    highlight_id: str,
+    char_start: int,
+    char_end: int,
+) -> Dict:
+    """Relink an orphan to a caller-selected range in current extracted text."""
+    highlight_id = _sanitize_str(highlight_id, 200)
+    s = _services()
+    highlight = s.reader_annotations.get(highlight_id)
+    if highlight is None:
+        return {"error": "Highlight not found"}
+    bookmark = s.bookmark_manager.get_bookmark(highlight.bookmark_id)
+    if bookmark is None:
+        return {"error": "Bookmark not found"}
+    source = read_extracted_text(bookmark)
+    if not source:
+        return {"error": "Bookmark has no extracted text"}
+    reconciled = s.reader_annotations.reconcile_for_bookmark(
+        highlight.bookmark_id,
+        source,
+    )
+    highlight = next(
+        (item for item in reconciled if item.id == highlight_id),
+        None,
+    )
+    if highlight is None:
+        return {"error": "Highlight not found"}
+    if highlight.anchor_status != "orphaned":
+        return {"error": "Only orphaned highlights can be relinked"}
+    try:
+        repaired = s.reader_annotations.relink(
+            highlight_id,
+            source,
+            int(char_start),
+            int(char_end),
+        )
+    except (TypeError, ValueError) as exc:
+        return {"error": str(exc)}
+    return {
+        "relinked": repaired is not None,
+        "highlight": (
+            _reader_highlight_to_dict(repaired, s)
+            if repaired is not None
+            else None
+        ),
     }
 
 
@@ -1308,6 +1401,17 @@ TOOLS = [
          },
          "required": ["highlight_id", "note"],
      }),
+    ("relink_reader_highlight", t_relink_reader_highlight,
+     "Relink an orphaned reader highlight to a selected character range in the current extracted text.",
+     {
+         "type": "object",
+         "properties": {
+             "highlight_id": {"type": "string", "description": "Orphaned reader highlight ID"},
+             "char_start": {"type": "integer", "description": "Zero-based start offset in the current extracted text"},
+             "char_end": {"type": "integer", "description": "Exclusive end offset in the current extracted text"},
+         },
+         "required": ["highlight_id", "char_start", "char_end"],
+     }),
     ("record_reader_review", t_record_reader_review,
      "Record a 0-5 SM-2 review quality score for a reader highlight.",
      {
@@ -1634,6 +1738,10 @@ def _build_fastmcp_server():
     @tool("update_reader_highlight_note", "Update a saved reader highlight note.")
     def update_reader_highlight_note(highlight_id: str, note: str = "") -> dict:
         return t_update_reader_highlight_note(highlight_id, note)
+
+    @tool("relink_reader_highlight", "Relink an orphaned reader highlight to the current extracted text.")
+    def relink_reader_highlight(highlight_id: str, char_start: int, char_end: int) -> dict:
+        return t_relink_reader_highlight(highlight_id, char_start, char_end)
 
     @tool("record_reader_review", "Record a 0-5 SM-2 reader review quality score.")
     def record_reader_review(highlight_id: str, quality: int) -> dict:

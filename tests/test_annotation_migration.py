@@ -9,12 +9,17 @@ import pytest
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.migration import apply_migration, preflight_migration
 from bookmark_organizer_pro.services.reader_annotations import (
+    ANNOTATION_EXPORT_SCHEMA,
     AnnotationExportTemplate,
+    LEGACY_ANNOTATION_EXPORT_SCHEMA,
+    ReaderAnnotationStore,
     ReaderHighlight,
     annotation_export_records,
     export_annotations,
     parse_annotation_export,
+    reconcile_highlight_anchor,
     render_annotation_export,
+    source_text_sha256,
 )
 
 
@@ -49,6 +54,187 @@ def test_annotation_export_is_deterministic_and_incremental():
     assert records[0]["source_link"].endswith("#bop-highlight-newer")
     template = AnnotationExportTemplate(format="json")
     assert render_annotation_export(records, template) == render_annotation_export(records, template)
+
+
+def test_reader_anchor_creation_bounds_context_and_migrates_legacy_storage(tmp_path: Path):
+    path = tmp_path / "reader-annotations.json"
+    source = ("p" * 80) + "selected evidence" + ("s" * 80)
+    start = source.index("selected evidence")
+    store = ReaderAnnotationStore(path)
+
+    created = store.add_from_text(7, source, start, start + len("selected evidence"))
+
+    assert created.source_sha256 == source_text_sha256(source)
+    assert created.quote_exact == "selected evidence"
+    assert created.quote_prefix == "p" * 64
+    assert created.quote_suffix == "s" * 64
+    assert created.anchor_status == "anchored"
+    unchanged = store.reconcile_for_bookmark(7, source)[0]
+    assert (unchanged.char_start, unchanged.char_end) == (
+        created.char_start,
+        created.char_end,
+    )
+    assert unchanged.anchor_history == []
+    envelope = json.loads(path.read_text(encoding="utf-8"))
+    assert envelope["version"] == 2
+
+    legacy_path = tmp_path / "legacy-reader-annotations.json"
+    legacy_path.write_text(
+        json.dumps(
+            {
+                "highlights": [
+                    {
+                        "id": "legacy",
+                        "bookmark_id": 7,
+                        "char_start": start,
+                        "char_end": start + len("selected evidence"),
+                        "text": "selected evidence",
+                        "note": "Keep this",
+                        "tags": ["claim"],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    migrated = ReaderAnnotationStore(legacy_path)
+    legacy = migrated.list_for_bookmark(7)[0]
+    assert legacy.anchor_status == "unverified"
+    assert legacy.quote_exact == "selected evidence"
+    resolved = migrated.reconcile_for_bookmark(7, source)[0]
+    assert resolved.anchor_status == "anchored"
+    assert resolved.source_sha256 == source_text_sha256(source)
+    assert resolved.note == "Keep this"
+    assert resolved.tags == ["claim"]
+    assert json.loads(legacy_path.read_text(encoding="utf-8"))["version"] == 2
+
+
+def test_reader_anchor_reconciles_unique_change_and_preserves_metadata(tmp_path: Path):
+    path = tmp_path / "reader-annotations.json"
+    old_source = "Before unique quote after"
+    quote = "unique quote"
+    start = old_source.index(quote)
+    store = ReaderAnnotationStore(path)
+    original = ReaderHighlight(
+        id="stable-id",
+        bookmark_id=7,
+        char_start=start,
+        char_end=start + len(quote),
+        text=quote,
+        source_sha256=source_text_sha256(old_source),
+        quote_exact=quote,
+        quote_prefix="Before ",
+        quote_suffix=" after",
+        anchor_status="anchored",
+        note="Research note",
+        tags=["claim", "review"],
+        created_at="2026-01-03T00:00:00+00:00",
+        modified_at="2026-01-03T00:00:00+00:00",
+        sr_interval=6,
+        sr_repetitions=2,
+        sr_ease=2.6,
+        sr_next_review="2026-02-01",
+    )
+    assert store.restore(original)
+    changed_source = "Inserted context. Before unique quote after"
+
+    resolved = store.reconcile_for_bookmark(7, changed_source)[0]
+
+    assert resolved.id == original.id
+    assert changed_source[resolved.char_start:resolved.char_end] == quote
+    assert resolved.anchor_status == "reanchored"
+    assert resolved.note == original.note
+    assert resolved.tags == original.tags
+    assert resolved.sr_interval == original.sr_interval
+    assert resolved.sr_repetitions == original.sr_repetitions
+    assert resolved.sr_next_review == original.sr_next_review
+    assert resolved.anchor_history[-1]["action"] == "automatic-reanchor"
+
+
+def test_reader_anchor_orphans_ambiguous_or_missing_quotes_and_manual_relink_preserves_data(
+    tmp_path: Path,
+):
+    old_source = "A quote Z"
+    original = ReaderHighlight(
+        id="repair-me",
+        bookmark_id=7,
+        char_start=2,
+        char_end=7,
+        text="quote",
+        source_sha256=source_text_sha256(old_source),
+        quote_exact="quote",
+        anchor_status="anchored",
+        note="Do not lose",
+        tags=["source"],
+        created_at="2026-01-03T00:00:00+00:00",
+        modified_at="2026-01-03T00:00:00+00:00",
+        sr_interval=6,
+        sr_repetitions=2,
+        sr_next_review="2026-02-01",
+    )
+    ambiguous, changed = reconcile_highlight_anchor(
+        original,
+        "quote appears twice; quote",
+    )
+    assert changed
+    assert ambiguous.anchor_status == "orphaned"
+    assert ambiguous.orphan_reason == "exact quote has multiple possible matches"
+
+    missing, changed = reconcile_highlight_anchor(original, "the passage is gone")
+    assert changed
+    assert missing.anchor_status == "orphaned"
+    assert missing.orphan_reason == "exact quote was not found in the current source"
+
+    store = ReaderAnnotationStore(tmp_path / "reader-annotations.json")
+    assert store.restore(ambiguous)
+    replacement_source = "A replacement passage now exists."
+    replacement = "replacement passage"
+    start = replacement_source.index(replacement)
+    repaired = store.relink(
+        original.id,
+        replacement_source,
+        start,
+        start + len(replacement),
+    )
+    assert repaired is not None
+    assert repaired.id == original.id
+    assert repaired.text == replacement
+    assert repaired.anchor_status == "reanchored"
+    assert repaired.note == original.note
+    assert repaired.tags == original.tags
+    assert repaired.sr_interval == original.sr_interval
+    assert repaired.sr_repetitions == original.sr_repetitions
+    assert repaired.sr_next_review == original.sr_next_review
+    assert [entry["action"] for entry in repaired.anchor_history][-2:] == [
+        "orphaned",
+        "manual-relink",
+    ]
+
+
+def test_annotation_v2_export_surfaces_orphans_and_accepts_v1_round_trip(tmp_path: Path):
+    orphan = _highlight("orphan", "2026-03-01T00:00:00+00:00")
+    orphan.anchor_status = "orphaned"
+    orphan.orphan_reason = "exact quote was not found in the current source"
+    output = tmp_path / "annotations.json"
+
+    export_annotations([_bookmark()], [orphan], output, output_format="json")
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["schema"] == ANNOTATION_EXPORT_SCHEMA
+    assert payload["records"][0]["highlight_anchor_status"] == "orphaned"
+    assert payload["records"][0]["highlight_orphan_reason"] == orphan.orphan_reason
+
+    legacy = tmp_path / "legacy-annotations.json"
+    legacy.write_text(
+        json.dumps(
+            {
+                "schema": LEGACY_ANNOTATION_EXPORT_SCHEMA,
+                "records": [{"highlight_id": "legacy"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert parse_annotation_export(legacy) == [{"highlight_id": "legacy"}]
 
 
 @pytest.mark.parametrize("output_format,suffix", [("json", ".json"), ("csv", ".csv")])

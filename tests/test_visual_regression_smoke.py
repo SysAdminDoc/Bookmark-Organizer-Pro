@@ -25,6 +25,7 @@ def test_visual_smoke_surface_matrix_covers_required_desktop_and_extension_views
         "desktop-export-dialog",
         "desktop-reader-view",
         "desktop-reader-highlight-deleted",
+        "desktop-reader-orphaned-highlight",
         "desktop-graph-view",
     } <= set(smoke.DESKTOP_SURFACES)
 

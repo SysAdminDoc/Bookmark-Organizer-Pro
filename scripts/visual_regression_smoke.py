@@ -59,6 +59,7 @@ DESKTOP_SURFACES = (
     "desktop-export-dialog",
     "desktop-reader-view",
     "desktop-reader-highlight-deleted",
+    "desktop-reader-orphaned-highlight",
     "desktop-graph-view",
 )
 
@@ -954,6 +955,35 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
         reader_dialog._undo_deleted_highlight()
         if reader_store.get(reader_dialog.highlight_ids[0]) is None:
             raise VisualSmokeError("Reader highlight undo did not restore the deleted record")
+        destroy_window(reader_dialog)
+
+        changed_article_text = (
+            "The source was re-extracted with a replacement introduction. "
+            "Saved notes remain available even when their original passage disappears."
+        )
+        extracted_path.write_text(changed_article_text, encoding="utf-8")
+        reader_dialog = ReaderViewDialog(root, reader_bookmark, store=reader_store)
+        reader_dialog.highlight_list.selection_set(0)
+        reader_dialog._on_highlight_selected()
+        _prepare_background_window(reader_dialog)
+        assert_named_controls_visible(
+            reader_dialog,
+            ("Relink orphan to selection", "Delete highlight", "Undo"),
+        )
+        results.append(
+            capture_tk_window(
+                reader_dialog,
+                output_dir,
+                "desktop-reader-orphaned-highlight",
+                (
+                    "Reader QA Notes",
+                    "ORPHAN",
+                    "Orphaned highlight",
+                    "Relink orphan to selection",
+                    "Undo",
+                ),
+            )
+        )
         destroy_window(reader_dialog)
 
         verify_graph_viewports(root, theme_manager, sample_bookmarks)

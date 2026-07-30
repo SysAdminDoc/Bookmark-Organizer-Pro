@@ -100,13 +100,14 @@ def test_concurrent_updates_share_one_lock_held_read_modify_write(tmp_path: Path
 
 
 @pytest.mark.parametrize(
-    ("legacy", "factory", "expected_count"),
+    ("legacy", "factory", "expected_count", "expected_version"),
     [
         (
             [{"id": "flow-1", "name": "Trail", "steps": []}],
             lambda path: __import__("bookmark_organizer_pro.services.flows", fromlist=["FlowManager"]).FlowManager(
                 path
             ),
+            1,
             1,
         ),
         (
@@ -121,6 +122,7 @@ def test_concurrent_updates_share_one_lock_held_read_modify_write(tmp_path: Path
                 "bookmark_organizer_pro.services.rss_feeds", fromlist=["FeedRegistry"]
             ).FeedRegistry(path),
             1,
+            1,
         ),
         (
             [{"id": "smart-1", "name": "Saved", "filters": {}}],
@@ -128,6 +130,7 @@ def test_concurrent_updates_share_one_lock_held_read_modify_write(tmp_path: Path
                 "bookmark_organizer_pro.services.smart_collections",
                 fromlist=["SmartCollectionManager"],
             ).SmartCollectionManager(path),
+            1,
             1,
         ),
         (
@@ -137,6 +140,7 @@ def test_concurrent_updates_share_one_lock_held_read_modify_write(tmp_path: Path
                 fromlist=["ReaderAnnotationStore"],
             ).ReaderAnnotationStore(path),
             0,
+            2,
         ),
         (
             {"version": 1, "jobs": []},
@@ -144,10 +148,17 @@ def test_concurrent_updates_share_one_lock_held_read_modify_write(tmp_path: Path
                 path
             ),
             0,
+            1,
         ),
     ],
 )
-def test_service_sidecars_migrate_legacy_documents(tmp_path, legacy, factory, expected_count):
+def test_service_sidecars_migrate_legacy_documents(
+    tmp_path,
+    legacy,
+    factory,
+    expected_count,
+    expected_version,
+):
     path = tmp_path / "sidecar.json"
     path.write_text(json.dumps(legacy), encoding="utf-8")
 
@@ -165,6 +176,6 @@ def test_service_sidecars_migrate_legacy_documents(tmp_path, legacy, factory, ex
 
     assert len(items) == expected_count
     envelope = json.loads(path.read_text(encoding="utf-8"))
-    assert envelope["version"] == 1
+    assert envelope["version"] == expected_version
     assert envelope["revision"] == 1
     assert service.storage_status.state == "valid"

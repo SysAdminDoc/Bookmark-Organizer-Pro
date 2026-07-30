@@ -273,17 +273,23 @@ class TestListSnapshots(MCPToolTestBase):
 class TestReaderMCPTools(MCPToolTestBase):
     def _install_reader_services(self):
         from types import SimpleNamespace
+        from bookmark_organizer_pro import constants
         from bookmark_organizer_pro.models import Bookmark
         from bookmark_organizer_pro.services.reader_annotations import ReaderAnnotationStore
 
         tmp = tempfile.mkdtemp(prefix="bop_reader_mcp_")
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        source = "Alpha selected reader passage omega"
+        source_path = constants.EXTRACTED_DIR / "reader-mcp-7101.txt"
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_text(source, encoding="utf-8")
         bookmark = Bookmark(
             id=7101,
             url="https://reader-mcp.example.com/article",
             title="Reader MCP Article",
             category="Research",
             tags=["mcp", "reader"],
+            extracted_text_path=str(source_path),
         )
 
         class FakeBookmarkManager:
@@ -343,6 +349,38 @@ class TestReaderMCPTools(MCPToolTestBase):
         self.assertEqual(store.get(highlight.id).sr_interval, 1)
         self.assertTrue(store.get(highlight.id).sr_next_review)
 
+    def test_reader_highlight_relink_tool_repairs_orphan_without_losing_metadata(self):
+        bookmark, store = self._install_reader_services()
+        source = "Alpha selected reader passage omega"
+        highlight = store.add_from_text(
+            bookmark.id,
+            source,
+            6,
+            29,
+            note="Preserved note",
+        )
+        store.record_review(highlight.id, 4)
+        current_path = Path(bookmark.extracted_text_path)
+        changed = "Alpha replacement passage omega"
+        current_path.write_text(changed, encoding="utf-8")
+
+        listed = self.ms.t_list_reader_highlights(bookmark_id=bookmark.id)
+        self.assertEqual(listed[0]["anchor_status"], "orphaned")
+        self.assertEqual(store.get(highlight.id).anchor_status, "anchored")
+        start = changed.index("replacement passage")
+        repaired = self.ms.t_relink_reader_highlight(
+            highlight.id,
+            start,
+            start + len("replacement passage"),
+        )
+
+        self.assertTrue(repaired["relinked"])
+        persisted = store.get(highlight.id)
+        self.assertEqual(persisted.text, "replacement passage")
+        self.assertEqual(persisted.note, "Preserved note")
+        self.assertEqual(persisted.sr_interval, 1)
+        self.assertEqual(persisted.anchor_history[-1]["action"], "manual-relink")
+
     def test_due_reader_reviews_and_due_filter(self):
         bookmark, store = self._install_reader_services()
         highlight = store.add_from_text(bookmark.id, "Due review passage", 0, 3)
@@ -393,6 +431,7 @@ class TestToolsSchema(MCPToolTestBase):
         }
         write_tools = {
             "update_reader_highlight_note",
+            "relink_reader_highlight",
             "record_reader_review",
         }
 
@@ -436,6 +475,7 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
         self.assertTrue(tools["list_due_reader_reviews"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["export_reader_highlights"]["annotations"]["readOnlyHint"])
         self.assertFalse(tools["update_reader_highlight_note"]["annotations"]["readOnlyHint"])
+        self.assertFalse(tools["relink_reader_highlight"]["annotations"]["readOnlyHint"])
         self.assertFalse(tools["record_reader_review"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["chat_with_collection_stream"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["chat_with_collection_stream"]["annotations"]["openWorldHint"])
@@ -480,6 +520,7 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
         self.assertTrue(tools["list_due_reader_reviews"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["export_reader_highlights"]["annotations"]["readOnlyHint"])
         self.assertFalse(tools["update_reader_highlight_note"]["annotations"]["readOnlyHint"])
+        self.assertFalse(tools["relink_reader_highlight"]["annotations"]["readOnlyHint"])
         self.assertFalse(tools["record_reader_review"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["chat_with_collection_stream"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["chat_with_collection_stream"]["annotations"]["openWorldHint"])

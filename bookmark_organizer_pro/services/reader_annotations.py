@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 from copy import deepcopy
+import hashlib
 import io
 import json
 import os
@@ -34,6 +35,9 @@ HIGHLIGHT_COLORS = {
     "pink": "#fbcfe8",
 }
 DEFAULT_HIGHLIGHT_COLOR = "yellow"
+SELECTOR_CONTEXT_CHARS = 64
+MAX_ANCHOR_HISTORY = 50
+ANCHOR_STATUSES = {"unverified", "anchored", "reanchored", "orphaned"}
 
 
 def _migrate_reader_annotations_v0(document):
@@ -41,6 +45,26 @@ def _migrate_reader_annotations_v0(document):
     if isinstance(document, dict):
         return document.get("highlights", [])
     return document
+
+
+def _migrate_reader_annotations_v1(document):
+    """Add W3C-style quote selectors without inventing unavailable context."""
+    if not isinstance(document, list):
+        return document
+    migrated = []
+    for raw in document:
+        if not isinstance(raw, dict):
+            continue
+        item = dict(raw)
+        item.setdefault("source_sha256", "")
+        item.setdefault("quote_exact", str(item.get("text") or ""))
+        item.setdefault("quote_prefix", "")
+        item.setdefault("quote_suffix", "")
+        item.setdefault("anchor_status", "unverified")
+        item.setdefault("orphan_reason", "")
+        item.setdefault("anchor_history", [])
+        migrated.append(item)
+    return migrated
 
 
 def _now() -> str:
@@ -52,6 +76,81 @@ def _clean_int(value, default: int = 0) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def source_text_sha256(text: str) -> str:
+    return hashlib.sha256(str(text or "").encode("utf-8")).hexdigest()
+
+
+def _selector_context(
+    source: str,
+    start: int,
+    end: int,
+) -> tuple[str, str]:
+    return (
+        source[max(0, start - SELECTOR_CONTEXT_CHARS):start],
+        source[end:end + SELECTOR_CONTEXT_CHARS],
+    )
+
+
+def _clean_digest(value: object) -> str:
+    digest = str(value or "").strip().lower()
+    return digest if re.fullmatch(r"[0-9a-f]{64}", digest) else ""
+
+
+def _clean_anchor_history(value: object) -> List[dict]:
+    if not isinstance(value, list):
+        return []
+    cleaned: List[dict] = []
+    allowed = {
+        "at",
+        "action",
+        "reason",
+        "from_start",
+        "from_end",
+        "from_source_sha256",
+        "to_start",
+        "to_end",
+        "to_source_sha256",
+    }
+    for raw in value[-MAX_ANCHOR_HISTORY:]:
+        if not isinstance(raw, dict):
+            continue
+        item = {
+            str(key): raw[key]
+            for key in allowed
+            if key in raw
+        }
+        for key in ("from_start", "from_end", "to_start", "to_end"):
+            if key in item:
+                item[key] = max(0, _clean_int(item[key]))
+        for key in ("from_source_sha256", "to_source_sha256"):
+            if key in item:
+                item[key] = _clean_digest(item[key])
+        for key in ("at", "action", "reason"):
+            if key in item:
+                item[key] = str(item[key])[:500]
+        cleaned.append(item)
+    return cleaned
+
+
+def _validate_reader_annotations(document) -> None:
+    require_list_document(document)
+    for raw in document:
+        if not isinstance(raw, dict):
+            raise ValueError("reader annotation entries must be objects")
+        digest = str(raw.get("source_sha256") or "")
+        if digest and not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise ValueError("reader annotation source digest is invalid")
+        if len(str(raw.get("quote_prefix") or "")) > SELECTOR_CONTEXT_CHARS:
+            raise ValueError("reader annotation quote prefix is too long")
+        if len(str(raw.get("quote_suffix") or "")) > SELECTOR_CONTEXT_CHARS:
+            raise ValueError("reader annotation quote suffix is too long")
+        if raw.get("anchor_status") not in ANCHOR_STATUSES:
+            raise ValueError("reader annotation anchor status is invalid")
+        history = raw.get("anchor_history", [])
+        if not isinstance(history, list) or len(history) > MAX_ANCHOR_HISTORY:
+            raise ValueError("reader annotation anchor history is invalid")
 
 
 def normalize_highlight_color(value: str) -> str:
@@ -100,6 +199,13 @@ class ReaderHighlight:
     char_start: int
     char_end: int
     text: str
+    source_sha256: str = ""
+    quote_exact: str = ""
+    quote_prefix: str = ""
+    quote_suffix: str = ""
+    anchor_status: str = "unverified"
+    orphan_reason: str = ""
+    anchor_history: List[dict] = field(default_factory=list)
     color: str = DEFAULT_HIGHLIGHT_COLOR
     note: str = ""
     tags: List[str] = field(default_factory=list)
@@ -117,6 +223,23 @@ class ReaderHighlight:
     def to_dict(self) -> dict:
         payload = asdict(self)
         payload["color"] = normalize_highlight_color(payload.get("color", ""))
+        payload["source_sha256"] = _clean_digest(payload.get("source_sha256"))
+        payload["quote_exact"] = str(
+            payload.get("quote_exact") or payload.get("text") or ""
+        )
+        payload["text"] = payload["quote_exact"]
+        payload["quote_prefix"] = str(payload.get("quote_prefix") or "")[
+            -SELECTOR_CONTEXT_CHARS:
+        ]
+        payload["quote_suffix"] = str(payload.get("quote_suffix") or "")[
+            :SELECTOR_CONTEXT_CHARS
+        ]
+        if payload.get("anchor_status") not in ANCHOR_STATUSES:
+            payload["anchor_status"] = "unverified"
+        payload["orphan_reason"] = str(payload.get("orphan_reason") or "")[:500]
+        payload["anchor_history"] = _clean_anchor_history(
+            payload.get("anchor_history")
+        )
         return payload
 
     @classmethod
@@ -124,12 +247,28 @@ class ReaderHighlight:
         now = _now()
         start = max(0, _clean_int(data.get("char_start")))
         end = max(start, _clean_int(data.get("char_end"), start))
+        exact = str(data.get("quote_exact") or data.get("text") or "")
+        digest = _clean_digest(data.get("source_sha256"))
+        status = str(data.get("anchor_status") or "unverified")
+        if status not in ANCHOR_STATUSES or (not digest and status != "orphaned"):
+            status = "unverified"
         return cls(
             id=str(data.get("id") or uuid.uuid4().hex),
             bookmark_id=_clean_int(data.get("bookmark_id")),
             char_start=start,
             char_end=end,
-            text=str(data.get("text") or ""),
+            text=exact,
+            source_sha256=digest,
+            quote_exact=exact,
+            quote_prefix=str(data.get("quote_prefix") or "")[
+                -SELECTOR_CONTEXT_CHARS:
+            ],
+            quote_suffix=str(data.get("quote_suffix") or "")[
+                :SELECTOR_CONTEXT_CHARS
+            ],
+            anchor_status=status,
+            orphan_reason=str(data.get("orphan_reason") or "")[:500],
+            anchor_history=_clean_anchor_history(data.get("anchor_history")),
             color=normalize_highlight_color(str(data.get("color") or "")),
             note=str(data.get("note") or ""),
             tags=[str(tag).strip() for tag in data.get("tags", []) if str(tag).strip()]
@@ -144,6 +283,210 @@ class ReaderHighlight:
         )
 
 
+def _anchor_event(
+    highlight: ReaderHighlight,
+    *,
+    action: str,
+    to_start: int | None = None,
+    to_end: int | None = None,
+    to_digest: str = "",
+    reason: str = "",
+) -> dict:
+    event = {
+        "at": _now(),
+        "action": str(action)[:80],
+        "from_start": highlight.char_start,
+        "from_end": highlight.char_end,
+        "from_source_sha256": highlight.source_sha256,
+    }
+    if to_start is not None:
+        event["to_start"] = int(to_start)
+    if to_end is not None:
+        event["to_end"] = int(to_end)
+    if to_digest:
+        event["to_source_sha256"] = to_digest
+    if reason:
+        event["reason"] = str(reason)[:500]
+    return event
+
+
+def _append_anchor_event(highlight: ReaderHighlight, event: dict) -> None:
+    highlight.anchor_history = _clean_anchor_history(
+        [*highlight.anchor_history, event]
+    )
+
+
+def _orphan_highlight(
+    highlight: ReaderHighlight,
+    *,
+    reason: str,
+    current_digest: str = "",
+) -> tuple[ReaderHighlight, bool]:
+    if (
+        highlight.anchor_status == "orphaned"
+        and highlight.orphan_reason == reason
+    ):
+        return highlight, False
+    _append_anchor_event(
+        highlight,
+        _anchor_event(
+            highlight,
+            action="orphaned",
+            to_digest=current_digest,
+            reason=reason,
+        ),
+    )
+    highlight.anchor_status = "orphaned"
+    highlight.orphan_reason = reason
+    highlight.modified_at = _now()
+    return highlight, True
+
+
+def _quote_occurrences(source: str, exact: str, *, limit: int = 1001) -> List[int]:
+    offsets: List[int] = []
+    cursor = 0
+    while len(offsets) < limit:
+        found = source.find(exact, cursor)
+        if found < 0:
+            break
+        offsets.append(found)
+        cursor = found + 1
+    return offsets
+
+
+def reconcile_highlight_anchor(
+    highlight: ReaderHighlight,
+    source_text: str,
+) -> tuple[ReaderHighlight, bool]:
+    """Resolve one quote selector against current source text deterministically."""
+    resolved = deepcopy(highlight)
+    source = str(source_text or "")
+    exact = str(resolved.quote_exact or resolved.text or "")
+    resolved.quote_exact = exact
+    resolved.text = exact
+    if not source:
+        return _orphan_highlight(
+            resolved,
+            reason="source text is unavailable",
+        )
+    current_digest = source_text_sha256(source)
+    start = resolved.char_start
+    end = resolved.char_end
+    offsets_match = (
+        0 <= start < end <= len(source)
+        and source[start:end] == exact
+    )
+    if resolved.source_sha256 == current_digest:
+        if not offsets_match:
+            return _orphan_highlight(
+                resolved,
+                reason="stored offsets do not match the unchanged source",
+                current_digest=current_digest,
+            )
+        was_orphaned = resolved.anchor_status == "orphaned"
+        changed = (
+            resolved.anchor_status != "anchored"
+            or bool(resolved.orphan_reason)
+        )
+        if was_orphaned:
+            _append_anchor_event(
+                resolved,
+                _anchor_event(
+                    resolved,
+                    action="anchor-restored",
+                    to_start=start,
+                    to_end=end,
+                    to_digest=current_digest,
+                ),
+            )
+        resolved.anchor_status = "anchored"
+        resolved.orphan_reason = ""
+        if changed:
+            resolved.modified_at = _now()
+        return resolved, changed
+
+    if not resolved.source_sha256 and offsets_match:
+        prefix, suffix = _selector_context(source, start, end)
+        _append_anchor_event(
+            resolved,
+            _anchor_event(
+                resolved,
+                action="legacy-anchor-migrated",
+                to_start=start,
+                to_end=end,
+                to_digest=current_digest,
+            ),
+        )
+        resolved.source_sha256 = current_digest
+        resolved.quote_prefix = prefix
+        resolved.quote_suffix = suffix
+        resolved.anchor_status = "anchored"
+        resolved.orphan_reason = ""
+        resolved.modified_at = _now()
+        return resolved, True
+
+    if not exact:
+        return _orphan_highlight(
+            resolved,
+            reason="exact quote selector is empty",
+            current_digest=current_digest,
+        )
+    occurrences = _quote_occurrences(source, exact)
+    if not occurrences:
+        return _orphan_highlight(
+            resolved,
+            reason="exact quote was not found in the current source",
+            current_digest=current_digest,
+        )
+    candidates = occurrences
+    if len(candidates) > 1:
+        contextual = []
+        for candidate in candidates:
+            candidate_end = candidate + len(exact)
+            prefix_ok = (
+                not resolved.quote_prefix
+                or source[max(0, candidate - len(resolved.quote_prefix)):candidate]
+                == resolved.quote_prefix
+            )
+            suffix_ok = (
+                not resolved.quote_suffix
+                or source[candidate_end:candidate_end + len(resolved.quote_suffix)]
+                == resolved.quote_suffix
+            )
+            if prefix_ok and suffix_ok:
+                contextual.append(candidate)
+        candidates = contextual
+    if len(candidates) != 1:
+        return _orphan_highlight(
+            resolved,
+            reason="exact quote has multiple possible matches",
+            current_digest=current_digest,
+        )
+
+    new_start = candidates[0]
+    new_end = new_start + len(exact)
+    prefix, suffix = _selector_context(source, new_start, new_end)
+    _append_anchor_event(
+        resolved,
+        _anchor_event(
+            resolved,
+            action="automatic-reanchor",
+            to_start=new_start,
+            to_end=new_end,
+            to_digest=current_digest,
+        ),
+    )
+    resolved.char_start = new_start
+    resolved.char_end = new_end
+    resolved.source_sha256 = current_digest
+    resolved.quote_prefix = prefix
+    resolved.quote_suffix = suffix
+    resolved.anchor_status = "reanchored"
+    resolved.orphan_reason = ""
+    resolved.modified_at = _now()
+    return resolved, True
+
+
 class ReaderAnnotationStore:
     """Persisted reader highlight CRUD."""
 
@@ -153,9 +496,13 @@ class ReaderAnnotationStore:
         self._store = AtomicDocumentStore(
             self.filepath,
             schema="bookmark-organizer-pro/reader-annotations",
+            current_version=2,
             default_factory=list,
-            migrations={0: _migrate_reader_annotations_v0},
-            validator=require_list_document,
+            migrations={
+                0: _migrate_reader_annotations_v0,
+                1: _migrate_reader_annotations_v1,
+            },
+            validator=_validate_reader_annotations,
         )
         self._revision = 0
         self._highlights: Dict[str, ReaderHighlight] = {}
@@ -214,6 +561,7 @@ class ReaderAnnotationStore:
         selected = source[start:end]
         if not selected.strip():
             raise ValueError("highlight selection cannot be blank")
+        prefix, suffix = _selector_context(source, start, end)
         now = _now()
         highlight = ReaderHighlight(
             id=uuid.uuid4().hex,
@@ -221,6 +569,11 @@ class ReaderAnnotationStore:
             char_start=start,
             char_end=end,
             text=selected,
+            source_sha256=source_text_sha256(source),
+            quote_exact=selected,
+            quote_prefix=prefix,
+            quote_suffix=suffix,
+            anchor_status="anchored",
             color=normalize_highlight_color(color),
             note=str(note or ""),
             created_at=now,
@@ -249,6 +602,80 @@ class ReaderAnnotationStore:
         with self._lock:
             items = deepcopy([item for item in self._highlights.values() if item.bookmark_id == bid])
         return sorted(items, key=lambda item: (item.char_start, item.created_at))
+
+    def reconcile_for_bookmark(
+        self,
+        bookmark_id: int,
+        source_text: str,
+        *,
+        persist: bool = True,
+    ) -> List[ReaderHighlight]:
+        """Re-anchor every highlight for one bookmark and persist state changes."""
+        bid = int(bookmark_id)
+        changed = False
+        items: List[ReaderHighlight] = []
+        with self._lock:
+            for highlight_id, current in list(self._highlights.items()):
+                if current.bookmark_id != bid:
+                    continue
+                resolved, item_changed = reconcile_highlight_anchor(
+                    current,
+                    source_text,
+                )
+                if item_changed and persist:
+                    self._highlights[highlight_id] = resolved
+                    changed = True
+                items.append(resolved)
+            if changed and persist:
+                self._save()
+        return sorted(items, key=lambda item: (item.char_start, item.created_at))
+
+    def relink(
+        self,
+        highlight_id: str,
+        source_text: str,
+        char_start: int,
+        char_end: int,
+    ) -> Optional[ReaderHighlight]:
+        """Manually relink an orphan while preserving its identity and metadata."""
+        source = str(source_text or "")
+        start = _clean_int(char_start)
+        end = _clean_int(char_end)
+        if start < 0 or end <= start or end > len(source):
+            raise ValueError("highlight range is outside the extracted text")
+        selected = source[start:end]
+        if not selected.strip():
+            raise ValueError("highlight selection cannot be blank")
+        with self._lock:
+            highlight = self._highlights.get(str(highlight_id))
+            if highlight is None:
+                return None
+            if highlight.anchor_status != "orphaned":
+                raise ValueError("only orphaned highlights can be relinked")
+            digest = source_text_sha256(source)
+            prefix, suffix = _selector_context(source, start, end)
+            _append_anchor_event(
+                highlight,
+                _anchor_event(
+                    highlight,
+                    action="manual-relink",
+                    to_start=start,
+                    to_end=end,
+                    to_digest=digest,
+                ),
+            )
+            highlight.char_start = start
+            highlight.char_end = end
+            highlight.text = selected
+            highlight.source_sha256 = digest
+            highlight.quote_exact = selected
+            highlight.quote_prefix = prefix
+            highlight.quote_suffix = suffix
+            highlight.anchor_status = "reanchored"
+            highlight.orphan_reason = ""
+            highlight.modified_at = _now()
+            self._save()
+            return deepcopy(highlight)
 
     def list_all(self) -> List[ReaderHighlight]:
         with self._lock:
@@ -359,6 +786,9 @@ def render_highlights_markdown(bookmark: Bookmark, highlights: Iterable[ReaderHi
                 "",
                 f"- Color: {item.color}",
                 f"- Range: {item.char_start}-{item.char_end}",
+                f"- Anchor: {item.anchor_status}"
+                + (f" ({item.orphan_reason})" if item.orphan_reason else ""),
+                f"- Source SHA-256: {item.source_sha256 or 'unverified'}",
                 "",
             ]
         )
@@ -383,7 +813,8 @@ def export_bookmark_highlights(
     return out_path
 
 
-ANNOTATION_EXPORT_SCHEMA = "bookmark-organizer-pro/annotations-v1"
+ANNOTATION_EXPORT_SCHEMA = "bookmark-organizer-pro/annotations-v2"
+LEGACY_ANNOTATION_EXPORT_SCHEMA = "bookmark-organizer-pro/annotations-v1"
 DEFAULT_ANNOTATION_FIELDS = (
     "document_id",
     "document_title",
@@ -400,6 +831,13 @@ DEFAULT_ANNOTATION_FIELDS = (
     "highlight_note",
     "highlight_created_at",
     "highlight_modified_at",
+    "highlight_anchor_status",
+    "highlight_orphan_reason",
+    "highlight_source_sha256",
+    "highlight_quote_exact",
+    "highlight_quote_prefix",
+    "highlight_quote_suffix",
+    "highlight_anchor_history",
     "review_interval",
     "review_repetitions",
     "review_ease",
@@ -424,6 +862,7 @@ class AnnotationExportTemplate:
         "## {highlight_text}\n\n"
         "- Color: {highlight_color}\n"
         "- Tags: {highlight_tags}\n"
+        "- Anchor: {highlight_anchor_status} {highlight_orphan_reason}\n"
         "- Review: {review_repetitions} repetitions; next {review_next}\n"
         "- Stable source: {source_link}\n\n"
         "{highlight_note}\n"
@@ -534,6 +973,13 @@ def annotation_export_records(
                 "highlight_note": item.note,
                 "highlight_created_at": item.created_at,
                 "highlight_modified_at": item.modified_at,
+                "highlight_anchor_status": item.anchor_status,
+                "highlight_orphan_reason": item.orphan_reason,
+                "highlight_source_sha256": item.source_sha256,
+                "highlight_quote_exact": item.quote_exact or item.text,
+                "highlight_quote_prefix": item.quote_prefix,
+                "highlight_quote_suffix": item.quote_suffix,
+                "highlight_anchor_history": deepcopy(item.anchor_history),
                 "review_interval": item.sr_interval,
                 "review_repetitions": item.sr_repetitions,
                 "review_ease": item.sr_ease,
@@ -608,7 +1054,11 @@ def parse_annotation_export(path: str | Path) -> List[dict]:
     source = Path(path)
     if source.suffix.lower() == ".json":
         payload = json.loads(source.read_text(encoding="utf-8"))
-        if not isinstance(payload, dict) or payload.get("schema") != ANNOTATION_EXPORT_SCHEMA:
+        if (
+            not isinstance(payload, dict)
+            or payload.get("schema")
+            not in {ANNOTATION_EXPORT_SCHEMA, LEGACY_ANNOTATION_EXPORT_SCHEMA}
+        ):
             raise ValueError("unsupported annotation export schema")
         records = payload.get("records", [])
         if not isinstance(records, list) or any(not isinstance(item, dict) for item in records):
