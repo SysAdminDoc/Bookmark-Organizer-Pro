@@ -1,28 +1,27 @@
-"""Single-file HTML snapshot archiver.
+"""Content-aware, manifest-backed offline snapshot archiver.
 
-Produces a self-contained HTML snapshot per bookmark. Prefers the `monolith`
-Rust binary when available (best fidelity, embeds all assets); falls back to
-SingleFile-CLI (Node), then to a built-in BeautifulSoup-based bundler that
-inlines stylesheets, images, and fonts as data URIs.
-
-Stored under SNAPSHOTS_DIR/{id}.html. Records snapshot metadata back onto
-the Bookmark.
+HTML responses become inert, bundled HTML. Allowlisted binary responses retain
+their exact bytes and safe extension. Every current artifact has a checksummed,
+versioned manifest that records its capture provenance and representation.
 """
 
 from __future__ import annotations
 
 import base64
+import hashlib
 import html as html_lib
 import importlib
 import json
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import tempfile
 import time
+import webbrowser
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Optional, Tuple
 from urllib.parse import urljoin, urlsplit
@@ -43,6 +42,321 @@ _SAFE_CAPTURE_DATA_URI = re.compile(
     r");base64,[a-z0-9+/=\s]+$",
     re.IGNORECASE,
 )
+SNAPSHOT_MANIFEST_SCHEMA = "bookmark-organizer-pro/snapshot-manifest"
+SNAPSHOT_MANIFEST_VERSION = 1
+_HTML_MIME_TYPES = {"text/html", "application/xhtml+xml"}
+_GENERIC_MIME_TYPES = {
+    "",
+    "application/octet-stream",
+    "application/download",
+    "application/x-download",
+}
+_CURRENT_SNAPSHOT_EXTENSIONS = {".html", ".pdf", ".png", ".jpg", ".gif", ".webp"}
+_HTML_PREFIX_RE = re.compile(
+    br"^(?:(?:<!--.*?-->\s*)*)(?:<!doctype\s+html|<(?:(?:html|head|body|title|meta|link|style|"
+    br"main|article|section|div|p|h[1-6]|table|ul|ol|pre|blockquote|nav|header|"
+    br"footer)\b))",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+@dataclass(frozen=True)
+class SnapshotFormat:
+    """Validated on-disk representation selected from MIME and byte signatures."""
+
+    mime_type: str
+    extension: str
+    representation: str
+
+
+@dataclass(frozen=True)
+class SnapshotManifest:
+    """Self-describing provenance for one current snapshot artifact."""
+
+    source_url: str
+    final_url: str
+    mime_type: str
+    sha256: str
+    backend: str
+    size_bytes: int
+    captured_at: str
+    artifact_name: str
+    representation: str
+    status_code: int | None = None
+    schema_version: int = SNAPSHOT_MANIFEST_VERSION
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema": SNAPSHOT_MANIFEST_SCHEMA,
+            "schema_version": self.schema_version,
+            "artifact_name": self.artifact_name,
+            "backend": self.backend,
+            "captured_at": self.captured_at,
+            "final_url": self.final_url,
+            "mime_type": self.mime_type,
+            "representation": self.representation,
+            "sha256": self.sha256,
+            "size_bytes": self.size_bytes,
+            "source_url": self.source_url,
+            "status_code": self.status_code,
+        }
+
+    @classmethod
+    def from_dict(cls, value: dict) -> "SnapshotManifest":
+        if not isinstance(value, dict):
+            raise ValueError("snapshot manifest must be an object")
+        if value.get("schema") != SNAPSHOT_MANIFEST_SCHEMA:
+            raise ValueError("snapshot manifest schema is not supported")
+        if value.get("schema_version") != SNAPSHOT_MANIFEST_VERSION:
+            raise ValueError("snapshot manifest version is not supported")
+        artifact_name = str(value.get("artifact_name") or "")
+        if not artifact_name or Path(artifact_name).name != artifact_name:
+            raise ValueError("snapshot manifest artifact name is unsafe")
+        digest = str(value.get("sha256") or "").lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise ValueError("snapshot manifest digest is invalid")
+        size = value.get("size_bytes")
+        if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+            raise ValueError("snapshot manifest size is invalid")
+        mime_type = _normalize_mime(value.get("mime_type"))
+        if not mime_type:
+            raise ValueError("snapshot manifest MIME type is missing")
+        representation = str(value.get("representation") or "")
+        if representation not in {"bundled-html", "binary"}:
+            raise ValueError("snapshot manifest representation is invalid")
+        backend = str(value.get("backend") or "")
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,39}", backend):
+            raise ValueError("snapshot manifest backend is invalid")
+        captured_at = str(value.get("captured_at") or "")
+        try:
+            datetime.fromisoformat(captured_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError("snapshot manifest timestamp is invalid") from exc
+        status = value.get("status_code")
+        if status is not None:
+            if (
+                not isinstance(status, int)
+                or isinstance(status, bool)
+                or not 100 <= status <= 599
+            ):
+                raise ValueError("snapshot manifest status code is invalid")
+        return cls(
+            source_url=str(value.get("source_url") or ""),
+            final_url=str(value.get("final_url") or ""),
+            mime_type=mime_type,
+            sha256=digest,
+            backend=backend,
+            size_bytes=size,
+            captured_at=captured_at,
+            artifact_name=artifact_name,
+            representation=representation,
+            status_code=status,
+        )
+
+
+def _normalize_mime(value: object) -> str:
+    return str(value or "").split(";", 1)[0].strip().lower()
+
+
+def classify_snapshot_payload(
+    payload: bytes,
+    declared_mime: object = "",
+) -> tuple[SnapshotFormat | None, str]:
+    """Validate final response bytes and choose a safe representation."""
+    if not payload:
+        return None, "response body is empty"
+    declared = _normalize_mime(declared_mime)
+    binary_format: SnapshotFormat | None = None
+    compatible_mimes: set[str] = set()
+    if (
+        len(payload) >= 32
+        and payload.startswith(b"%PDF-")
+        and b"%%EOF" in payload[-2048:]
+    ):
+        binary_format = SnapshotFormat("application/pdf", ".pdf", "binary")
+        compatible_mimes = {"application/pdf"}
+    elif (
+        len(payload) >= 33
+        and payload.startswith(b"\x89PNG\r\n\x1a\n")
+        and payload[12:16] == b"IHDR"
+        and payload.endswith(b"IEND\xaeB`\x82")
+    ):
+        binary_format = SnapshotFormat("image/png", ".png", "binary")
+        compatible_mimes = {"image/png"}
+    elif (
+        len(payload) >= 11
+        and payload.startswith(b"\xff\xd8\xff")
+        and payload.endswith(b"\xff\xd9")
+    ):
+        binary_format = SnapshotFormat("image/jpeg", ".jpg", "binary")
+        compatible_mimes = {"image/jpeg", "image/jpg"}
+    elif (
+        len(payload) >= 14
+        and payload.startswith((b"GIF87a", b"GIF89a"))
+        and payload.endswith(b";")
+    ):
+        binary_format = SnapshotFormat("image/gif", ".gif", "binary")
+        compatible_mimes = {"image/gif"}
+    elif (
+        len(payload) >= 20
+        and payload.startswith(b"RIFF")
+        and payload[8:12] == b"WEBP"
+        and int.from_bytes(payload[4:8], "little") == len(payload) - 8
+        and payload[12:16] in {b"VP8 ", b"VP8L", b"VP8X"}
+    ):
+        binary_format = SnapshotFormat("image/webp", ".webp", "binary")
+        compatible_mimes = {"image/webp"}
+    if binary_format is not None:
+        if declared not in compatible_mimes | _GENERIC_MIME_TYPES:
+            return None, (
+                f"declared MIME {declared or 'missing'} conflicts with "
+                f"{binary_format.mime_type} bytes"
+            )
+        return binary_format, ""
+
+    prefix = payload[:4096].lstrip(b"\xef\xbb\xbf\t\r\n ")
+    looks_like_html = b"\x00" not in prefix and _HTML_PREFIX_RE.search(prefix) is not None
+    if looks_like_html:
+        if declared not in _HTML_MIME_TYPES | _GENERIC_MIME_TYPES:
+            return None, (
+                f"declared MIME {declared or 'missing'} conflicts with HTML bytes"
+            )
+        return SnapshotFormat("text/html", ".html", "bundled-html"), ""
+    if declared in _HTML_MIME_TYPES:
+        return None, "declared HTML response does not contain recognizable HTML"
+    if declared:
+        return None, f"unsupported response content type: {declared}"
+    return None, "response content type is missing and byte signature is unsupported"
+
+
+def snapshot_manifest_path(artifact_path: str | Path) -> Path:
+    artifact = Path(artifact_path)
+    return artifact.with_name(f"{artifact.stem}.snapshot.json")
+
+
+def _write_snapshot_manifest(
+    artifact_path: Path,
+    manifest: SnapshotManifest,
+) -> Path:
+    path = snapshot_manifest_path(artifact_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=path.parent,
+        text=True,
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(manifest.to_dict(), handle, indent=2, sort_keys=True)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_name, path)
+    except Exception:
+        Path(tmp_name).unlink(missing_ok=True)
+        raise
+    return path
+
+
+def load_snapshot_manifest(
+    artifact_path: str | Path,
+    *,
+    verify_artifact: bool = True,
+) -> SnapshotManifest:
+    artifact = Path(artifact_path)
+    manifest = SnapshotManifest.from_dict(
+        json.loads(snapshot_manifest_path(artifact).read_text(encoding="utf-8"))
+    )
+    if manifest.artifact_name != artifact.name:
+        raise ValueError("snapshot manifest does not describe this artifact")
+    if verify_artifact:
+        payload = artifact.read_bytes()
+        if len(payload) != manifest.size_bytes:
+            raise ValueError("snapshot artifact size does not match its manifest")
+        if hashlib.sha256(payload).hexdigest() != manifest.sha256:
+            raise ValueError("snapshot artifact digest does not match its manifest")
+        detected, error = classify_snapshot_payload(payload, manifest.mime_type)
+        if detected is None:
+            raise ValueError(error)
+        if (
+            detected.extension != artifact.suffix.lower()
+            or detected.representation != manifest.representation
+        ):
+            raise ValueError("snapshot artifact format does not match its manifest")
+    return manifest
+
+
+def ensure_snapshot_manifest(bookmark: Bookmark) -> SnapshotManifest:
+    """Load a current manifest or migrate a valid legacy snapshot in place."""
+    artifact = Path(str(bookmark.snapshot_path or ""))
+    if not artifact.is_file():
+        raise FileNotFoundError("snapshot artifact is unavailable")
+    manifest_path = snapshot_manifest_path(artifact)
+    if manifest_path.is_file():
+        manifest = load_snapshot_manifest(artifact)
+    else:
+        payload = artifact.read_bytes()
+        declared = bookmark.snapshot_mime_type
+        if not declared and artifact.suffix.lower() == ".html":
+            declared = "text/html"
+        detected, error = classify_snapshot_payload(payload, declared)
+        if detected is None or detected.extension != artifact.suffix.lower():
+            raise ValueError(error or "legacy snapshot extension is unsafe")
+        captured_at = bookmark.snapshot_at
+        try:
+            datetime.fromisoformat(captured_at.replace("Z", "+00:00"))
+        except ValueError:
+            captured_at = ""
+        if not captured_at:
+            captured_at = datetime.fromtimestamp(
+                artifact.stat().st_mtime,
+                tz=timezone.utc,
+            ).isoformat()
+        manifest = SnapshotManifest(
+            source_url=bookmark.url,
+            final_url=bookmark.url,
+            mime_type=detected.mime_type,
+            sha256=hashlib.sha256(payload).hexdigest(),
+            backend=(
+                bookmark.snapshot_backend
+                if re.fullmatch(
+                    r"[a-z0-9][a-z0-9-]{0,39}",
+                    bookmark.snapshot_backend,
+                )
+                else "legacy"
+            ),
+            size_bytes=len(payload),
+            captured_at=captured_at,
+            artifact_name=artifact.name,
+            representation=detected.representation,
+        )
+        _write_snapshot_manifest(artifact, manifest)
+    bookmark.snapshot_size = manifest.size_bytes
+    bookmark.snapshot_at = manifest.captured_at
+    bookmark.snapshot_mime_type = manifest.mime_type
+    bookmark.snapshot_sha256 = manifest.sha256
+    bookmark.snapshot_backend = manifest.backend
+    return manifest
+
+
+def open_snapshot_file(
+    bookmark: Bookmark,
+    *,
+    opener=None,
+) -> tuple[bool, str]:
+    """Verify and open a local snapshot without treating it as a remote URL."""
+    try:
+        manifest = ensure_snapshot_manifest(bookmark)
+        artifact = Path(bookmark.snapshot_path).resolve(strict=True)
+        if artifact.name != manifest.artifact_name:
+            return False, "Snapshot manifest path mismatch"
+        launch = opener or webbrowser.open
+        if not launch(artifact.as_uri()):
+            return False, "The operating system did not open the offline copy"
+        return True, str(artifact)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        return False, f"Offline copy could not be verified: {exc}"
 
 
 def _browser_resource_diagnostics(summary: dict | None) -> dict[str, object]:
@@ -286,7 +600,7 @@ class SnapshotFailureStore:
 
 
 class SnapshotArchiver:
-    """Capture a self-contained HTML snapshot of a page."""
+    """Capture a validated HTML or allowlisted binary snapshot of a page."""
 
     MAX_BYTES = 25_000_000  # 25MB hard ceiling per snapshot
     MAX_BROWSER_CAPTURE_BYTES = 5_000_000
@@ -327,37 +641,48 @@ class SnapshotArchiver:
             )
             job.fail(reason, retryable=False)
             return False, f"Private or unsupported URL: {reason}"
-        out_path = self.snapshots_dir / f"{bookmark.id}.html"
         attempts: list[SnapshotBackendAttempt] = []
         for backend in (self._snapshot_monolith, self._snapshot_singlefile,
                         self._snapshot_playwright, self._snapshot_python):
             backend_name = self._backend_label(backend.__name__)
             self._last_provenance = {"resolved_url": bookmark.url, "status_code": None}
+            staging_path = self._staging_path(bookmark, backend_name)
             try:
-                ok, msg = backend(bookmark.url, out_path)
+                ok, msg = backend(bookmark.url, staging_path)
             except Exception as exc:
                 log.debug(f"Snapshot backend {backend.__name__} crashed: {exc}")
                 attempts.append(SnapshotBackendAttempt(backend_name, False, f"crashed: {exc}"))
+                self._cleanup_staging(staging_path)
                 continue
-            attempts.append(SnapshotBackendAttempt(backend_name, ok, str(msg)))
-            if ok:
-                size = out_path.stat().st_size if out_path.exists() else 0
-                bookmark.snapshot_path = str(out_path)
-                bookmark.snapshot_size = size
-                bookmark.snapshot_at = datetime.now().isoformat()
-                bookmark.modified_at = bookmark.snapshot_at
-                self.history_store.record(
-                    bookmark.id,
-                    out_path,
+            if not ok:
+                attempts.append(SnapshotBackendAttempt(backend_name, False, str(msg)))
+                self._cleanup_staging(staging_path)
+                continue
+            try:
+                artifact_path = self._backend_artifact_path(staging_path)
+                if artifact_path is None:
+                    raise ValueError("backend reported success without an artifact")
+                out_path, manifest = self._commit_capture(
+                    bookmark,
+                    artifact_path,
                     source_url=bookmark.url,
-                    resolved_url=str(self._last_provenance.get("resolved_url") or bookmark.url),
-                    status_code=self._last_provenance.get("status_code"),
                     backend=backend_name,
-                    captured_at=bookmark.snapshot_at,
                 )
-                self.failure_store.clear_for_bookmark(bookmark)
-                job.succeed(bytes_processed=size, backend=backend_name)
-                return True, str(out_path)
+            except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
+                attempts.append(
+                    SnapshotBackendAttempt(
+                        backend_name,
+                        False,
+                        f"artifact rejected: {exc}",
+                    )
+                )
+                self._cleanup_staging(staging_path)
+                continue
+            attempts.append(SnapshotBackendAttempt(backend_name, True, str(out_path)))
+            self._cleanup_staging(staging_path)
+            self.failure_store.clear_for_bookmark(bookmark)
+            job.succeed(bytes_processed=manifest.size_bytes, backend=backend_name)
+            return True, str(out_path)
         details = "; ".join(f"{attempt.backend}: {attempt.message}" for attempt in attempts)
         error = "All snapshot backends failed"
         if details:
@@ -369,6 +694,158 @@ class SnapshotArchiver:
     def archive(self, bookmark: Bookmark) -> Tuple[bool, str]:
         """Compatibility alias for snapshot()."""
         return self.snapshot(bookmark)
+
+    def _safe_snapshot_id(self, bookmark: Bookmark) -> str:
+        if bookmark.id is not None:
+            return str(int(bookmark.id))
+        return f"url-{hashlib.sha256(bookmark.url.encode('utf-8')).hexdigest()[:16]}"
+
+    def _staging_path(self, bookmark: Bookmark, backend: str) -> Path:
+        safe_backend = re.sub(r"[^a-z0-9-]+", "-", backend.lower()).strip("-")
+        token = secrets.token_hex(8)
+        return self.snapshots_dir / (
+            f".{self._safe_snapshot_id(bookmark)}.{safe_backend or 'backend'}.{token}.html"
+        )
+
+    @staticmethod
+    def _staging_candidates(staging_path: Path) -> list[Path]:
+        return [
+            staging_path.with_suffix(extension)
+            for extension in sorted(_CURRENT_SNAPSHOT_EXTENSIONS)
+        ]
+
+    def _cleanup_staging(self, staging_path: Path) -> None:
+        for candidate in self._staging_candidates(staging_path):
+            try:
+                candidate.unlink(missing_ok=True)
+            except OSError as exc:
+                log.warning("Could not remove staged snapshot %s: %s", candidate, exc)
+
+    def _backend_artifact_path(self, staging_path: Path) -> Path | None:
+        declared = self._last_provenance.get("artifact_path")
+        if declared:
+            candidate = Path(str(declared))
+            if (
+                candidate.parent.resolve() == self.snapshots_dir.resolve()
+                and candidate.stem == staging_path.stem
+                and candidate.suffix.lower() in _CURRENT_SNAPSHOT_EXTENSIONS
+                and candidate.is_file()
+            ):
+                return candidate
+        return next(
+            (
+                candidate
+                for candidate in self._staging_candidates(staging_path)
+                if candidate.is_file()
+            ),
+            None,
+        )
+
+    def _commit_capture(
+        self,
+        bookmark: Bookmark,
+        staged_path: Path,
+        *,
+        source_url: str,
+        backend: str,
+        captured_at: str = "",
+    ) -> tuple[Path, SnapshotManifest]:
+        payload = staged_path.read_bytes()
+        detected, error = classify_snapshot_payload(
+            payload,
+            self._last_provenance.get("mime_type", ""),
+        )
+        if detected is None:
+            raise ValueError(error)
+        safe_id = self._safe_snapshot_id(bookmark)
+        final_path = self.snapshots_dir / f"{safe_id}{detected.extension}"
+        captured = captured_at or datetime.now(timezone.utc).isoformat()
+        digest = hashlib.sha256(payload).hexdigest()
+        status = self._last_provenance.get("status_code")
+        try:
+            status_code = int(status) if status is not None else None
+        except (TypeError, ValueError):
+            status_code = None
+        if status_code is not None and not 100 <= status_code <= 599:
+            status_code = None
+        manifest = SnapshotManifest(
+            source_url=source_url,
+            final_url=str(
+                self._last_provenance.get("resolved_url") or source_url
+            ),
+            mime_type=detected.mime_type,
+            sha256=digest,
+            backend=backend,
+            size_bytes=len(payload),
+            captured_at=captured,
+            artifact_name=final_path.name,
+            representation=detected.representation,
+            status_code=status_code,
+        )
+        previous_path = Path(bookmark.snapshot_path) if bookmark.snapshot_path else None
+        manifest_path = snapshot_manifest_path(final_path)
+        rollback_token = secrets.token_hex(8)
+        artifact_backup = final_path.with_name(
+            f".{final_path.name}.{rollback_token}.rollback"
+        )
+        manifest_backup = manifest_path.with_name(
+            f".{manifest_path.name}.{rollback_token}.rollback"
+        )
+        if final_path.is_file():
+            shutil.copyfile(final_path, artifact_backup)
+        if manifest_path.is_file():
+            shutil.copyfile(manifest_path, manifest_backup)
+        try:
+            os.replace(staged_path, final_path)
+            _write_snapshot_manifest(final_path, manifest)
+            self.history_store.record(
+                bookmark.id,
+                final_path,
+                source_url=source_url,
+                resolved_url=manifest.final_url,
+                status_code=status_code,
+                backend=backend,
+                captured_at=captured,
+                mime_type=manifest.mime_type,
+                representation=manifest.representation,
+            )
+        except Exception:
+            if artifact_backup.is_file():
+                os.replace(artifact_backup, final_path)
+            else:
+                final_path.unlink(missing_ok=True)
+            if manifest_backup.is_file():
+                os.replace(manifest_backup, manifest_path)
+            else:
+                manifest_path.unlink(missing_ok=True)
+            raise
+        finally:
+            for backup in (artifact_backup, manifest_backup):
+                try:
+                    backup.unlink(missing_ok=True)
+                except OSError as exc:
+                    log.warning("Could not remove snapshot rollback file %s: %s", backup, exc)
+        for extension in _CURRENT_SNAPSHOT_EXTENSIONS:
+            stale = self.snapshots_dir / f"{safe_id}{extension}"
+            if stale != final_path:
+                try:
+                    stale.unlink(missing_ok=True)
+                except OSError as exc:
+                    log.warning("Could not remove superseded snapshot %s: %s", stale, exc)
+        if previous_path is not None and previous_path != final_path:
+            try:
+                if previous_path.resolve().parent == self.snapshots_dir.resolve():
+                    previous_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        bookmark.snapshot_path = str(final_path)
+        bookmark.snapshot_size = manifest.size_bytes
+        bookmark.snapshot_at = manifest.captured_at
+        bookmark.snapshot_mime_type = manifest.mime_type
+        bookmark.snapshot_sha256 = manifest.sha256
+        bookmark.snapshot_backend = manifest.backend
+        bookmark.modified_at = manifest.captured_at
+        return final_path, manifest
 
     def import_browser_snapshot(
         self,
@@ -509,23 +986,16 @@ class SnapshotArchiver:
         rendered = str(soup).encode("utf-8")
         if len(rendered) > self.MAX_BROWSER_CAPTURE_BYTES:
             raise ValueError("Sanitized snapshot exceeds the 5 MB limit")
-        out_path = self.snapshots_dir / f"{bookmark.id}.html"
-        fd, tmp_name = tempfile.mkstemp(prefix=f".{bookmark.id}.", suffix=".tmp", dir=self.snapshots_dir)
+        staging_path = self._staging_path(bookmark, "browser-extension")
         try:
-            with os.fdopen(fd, "wb") as handle:
+            with staging_path.open("xb") as handle:
                 handle.write(rendered)
                 handle.flush()
                 os.fsync(handle.fileno())
-            os.replace(tmp_name, out_path)
         except Exception:
-            Path(tmp_name).unlink(missing_ok=True)
+            staging_path.unlink(missing_ok=True)
             raise
 
-        now = datetime.now().isoformat()
-        bookmark.snapshot_path = str(out_path)
-        bookmark.snapshot_size = len(rendered)
-        bookmark.snapshot_at = now
-        bookmark.modified_at = now
         resources = _browser_resource_diagnostics(resource_summary)
         raw_summary = resource_summary if isinstance(resource_summary, dict) else {}
         raw_status = raw_summary.get("status_code")
@@ -533,19 +1003,29 @@ class SnapshotArchiver:
             status_code = int(raw_status) if raw_status is not None else None
         except (TypeError, ValueError):
             status_code = None
-        self.history_store.record(
-            bookmark.id,
-            out_path,
-            source_url=source_url,
-            resolved_url=str(raw_summary.get("resolved_url") or source_url),
-            status_code=status_code,
-            backend="browser-extension",
-            captured_at=now,
-        )
+        self._last_provenance = {
+            "artifact_path": str(staging_path),
+            "mime_type": "text/html",
+            "resolved_url": str(raw_summary.get("resolved_url") or source_url),
+            "status_code": status_code,
+        }
+        now = datetime.now(timezone.utc).isoformat()
+        try:
+            out_path, manifest = self._commit_capture(
+                bookmark,
+                staging_path,
+                source_url=source_url,
+                backend="browser-extension",
+                captured_at=now,
+            )
+        finally:
+            self._cleanup_staging(staging_path)
         return {
             "stored": True,
             "path": str(out_path),
-            "size": len(rendered),
+            "size": manifest.size_bytes,
+            "mime_type": manifest.mime_type,
+            "sha256": manifest.sha256,
             "removed_elements": removed_elements,
             "removed_attributes": removed_attributes,
             "resource_count": resources["count"],
@@ -557,13 +1037,23 @@ class SnapshotArchiver:
         }
 
     def delete_snapshot(self, bookmark: Bookmark) -> bool:
-        path = self.snapshots_dir / f"{bookmark.id}.html"
         try:
-            if path.exists():
-                path.unlink()
+            safe_id = self._safe_snapshot_id(bookmark)
+            for extension in _CURRENT_SNAPSHOT_EXTENSIONS:
+                (self.snapshots_dir / f"{safe_id}{extension}").unlink(missing_ok=True)
+            snapshot_manifest_path(self.snapshots_dir / f"{safe_id}.html").unlink(
+                missing_ok=True
+            )
+            if bookmark.snapshot_path:
+                current = Path(bookmark.snapshot_path)
+                if current.parent.resolve() == self.snapshots_dir.resolve():
+                    current.unlink(missing_ok=True)
             bookmark.snapshot_path = ""
             bookmark.snapshot_size = 0
             bookmark.snapshot_at = ""
+            bookmark.snapshot_mime_type = ""
+            bookmark.snapshot_sha256 = ""
+            bookmark.snapshot_backend = ""
             return True
         except OSError as exc:
             log.warning(f"Could not delete snapshot: {exc}")
@@ -572,7 +1062,11 @@ class SnapshotArchiver:
     def has_snapshot(self, bookmark: Bookmark) -> bool:
         if not bookmark.snapshot_path:
             return False
-        return Path(bookmark.snapshot_path).exists()
+        try:
+            ensure_snapshot_manifest(bookmark)
+        except (OSError, ValueError, json.JSONDecodeError):
+            return False
+        return True
 
     @staticmethod
     def _backend_label(method_name: str) -> str:
@@ -703,6 +1197,7 @@ class SnapshotArchiver:
                     self._last_provenance = {
                         "resolved_url": page.url,
                         "status_code": navigation.status if navigation is not None else None,
+                        "mime_type": "text/html",
                     }
                     content = page.content()
                 finally:
@@ -713,6 +1208,7 @@ class SnapshotArchiver:
             if len(data) > self.egress_policy.max_bytes:
                 return False, "snapshot too large"
             out_path.write_bytes(data)
+            self._last_provenance["artifact_path"] = str(out_path)
             return True, str(out_path)
         except Exception as exc:
             return False, f"playwright failed: {exc}"
@@ -730,17 +1226,32 @@ class SnapshotArchiver:
         )
         if resp is None:
             return False, f"fetch failed: {error}"
-        self._last_provenance = {
-            "resolved_url": current_url,
-            "status_code": getattr(resp, "status_code", None),
-        }
         try:
             raw = self._read_bounded(resp, self.egress_policy.max_bytes)
             if raw is None:
                 return False, "snapshot too large"
-            html = raw.decode(resp.encoding or "utf-8", errors="replace")
+            declared_mime = resp.headers.get("content-type", "")
+            response_encoding = resp.encoding or "utf-8"
         finally:
             resp.close()
+        detected, error = classify_snapshot_payload(raw, declared_mime)
+        if detected is None:
+            return False, error
+        self._last_provenance = {
+            "resolved_url": current_url,
+            "status_code": getattr(resp, "status_code", None),
+            "mime_type": detected.mime_type,
+        }
+        if detected.representation == "binary":
+            artifact_path = out_path.with_suffix(detected.extension)
+            try:
+                artifact_path.write_bytes(raw)
+            except OSError as exc:
+                return False, f"write failed: {exc}"
+            self._last_provenance["artifact_path"] = str(artifact_path)
+            return True, str(artifact_path)
+
+        html = raw.decode(response_encoding, errors="replace")
 
         soup = bs4.BeautifulSoup(html, "html.parser")
         base = current_url
@@ -787,6 +1298,7 @@ class SnapshotArchiver:
             if len(data) > self.egress_policy.max_bytes:
                 return False, "snapshot too large"
             out_path.write_bytes(data)
+            self._last_provenance["artifact_path"] = str(out_path)
         except OSError as exc:
             return False, f"write failed: {exc}"
         return True, str(out_path)

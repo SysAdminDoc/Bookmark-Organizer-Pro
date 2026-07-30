@@ -86,6 +86,9 @@ class Bookmark:
     snapshot_path: str = ""
     snapshot_size: int = 0
     snapshot_at: str = ""
+    snapshot_mime_type: str = ""
+    snapshot_sha256: str = ""
+    snapshot_backend: str = ""
     extracted_text_path: str = ""
     content_type: str = ""
     sentiment: str = ""
@@ -218,6 +221,9 @@ class Bookmark:
             "snapshot_path": self.snapshot_path,
             "snapshot_size": self.snapshot_size,
             "snapshot_at": self.snapshot_at,
+            "snapshot_mime_type": self.snapshot_mime_type,
+            "snapshot_sha256": self.snapshot_sha256,
+            "snapshot_backend": self.snapshot_backend,
             "extracted_text_path": self.extracted_text_path,
             "content_type": self.content_type,
             "sentiment": self.sentiment,
@@ -311,6 +317,9 @@ class Bookmark:
             snapshot_path=str(d.get("snapshot_path") or ""),
             snapshot_size=safe_int(d.get("snapshot_size", 0)),
             snapshot_at=str(d.get("snapshot_at") or ""),
+            snapshot_mime_type=str(d.get("snapshot_mime_type") or ""),
+            snapshot_sha256=str(d.get("snapshot_sha256") or ""),
+            snapshot_backend=str(d.get("snapshot_backend") or ""),
             extracted_text_path=str(d.get("extracted_text_path") or ""),
             content_type=str(d.get("content_type") or ""),
             sentiment=str(d.get("sentiment") or ""),

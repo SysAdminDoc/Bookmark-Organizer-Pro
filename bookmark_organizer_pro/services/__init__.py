@@ -108,6 +108,12 @@ from .snapshot import (
     SnapshotBackendAttempt,
     SnapshotFailureRecord,
     SnapshotFailureStore,
+    SnapshotFormat,
+    SnapshotManifest,
+    classify_snapshot_payload,
+    ensure_snapshot_manifest,
+    load_snapshot_manifest,
+    open_snapshot_file,
 )
 from .tag_linter import LintReport, TagLinter, TagSuggestion
 from .updates import (
@@ -174,7 +180,9 @@ __all__ = [
     "RSS_AI_MODES", "FeedConfig", "FeedIngestor", "FeedItem",
     "FeedRegistry", "parse_feed",
     "SnapshotArchiver", "SnapshotBackendAttempt", "SnapshotFailureRecord",
-    "SnapshotFailureStore",
+    "SnapshotFailureStore", "SnapshotFormat", "SnapshotManifest",
+    "classify_snapshot_payload", "ensure_snapshot_manifest",
+    "load_snapshot_manifest", "open_snapshot_file",
     "LintReport", "TagLinter", "TagSuggestion",
     "StagedUpdateStatus", "UpdateApplyPreflightResult", "UpdateApplyPlan",
     "UpdateCheckResult", "UpdateCleanupResult", "UpdateDownloadResult",

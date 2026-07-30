@@ -28,6 +28,8 @@ class SnapshotVersion:
     size: int
     backend: str
     path: str
+    mime_type: str
+    representation: str
 
     @classmethod
     def from_dict(cls, value: dict) -> "SnapshotVersion":
@@ -43,6 +45,22 @@ class SnapshotVersion:
             size=int(value.get("size") or 0),
             backend=str(value.get("backend") or "unknown"),
             path=str(value.get("path") or ""),
+            mime_type=str(
+                value.get("mime_type")
+                or (
+                    "text/html"
+                    if Path(str(value.get("path") or "")).suffix.lower() == ".html"
+                    else "application/octet-stream"
+                )
+            ),
+            representation=str(
+                value.get("representation")
+                or (
+                    "bundled-html"
+                    if Path(str(value.get("path") or "")).suffix.lower() == ".html"
+                    else "binary"
+                )
+            ),
         )
 
 
@@ -55,10 +73,34 @@ class SnapshotHistoryStore:
         self._store = AtomicDocumentStore(
             self.snapshots_dir.parent / "snapshot_history.json",
             schema="bookmark-organizer-pro/snapshot-history",
+            current_version=2,
             default_factory=lambda: {"versions": []},
-            migrations={0: lambda value: value if isinstance(value, dict) else {"versions": []}},
+            migrations={
+                0: lambda value: value if isinstance(value, dict) else {"versions": []},
+                1: self._migrate_format_metadata,
+            },
             validator=self._validate,
         )
+
+    @staticmethod
+    def _migrate_format_metadata(document):
+        migrated = document if isinstance(document, dict) else {"versions": []}
+        versions = migrated.get("versions", [])
+        if not isinstance(versions, list):
+            return migrated
+        for item in versions:
+            if not isinstance(item, dict):
+                continue
+            is_html = Path(str(item.get("path") or "")).suffix.lower() == ".html"
+            item.setdefault(
+                "mime_type",
+                "text/html" if is_html else "application/octet-stream",
+            )
+            item.setdefault(
+                "representation",
+                "bundled-html" if is_html else "binary",
+            )
+        return migrated
 
     @staticmethod
     def _validate(document) -> None:
@@ -66,6 +108,11 @@ class SnapshotHistoryStore:
         versions = document.get("versions", [])
         if not isinstance(versions, list) or any(not isinstance(item, dict) for item in versions):
             raise ValueError("snapshot history versions must be an array of objects")
+        for item in versions:
+            if item.get("representation") not in {"bundled-html", "binary"}:
+                raise ValueError("snapshot history representation is invalid")
+            if not isinstance(item.get("mime_type"), str) or not item["mime_type"]:
+                raise ValueError("snapshot history MIME type is invalid")
 
     def record(
         self,
@@ -77,6 +124,8 @@ class SnapshotHistoryStore:
         status_code: int | None = None,
         backend: str = "unknown",
         captured_at: str = "",
+        mime_type: str = "text/html",
+        representation: str = "bundled-html",
     ) -> SnapshotVersion:
         payload = Path(current_path).read_bytes()
         digest = hashlib.sha256(payload).hexdigest()
@@ -86,7 +135,10 @@ class SnapshotHistoryStore:
         version_id = f"{captured.replace(':', '').replace('-', '').replace('+', '_')}-{digest[:12]}"
         version_dir = self.snapshots_dir / safe_id / "history"
         version_dir.mkdir(parents=True, exist_ok=True)
-        version_path = version_dir / f"{version_id}.html"
+        suffix = Path(current_path).suffix.lower()
+        if suffix not in {".html", ".pdf", ".png", ".jpg", ".gif", ".webp"}:
+            raise ValueError("snapshot history extension is not supported")
+        version_path = version_dir / f"{version_id}{suffix}"
         if not version_path.exists():
             shutil.copyfile(current_path, version_path)
         record = SnapshotVersion(
@@ -100,6 +152,8 @@ class SnapshotHistoryStore:
             size=len(payload),
             backend=backend,
             path=str(version_path),
+            mime_type=str(mime_type or "application/octet-stream"),
+            representation=str(representation or "binary"),
         )
 
         removed_paths: list[Path] = []
@@ -173,18 +227,29 @@ class SnapshotHistoryStore:
         newer = lookup.get(newer_id)
         if older is None or newer is None:
             raise KeyError("Snapshot version was not found")
-        old_text = self._visible_text(Path(older.path).read_text(encoding="utf-8", errors="replace"))
-        new_text = self._visible_text(Path(newer.path).read_text(encoding="utf-8", errors="replace"))
-        diff = list(difflib.unified_diff(
-            old_text.splitlines(), new_text.splitlines(),
-            fromfile=older.version_id, tofile=newer.version_id, lineterm="",
-        ))
+        comparable_text = (
+            older.representation == "bundled-html"
+            and newer.representation == "bundled-html"
+        )
+        diff: list[str] = []
+        if comparable_text:
+            old_text = self._visible_text(
+                Path(older.path).read_text(encoding="utf-8", errors="replace")
+            )
+            new_text = self._visible_text(
+                Path(newer.path).read_text(encoding="utf-8", errors="replace")
+            )
+            diff = list(difflib.unified_diff(
+                old_text.splitlines(), new_text.splitlines(),
+                fromfile=older.version_id, tofile=newer.version_id, lineterm="",
+            ))
         return {
             "older": asdict(older),
             "newer": asdict(newer),
             "content_changed": older.sha256 != newer.sha256,
             "redirect_changed": older.resolved_url != newer.resolved_url,
             "status_changed": older.status_code != newer.status_code,
+            "text_diff_available": comparable_text,
             "diff": diff[: max(0, int(max_diff_lines))],
             "diff_truncated": len(diff) > max_diff_lines,
         }

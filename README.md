@@ -1,8 +1,8 @@
 # Bookmark Organizer Pro
 
-A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **single-file HTML snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
+A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **verified offline snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
-Executable product contract: 62 CLI subcommands, 32 MCP tools, 6 AI providers, 3 extension surfaces, 49 service modules, 42 UI modules, and 41 test files.
+Executable product contract: 62 CLI subcommands, 32 MCP tools, 6 AI providers, 3 extension surfaces, 49 service modules, 42 UI modules, and 42 test files.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
 ![Version](https://img.shields.io/badge/Version-v6.12.0-2dd4bf.svg)
@@ -105,7 +105,7 @@ python -m bookmark_organizer_pro.cli ingest
 python -m bookmark_organizer_pro.cli embed
 python -m bookmark_organizer_pro.cli hybrid "python async tutorials"
 
-# Snapshot a bookmark to portable HTML
+# Capture a bookmark as a verified offline artifact
 python -m bookmark_organizer_pro.cli snapshot 12345
 
 # Extract site-specific structured fields from supported pages
@@ -156,6 +156,14 @@ time, and byte limits to Python and Playwright fetches. Monolith and SingleFile
 executables cannot expose every internal request, so they are disabled by
 default; set `BOOKMARK_SNAPSHOT_ALLOW_UNSAFE_EXTERNAL=1` only in a trusted
 network environment to opt in.
+
+The final response MIME and byte signature decide storage only after download.
+HTML is sanitized and bundled as HTML; verified PDF, PNG, JPEG, GIF, and WebP
+responses retain their original bytes and safe extension. Unsupported or
+MIME-conflicting responses leave no new artifact. Each capture has a versioned
+manifest containing source/final URL, MIME, SHA-256, backend, size, and UTC
+timestamp; the Focus inspector and row context menu can verify and open the
+offline copy, while portable ZIP exports preserve its actual format.
 
 ### Browser extension MVP
 
@@ -237,6 +245,7 @@ Native messaging and offline category/tag suggestions remain on the roadmap.
 - **Soft Delete / Trash**: Recoverable deletion with trash management
 - **URL Validation**: Check for broken links with concurrent checking
 - **Snapshot Failure Recovery**: Backend attempt reports with retry and clear actions for failed preservation runs
+- **Content-Aware Offline Copies**: Verified HTML, PDF, and raster-image artifacts with digest-bound manifests, format-preserving export, and safe local opening
 - **Smart Duplicate Detection**: Academic-grade URL normalization (strips 60+ tracking params, normalizes scheme/host/port/path, sorts query params)
 - **Duplicate Review**: URL and smart duplicate scans open selectable cleanup previews with safepoint restore
 - **Tag Cleanup Review**: Tag-lint suggestions can be selected, applied, skipped, and restored from the GUI

@@ -160,7 +160,7 @@ class BookmarkCLI:
         p.add_argument("--json", action="store_true", dest="as_json", help="Print raw JSON payload")
         p.set_defaults(func=self._cmd_structured)
 
-        p = sub.add_parser("snapshot", help="Capture single-file HTML snapshot")
+        p = sub.add_parser("snapshot", help="Capture a verified offline snapshot")
         p.add_argument("bookmark_id", type=int, help="Bookmark ID")
         p.set_defaults(func=self._cmd_snapshot)
 
@@ -516,7 +516,7 @@ Commands:
 v6.0.0 commands:
   ingest [id...]                Extract text + reading time + language for bookmark(s)
   structured <id>               Show structured metadata extracted from templates
-  snapshot <id>                 Capture single-file HTML snapshot of a bookmark
+  snapshot <id>                 Capture a verified offline snapshot of a bookmark
   embed [id...]                 Build/update vector embeddings (uses ingested text)
   semantic <query>              Vector-only semantic search
   hybrid <query>                Hybrid keyword + semantic (RRF) search

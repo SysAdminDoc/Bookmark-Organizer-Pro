@@ -90,6 +90,9 @@ def _bm_to_dict(bm: Bookmark) -> Dict[str, Any]:
         "is_pinned": bm.is_pinned,
         "is_valid": bm.is_valid,
         "snapshot_path": bm.snapshot_path,
+        "snapshot_mime_type": bm.snapshot_mime_type,
+        "snapshot_sha256": bm.snapshot_sha256,
+        "snapshot_backend": bm.snapshot_backend,
         "flow_id": bm.flow_id,
     }
 
@@ -1074,11 +1077,32 @@ def t_list_snapshots(limit: int = 50) -> List[Dict]:
     out = []
     if not SNAPSHOTS_DIR.is_dir():
         return out
-    for f in sorted(SNAPSHOTS_DIR.glob("*.html"), key=lambda p: p.stat().st_mtime, reverse=True)[:max(1, limit)]:
+    current = [
+        path
+        for path in SNAPSHOTS_DIR.iterdir()
+        if path.is_file()
+        and path.suffix.lower() in {".html", ".pdf", ".png", ".jpg", ".gif", ".webp"}
+    ]
+    for f in sorted(
+        current,
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )[:max(1, limit)]:
         try:
             stat = f.stat()
-            out.append({"filename": f.name, "size": stat.st_size,
-                        "modified": stat.st_mtime})
+            out.append({
+                "filename": f.name,
+                "mime_type": {
+                    ".html": "text/html",
+                    ".pdf": "application/pdf",
+                    ".png": "image/png",
+                    ".jpg": "image/jpeg",
+                    ".gif": "image/gif",
+                    ".webp": "image/webp",
+                }[f.suffix.lower()],
+                "size": stat.st_size,
+                "modified": stat.st_mtime,
+            })
         except OSError:
             continue
     return out
@@ -1389,7 +1413,7 @@ TOOLS = [
          "required": ["vault_path"],
      }),
     ("list_snapshots", t_list_snapshots,
-     "List captured HTML snapshots sorted by most recent first.",
+     "List verified offline snapshots sorted by most recent first.",
      {
          "type": "object",
          "properties": {
@@ -1679,7 +1703,7 @@ def _build_fastmcp_server():
                            category_filter: str = "", since: str = "") -> dict:
         return t_export_to_obsidian(vault_path, tag_filter, category_filter, since)
 
-    @tool("list_snapshots", "List captured HTML snapshots.")
+    @tool("list_snapshots", "List verified offline snapshots.")
     def list_snapshots(limit: int = 50) -> list[dict]:
         return t_list_snapshots(limit)
 

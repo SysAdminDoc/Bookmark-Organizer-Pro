@@ -183,6 +183,8 @@ def test_contextual_inspector_formats_type_time_and_offline_state(tmp_path):
     snapshot.write_bytes(b"x" * 2048)
     bookmark.snapshot_path = str(snapshot)
     assert BookmarkDetailPanel._offline_state(bookmark) == "Available (2 KB)"
+    bookmark.snapshot_mime_type = "application/pdf"
+    assert BookmarkDetailPanel._offline_state(bookmark) == "Available (PDF, 2 KB)"
 
 
 def test_contextual_inspector_recommends_one_state_aware_next_action():

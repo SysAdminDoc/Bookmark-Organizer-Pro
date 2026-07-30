@@ -29,6 +29,24 @@ def text_index_offset(text_widget: tk.Text, index: str) -> int:
     return int(count[0]) if count else 0
 
 
+def reader_empty_message(bookmark: Bookmark) -> str:
+    mime_type = str(bookmark.snapshot_mime_type or "").lower()
+    if mime_type == "application/pdf":
+        return _(
+            "This bookmark has a verified PDF offline copy. Open the offline copy "
+            "to read it; highlights require separately extracted text."
+        )
+    if mime_type.startswith("image/"):
+        return _(
+            "This bookmark has a verified image offline copy. Open the offline copy "
+            "to view it; highlights require separately extracted text."
+        )
+    return _(
+        "No extracted text is available yet.\n\n"
+        "Run text extraction, then return here to highlight key passages."
+    )
+
+
 class ReaderViewDialog(tk.Toplevel):
     """Read extracted bookmark text and manage persisted highlights."""
 
@@ -109,10 +127,7 @@ class ReaderViewDialog(tk.Toplevel):
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.text.insert(
             "1.0",
-            self.text_content or _(
-                "No extracted text is available yet.\n\n"
-                "Capture page text or an archive snapshot, then return here to highlight key passages."
-            ),
+            self.text_content or reader_empty_message(self.bookmark),
         )
         self.text.configure(state=tk.DISABLED)
         body.add(text_frame, minsize=500)

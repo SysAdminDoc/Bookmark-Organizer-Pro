@@ -870,9 +870,11 @@ class BookmarkAPI:
 
                             from bookmark_organizer_pro.services.snapshot import SnapshotArchiver
 
+                            archiver = None
                             try:
                                 snapshots_dir = Path(bookmark_manager.filepath).parent / "snapshots"
-                                report = SnapshotArchiver(snapshots_dir=snapshots_dir).import_browser_snapshot(
+                                archiver = SnapshotArchiver(snapshots_dir=snapshots_dir)
+                                report = archiver.import_browser_snapshot(
                                     bookmark,
                                     str(capture.get('html') or ''),
                                     source_url=str(capture.get('source_url') or ''),
@@ -881,9 +883,8 @@ class BookmarkAPI:
                                 )
                                 bookmark_manager.save_bookmarks()
                             except (ValueError, RuntimeError, OSError) as exc:
-                                snapshot_path = getattr(bookmark, 'snapshot_path', '')
-                                if snapshot_path:
-                                    Path(snapshot_path).unlink(missing_ok=True)
+                                if archiver is not None:
+                                    archiver.delete_snapshot(bookmark)
                                 bookmark_manager.delete_bookmark(bookmark.id)
                                 message = (
                                     str(exc)

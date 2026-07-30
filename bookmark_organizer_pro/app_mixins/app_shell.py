@@ -635,6 +635,7 @@ class AppShellMixin:
             self._right_rail_focus,
             on_edit=lambda _bookmark: self._edit_selected(),
             on_open=self._open_bookmark,
+            on_open_offline=self._open_offline_copy,
             on_delete=lambda _bookmark: self._delete_selected(),
             on_close=lambda: self._set_right_rail_user_visibility(False),
         )

@@ -82,6 +82,7 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
         parent,
         on_edit: Callable[[Bookmark], None] | None = None,
         on_open: Callable[[Bookmark], None] | None = None,
+        on_open_offline: Callable[[Bookmark], None] | None = None,
         on_delete: Callable[[Bookmark], None] | None = None,
         on_close: Callable[[], None] | None = None,
     ):
@@ -89,6 +90,7 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
         super().__init__(parent, bg=theme.bg_dark, width=DesignTokens.RIGHT_SIDEBAR_WIDTH)
         self.on_edit = on_edit
         self.on_open = on_open
+        self.on_open_offline = on_open_offline
         self.on_delete = on_delete
         self.on_close = on_close
         self.current_bookmark: Optional[Bookmark] = None
@@ -277,6 +279,19 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
             rendered = f"{size / (1024 * 1024):.1f} MB"
         else:
             rendered = f"{max(1, round(size / 1024))} KB"
+        mime_label = {
+            "application/pdf": _("PDF"),
+            "image/png": _("PNG image"),
+            "image/jpeg": _("JPEG image"),
+            "image/gif": _("GIF image"),
+            "image/webp": _("WebP image"),
+            "text/html": _("HTML"),
+        }.get(str(bookmark.snapshot_mime_type or "").lower())
+        if mime_label:
+            return _("Available ({kind}, {size})").format(
+                kind=mime_label,
+                size=rendered,
+            )
         return _("Available ({size})").format(size=rendered)
 
     def _show_more_menu(self):
@@ -286,6 +301,15 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
             activebackground=theme.selection, activeforeground=theme.text_primary,
             borderwidth=0,
         )
+        if (
+            self.current_bookmark
+            and self.current_bookmark.snapshot_path
+            and self.on_open_offline
+        ):
+            menu.add_command(
+                label=_("Open offline copy"),
+                command=self._open_offline_copy,
+            )
         menu.add_command(label=_("Edit bookmark"), command=self._edit_bookmark)
         menu.add_separator()
         menu.add_command(label=_("Delete bookmark…"), command=self._delete_bookmark)
@@ -295,6 +319,10 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
     def _open_bookmark(self):
         if self.current_bookmark and self.on_open:
             self.on_open(self.current_bookmark)
+
+    def _open_offline_copy(self):
+        if self.current_bookmark and self.on_open_offline:
+            self.on_open_offline(self.current_bookmark)
 
     def _edit_bookmark(self):
         if self.current_bookmark and self.on_edit:

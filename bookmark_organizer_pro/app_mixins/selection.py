@@ -8,6 +8,7 @@ from datetime import datetime
 
 from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.snapshot import open_snapshot_file
 from bookmark_organizer_pro.ui.foundation import pluralize
 from bookmark_organizer_pro.ui.widgets import get_theme
 from bookmark_organizer_pro.utils.runtime import open_external_url
@@ -61,6 +62,20 @@ class SelectionActionsMixin:
             bookmark.last_visited = datetime.now().isoformat()
             self.bookmark_manager.update_bookmark(bookmark)
 
+    def _open_offline_copy(self, bookmark: Bookmark):
+        """Verify and open a selected bookmark's local snapshot."""
+        opened, detail = open_snapshot_file(bookmark)
+        if opened:
+            self._set_status(
+                _("Opened offline copy for {title}").format(
+                    title=bookmark.title[:60],
+                )
+            )
+            return
+        self._set_status(detail)
+        if hasattr(self, "_toast"):
+            self._toast(detail, "error")
+
     def _show_context_menu(self, event):
         """Show context menu with Send To and Search Domain options"""
         theme = get_theme()
@@ -86,6 +101,11 @@ class SelectionActionsMixin:
         menu = tk.Menu(self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
                       activebackground=theme.bg_hover, activeforeground=theme.text_primary)
         menu.add_command(label=_("Open in Browser"), command=self._open_selected)
+        if first_bookmark and first_bookmark.snapshot_path:
+            menu.add_command(
+                label=_("Open Offline Copy"),
+                command=lambda: self._open_offline_copy(first_bookmark),
+            )
         menu.add_command(label=_("Reader View"), command=self._open_reader_view)
         menu.add_command(label=_("Edit Bookmark"), command=self._edit_selected)
         menu.add_separator()
