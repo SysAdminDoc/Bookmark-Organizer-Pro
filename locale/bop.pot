@@ -18,7 +18,7 @@ msgstr ""
 msgid "  {value_0}  {value_1}{value_2}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:89
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:91
 msgid "  {value_0}{value_1}"
 msgstr ""
 
@@ -164,11 +164,11 @@ msgstr ""
 msgid "AI title suggestions could not be completed.\n\n{value_0}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:513
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:562
 msgid "API Key Required"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:111
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:113
 msgid "API key"
 msgstr ""
 
@@ -362,8 +362,8 @@ msgid "Assistant Provider Settings"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_menu_data.py:50
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:28
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:46
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:30
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:48
 #: bookmark_organizer_pro/app_mixins/command_palette.py:42
 msgid "Assistant Settings"
 msgstr ""
@@ -376,7 +376,7 @@ msgstr ""
 msgid "Assistant data exported successfully.\n\nFile: {value_0}\nBookmarks: {value_1}\nCategories: {value_2}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:573
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:622
 msgid "Assistant settings saved"
 msgstr ""
 
@@ -431,13 +431,17 @@ msgstr ""
 msgid "Base theme"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:468
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:517
 msgid "Batch size"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/graph_view.py:100
 #: bookmark_organizer_pro/ui/graph_view.py:119
 msgid "Bookmark Graph"
+msgstr ""
+
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:308
+msgid "Bookmark Organizer Pro will install the pinned Ollama {version} release.\n\nOn Windows it downloads the installer from the official GitHub release, enforces a byte limit, verifies this SHA-256 before execution, and removes the installer afterward:\n{digest}\n\nmacOS and Linux receive download-and-verify commands instead of executing a remote install script. Continue?"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/about.py:226
@@ -494,7 +498,7 @@ msgstr ""
 msgid "CSV"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:576
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:625
 #: bookmark_organizer_pro/app_mixins/ai_titles.py:237
 #: bookmark_organizer_pro/app_mixins/categories.py:208
 #: bookmark_organizer_pro/app_mixins/import_export.py:213
@@ -509,10 +513,19 @@ msgstr ""
 msgid "Cancel"
 msgstr ""
 
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:333
+msgid "Cancel install"
+msgstr ""
+
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:303
+msgid "Cancelling installation and removing the download…"
+msgstr ""
+
 #: bookmark_organizer_pro/ui/dependencies.py:284
 msgid "Cancelling installer safely..."
 msgstr ""
 
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:302
 #: bookmark_organizer_pro/app_mixins/tools.py:554
 msgid "Cancelling…"
 msgstr ""
@@ -586,7 +599,7 @@ msgstr ""
 msgid "Checked {value_0}/{value_1} - {value_2} broken"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:157
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:159
 msgid "Checking Ollama…"
 msgstr ""
 
@@ -594,7 +607,7 @@ msgstr ""
 msgid "Checking links…"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:284
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:287
 msgid "Checking…"
 msgstr ""
 
@@ -642,7 +655,7 @@ msgstr ""
 msgid "Choose files"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:52
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:54
 msgid "Choose how bookmark categorization, tag suggestions, summaries, and library chat should run."
 msgstr ""
 
@@ -785,12 +798,12 @@ msgstr ""
 msgid "Confidence:"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:535
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:537
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:584
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:586
 msgid "Connection Failed"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:533
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:582
 msgid "Connection Successful"
 msgstr ""
 
@@ -981,16 +994,16 @@ msgstr ""
 msgid "Double-click to open  ·  Right-click for actions"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:356
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:369
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:405
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:418
 msgid "Download"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:218
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:220
 msgid "Download model"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:345
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:394
 msgid "Downloading…"
 msgstr ""
 
@@ -1051,7 +1064,7 @@ msgstr ""
 msgid "Enter a clear name for this custom theme."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:514
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:563
 msgid "Enter an API key for {provider} before testing."
 msgstr ""
 
@@ -1159,7 +1172,7 @@ msgstr ""
 msgid "Failed to import: {value_0}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:407
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:456
 msgid "Failover provider:"
 msgstr ""
 
@@ -1255,7 +1268,7 @@ msgstr ""
 msgid "Full Analytics"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:147
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:149
 msgid "Get API key"
 msgstr ""
 
@@ -1289,7 +1302,7 @@ msgstr ""
 msgid "Help"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:131
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:133
 msgid "Hide"
 msgstr ""
 
@@ -1501,8 +1514,8 @@ msgstr ""
 msgid "Install All"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:204
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:307
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:206
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:343
 msgid "Install Ollama"
 msgstr ""
 
@@ -1510,23 +1523,31 @@ msgstr ""
 msgid "Install required packages now, or continue with optional features disabled."
 msgstr ""
 
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:349
+msgid "Install stopped: {message}"
+msgstr ""
+
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:307
+msgid "Install verified Ollama?"
+msgstr ""
+
 #: bookmark_organizer_pro/ui/dependencies.py:259
 msgid "Installation complete."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:253
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:256
 msgid "Installed (v{version}) — server stopped"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:275
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:278
 msgid "Installed models:"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:309
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:345
 msgid "Installed! Starting server…"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:296
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:329
 msgid "Installing…"
 msgstr ""
 
@@ -1558,7 +1579,7 @@ msgstr ""
 msgid "Karakeep export"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:459
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:508
 msgid "Keep batch size and request rate conservative for steadier long runs."
 msgstr ""
 
@@ -1698,11 +1719,11 @@ msgstr ""
 msgid "Min: {value_0}%"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:99
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:101
 msgid "Model"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:418
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:467
 msgid "Model:"
 msgstr ""
 
@@ -1898,7 +1919,7 @@ msgstr ""
 msgid "Not captured"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:248
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:251
 msgid "Not installed"
 msgstr ""
 
@@ -1939,7 +1960,7 @@ msgstr ""
 msgid "Offline copy"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:174
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:176
 msgid "Ollama Local"
 msgstr ""
 
@@ -2150,7 +2171,7 @@ msgstr ""
 msgid "Processed {processed} of {total}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:454
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:503
 msgid "Processing Limits"
 msgstr ""
 
@@ -2162,11 +2183,11 @@ msgstr ""
 msgid "Processing selected files"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:65
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:67
 msgid "Provider"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:346
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:395
 msgid "Pulling {model}…"
 msgstr ""
 
@@ -2194,7 +2215,7 @@ msgstr ""
 msgid "Raindrop CSV"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:476
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:525
 msgid "Rate limit (req/min)"
 msgstr ""
 
@@ -2288,7 +2309,7 @@ msgstr ""
 msgid "Redownload Missing Favicons"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:210
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:212
 #: bookmark_organizer_pro/app_mixins/app_shell.py:74
 #: bookmark_organizer_pro/app_mixins/command_palette.py:20
 msgid "Refresh"
@@ -2306,7 +2327,7 @@ msgstr ""
 msgid "Refresh the view, toggle insights, or open display settings"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:380
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:429
 msgid "Reliability"
 msgstr ""
 
@@ -2405,7 +2426,7 @@ msgstr ""
 msgid "Restoring Library"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:446
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:495
 msgid "Results below this confidence retry with the failover provider"
 msgstr ""
 
@@ -2425,7 +2446,7 @@ msgstr ""
 msgid "Retry Failed"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:396
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:445
 msgid "Retry uncertain results with a second provider"
 msgstr ""
 
@@ -2489,7 +2510,7 @@ msgstr ""
 msgid "Roll Back Selected"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:259
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:262
 msgid "Running — {models} available"
 msgstr ""
 
@@ -2505,7 +2526,7 @@ msgstr ""
 msgid "Save"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:575
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:624
 msgid "Save Settings"
 msgstr ""
 
@@ -2657,11 +2678,11 @@ msgstr ""
 msgid "Selection Not Available"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:186
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:188
 msgid "Server"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:330
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:379
 msgid "Server is running!"
 msgstr ""
 
@@ -2686,8 +2707,8 @@ msgstr ""
 msgid "Setup Check"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:134
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:136
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:138
 msgid "Show"
 msgstr ""
 
@@ -2763,20 +2784,20 @@ msgstr ""
 msgid "Stale (90+ days)"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:207
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:328
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:209
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:377
 msgid "Start Server"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:321
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:370
 msgid "Starting Ollama server…"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:297
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:330
 msgid "Starting installation…"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:320
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:369
 #: bookmark_organizer_pro/ui/live_workflow.py:187
 msgid "Starting…"
 msgstr ""
@@ -2853,7 +2874,7 @@ msgstr ""
 msgid "Tertiary Background"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:547
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:596
 msgid "Test Provider"
 msgstr ""
 
@@ -2972,7 +2993,7 @@ msgstr ""
 msgid "This import path is not available yet."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:437
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:486
 msgid "Threshold:"
 msgstr ""
 
@@ -3096,7 +3117,7 @@ msgstr ""
 msgid "Updated {value_0} bookmark title(s)."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:385
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:434
 msgid "Use a second provider only when the first result has low confidence."
 msgstr ""
 
@@ -3114,6 +3135,10 @@ msgstr ""
 
 #: bookmark_organizer_pro/ui/about.py:227
 msgid "Validate bookmark URLs"
+msgstr ""
+
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:354
+msgid "Verified manual installation"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/workflow_detail_panel.py:50
@@ -3245,7 +3270,7 @@ msgstr ""
 msgid "{field}: {count} of {total} source rows"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:359
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:408
 msgid "{model} ready!"
 msgstr ""
 
@@ -3410,7 +3435,7 @@ msgstr ""
 msgid "◎"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:165
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:167
 #: bookmark_organizer_pro/ui/workflow_detail_panel.py:151
 msgid "●"
 msgstr ""

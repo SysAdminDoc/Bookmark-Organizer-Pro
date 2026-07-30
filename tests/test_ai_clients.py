@@ -3,9 +3,13 @@ OpenAI-compatible base, failover routing, and the default-categories asset."""
 
 from __future__ import annotations
 
+import hashlib
+import tempfile
+import threading
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 def _json_response(content: str):
@@ -232,6 +236,208 @@ class TestFailoverClient(unittest.TestCase):
 
         self.assertEqual(client.complete("hi"), "from-secondary")
         self.assertEqual(client.last_provider, "anthropic")
+
+
+class _InstallResponse:
+    def __init__(self, url, chunks=(), *, status_code=200, headers=None):
+        self.url = url
+        self.status_code = status_code
+        self.headers = headers or {}
+        self._chunks = chunks
+        self.closed = False
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise RuntimeError(f"HTTP {self.status_code}")
+
+    def iter_content(self, _chunk_size):
+        yield from self._chunks
+
+    def close(self):
+        self.closed = True
+
+
+class TestOllamaInstallerProvenance(unittest.TestCase):
+    def _download(self, asset, response, destination, cancel_event=None):
+        from bookmark_organizer_pro.services import ollama_manager
+
+        requests = SimpleNamespace(get=MagicMock(return_value=response))
+        manager = ollama_manager.OllamaManager()
+        with patch.object(
+            ollama_manager.importlib,
+            "import_module",
+            return_value=requests,
+        ):
+            manager._download_verified_asset(
+                asset,
+                destination,
+                cancel_event or threading.Event(),
+            )
+        return requests
+
+    def test_install_requires_explicit_confirmation(self):
+        from bookmark_organizer_pro.services import ollama_manager
+
+        results = []
+        manager = ollama_manager.OllamaManager()
+        with patch.object(ollama_manager.threading.Thread, "start") as start:
+            manager.install(on_done=lambda ok, message: results.append((ok, message)))
+
+        start.assert_not_called()
+        self.assertEqual(len(results), 1)
+        self.assertFalse(results[0][0])
+        self.assertIn("explicit confirmation", results[0][1])
+
+    def test_verified_download_is_atomically_promoted(self):
+        from bookmark_organizer_pro.services.ollama_manager import OllamaInstallAsset
+
+        payload = b"verified installer bytes"
+        asset = OllamaInstallAsset(
+            name="installer.exe",
+            url="https://github.com/ollama/ollama/releases/download/v1/installer.exe",
+            sha256=hashlib.sha256(payload).hexdigest(),
+            max_bytes=1024,
+        )
+        response = _InstallResponse(
+            asset.url,
+            [payload[:8], payload[8:]],
+            headers={"Content-Length": str(len(payload))},
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            destination = Path(tmp) / asset.name
+            requests = self._download(asset, response, destination)
+
+            self.assertEqual(destination.read_bytes(), payload)
+            self.assertFalse(destination.with_name("installer.exe.part").exists())
+            self.assertTrue(response.closed)
+            self.assertFalse(requests.get.call_args.kwargs["allow_redirects"])
+
+    def test_digest_mismatch_discards_partial_and_final_files(self):
+        from bookmark_organizer_pro.services.ollama_manager import OllamaInstallAsset
+
+        asset = OllamaInstallAsset(
+            name="installer.exe",
+            url="https://github.com/ollama/ollama/releases/download/v1/installer.exe",
+            sha256="0" * 64,
+            max_bytes=1024,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            destination = Path(tmp) / asset.name
+            response = _InstallResponse(asset.url, [b"tampered"])
+            with self.assertRaisesRegex(ValueError, "SHA-256 mismatch"):
+                self._download(asset, response, destination)
+
+            self.assertFalse(destination.exists())
+            self.assertFalse(destination.with_name("installer.exe.part").exists())
+
+    def test_declared_or_streamed_oversize_is_rejected(self):
+        from bookmark_organizer_pro.services.ollama_manager import OllamaInstallAsset
+
+        asset = OllamaInstallAsset(
+            name="installer.exe",
+            url="https://github.com/ollama/ollama/releases/download/v1/installer.exe",
+            sha256=hashlib.sha256(b"small").hexdigest(),
+            max_bytes=5,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            destination = Path(tmp) / asset.name
+            declared = _InstallResponse(
+                asset.url,
+                [b"small"],
+                headers={"Content-Length": "6"},
+            )
+            with self.assertRaisesRegex(ValueError, "byte limit"):
+                self._download(asset, declared, destination)
+
+            streamed = _InstallResponse(asset.url, [b"larger"])
+            with self.assertRaisesRegex(ValueError, "byte limit"):
+                self._download(asset, streamed, destination)
+            self.assertFalse(destination.exists())
+
+    def test_redirect_to_unapproved_host_is_rejected_before_request(self):
+        from bookmark_organizer_pro.services import ollama_manager
+
+        asset = ollama_manager.OllamaInstallAsset(
+            name="installer.exe",
+            url="https://github.com/ollama/ollama/releases/download/v1/installer.exe",
+            sha256="0" * 64,
+            max_bytes=1024,
+        )
+        redirect = _InstallResponse(
+            asset.url,
+            status_code=302,
+            headers={"Location": "https://downloads.example.test/installer.exe"},
+        )
+        requests = SimpleNamespace(get=MagicMock(return_value=redirect))
+        manager = ollama_manager.OllamaManager()
+        with tempfile.TemporaryDirectory() as tmp, patch.object(
+            ollama_manager.importlib,
+            "import_module",
+            return_value=requests,
+        ):
+            with self.assertRaisesRegex(ValueError, "approved HTTPS sources"):
+                manager._download_verified_asset(
+                    asset,
+                    Path(tmp) / asset.name,
+                    threading.Event(),
+                )
+
+        self.assertEqual(requests.get.call_count, 1)
+        self.assertTrue(redirect.closed)
+
+    def test_cancellation_removes_partial_download_and_work_directory(self):
+        from bookmark_organizer_pro.services import ollama_manager
+
+        cancel_event = threading.Event()
+        cancel_event.set()
+        asset = ollama_manager.OllamaInstallAsset(
+            name="installer.exe",
+            url="https://github.com/ollama/ollama/releases/download/v1/installer.exe",
+            sha256=hashlib.sha256(b"unused").hexdigest(),
+            max_bytes=1024,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            destination = Path(tmp) / asset.name
+            response = _InstallResponse(asset.url, [b"unused"])
+            with self.assertRaises(ollama_manager.OllamaInstallCancelled):
+                self._download(asset, response, destination, cancel_event)
+            self.assertFalse(destination.exists())
+
+            work_dir = Path(tmp) / "install-work"
+            work_dir.mkdir()
+            with patch.object(
+                ollama_manager.tempfile,
+                "mkdtemp",
+                return_value=str(work_dir),
+            ), patch.object(
+                ollama_manager.OllamaManager,
+                "_download_verified_asset",
+                side_effect=ollama_manager.OllamaInstallCancelled("cancelled"),
+            ):
+                ok, message = ollama_manager.OllamaManager()._install_windows(
+                    None,
+                    cancel_event,
+                )
+            self.assertFalse(ok)
+            self.assertIn("cancelled", message)
+            self.assertFalse(work_dir.exists())
+
+    def test_manual_linux_guidance_is_pinned_and_never_pipes_to_shell(self):
+        from bookmark_organizer_pro.services import ollama_manager
+
+        with patch.object(ollama_manager.platform, "machine", return_value="x86_64"):
+            instructions = ollama_manager.OllamaManager.manual_install_instructions(
+                "Linux"
+            )
+
+        self.assertIn(ollama_manager.OLLAMA_INSTALL_VERSION, instructions)
+        self.assertIn(ollama_manager.OLLAMA_LINUX_AMD64.sha256, instructions)
+        self.assertIn("sha256sum --check", instructions)
+        self.assertNotIn("| sh", instructions)
+        self.assertLess(
+            ollama_manager.OLLAMA_WINDOWS_INSTALLER.max_bytes,
+            2_000_000_000,
+        )
 
 
 class TestDefaultCategoriesAsset(unittest.TestCase):

@@ -10,6 +10,8 @@ from bookmark_organizer_pro.ai import AI_PROVIDERS, create_ai_client
 from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.services.ollama_manager import (
     OLLAMA_DEFAULT_URL,
+    OLLAMA_INSTALL_VERSION,
+    OLLAMA_WINDOWS_INSTALLER,
     OllamaManager,
     OllamaStatus,
 )
@@ -232,6 +234,7 @@ class AiSettingsMixin:
             ollama_panel, textvariable=progress_var,
             bg=theme.bg_secondary, fg=theme.accent_primary, font=FONTS.small(),
         )
+        install_state = {"cancel_event": None}
 
         # Local models list
         local_models_frame = tk.Frame(ollama_panel, bg=theme.bg_secondary)
@@ -292,10 +295,42 @@ class AiSettingsMixin:
             threading.Thread(target=worker, daemon=True).start()
 
         def _install_ollama():
+            active_cancel = install_state["cancel_event"]
+            if active_cancel is not None:
+                active_cancel.set()
+                install_btn.set_state("disabled")
+                install_btn.set_text(_("Cancelling…"))
+                progress_var.set(_("Cancelling installation and removing the download…"))
+                return
+
+            confirmed = messagebox.askyesno(
+                _("Install verified Ollama?"),
+                _(
+                    "Bookmark Organizer Pro will install the pinned Ollama "
+                    "{version} release.\n\n"
+                    "On Windows it downloads the installer from the official "
+                    "GitHub release, enforces a byte limit, verifies this SHA-256 "
+                    "before execution, and removes the installer afterward:\n"
+                    "{digest}\n\n"
+                    "macOS and Linux receive download-and-verify commands instead "
+                    "of executing a remote install script. Continue?"
+                ).format(
+                    version=OLLAMA_INSTALL_VERSION,
+                    digest=OLLAMA_WINDOWS_INSTALLER.sha256,
+                ),
+                parent=dialog,
+            )
+            if not confirmed:
+                return
+
+            cancel_event = threading.Event()
+            install_state["cancel_event"] = cancel_event
             install_btn.set_state("disabled")
             install_btn.set_text(_("Installing…"))
             progress_var.set(_("Starting installation…"))
             progress_label.pack(fill=tk.X, pady=(4, 0))
+            install_btn.set_state("normal")
+            install_btn.set_text(_("Cancel install"))
 
             def on_progress(msg):
                 self._post_to_ui(lambda: progress_var.set(msg))
@@ -304,16 +339,30 @@ class AiSettingsMixin:
                 def update():
                     if not dialog.winfo_exists():
                         return
+                    install_state["cancel_event"] = None
                     install_btn.set_text(_("Install Ollama"))
                     if ok:
                         progress_var.set(_("Installed! Starting server…"))
                         _start_ollama()
                     else:
-                        progress_var.set(f"Install failed: {msg[:80]}")
+                        progress_var.set(
+                            _("Install stopped: {message}").format(message=msg[:100])
+                        )
                         install_btn.set_state("normal")
+                        if msg.startswith("Manual install required"):
+                            messagebox.showinfo(
+                                _("Verified manual installation"),
+                                msg,
+                                parent=dialog,
+                            )
                 self._post_to_ui(update)
 
-            OllamaManager().install(on_progress=on_progress, on_done=on_done)
+            OllamaManager().install(
+                on_progress=on_progress,
+                on_done=on_done,
+                confirmed=True,
+                cancel_event=cancel_event,
+            )
 
         def _start_ollama():
             start_btn.set_state("disabled")

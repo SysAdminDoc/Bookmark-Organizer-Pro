@@ -7,19 +7,36 @@ to give users full control over local AI without touching a terminal.
 from __future__ import annotations
 
 import importlib
+import hashlib
 import os
 import platform
 import shutil
 import subprocess
+import tempfile
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
+from urllib.parse import urljoin, urlsplit
 
 from bookmark_organizer_pro.logging_config import log
 
 
 OLLAMA_DEFAULT_URL = "http://localhost:11434"
+OLLAMA_INSTALL_VERSION = "0.32.5"
+OLLAMA_RELEASE_BASE = (
+    "https://github.com/ollama/ollama/releases/download/"
+    f"v{OLLAMA_INSTALL_VERSION}"
+)
+OLLAMA_INSTALL_REDIRECT_HOSTS = frozenset(
+    {
+        "github.com",
+        "objects.githubusercontent.com",
+        "release-assets.githubusercontent.com",
+    }
+)
+OLLAMA_INSTALL_MAX_REDIRECTS = 5
 
 POPULAR_MODELS = [
     ("qwen3.5", "4.8 GB", "⭐ RECOMMENDED — Best overall quality. Smart, fast, great at tagging and categorizing."),
@@ -48,6 +65,46 @@ class OllamaStatus:
     def __post_init__(self):
         if self.models is None:
             self.models = []
+
+
+@dataclass(frozen=True)
+class OllamaInstallAsset:
+    """Pinned third-party artifact allowed by the installer workflow."""
+
+    name: str
+    url: str
+    sha256: str
+    max_bytes: int
+
+
+OLLAMA_WINDOWS_INSTALLER = OllamaInstallAsset(
+    name="OllamaSetup.exe",
+    url=f"{OLLAMA_RELEASE_BASE}/OllamaSetup.exe",
+    sha256="b7eeef038ddcbd09ac665b11872baff1bc9b42794be41b5ef187b2f4b16a4498",
+    max_bytes=1_650_000_000,
+)
+OLLAMA_MAC_INSTALLER = OllamaInstallAsset(
+    name="Ollama.dmg",
+    url=f"{OLLAMA_RELEASE_BASE}/Ollama.dmg",
+    sha256="76c68f717f9d195481effe68fd7a93f1bb16142943c74d4b6040e400d3f186e9",
+    max_bytes=200_000_000,
+)
+OLLAMA_LINUX_AMD64 = OllamaInstallAsset(
+    name="ollama-linux-amd64.tar.zst",
+    url=f"{OLLAMA_RELEASE_BASE}/ollama-linux-amd64.tar.zst",
+    sha256="f7d6bdbcf71b83aa8670c4e7dc4b6936c0952fcf8b114eaf6a11cbadb9684214",
+    max_bytes=1_500_000_000,
+)
+OLLAMA_LINUX_ARM64 = OllamaInstallAsset(
+    name="ollama-linux-arm64.tar.zst",
+    url=f"{OLLAMA_RELEASE_BASE}/ollama-linux-arm64.tar.zst",
+    sha256="aa7e06b5683ee66c4a3ec68ea7236db43b5a5d0821f0dfe2c5a215f4462bddf4",
+    max_bytes=1_650_000_000,
+)
+
+
+class OllamaInstallCancelled(RuntimeError):
+    """Raised when the user cancels a download or installer process."""
 
 
 class OllamaManager:
@@ -134,18 +191,30 @@ class OllamaManager:
 
     # ── Installation ───────────────────────────────────────────────────
 
-    def install(self, on_progress: Optional[Callable[[str], None]] = None,
-                on_done: Optional[Callable[[bool, str], None]] = None):
-        """Install Ollama. Runs in a background thread."""
+    def install(
+        self,
+        on_progress: Optional[Callable[[str], None]] = None,
+        on_done: Optional[Callable[[bool, str], None]] = None,
+        *,
+        confirmed: bool = False,
+        cancel_event: Optional[threading.Event] = None,
+    ) -> threading.Event:
+        """Install Ollama after explicit confirmation, in a background thread."""
+        cancellation = cancel_event or threading.Event()
+        if not confirmed:
+            if on_done:
+                on_done(False, "Ollama installation requires explicit confirmation.")
+            return cancellation
+
         def _worker():
             try:
                 system = platform.system()
                 if system == "Windows":
-                    ok, msg = self._install_windows(on_progress)
+                    ok, msg = self._install_windows(on_progress, cancellation)
                 elif system == "Darwin":
-                    ok, msg = self._install_mac(on_progress)
+                    ok, msg = self._install_mac(on_progress, cancellation)
                 else:
-                    ok, msg = self._install_linux(on_progress)
+                    ok, msg = self._install_linux(on_progress, cancellation)
                 if on_done:
                     on_done(ok, msg)
             except Exception as exc:
@@ -154,69 +223,223 @@ class OllamaManager:
                     on_done(False, str(exc))
 
         threading.Thread(target=_worker, daemon=True).start()
+        return cancellation
 
-    def _install_windows(self, progress) -> Tuple[bool, str]:
-        """Install Ollama via winget or direct download."""
-        if progress:
-            progress("Checking winget…")
-        if shutil.which("winget"):
-            if progress:
-                progress("Installing via winget…")
-            try:
-                subprocess.run(
-                    ["winget", "install", "--id", "Ollama.Ollama",
-                     "--accept-source-agreements", "--accept-package-agreements"],
-                    check=True, timeout=300,
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                )
-                return True, "Ollama installed via winget"
-            except subprocess.CalledProcessError as e:
-                return False, f"winget install failed: {e}"
+    @staticmethod
+    def _validate_install_url(url: str) -> None:
+        parsed = urlsplit(url)
+        if (
+            parsed.scheme != "https"
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.port not in (None, 443)
+            or (parsed.hostname or "").lower() not in OLLAMA_INSTALL_REDIRECT_HOSTS
+        ):
+            raise ValueError("Ollama download redirected outside the approved HTTPS sources")
 
-        if progress:
-            progress("Downloading Ollama installer…")
-        try:
-            requests = importlib.import_module("requests")
-            url = "https://ollama.com/download/OllamaSetup.exe"
-            installer = Path(os.environ.get("TEMP", ".")) / "OllamaSetup.exe"
-            resp = requests.get(url, timeout=120, stream=True)
-            resp.raise_for_status()
-            with open(installer, "wb") as f:
-                for chunk in resp.iter_content(8192):
-                    f.write(chunk)
-            if progress:
-                progress("Running installer…")
-            subprocess.run([str(installer), "/VERYSILENT", "/NORESTART"],
-                           check=True, timeout=120)
-            return True, "Ollama installed from ollama.com"
-        except Exception as exc:
-            return False, f"Download install failed: {exc}"
+    def _download_verified_asset(
+        self,
+        asset: OllamaInstallAsset,
+        destination: Path,
+        cancel_event: threading.Event,
+        progress: Optional[Callable[[str], None]] = None,
+    ) -> None:
+        """Download one allowlisted release asset and atomically verify its digest."""
+        requests = importlib.import_module("requests")
+        current_url = asset.url
+        response = None
 
-    def _install_mac(self, progress) -> Tuple[bool, str]:
-        if shutil.which("brew"):
-            if progress:
-                progress("Installing via Homebrew…")
-            try:
-                subprocess.run(["brew", "install", "ollama"],
-                               check=True, timeout=300,
-                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                return True, "Ollama installed via Homebrew"
-            except subprocess.CalledProcessError as e:
-                return False, f"brew install failed: {e}"
-        return False, "Install Homebrew first, or download Ollama from ollama.com/download"
-
-    def _install_linux(self, progress) -> Tuple[bool, str]:
-        if progress:
-            progress("Running Ollama install script…")
-        try:
-            subprocess.run(
-                ["bash", "-c", "curl -fsSL https://ollama.com/install.sh | sh"],
-                check=True, timeout=300,
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        for redirect_count in range(OLLAMA_INSTALL_MAX_REDIRECTS + 1):
+            self._validate_install_url(current_url)
+            response = requests.get(
+                current_url,
+                timeout=(10, 120),
+                stream=True,
+                allow_redirects=False,
+                headers={"User-Agent": "Bookmark-Organizer-Pro/OllamaInstaller"},
             )
-            return True, "Ollama installed via install script"
-        except subprocess.CalledProcessError as e:
-            return False, f"Install script failed: {e}"
+            if response.status_code in {301, 302, 303, 307, 308}:
+                location = response.headers.get("Location", "")
+                response.close()
+                if not location or redirect_count >= OLLAMA_INSTALL_MAX_REDIRECTS:
+                    raise ValueError("Ollama download exceeded the redirect limit")
+                current_url = urljoin(current_url, location)
+                continue
+            break
+        else:  # pragma: no cover - loop bound is defensive
+            raise ValueError("Ollama download exceeded the redirect limit")
+
+        if response is None:  # pragma: no cover - defensive
+            raise RuntimeError("Ollama download did not return a response")
+
+        part_path = destination.with_name(f"{destination.name}.part")
+        try:
+            response.raise_for_status()
+            self._validate_install_url(getattr(response, "url", current_url))
+            declared_size = response.headers.get("Content-Length")
+            if declared_size:
+                try:
+                    if int(declared_size) > asset.max_bytes:
+                        raise ValueError("Ollama download exceeds the configured byte limit")
+                except ValueError as exc:
+                    if "exceeds" in str(exc):
+                        raise
+                    raise ValueError("Ollama download returned an invalid Content-Length") from exc
+
+            digest = hashlib.sha256()
+            downloaded = 0
+            next_progress = 64 * 1024 * 1024
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with part_path.open("wb") as handle:
+                for chunk in response.iter_content(1024 * 1024):
+                    if cancel_event.is_set():
+                        raise OllamaInstallCancelled("Ollama installation cancelled")
+                    if not chunk:
+                        continue
+                    downloaded += len(chunk)
+                    if downloaded > asset.max_bytes:
+                        raise ValueError("Ollama download exceeds the configured byte limit")
+                    digest.update(chunk)
+                    handle.write(chunk)
+                    if progress and downloaded >= next_progress:
+                        progress(
+                            f"Downloading verified Ollama {OLLAMA_INSTALL_VERSION}"
+                            f" — {downloaded / (1024 ** 2):.0f} MiB"
+                        )
+                        next_progress += 64 * 1024 * 1024
+
+            if cancel_event.is_set():
+                raise OllamaInstallCancelled("Ollama installation cancelled")
+            actual_digest = digest.hexdigest()
+            if actual_digest != asset.sha256:
+                raise ValueError(
+                    "Ollama installer SHA-256 mismatch; the download was discarded"
+                )
+            os.replace(part_path, destination)
+        finally:
+            response.close()
+            part_path.unlink(missing_ok=True)
+
+    @staticmethod
+    def _run_windows_installer(
+        installer: Path,
+        cancel_event: threading.Event,
+    ) -> None:
+        if cancel_event.is_set():
+            raise OllamaInstallCancelled("Ollama installation cancelled")
+        process = subprocess.Popen([str(installer), "/VERYSILENT", "/NORESTART"])
+        deadline = time.monotonic() + 300
+        while process.poll() is None:
+            if cancel_event.wait(0.2):
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=5)
+                raise OllamaInstallCancelled("Ollama installation cancelled")
+            if time.monotonic() >= deadline:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=5)
+                raise TimeoutError("Ollama installer exceeded the five-minute limit")
+        if process.returncode:
+            raise subprocess.CalledProcessError(process.returncode, process.args)
+
+    def _install_windows(
+        self,
+        progress: Optional[Callable[[str], None]],
+        cancel_event: threading.Event,
+    ) -> Tuple[bool, str]:
+        """Install one pinned Windows release after digest verification."""
+        if platform.machine().lower() not in {"amd64", "x86_64"}:
+            return (
+                False,
+                f"Manual install required for Ollama {OLLAMA_INSTALL_VERSION}: "
+                "the verified automatic installer supports Windows x64 only. "
+                f"Choose the matching asset at {OLLAMA_RELEASE_BASE} and verify "
+                "it against that release's sha256sum.txt before opening it.",
+            )
+        if progress:
+            progress(f"Downloading verified Ollama {OLLAMA_INSTALL_VERSION} installer…")
+        work_dir = Path(tempfile.mkdtemp(prefix="bop-ollama-install-"))
+        installer = work_dir / OLLAMA_WINDOWS_INSTALLER.name
+        try:
+            self._download_verified_asset(
+                OLLAMA_WINDOWS_INSTALLER,
+                installer,
+                cancel_event,
+                progress,
+            )
+            if progress:
+                progress(
+                    f"SHA-256 verified; running Ollama {OLLAMA_INSTALL_VERSION} installer…"
+                )
+            self._run_windows_installer(installer, cancel_event)
+            return True, f"Ollama {OLLAMA_INSTALL_VERSION} installed from GitHub Releases"
+        except OllamaInstallCancelled:
+            return False, "Ollama installation cancelled"
+        except Exception as exc:
+            return False, f"Verified install failed: {exc}"
+        finally:
+            shutil.rmtree(work_dir)
+
+    def _install_mac(
+        self,
+        progress: Optional[Callable[[str], None]],
+        cancel_event: threading.Event,
+    ) -> Tuple[bool, str]:
+        del progress, cancel_event
+        return False, self.manual_install_instructions("Darwin")
+
+    def _install_linux(
+        self,
+        progress: Optional[Callable[[str], None]],
+        cancel_event: threading.Event,
+    ) -> Tuple[bool, str]:
+        del progress, cancel_event
+        return False, self.manual_install_instructions("Linux")
+
+    @staticmethod
+    def manual_install_instructions(system: Optional[str] = None) -> str:
+        """Return pinned, verify-before-open instructions for non-Windows hosts."""
+        target = system or platform.system()
+        if target == "Darwin":
+            asset = OLLAMA_MAC_INSTALLER
+            return (
+                f"Manual install required for Ollama {OLLAMA_INSTALL_VERSION}.\n\n"
+                f"curl --fail --location --proto '=https' --tlsv1.2 "
+                f"--output {asset.name} {asset.url}\n"
+                f"echo '{asset.sha256}  {asset.name}' > ollama.sha256\n"
+                "shasum -a 256 --check ollama.sha256\n"
+                f"open {asset.name}\n\n"
+                "Only open the disk image after the checksum reports OK."
+            )
+
+        machine = platform.machine().lower()
+        if machine in {"aarch64", "arm64"}:
+            asset = OLLAMA_LINUX_ARM64
+        elif machine in {"amd64", "x86_64"}:
+            asset = OLLAMA_LINUX_AMD64
+        else:
+            return (
+                f"Manual install required for Ollama {OLLAMA_INSTALL_VERSION}: "
+                f"architecture {machine or 'unknown'} is not in the pinned asset manifest. "
+                f"Choose the matching asset at {OLLAMA_RELEASE_BASE} and verify it "
+                "against that release's sha256sum.txt before installing."
+            )
+        return (
+            f"Manual install required for Ollama {OLLAMA_INSTALL_VERSION}.\n\n"
+            f"curl --fail --location --proto '=https' --tlsv1.2 "
+            f"--output {asset.name} {asset.url}\n"
+            f"echo '{asset.sha256}  {asset.name}' > ollama.sha256\n"
+            "sha256sum --check ollama.sha256\n"
+            f"sudo tar --zstd -xf {asset.name} -C /usr/local\n\n"
+            "Extract only after the checksum reports OK; no remote script is piped to a shell."
+        )
 
     # ── Server control ─────────────────────────────────────────────────
 
