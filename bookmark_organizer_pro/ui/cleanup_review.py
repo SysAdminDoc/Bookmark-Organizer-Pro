@@ -13,6 +13,7 @@ from bookmark_organizer_pro.models import Bookmark
 from .foundation import FONTS, truncate_middle
 from .tk_interactions import bind_scoped_mousewheel
 from .widgets import ModernButton, apply_window_chrome, get_theme
+from .window_geometry import apply_screen_aware_geometry
 
 
 @dataclass(frozen=True)
@@ -141,7 +142,7 @@ class CleanupReviewDialog(tk.Toplevel):
 
         self.title(title)
         self.configure(bg=self._theme.bg_primary)
-        self.geometry("880x650")
+        apply_screen_aware_geometry(self, 920, 680)
         self.minsize(760, 520)
         self.transient(parent)
         self.grab_set()
@@ -152,13 +153,15 @@ class CleanupReviewDialog(tk.Toplevel):
 
     def _build(self, title: str, intro: str) -> None:
         theme = self._theme
-        header = tk.Frame(self, bg=theme.bg_primary)
-        header.pack(fill=tk.X, padx=24, pady=(20, 12))
-        tk.Label(header, text=title, bg=theme.bg_primary, fg=theme.text_primary, font=FONTS.title(bold=True)).pack(anchor="w")
+        header = tk.Frame(self, bg=theme.bg_dark)
+        header.pack(fill=tk.X, pady=(0, 12))
+        title_stack = tk.Frame(header, bg=theme.bg_dark)
+        title_stack.pack(fill=tk.X, padx=24, pady=(17, 15))
+        tk.Label(title_stack, text=title, bg=theme.bg_dark, fg=theme.text_primary, font=FONTS.title(bold=True)).pack(anchor="w")
         tk.Label(
-            header,
+            title_stack,
             text=intro,
-            bg=theme.bg_primary,
+            bg=theme.bg_dark,
             fg=theme.text_secondary,
             font=FONTS.body(),
             wraplength=790,
@@ -171,7 +174,8 @@ class CleanupReviewDialog(tk.Toplevel):
         scrollbar = ttk.Scrollbar(body, orient=tk.VERTICAL, command=canvas.yview)
         cards = tk.Frame(canvas, bg=theme.bg_primary)
         cards.bind("<Configure>", lambda _event: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=cards, anchor="nw")
+        cards_window = canvas.create_window((0, 0), window=cards, anchor="nw")
+        canvas.bind("<Configure>", lambda event: canvas.itemconfigure(cards_window, width=event.width))
         canvas.configure(yscrollcommand=scrollbar.set)
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -179,8 +183,20 @@ class CleanupReviewDialog(tk.Toplevel):
             canvas, lambda units, _event: canvas.yview_scroll(units, "units")
         )
 
-        for group in self._groups:
-            self._add_group(cards, group)
+        if self._groups:
+            for group in self._groups:
+                self._add_group(cards, group)
+        else:
+            tk.Label(
+                cards,
+                text=_("Nothing needs review\nYour library is already clean for this check."),
+                bg=theme.bg_secondary,
+                fg=theme.text_secondary,
+                font=FONTS.body(),
+                justify=tk.CENTER,
+                padx=24,
+                pady=48,
+            ).pack(fill=tk.X)
 
         footer = tk.Frame(self, bg=theme.bg_primary)
         footer.pack(fill=tk.X, padx=24, pady=(0, 18))
@@ -196,11 +212,14 @@ class CleanupReviewDialog(tk.Toplevel):
         actions = tk.Frame(footer, bg=theme.bg_primary)
         actions.pack(fill=tk.X)
         ModernButton(actions, text=_("Close"), command=self.destroy, padx=14, pady=7).pack(side=tk.RIGHT, padx=(8, 0))
-        ModernButton(actions, text=_("Restore Safepoint"), command=self._restore, padx=14, pady=7).pack(side=tk.LEFT)
-        self.skip_button = ModernButton(actions, text=_("Skip Selected"), command=self._skip_selected, padx=14, pady=7)
+        ModernButton(actions, text=_("Restore last safepoint"), command=self._restore, padx=14, pady=7).pack(side=tk.LEFT)
+        self.skip_button = ModernButton(actions, text=_("Clear selection"), command=self._skip_selected, padx=14, pady=7)
         self.skip_button.pack(side=tk.RIGHT, padx=(8, 0))
-        self.apply_button = ModernButton(actions, text=_("Apply Selected"), command=self._apply_selected, style="primary", padx=14, pady=7)
+        self.apply_button = ModernButton(actions, text=_("Apply selected"), command=self._apply_selected, style="primary", padx=14, pady=7)
         self.apply_button.pack(side=tk.RIGHT)
+        if not self._groups:
+            self.skip_button.set_state("disabled")
+            self.apply_button.set_state("disabled")
 
     def _add_group(self, parent: tk.Widget, group: CleanupReviewGroup) -> None:
         theme = self._theme

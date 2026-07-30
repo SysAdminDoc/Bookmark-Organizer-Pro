@@ -36,6 +36,7 @@ class ThemeActionsMixin:
         quick_filter = getattr(self, "quick_filter", None)
         current_category = getattr(self, "current_category", None)
         selected_ids = list(getattr(self, "selected_bookmarks", []) or [])
+        right_rail_mode = getattr(self, "_right_rail_active_mode", "focus")
         chat_state = None
         try:
             chat_state = self.chat_panel.export_state()
@@ -85,10 +86,13 @@ class ThemeActionsMixin:
             self.tree.selection_set(valid_selection)
             self.tree.focus(valid_selection[0])
             self.tree.see(valid_selection[0])
-        try:
-            self.chat_panel.restore_state(chat_state)
-        except Exception:
-            pass
+        if chat_state is not None:
+            try:
+                self._ensure_chat_panel().restore_state(chat_state)
+                if right_rail_mode == "assistant":
+                    self._set_right_rail_mode("assistant")
+            except Exception:
+                pass
         for name, position in scroll_positions.items():
             try:
                 getattr(self, name).canvas.yview_moveto(position)

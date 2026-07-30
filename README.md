@@ -2,7 +2,7 @@
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **single-file HTML snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
-Executable product contract: 62 CLI subcommands, 32 MCP tools, 6 AI providers, 3 extension surfaces, 49 service modules, 42 UI modules, and 40 test files.
+Executable product contract: 62 CLI subcommands, 32 MCP tools, 6 AI providers, 3 extension surfaces, 49 service modules, 42 UI modules, and 41 test files.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
 ![Version](https://img.shields.io/badge/Version-v6.12.0-2dd4bf.svg)
@@ -212,7 +212,7 @@ Native messaging and offline category/tag suggestions remain on the roadmap.
 - **Multi-format Import**: HTML (Chrome, Firefox, Edge, Safari), Firefox bookmark backup JSON/JSONLZ4, JSON, CSV, OPML, TXT
 - **Nested Categories**: Hierarchical category organization with drag-and-drop
 - **Advanced Tagging**: User tags + AI-suggested tags with color coding
-- **Premium Library Workspace**: Guided first-run capture, organization, and rediscovery actions; compact collection health signals; dense searchable bookmark table; and cohesive empty, focus, selection, and assistant states
+- **Premium Library Workspace**: Guided first-run capture, organization, and rediscovery actions; a dense searchable bookmark table; a contextual Focus inspector with one state-aware next action; and cohesive empty, multi-selection, and on-demand assistant states
 - **Full-text Search**: Advanced syntax with filters, boolean operators, and highlighting
 - **Undo/Redo**: Full command history for all operations
 
@@ -370,6 +370,7 @@ the detail panel.
 |----------|--------|
 | `Ctrl+N` | Add new bookmark |
 | `Ctrl+F` | Focus search |
+| `Ctrl+K` | Focus search (command-bar convention) |
 | `Ctrl+L` | Focus search (alternative) |
 | `Ctrl+I` | Import bookmarks |
 | `Ctrl+O` | Import bookmarks (alternative) |
@@ -562,8 +563,9 @@ Log file location: `~/.bookmark_organizer/logs/bookmark_organizer.log`
 
 - **Settings > Accessible bookmark table** persists a native semantic table
   mode for screen readers; the choice takes effect on the next launch.
-- The insights/assistant rail collapses automatically at laptop widths and can
-  be shown or hidden from **View > Insights and assistant rail**.
+- The contextual Focus rail collapses automatically at laptop widths and can
+  be shown or hidden from **View > Focus rail**; the assistant opens on demand
+  from **More > Ask your library**.
 - The AI-search and AI-tag controls expose standard keyboard activation and
   visible focus. Major fixed dialogs fit the supported 1280x720 viewport with
   scrollable content and persistent action buttons.

@@ -183,6 +183,7 @@ class FinalBookmarkOrganizerApp(
         # Keyboard shortcuts - comprehensive set
         self.root.bind("<Control-f>", lambda e: self._focus_search())
         self.root.bind("<Control-l>", lambda e: self._focus_search())  # Also Ctrl+L
+        self.root.bind("<Control-k>", lambda e: self._focus_search())  # Command-bar convention
         self.root.bind("<Control-n>", lambda e: self._add_bookmark())
         self.root.bind("<Control-i>", lambda e: self._show_import_dialog())
         self.root.bind("<Control-o>", lambda e: self._show_import_dialog())  # Also Ctrl+O

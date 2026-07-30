@@ -38,8 +38,8 @@ class CategoryActionsMixin:
                 self.categories_frame,
                 text=_("Categories appear after you import or add bookmarks."),
                 bg=theme.bg_dark, fg=theme.text_muted,
-                font=FONTS.small(), wraplength=250, justify=tk.LEFT
-            ).pack(anchor="w", padx=10, pady=8)
+                font=FONTS.small(), wraplength=185, justify=tk.LEFT, anchor="w",
+            ).pack(fill=tk.X, padx=10, pady=8)
             return
 
         categories = [cat for cat in categories if counts.get(cat, 0) > 0 or cat == self.current_category]
@@ -48,8 +48,8 @@ class CategoryActionsMixin:
                 self.categories_frame,
                 text=_("No active categories yet."),
                 bg=theme.bg_dark, fg=theme.text_muted,
-                font=FONTS.small(), wraplength=260, justify=tk.LEFT
-            ).pack(anchor="w", padx=10, pady=8)
+                font=FONTS.small(), wraplength=185, justify=tk.LEFT, anchor="w",
+            ).pack(fill=tk.X, padx=10, pady=8)
             return
         
         for cat in categories:

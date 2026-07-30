@@ -19,43 +19,77 @@ class DashboardActionsMixin:
     """Collection summary, right-side analytics, selection bar, and status widgets."""
 
     def _create_collection_summary(self):
-        """Create the premium summary strip above the bookmark list."""
+        """Create the library query/filter toolbar below the collection header."""
         theme = get_theme()
         self.collection_summary_frame = tk.Frame(
-            self.content_area, bg=theme.bg_card, height=DesignTokens.SUMMARY_STRIP_HEIGHT,
-            highlightbackground=theme.card_border, highlightthickness=1
+            self.content_area, bg=theme.bg_primary,
+            highlightbackground=theme.border_muted, highlightthickness=0,
         )
         self.collection_summary_frame.pack(
-            fill=tk.X, padx=DesignTokens.CONTENT_PAD_X, pady=(0, 12)
+            fill=tk.X, padx=DesignTokens.CONTENT_PAD_X, pady=(0, 12),
         )
-        self.collection_summary_frame.pack_propagate(False)
+        query_row = tk.Frame(self.collection_summary_frame, bg=theme.bg_primary)
+        query_row.pack(fill=tk.X, pady=(0, 12))
 
-        left = tk.Frame(self.collection_summary_frame, bg=theme.bg_card)
-        left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(18, 10), pady=14)
-
-        self.summary_title_label = tk.Label(
-            left, text=_("Library Overview"), bg=theme.bg_card,
-            fg=theme.text_primary, font=FONTS.header(bold=True), anchor="w"
+        local_search = tk.Frame(
+            query_row, bg=theme.bg_secondary,
+            highlightbackground=theme.border_muted, highlightthickness=1,
         )
-        self.summary_title_label.pack(anchor="w")
-
-        self.summary_detail_label = tk.Label(
-            left, text=_("Import bookmarks or add one manually to begin."),
-            bg=theme.bg_card, fg=theme.text_secondary,
-            font=FONTS.small(), anchor="w", wraplength=520, justify=tk.LEFT
+        local_search.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+        tk.Label(
+            local_search, text=_("⌕"), bg=theme.bg_secondary,
+            fg=theme.text_muted, font=FONTS.body(),
+        ).pack(side=tk.LEFT, padx=(11, 5))
+        self.library_search_entry = tk.Entry(
+            local_search, textvariable=self.search_var, bg=theme.bg_secondary,
+            fg=theme.text_primary, insertbackground=theme.text_primary,
+            bd=0, font=FONTS.small(),
         )
-        self.summary_detail_label.pack(anchor="w", pady=(5, 0))
+        self.library_search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=8, padx=(0, 8))
+        self.library_search_entry.bind(
+            "<FocusIn>",
+            lambda event: (
+                local_search.configure(highlightbackground=theme.accent_primary),
+                self._on_search_focus_in(event),
+            ),
+        )
+        self.library_search_entry.bind(
+            "<FocusOut>",
+            lambda event: (
+                local_search.configure(highlightbackground=theme.border_muted),
+                self._on_search_focus_out(event),
+            ),
+        )
 
-        metrics = tk.Frame(self.collection_summary_frame, bg=theme.bg_card)
-        metrics.pack(side=tk.RIGHT, fill=tk.Y, padx=(8, 18), pady=12)
-        self.summary_metric_labels = {}
-        for key, label, color in [
-            ("visible", "Visible", theme.text_primary),
-            ("pinned", "Pinned", theme.accent_primary),
-            ("broken", "Review", theme.accent_error),
-            ("untagged", "Untagged", theme.accent_warning),
-        ]:
-            self._create_summary_metric(metrics, key, label, color)
+        self.collection_filter_btn = ModernButton(
+            query_row, text=_("All collections"), icon="⌄",
+            command=self._show_library_collection_menu, padx=9, pady=7,
+            font=FONTS.small(), tooltip=_("Filter by collection"),
+        )
+        self.collection_filter_btn.pack(side=tk.LEFT, padx=(0, 8))
+        self.tag_filter_btn = ModernButton(
+            query_row, text=_("All tags"), icon="⌄",
+            command=self._show_library_tag_menu, padx=9, pady=7,
+            font=FONTS.small(), tooltip=_("Filter by tag"),
+        )
+        self.tag_filter_btn.pack(side=tk.LEFT, padx=(0, 8))
+        self.type_filter_btn = ModernButton(
+            query_row, text=_("All types"), icon="⌄",
+            command=self._show_library_type_menu, padx=9, pady=7,
+            font=FONTS.small(), tooltip=_("Open saved library views"),
+        )
+        self.type_filter_btn.pack(side=tk.LEFT, padx=(0, 8))
+        self.view_options_btn = ModernButton(
+            query_row, text=_("View"), icon="☷",
+            command=self._show_library_view_menu, padx=9, pady=7,
+            font=FONTS.small(),
+            tooltip=_("Refresh the view, toggle insights, or open display settings"),
+        )
+        self.view_options_btn.pack(side=tk.LEFT)
+
+        separator = tk.Frame(self.collection_summary_frame, bg=theme.border_muted, height=1)
+        separator.pack(fill=tk.X)
+        separator.pack_propagate(False)
 
     def _create_summary_metric(self, parent, key: str, label: str, color: str):
         """Create one compact metric in the summary strip."""
@@ -88,13 +122,26 @@ class DashboardActionsMixin:
             quick_filter=quick_filter,
             current_category=self.current_category,
         )
-        for key, value in summary.metrics.items():
-            labels = self.summary_metric_labels.get(key)
-            if labels:
-                labels[0].configure(text=format_compact_count(value))
-
-        self.summary_title_label.configure(text=summary.title)
-        self.summary_detail_label.configure(text=summary.detail)
+        heading = _("Library") if summary.title == "Library Overview" else _(summary.title)
+        self.count_label.configure(text=heading)
+        read_later = sum(1 for bookmark in all_bookmarks if bookmark.read_later)
+        if query or quick_filter or self.current_category:
+            context = summary.detail
+        else:
+            context = _("{total} bookmarks · {pinned} pinned · {read_later} read later").format(
+                total=format_compact_count(total_count),
+                pinned=format_compact_count(summary.metrics.get("pinned", 0)),
+                read_later=format_compact_count(read_later),
+            )
+        self.library_context_label.configure(text=context)
+        self.view_hint_label.configure(text=_("Updated just now"))
+        if getattr(self, "library_footer_label", None):
+            self.library_footer_label.configure(
+                text=_("Showing {visible} of {total} bookmarks").format(
+                    visible=format_compact_count(visible_count),
+                    total=format_compact_count(total_count),
+                )
+            )
 
     def _set_collection_summary_visible(self, visible: bool):
         """Keep the empty-library state uncluttered while preserving list context."""
@@ -169,7 +216,7 @@ class DashboardActionsMixin:
         if not getattr(self, 'selection_bar', None):
             return
         count = len(self.selected_bookmarks)
-        if count:
+        if count > 1:
             self.selection_count_label.configure(text=format_message('{value_0} selected', value_0=pluralize(count, 'bookmark')))
             if not self.selection_bar.winfo_ismapped():
                 self.selection_bar.pack(
@@ -181,11 +228,12 @@ class DashboardActionsMixin:
         else:
             self.selection_bar.pack_forget()
 
-    def _create_analytics_panel(self):
+    def _create_analytics_panel(self, parent=None):
         """Create the compact collection pulse shown in the right rail."""
         theme = get_theme()
+        parent = parent or self.right_scroll.inner
 
-        header = tk.Frame(self.right_scroll.inner, bg=theme.bg_dark)
+        header = tk.Frame(parent, bg=theme.bg_dark)
         header.pack(fill=tk.X)
         tk.Label(
             header, text=_("Collection pulse"), bg=theme.bg_dark,
@@ -201,12 +249,12 @@ class DashboardActionsMixin:
         make_keyboard_activatable(refresh_btn, self._refresh_analytics)
         Tooltip(refresh_btn, _("Refresh collection pulse"))
 
-        self.collection_pulse_frame = tk.Frame(self.right_scroll.inner, bg=theme.bg_dark)
+        self.collection_pulse_frame = tk.Frame(parent, bg=theme.bg_dark)
         self.collection_pulse_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD)
 
         # Kept as an unmounted compatibility surface for the legacy detailed
         # renderer; full analytics remain available from Tools > Analytics.
-        self.analytics_frame = tk.Frame(self.right_scroll.inner, bg=theme.bg_secondary)
+        self.analytics_frame = tk.Frame(parent, bg=theme.bg_secondary)
 
     def _refresh_collection_pulse(self, stats, all_bookmarks):
         """Render health, trustworthy zero-state metrics, and one next action."""
@@ -368,7 +416,11 @@ class DashboardActionsMixin:
         action()
     
     def _refresh_analytics(self):
-        """Refresh analytics display with clear health and empty states."""
+        """Refresh legacy mounted analytics surfaces when one is present."""
+        if not getattr(self, "collection_pulse_frame", None):
+            return
+        if not getattr(self, "analytics_frame", None):
+            return
         theme = get_theme()
 
         stats = self.bookmark_manager.get_statistics()

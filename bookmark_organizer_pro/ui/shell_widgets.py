@@ -47,7 +47,11 @@ class CommandPalette(tk.Toplevel, ThemedWidget):
         
         self.title("")
         self.overrideredirect(True)
-        self.configure(bg=theme.border)
+        self.configure(
+            bg=theme.border,
+            highlightbackground=theme.border_active,
+            highlightthickness=DesignTokens.ELEVATION_BORDER_WIDTH,
+        )
         
         # Position in center top
         self.geometry("560x430")
@@ -57,7 +61,10 @@ class CommandPalette(tk.Toplevel, ThemedWidget):
         self.geometry(f"+{x}+{y}")
         
         # Border
-        self.configure(highlightbackground=theme.border, highlightthickness=1)
+        self.configure(
+            highlightbackground=theme.border_active,
+            highlightthickness=DesignTokens.ELEVATION_BORDER_WIDTH,
+        )
 
         shell = tk.Frame(self, bg=theme.bg_secondary, padx=14, pady=14)
         shell.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
@@ -81,6 +88,9 @@ class CommandPalette(tk.Toplevel, ThemedWidget):
             shell, textvariable=self.search_var,
             bg=theme.bg_tertiary, fg=theme.text_primary,
             insertbackground=theme.text_primary, bd=0,
+            highlightthickness=DesignTokens.BORDER_WIDTH,
+            highlightbackground=theme.border_muted,
+            highlightcolor=theme.border_active,
             font=FONTS.body()
         )
         self.search_entry.pack(fill=tk.X, ipady=8)
@@ -188,7 +198,16 @@ class CommandPalette(tk.Toplevel, ThemedWidget):
                 lambda idx=i: self._select_and_execute(idx),
                 accessible_name=name,
             )
+            item.bind("<Enter>", lambda _event, idx=i: self._hover_command(idx))
+            for widget in [name_label, shortcut_label]:
+                if widget:
+                    widget.bind("<Enter>", lambda _event, idx=i: self._hover_command(idx))
             route_pointer_to_control(item, name_label, shortcut_label)
+
+    def _hover_command(self, index: int):
+        if index != self.selected_index:
+            self.selected_index = index
+            self._render_commands()
     
     def _move_up(self, e):
         if self.selected_index > 0:
@@ -242,14 +261,14 @@ class StatusBar(tk.Frame, ThemedWidget):
             self, text=_("Ready"), bg=theme.bg_dark,
             fg=theme.text_secondary, font=FONTS.small()
         )
-        self.status_label.pack(side=tk.LEFT, padx=10)
+        self.status_label.pack(side=tk.LEFT, padx=DesignTokens.SPACE_LG)
         
         # Right: Counts
         self.counts_label = tk.Label(
             self, text="", bg=theme.bg_dark,
             fg=theme.text_muted, font=FONTS.small()
         )
-        self.counts_label.pack(side=tk.RIGHT, padx=10)
+        self.counts_label.pack(side=tk.RIGHT, padx=DesignTokens.SPACE_LG)
         
         # Progress bar (hidden by default)
         self.progress_frame = tk.Frame(self, bg=theme.bg_dark)
@@ -312,11 +331,22 @@ class StyledDropdownMenu(tk.Toplevel):
         
         # Remove window decorations
         self.overrideredirect(True)
-        self.configure(bg=theme.border)
+        self.configure(
+            bg=theme.border,
+            highlightbackground=theme.border_active,
+            highlightthickness=DesignTokens.ELEVATION_BORDER_WIDTH,
+        )
         
         # Main frame with border effect
-        main_frame = tk.Frame(self, bg=theme.bg_secondary, padx=2, pady=2)
+        main_frame = tk.Frame(
+            self,
+            bg=theme.bg_secondary,
+            padx=DesignTokens.SPACE_XS,
+            pady=DesignTokens.SPACE_XS,
+        )
         main_frame.pack(fill=tk.BOTH, expand=True)
+        self._menu_items: list[tuple[tk.Label, Callable]] = []
+        self._selected_index = 0
         
         # Add menu items
         for label, command in items:
@@ -331,18 +361,15 @@ class StyledDropdownMenu(tk.Toplevel):
                     anchor="w", padx=15, pady=8, cursor="hand2"
                 )
                 item.pack(fill=tk.X)
-                
-                # Hover effects
-                item.bind("<Enter>", lambda e, w=item: w.configure(bg=theme.bg_hover))
-                item.bind("<Leave>", lambda e, w=item: w.configure(bg=theme.bg_secondary))
-                
-                # Click handler
-                if command:
-                    make_keyboard_activatable(
-                        item,
-                        lambda cmd=command: self._on_click(cmd),
-                        accessible_name=label,
-                    )
+
+                item_index = len(self._menu_items)
+                self._menu_items.append((item, command))
+                item.bind("<Enter>", lambda _event, idx=item_index: self._select_item(idx))
+                make_keyboard_activatable(
+                    item,
+                    lambda idx=item_index: self._activate_item(idx),
+                    accessible_name=label,
+                )
         
         # Position the menu
         self.update_idletasks()
@@ -363,10 +390,42 @@ class StyledDropdownMenu(tk.Toplevel):
         # Close on click outside or Escape
         self.bind("<FocusOut>", lambda e: self.after(50, self._check_focus))
         self.bind("<Escape>", lambda e: self.destroy())
+        self.bind("<Up>", lambda _event: self._move_selection(-1))
+        self.bind("<Down>", lambda _event: self._move_selection(1))
+        self.bind("<Return>", lambda _event: self._activate_item(self._selected_index))
+        self.bind("<KP_Enter>", lambda _event: self._activate_item(self._selected_index))
 
         # Take focus without modal grab (grab_set can lock the app if
         # the menu fails to destroy itself).
         self.focus_set()
+        self._render_selection()
+
+    def _select_item(self, index: int):
+        if index != self._selected_index:
+            self._selected_index = index
+            self._render_selection()
+
+    def _move_selection(self, delta: int):
+        if not self._menu_items:
+            return "break"
+        self._selected_index = (self._selected_index + delta) % len(self._menu_items)
+        self._render_selection()
+        return "break"
+
+    def _render_selection(self):
+        theme = get_theme()
+        for index, (item, _command) in enumerate(self._menu_items):
+            selected = index == self._selected_index
+            item.configure(
+                bg=theme.bg_hover if selected else theme.bg_secondary,
+                fg=theme.text_primary if selected else theme.text_secondary,
+            )
+
+    def _activate_item(self, index: int):
+        if 0 <= index < len(self._menu_items):
+            _item, command = self._menu_items[index]
+            self._on_click(command)
+        return "break"
     
     def _check_focus(self):
         """Destroy only if focus has truly left the dropdown."""

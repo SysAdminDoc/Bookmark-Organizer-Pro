@@ -14,6 +14,7 @@ from bookmark_organizer_pro.ui.shell_widgets import ViewMode
 from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable, route_pointer_to_control
 from bookmark_organizer_pro.ui.treeview import BookmarkListWidget
 from bookmark_organizer_pro.ui.widget_chat_panel import ChatPanel
+from bookmark_organizer_pro.ui.workflow_detail_panel import BookmarkDetailPanel
 from bookmark_organizer_pro.ui.widgets import ModernButton, Tooltip, get_theme
 
 
@@ -63,7 +64,7 @@ class AppShellMixin:
         view_menu.add_command(label=_("List View"), command=lambda: self._set_view_mode(ViewMode.LIST))
         self._right_rail_var = tk.BooleanVar(value=True)
         view_menu.add_checkbutton(
-            label=_("Insights and assistant rail"),
+            label=_("Focus rail"),
             variable=self._right_rail_var,
             command=self._toggle_right_rail,
         )
@@ -105,6 +106,7 @@ class AppShellMixin:
             ("Ctrl+I", "Import bookmarks"),
             ("Ctrl+S", "Export bookmarks"),
             ("Ctrl+F", "Focus search bar"),
+            ("Ctrl+K", "Focus search bar"),
             ("Ctrl+P", "Command palette"),
             ("Ctrl+Z", "Undo"),
             ("Ctrl+Y", "Redo"),
@@ -153,7 +155,7 @@ class AppShellMixin:
         
         # Brand block
         brand = tk.Frame(header, bg=theme.bg_dark, width=294)
-        brand.pack(side=tk.LEFT, padx=(18, 12), pady=9, fill=tk.Y)
+        brand.pack(side=tk.LEFT, padx=(18, 12), pady=5, fill=tk.Y)
         brand.pack_propagate(False)
         brand_row = tk.Frame(brand, bg=theme.bg_dark)
         brand_row.pack(anchor="w")
@@ -204,7 +206,7 @@ class AppShellMixin:
                "Type a prefix (e.g. tag:) for suggestions.")
 
         # Placeholder text
-        self._search_placeholder = "Search your library"
+        self._search_placeholder = _("Search your library")
         self._suppress_search_callback = True
         self.search_entry.insert(0, self._search_placeholder)
         self.search_entry.configure(fg=theme.text_muted)
@@ -237,14 +239,14 @@ class AppShellMixin:
         make_keyboard_activatable(self._nl_toggle_btn, self._toggle_nl_search)
         Tooltip(self._nl_toggle_btn, _("Interpret the query as natural language"))
 
-        search_help = tk.Label(
-            search_frame, text=_("?"), bg=theme.bg_tertiary,
-            fg=theme.text_muted, font=FONTS.tiny(bold=True),
-            padx=7, pady=3, cursor="hand2"
+        search_shortcut = tk.Label(
+            search_frame, text=_("Ctrl+K"), bg=theme.bg_secondary,
+            fg=theme.text_muted, font=FONTS.tiny(),
+            padx=7, pady=3, cursor="hand2",
         )
-        search_help.pack(side=tk.RIGHT, padx=(8, 4))
-        make_keyboard_activatable(search_help, self._show_search_syntax_help)
-        Tooltip(search_help, _("Show search operators"))
+        search_shortcut.pack(side=tk.RIGHT, padx=(8, 4))
+        make_keyboard_activatable(search_shortcut, self._focus_search)
+        Tooltip(search_shortcut, _("Focus library search"))
         
         # ===== TOOLBAR BUTTONS =====
         toolbar = tk.Frame(header, bg=theme.bg_dark)
@@ -268,42 +270,19 @@ class AppShellMixin:
         )
         import_btn.pack(side=tk.LEFT, padx=3)
         
-        # Export button
-        export_btn = ModernButton(
-            toolbar, text=_("Export"), icon="↑",
-            command=self._show_export_dialog,
-            tooltip=_("Export bookmarks to HTML, JSON, CSV, or Markdown"),
-            padx=5, pady=8, font=FONTS.tiny(bold=True),
+        # Secondary destinations share one predictable menu so the command bar
+        # remains usable at the supported 1280 px laptop width.
+        self.more_btn = ModernButton(
+            toolbar, text=_("More"), icon="⋮",
+            command=self._show_shell_actions_menu,
+            tooltip=_("Export, assistant, tools, and settings"),
+            padx=7, pady=8, font=FONTS.tiny(bold=True),
         )
-        export_btn.pack(side=tk.LEFT, padx=3)
-        
-        # AI button
-        self.ai_btn = ModernButton(
-            toolbar, text=_("Assistant"), icon="✦",
-            command=self._show_ai_menu,
-            tooltip=_("Assistant tools: categorize, tag, summarize, and find semantic duplicates"),
-            padx=5, pady=8, font=FONTS.tiny(bold=True),
-        )
-        self.ai_btn.pack(side=tk.LEFT, padx=3)
-        
-        # Tools button
-        self.tools_btn = ModernButton(
-            toolbar, text=_("Tools"), icon="\u2692",
-            command=self._show_tools_menu,
-            tooltip=_("Tools: Check links, Find duplicates,\nClean URLs, Manage categories, Backup"),
-            padx=5, pady=8, font=FONTS.tiny(bold=True),
-        )
-        self.tools_btn.pack(side=tk.LEFT, padx=3)
-        
-        # Settings
-        settings_btn = ModernButton(
-            toolbar, text=_("Settings"), icon="⚙",
-            command=self._show_settings_menu,
-            tooltip=_("Settings: AI provider, themes, preferences"),
-            padx=5, pady=8, font=FONTS.tiny(bold=True),
-        )
-        settings_btn.pack(side=tk.LEFT, padx=3)
-        self.settings_btn = settings_btn
+        self.more_btn.pack(side=tk.LEFT, padx=3)
+        # Compatibility handles used by theme/menu refresh paths.
+        self.ai_btn = self.more_btn
+        self.tools_btn = self.more_btn
+        self.settings_btn = self.more_btn
 
         self.theme_dropdown = None
         
@@ -323,27 +302,6 @@ class AppShellMixin:
         self.left_scroll = ScrollableFrame(left_sidebar, bg=theme.bg_dark)
         self.left_scroll.pack(fill=tk.BOTH, expand=True)
         
-        workspace = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
-        workspace.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(20, 12))
-        tk.Label(
-            workspace, text=_("WORKSPACE"), bg=theme.bg_dark,
-            fg=theme.text_muted, font=FONTS.tiny(bold=True),
-        ).pack(anchor="w", pady=(0, 9))
-        workspace_row = tk.Frame(
-            workspace, bg=theme.bg_secondary,
-            highlightbackground=theme.border_muted, highlightthickness=1,
-        )
-        workspace_row.pack(fill=tk.X)
-        tk.Label(
-            workspace_row, text=_("▣  My Workspace"), bg=theme.bg_secondary,
-            fg=theme.text_primary, font=FONTS.small(bold=True),
-            anchor="w", padx=10, pady=9,
-        ).pack(side=tk.LEFT, fill=tk.X, expand=True)
-        tk.Label(
-            workspace_row, text=_("⌄"), bg=theme.bg_secondary,
-            fg=theme.text_muted, font=FONTS.small(), padx=10,
-        ).pack(side=tk.RIGHT)
-
         # Keep the drop target available to callers without giving it permanent
         # visual priority over the library navigation.
         self.import_area = DragDropImportArea(
@@ -355,7 +313,7 @@ class AppShellMixin:
         
         # Quick filters
         filters_frame = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
-        filters_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(0, DesignTokens.SPACE_MD))
+        filters_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(20, DesignTokens.SPACE_MD))
         
         tk.Label(
             filters_frame, text=_("LIBRARY"), bg=theme.bg_dark,
@@ -376,9 +334,9 @@ class AppShellMixin:
         }
 
         for filter_name, label in [
-            ("All", _("▣  All Bookmarks")),
+            ("All", _("⌂  My Library")),
             ("Pinned", _("◆  Pinned")),
-            ("Recent", _("◷  Recent")),
+            ("Recent", _("▱  Inbox")),
             ("Broken", _("⚑  Needs Review")),
             ("Untagged", _("◇  Untagged")),
         ]:
@@ -499,60 +457,94 @@ class AppShellMixin:
 
         self._flows_frame = tk.Frame(self.left_scroll.inner, bg=theme.bg_dark)
         self._flows_frame.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(0, 20))
-        self._flows_empty = tk.Label(
-            self._flows_frame, text=_("No active flows"),
-            bg=theme.bg_dark, fg=theme.text_muted, font=FONTS.small(),
-            anchor="w",
+        self._render_empty_workflows(theme)
+
+        # A persistent local-save footer keeps the privacy/trust state visible
+        # even when the global status bar is reporting a transient operation.
+        self.left_scroll.pack_forget()
+        sidebar_footer = tk.Frame(
+            left_sidebar, bg=theme.bg_dark,
+            highlightbackground=theme.border_muted, highlightthickness=1,
         )
-        self._flows_empty.pack(fill=tk.X, pady=2)
+        sidebar_footer.pack(side=tk.BOTTOM, fill=tk.X)
+        self.sidebar_status_label = tk.Label(
+            sidebar_footer, text=_("●  Saved locally"), bg=theme.bg_dark,
+            fg=theme.accent_success, font=FONTS.tiny(), anchor="w",
+        )
+        self.sidebar_status_label.pack(side=tk.LEFT, padx=(14, 6), pady=10)
+        tk.Label(
+            sidebar_footer, text=_("Library.db"), bg=theme.bg_dark,
+            fg=theme.text_muted, font=FONTS.tiny(),
+        ).pack(side=tk.LEFT, padx=(0, 4))
+        sidebar_settings = tk.Label(
+            sidebar_footer, text=_("⚙"), bg=theme.bg_dark,
+            fg=theme.text_secondary, font=FONTS.body(), cursor="hand2", padx=12,
+        )
+        sidebar_settings.pack(side=tk.RIGHT, pady=5)
+        make_keyboard_activatable(sidebar_settings, self._show_settings_menu)
+        Tooltip(sidebar_settings, _("Open settings"))
+        self.left_scroll.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
         # ----- MAIN CONTENT -----
         self.content_area = tk.Frame(content, bg=theme.bg_primary)
         self.content_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        # Content header
+        # Content header: collection context on the left, freshness and view
+        # controls on the right. This replaces the older oversized overview card.
         self.content_header = tk.Frame(self.content_area, bg=theme.bg_primary)
-        self.content_header.pack(fill=tk.X, padx=DesignTokens.CONTENT_PAD_X, pady=(16, 8))
+        self.content_header.pack(fill=tk.X, padx=DesignTokens.CONTENT_PAD_X, pady=(22, 12))
 
+        header_copy = tk.Frame(self.content_header, bg=theme.bg_primary)
+        header_copy.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.count_label = tk.Label(
-            self.content_header, text=_("Your library"), bg=theme.bg_primary,
-            fg=theme.text_primary, font=FONTS.header(bold=True)
+            header_copy, text=_("Library"), bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.title(bold=True), anchor="w",
         )
-        self.count_label.pack(side=tk.LEFT)
+        self.count_label.pack(fill=tk.X)
+        self.library_context_label = tk.Label(
+            header_copy, text=_("Ready for your next save"), bg=theme.bg_primary,
+            fg=theme.text_secondary, font=FONTS.small(), anchor="w",
+        )
+        self.library_context_label.pack(fill=tk.X, pady=(5, 0))
 
+        # Kept as a lightweight state target for refresh paths; display controls
+        # live beside the query filters where their scope is unambiguous.
         self.view_hint_label = tk.Label(
-            self.content_header, text=_("List view"),
-            bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.small()
+            self.content_header, text=_("Updated just now"),
+            bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.tiny(),
         )
-        self.view_hint_label.pack(side=tk.RIGHT)
 
         self._create_collection_summary()
         
         # List view frame
         self.list_frame = tk.Frame(self.content_area, bg=theme.bg_primary)
         
-        # Create virtualized bookmark table - REMOVED "Added" column, added more padding
-        columns = ("title", "url", "category", "tags")
+        # Mockup-aligned table: category context is folded into the tag cell so
+        # time and state remain visible without horizontal scrolling.
+        columns = ("title", "organization", "saved", "status", "favorite")
         self.tree = BookmarkListWidget(
             self.list_frame, columns=columns, show="tree headings",
             selectmode="extended"
         )
         
         # Configure columns with MORE padding for favicon
-        self.tree.heading("#0", text="")
-        self.tree.column("#0", width=34, stretch=False, minwidth=34)
+        self.tree.heading("#0", text="\u00a0")
+        self.tree.column("#0", width=48, stretch=False, minwidth=48)
         
         self.tree.heading("title", text=_("Title"))
-        self.tree.column("title", width=245, minwidth=160)
+        self.tree.column("title", width=320, minwidth=220)
 
-        self.tree.heading("url", text=_("Domain"))
-        self.tree.column("url", width=190, minwidth=150)
+        self.tree.heading("organization", text=_("Collection / Tags"))
+        self.tree.column("organization", width=190, minwidth=145)
 
-        self.tree.heading("category", text=_("Category"))
-        self.tree.column("category", width=170, minwidth=130)
+        self.tree.heading("saved", text=_("Saved"))
+        self.tree.column("saved", width=92, minwidth=82)
 
-        self.tree.heading("tags", text=_("Tags"))
-        self.tree.column("tags", width=170, minwidth=130)
+        self.tree.heading("status", text=_("Status"))
+        self.tree.column("status", width=118, minwidth=104)
+
+        self.tree.heading("favorite", text="\u00a0")
+        self.tree.column("favorite", width=44, stretch=False, minwidth=44)
         
         # Scrollbars
         tree_scroll_y = None
@@ -565,7 +557,24 @@ class AppShellMixin:
         self.tree.tag_configure("evenrow", background=theme.bg_secondary)
         self.tree.tag_configure("broken", foreground=theme.accent_error)
         self.tree.tag_configure("pinned", foreground=theme.accent_warning)
-        
+
+        table_footer = tk.Frame(
+            self.list_frame, bg=theme.bg_primary,
+            highlightbackground=theme.border_muted, highlightthickness=1,
+        )
+        table_footer.pack(side=tk.BOTTOM, fill=tk.X)
+        self.library_footer_label = tk.Label(
+            table_footer, text=_("Showing bookmarks in this view"),
+            bg=theme.bg_primary, fg=theme.text_muted,
+            font=FONTS.tiny(), anchor="w",
+        )
+        self.library_footer_label.pack(side=tk.LEFT, padx=10, pady=8)
+        tk.Label(
+            table_footer, text=_("Double-click to open  ·  Right-click for actions"),
+            bg=theme.bg_primary, fg=theme.text_muted,
+            font=FONTS.tiny(), anchor="e",
+        ).pack(side=tk.RIGHT, padx=10, pady=8)
+
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         if tree_scroll_y is not None:
             tree_scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
@@ -574,6 +583,7 @@ class AppShellMixin:
         self.tree.bind("<Double-1>", self._on_item_double_click)
         self.tree.bind("<Return>", lambda e: self._open_selected())
         self.tree.bind("<Button-3>", self._show_context_menu)
+        self.tree.bind("<ButtonRelease-1>", self._on_library_table_release, add="+")
         self.tree.bind("<<TreeviewSelect>>", self._on_selection_change)
         
         # Ctrl+Scroll zoom binding
@@ -599,7 +609,7 @@ class AppShellMixin:
         # Show list view by default
         self.list_frame.pack(fill=tk.BOTH, expand=True, padx=DesignTokens.CONTENT_PAD_X, pady=(0, DesignTokens.CONTENT_PAD_Y))
 
-        # ----- RIGHT SIDEBAR (Scrollable) - ANALYTICS -----
+        # ----- RIGHT SIDEBAR (Scrollable) - CONTEXTUAL FOCUS -----
         right_sidebar = tk.Frame(
             content, bg=theme.bg_dark, width=DesignTokens.RIGHT_SIDEBAR_WIDTH,
             highlightbackground=theme.border_muted, highlightthickness=1,
@@ -613,20 +623,269 @@ class AppShellMixin:
         self.right_scroll = ScrollableFrame(right_sidebar, bg=theme.bg_dark)
         self.right_scroll.pack(fill=tk.BOTH, expand=True)
         
-        # Collection signals lead; the assistant is a contextual follow-up.
-        self._create_analytics_panel()
+        self._create_right_rail_header()
+        self._right_rail_focus = tk.Frame(self.right_scroll.inner, bg=theme.bg_dark)
+        self._right_rail_assistant = tk.Frame(self.right_scroll.inner, bg=theme.bg_dark)
 
-        # Chat Panel (R-60)
-        self.chat_panel = ChatPanel(
-            self.right_scroll.inner,
-            on_ask=self._on_chat_ask,
-            on_bookmark_click=self._on_chat_bookmark_click,
+        # The assistant remains available as an explicit destination without
+        # competing with the selected bookmark or the viewport at startup.
+        self.chat_panel = None
+
+        self.bookmark_inspector = BookmarkDetailPanel(
+            self._right_rail_focus,
+            on_edit=lambda _bookmark: self._edit_selected(),
+            on_open=self._open_bookmark,
+            on_delete=lambda _bookmark: self._delete_selected(),
+            on_close=lambda: self._set_right_rail_user_visibility(False),
         )
-        self.chat_panel.pack(fill=tk.X, pady=(DesignTokens.SPACE_SM, DesignTokens.SPACE_MD))
+        self.bookmark_inspector.pack(fill=tk.BOTH, expand=True)
+        self._set_right_rail_mode("focus")
         self.root.bind("<Configure>", self._on_shell_viewport_configure, add="+")
         self.root.after_idle(lambda: self._apply_right_rail_visibility(
             self.root.winfo_width() >= 1400
         ))
+
+    def _show_shell_actions_menu(self):
+        """Consolidate secondary destinations into one laptop-safe menu."""
+        theme = get_theme()
+        menu = tk.Menu(
+            self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
+            activebackground=theme.selection, activeforeground=theme.text_primary,
+            borderwidth=0,
+        )
+        menu.add_command(label=_("Export bookmarks…"), command=self._show_export_dialog)
+        menu.add_command(label=_("Ask your library"), command=self._show_right_rail_assistant)
+        menu.add_command(label=_("Assistant tools…"), command=self._show_ai_menu)
+        menu.add_command(label=_("Library tools"), command=self._show_tools_menu)
+        menu.add_separator()
+        menu.add_command(label=_("Settings"), command=self._show_settings_menu)
+        button = self.more_btn
+        menu.tk_popup(button.winfo_rootx(), button.winfo_rooty() + button.winfo_height() + 3)
+
+    def _create_right_rail_header(self):
+        """Create a compact contextual heading for the focus rail."""
+        theme = get_theme()
+        header = tk.Frame(
+            self.right_scroll.inner, bg=theme.bg_dark,
+            highlightbackground=theme.border_muted, highlightthickness=0,
+        )
+        header.pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(15, 8))
+        tk.Label(
+            header, text=_("✦"), bg=theme.bg_dark,
+            fg=theme.accent_primary, font=FONTS.subtitle(),
+        ).pack(side=tk.LEFT, padx=(0, 9))
+        copy = tk.Frame(header, bg=theme.bg_dark)
+        copy.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self._right_rail_title_label = tk.Label(
+            copy, text=_("Focus"), bg=theme.bg_dark,
+            fg=theme.text_primary, font=FONTS.subtitle(bold=True), anchor="w",
+        )
+        self._right_rail_title_label.pack(fill=tk.X)
+        self._right_rail_subtitle_label = tk.Label(
+            copy, text=_("Details and next action"), bg=theme.bg_dark,
+            fg=theme.text_muted, font=FONTS.tiny(), anchor="w",
+        )
+        self._right_rail_subtitle_label.pack(fill=tk.X, pady=(2, 0))
+        close = tk.Label(
+            header, text=_("×"), bg=theme.bg_dark,
+            fg=theme.text_muted, font=FONTS.subtitle(),
+            cursor="hand2", padx=7, pady=4,
+        )
+        close.pack(side=tk.RIGHT)
+        make_keyboard_activatable(
+            close,
+            lambda: self._set_right_rail_user_visibility(False),
+            accessible_name=_("Close focus rail"),
+        )
+        Tooltip(close, _("Close focus rail"))
+        tk.Frame(
+            self.right_scroll.inner, bg=theme.border_muted, height=1,
+        ).pack(fill=tk.X, padx=DesignTokens.PANEL_PAD, pady=(0, 4))
+
+    def _set_right_rail_mode(self, mode: str):
+        """Switch between contextual focus and the optional assistant."""
+        focus = getattr(self, "_right_rail_focus", None)
+        assistant = getattr(self, "_right_rail_assistant", None)
+        if focus is None or assistant is None:
+            return
+        mode = "assistant" if mode == "assistant" else "focus"
+        if mode == "assistant":
+            self._ensure_chat_panel()
+        focus.pack_forget()
+        assistant.pack_forget()
+        target = assistant if mode == "assistant" else focus
+        target.pack(fill=tk.BOTH, expand=True)
+        title = _("Ask your library") if mode == "assistant" else _("Focus")
+        subtitle = (
+            _("Answers grounded in your saved sources")
+            if mode == "assistant"
+            else _("Details and next action")
+        )
+        self._right_rail_title_label.configure(text=title)
+        self._right_rail_subtitle_label.configure(text=subtitle)
+        self._right_rail_active_mode = mode
+
+    def _ensure_chat_panel(self):
+        """Create the assistant only when the user opens that destination."""
+        panel = getattr(self, "chat_panel", None)
+        if panel is not None:
+            return panel
+        panel = ChatPanel(
+            self._right_rail_assistant,
+            on_ask=self._on_chat_ask,
+            on_bookmark_click=self._on_chat_bookmark_click,
+        )
+        panel.pack(fill=tk.X, pady=(DesignTokens.SPACE_SM, DesignTokens.SPACE_MD))
+        self.chat_panel = panel
+        return panel
+
+    def _set_right_rail_tab(self, tab_name: str):
+        """Compatibility bridge for callers using the previous tab contract."""
+        self._set_right_rail_mode("focus" if tab_name == "selected" else "assistant")
+
+    def _show_right_rail_assistant(self):
+        """Reveal the assistant as a deliberate, reversible rail mode."""
+        self._set_right_rail_user_visibility(True)
+        self._set_right_rail_mode("assistant")
+        entry = getattr(getattr(self, "chat_panel", None), "_entry", None)
+        if entry is not None:
+            self.root.after_idle(entry.focus_set)
+
+    def _update_right_rail_selection(self):
+        """Turn a single row selection into an immediately useful inspector."""
+        inspector = getattr(self, "bookmark_inspector", None)
+        if inspector is None:
+            return
+        selected_ids = list(getattr(self, "selected_bookmarks", []) or [])
+        if len(selected_ids) != 1:
+            inspector.clear(
+                _("Select one bookmark to inspect")
+                if not selected_ids
+                else _("Select a single bookmark to inspect its details")
+            )
+            return
+        bookmark = self.bookmark_manager.get_bookmark(selected_ids[0])
+        if bookmark is None:
+            inspector.clear(_("This bookmark is no longer available"))
+            return
+        inspector.show_bookmark(bookmark)
+        self._set_right_rail_mode("focus")
+        if (
+            self.root.winfo_width() >= 1400
+            and not getattr(self, "_right_rail_user_hidden", False)
+        ):
+            self._apply_right_rail_visibility(True)
+
+    def _on_library_table_release(self, event):
+        """Make the trailing star a direct, discoverable pin control."""
+        column_at_event = getattr(self.tree, "column_at_event", None)
+        if column_at_event is None or column_at_event(event) != "favorite":
+            return None
+        item_id = self.tree.identify_row(event)
+        if not item_id:
+            return "break"
+        self.root.after_idle(lambda value=str(item_id): self._toggle_pin_from_row(value))
+        return "break"
+
+    def _toggle_pin_from_row(self, item_id: str):
+        """Select one rendered row and toggle its persisted pin state."""
+        if item_id not in self.tree.get_children():
+            return
+        try:
+            self.tree.selection_set(item_id, emit=False)
+        except TypeError:
+            self.tree.selection_set(item_id)
+        self.selected_bookmarks = [int(item_id)]
+        self._toggle_pin()
+
+    def _show_library_view_menu(self):
+        """Open a compact view menu anchored to the visible view-options control."""
+        theme = get_theme()
+        menu = tk.Menu(
+            self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
+            activebackground=theme.selection, activeforeground=theme.text_primary,
+            borderwidth=0,
+        )
+        menu.add_command(label=_("Refresh library"), command=self._refresh_all)
+        menu.add_command(label=_("Show focus rail"), command=lambda: self._set_right_rail_user_visibility(True))
+        menu.add_command(label=_("Hide focus rail"), command=lambda: self._set_right_rail_user_visibility(False))
+        menu.add_command(label=_("Ask your library"), command=self._show_right_rail_assistant)
+        menu.add_separator()
+        menu.add_command(label=_("Theme and display settings"), command=self._show_settings_menu)
+        button = self.view_options_btn
+        menu.tk_popup(button.winfo_rootx(), button.winfo_rooty() + button.winfo_height() + 3)
+
+    def _show_library_collection_menu(self):
+        """Filter the current library by a live collection list."""
+        theme = get_theme()
+        menu = tk.Menu(
+            self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
+            activebackground=theme.selection, activeforeground=theme.text_primary,
+            borderwidth=0,
+        )
+        menu.add_command(label=_("All collections"), command=lambda: self._select_category(""))
+        counts = self.bookmark_manager.get_category_counts()
+        active = sorted((name for name, count in counts.items() if count), key=str.lower)
+        if active:
+            menu.add_separator()
+        for category in active[:20]:
+            menu.add_command(
+                label=format_message('{value_0}  ·  {value_1}', value_0=category, value_1=counts.get(category, 0)),
+                command=lambda value=category: self._select_category(value),
+            )
+        button = self.collection_filter_btn
+        menu.tk_popup(button.winfo_rootx(), button.winfo_rooty() + button.winfo_height() + 3)
+
+    def _show_library_tag_menu(self):
+        """Apply a search-backed tag filter from the library toolbar."""
+        theme = get_theme()
+        menu = tk.Menu(
+            self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
+            activebackground=theme.selection, activeforeground=theme.text_primary,
+            borderwidth=0,
+        )
+        menu.add_command(label=_("All tags"), command=self._clear_search)
+        counts = {}
+        for bookmark in self.bookmark_manager.get_all_bookmarks():
+            for tag in (*bookmark.tags, *bookmark.ai_tags):
+                counts[tag] = counts.get(tag, 0) + 1
+        if counts:
+            menu.add_separator()
+        for tag, count in sorted(counts.items(), key=lambda item: (-item[1], item[0].lower()))[:20]:
+            menu.add_command(
+                label=format_message('#{value_0}  ·  {value_1}', value_0=tag, value_1=count),
+                command=lambda value=tag: self._set_library_search(f"tag:{value}"),
+            )
+        button = self.tag_filter_btn
+        menu.tk_popup(button.winfo_rootx(), button.winfo_rooty() + button.winfo_height() + 3)
+
+    def _show_library_type_menu(self):
+        """Expose the highest-value saved views without another persistent row."""
+        theme = get_theme()
+        menu = tk.Menu(
+            self.root, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
+            activebackground=theme.selection, activeforeground=theme.text_primary,
+            borderwidth=0,
+        )
+        for label, filter_name in (
+            (_("All types"), "All"), (_("Pinned"), "Pinned"),
+            (_("Recent"), "Recent"), (_("Needs review"), "Broken"),
+            (_("Untagged"), "Untagged"),
+        ):
+            menu.add_command(label=label, command=lambda value=filter_name: self._apply_filter(value))
+        button = self.type_filter_btn
+        menu.tk_popup(button.winfo_rootx(), button.winfo_rooty() + button.winfo_height() + 3)
+
+    def _set_library_search(self, query: str):
+        """Set a structured query through the shared search contract."""
+        self._suppress_search_callback = True
+        self.search_var.set(str(query or ""))
+        self.search_entry.configure(fg=get_theme().text_primary)
+        self._suppress_search_callback = False
+        self.search_query = str(query or "")
+        self.quick_filter = None
+        self.current_category = None
+        self._refresh_bookmark_list()
 
     def _apply_right_rail_visibility(self, visible: bool) -> None:
         """Show or hide the fixed rail without constraining the library viewport."""
@@ -641,11 +900,15 @@ class AppShellMixin:
         if hasattr(self, "_right_rail_var"):
             self._right_rail_var.set(bool(visible))
 
+    def _set_right_rail_user_visibility(self, visible: bool) -> None:
+        """Persist a direct user choice independently of responsive collapse."""
+        self._right_rail_user_hidden = not bool(visible)
+        self._apply_right_rail_visibility(bool(visible))
+
     def _toggle_right_rail(self) -> None:
         """Honor an explicit View-menu rail preference for the current viewport."""
         visible = bool(self._right_rail_var.get())
-        self._right_rail_user_hidden = not visible
-        self._apply_right_rail_visibility(visible)
+        self._set_right_rail_user_visibility(visible)
 
     def _on_shell_viewport_configure(self, event) -> None:
         """Collapse the rail at laptop widths and restore it when room returns."""
@@ -668,7 +931,7 @@ class AppShellMixin:
             options = {
                 "fill": tk.X,
                 "padx": DesignTokens.CONTENT_PAD_X,
-                "pady": (16, 8),
+                "pady": (22, 12),
             }
             summary = getattr(self, "collection_summary_frame", None)
             try:
@@ -758,11 +1021,7 @@ class AppShellMixin:
 
         self._flows_count_label.config(text=str(len(flows)))
         if not flows:
-            tk.Label(
-                self._flows_frame, text=_("No active flows"),
-                bg=theme.bg_dark, fg=theme.text_muted, font=FONTS.small(),
-                anchor="w",
-            ).pack(fill=tk.X, pady=2)
+            self._render_empty_workflows(theme)
             return
 
         for flow in flows[:8]:
@@ -775,6 +1034,20 @@ class AppShellMixin:
             row.pack(fill=tk.X, pady=1)
             row.bind("<Enter>", lambda e, w=row: w.configure(bg=theme.bg_hover, fg=theme.text_primary))
             row.bind("<Leave>", lambda e, w=row: w.configure(bg=theme.bg_dark, fg=theme.text_secondary))
+
+    def _render_empty_workflows(self, theme):
+        """Keep the secondary workflow empty state quiet and compact."""
+        empty = tk.Frame(self._flows_frame, bg=theme.bg_dark)
+        empty.pack(fill=tk.X, pady=(2, 0))
+        tk.Label(
+            empty, text=_("No active workflows"), bg=theme.bg_dark,
+            fg=theme.text_secondary, font=FONTS.small(), anchor="w",
+        ).pack(fill=tk.X)
+        tk.Label(
+            empty, text=_("Research trails appear here when you start one."),
+            bg=theme.bg_dark, fg=theme.text_muted, font=FONTS.tiny(),
+            justify=tk.LEFT, anchor="w", wraplength=190,
+        ).pack(fill=tk.X, pady=(3, 0))
 
     def _select_bookmark_by_id(self, bookmark_id: int):
         item_id = str(bookmark_id)

@@ -27,6 +27,8 @@ class SelectionActionsMixin:
         self.tree.selection_set(all_items)
         self.selected_bookmarks = [int(item) for item in all_items]
         self._update_selection_bar()
+        if hasattr(self, "_update_right_rail_selection"):
+            self._update_right_rail_selection()
         self._set_status(f"Selected {len(all_items)} bookmarks")
         return "break"  # Prevent default behavior
 
@@ -35,6 +37,8 @@ class SelectionActionsMixin:
         self.selected_bookmarks = [int(item) for item in self.tree.selection()]
         self._update_status_counts()
         self._update_selection_bar()
+        if hasattr(self, "_update_right_rail_selection"):
+            self._update_right_rail_selection()
         if self.selected_bookmarks:
             self._set_status(f"{pluralize(len(self.selected_bookmarks), 'bookmark')} selected")
     
@@ -70,6 +74,9 @@ class SelectionActionsMixin:
         
         # Update selected_bookmarks list
         self.selected_bookmarks = [int(i) for i in self.tree.selection()]
+        self._update_selection_bar()
+        if hasattr(self, "_update_right_rail_selection"):
+            self._update_right_rail_selection()
         
         # Get selected bookmark for domain search
         first_bookmark = None

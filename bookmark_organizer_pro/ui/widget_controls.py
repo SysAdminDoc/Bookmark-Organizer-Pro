@@ -212,7 +212,8 @@ class ModernButton(tk.Frame, ThemedWidget):
 
         super().__init__(
             parent, bg=bg, takefocus=1 if state == 'normal' else 0,
-            highlightthickness=DesignTokens.FOCUS_RING_WIDTH,
+            bd=0, relief=tk.FLAT,
+            highlightthickness=DesignTokens.BORDER_WIDTH,
             highlightbackground=theme.border_muted if style == "default" else bg,
             highlightcolor=theme.border_active
         )
@@ -229,6 +230,7 @@ class ModernButton(tk.Frame, ThemedWidget):
         self._pressed_bg = theme.selection if style == "default" else hover_bg
         self._is_hovered = False
         self._is_focused = False
+        self._is_pressed = False
         self._normal_border = theme.border_muted if style == "default" else bg
         self._disabled_bg = theme.bg_tertiary
         self._disabled_fg = theme.text_muted
@@ -242,7 +244,7 @@ class ModernButton(tk.Frame, ThemedWidget):
             font=font, cursor="hand2" if state == 'normal' else "arrow",
             anchor="center"
         )
-        effective_pady = max(pady, 9) if style == "primary" else pady
+        effective_pady = max(pady, DesignTokens.BUTTON_PAD_Y)
         self.label.pack(padx=padx, pady=effective_pady)
         
         if width:
@@ -284,27 +286,36 @@ class ModernButton(tk.Frame, ThemedWidget):
         if self.state == 'normal':
             theme = get_theme()
             self._is_focused = True
-            self.configure(highlightbackground=theme.accent_primary)
+            self.configure(
+                highlightbackground=theme.accent_primary,
+                highlightthickness=DesignTokens.FOCUS_RING_WIDTH,
+            )
 
     def _on_focus_out(self, e):
         if self.state == 'normal':
             self._is_focused = False
             border = get_theme().border_active if self._is_hovered else self._normal_border
-            self.configure(highlightbackground=border)
+            self.configure(
+                highlightbackground=border,
+                highlightthickness=DesignTokens.BORDER_WIDTH,
+            )
 
     def _on_press(self, e):
         if self.state == 'normal':
+            self._is_pressed = True
             self.configure(bg=self._pressed_bg)
             self.label.configure(bg=self._pressed_bg, fg=readable_text_on(self._pressed_bg))
 
     def _on_release(self, e):
         if self.state != 'normal':
             return
+        should_invoke = self._is_pressed
+        self._is_pressed = False
         bg = self.hover_bg if self._is_hovered else self.default_bg
         fg = self.hover_fg if self._is_hovered else self.fg
         self.configure(bg=bg)
         self.label.configure(bg=bg, fg=fg)
-        if self.command:
+        if should_invoke and self.command:
             self.command()
 
     def _on_key_activate(self, e):
@@ -314,6 +325,7 @@ class ModernButton(tk.Frame, ThemedWidget):
         return "break"
 
     def _on_release_and_fire(self, e):
+        self._is_pressed = False
         bg = self.hover_bg if self._is_hovered else self.default_bg
         fg = self.hover_fg if self._is_hovered else self.fg
         self.configure(bg=bg)
@@ -332,6 +344,8 @@ class ModernButton(tk.Frame, ThemedWidget):
             self.configure(bg=bg, highlightbackground=border, cursor="hand2", takefocus=1)
             self.label.configure(bg=bg, fg=fg)
         else:
+            self._is_pressed = False
+            self._is_focused = False
             self.label.configure(fg=self._disabled_fg, cursor="arrow")
             self.configure(
                 bg=self._disabled_bg, highlightbackground=theme.border_muted,
@@ -373,9 +387,16 @@ class ModernSearch(tk.Frame, ThemedWidget):
     def __init__(self, parent, textvariable, placeholder="Search…",
                  on_search=None, on_change=None, show_syntax_help=True):
         theme = get_theme()
-        super().__init__(parent, bg=theme.bg_secondary)
+        super().__init__(
+            parent,
+            bg=theme.bg_secondary,
+            bd=0,
+            highlightthickness=DesignTokens.BORDER_WIDTH,
+            highlightbackground=theme.border_muted,
+            highlightcolor=theme.border_active,
+        )
         
-        self.configure(padx=12, pady=8)
+        self.configure(padx=DesignTokens.SPACE_MD, pady=DesignTokens.SPACE_SM)
         self.on_search = on_search
         self.on_change = on_change
         self.placeholder = placeholder
@@ -420,9 +441,9 @@ class ModernSearch(tk.Frame, ThemedWidget):
         make_keyboard_activatable(self.clear_btn, self._clear)
         Tooltip(self.clear_btn, "Clear Search")
         
-        # Border line
-        self.border = tk.Frame(self, bg=theme.border, height=2)
-        self.border.pack(side=tk.BOTTOM, fill=tk.X)
+        # Kept as an attribute for callers that previously inspected the
+        # underline; the full control border now communicates focus instead.
+        self.border = self
         
         # Bindings
         self.entry.bind("<FocusIn>", self._on_focus)
@@ -433,12 +454,18 @@ class ModernSearch(tk.Frame, ThemedWidget):
     
     def _on_focus(self, e):
         theme = get_theme()
-        self.border.configure(bg=theme.accent_primary)
+        self.configure(
+            highlightbackground=theme.accent_primary,
+            highlightthickness=DesignTokens.FOCUS_RING_WIDTH,
+        )
         self.icon_label.configure(fg=theme.accent_primary)
 
     def _on_unfocus(self, e):
         theme = get_theme()
-        self.border.configure(bg=theme.border)
+        self.configure(
+            highlightbackground=theme.border_muted,
+            highlightthickness=DesignTokens.BORDER_WIDTH,
+        )
         self.icon_label.configure(fg=theme.text_muted)
     
     def _on_text_change(self, *args):

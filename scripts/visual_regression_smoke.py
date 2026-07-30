@@ -43,6 +43,7 @@ class ExtensionSurface:
 
 DESKTOP_SURFACES = (
     "desktop-main-empty-dark",
+    "desktop-main-list-dark",
     "desktop-main-list-light",
     "desktop-bookmark-editor-1280x720",
     "desktop-about-1280x720",
@@ -50,6 +51,7 @@ DESKTOP_SURFACES = (
     "desktop-dependency-cancelling-1280x720",
     "desktop-assistant-settings",
     "desktop-import-progress",
+    "desktop-import-center",
     "desktop-cleanup-review",
     "desktop-read-later-queue",
     "desktop-snapshot-failures-sidebar",
@@ -526,6 +528,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
     from bookmark_organizer_pro.services.snapshot import SnapshotBackendAttempt, SnapshotFailureStore
     from bookmark_organizer_pro.theme_runtime import get_theme_manager
     from bookmark_organizer_pro.ui.graph_view import GraphViewDialog
+    from bookmark_organizer_pro.ui.import_center import ImportCenterDialog, build_import_sources
     from bookmark_organizer_pro.ui.about import AboutDialog
     from bookmark_organizer_pro.ui.cleanup_review import CleanupReviewDialog, CleanupReviewGroup
     from bookmark_organizer_pro.ui.dependencies import DependencyCheckDialog
@@ -560,9 +563,8 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
                     "Bookmark Organizer Pro",
                     "Build a library worth returning to",
                     "Quick start",
-                    "Collection pulse",
-                    "Next best action",
-                    "Ask your library",
+                    "Focus",
+                    "Select a bookmark",
                 ),
             )
         )
@@ -646,33 +648,54 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
                 id=501,
                 url="https://example.com/visual-regression",
                 title="Visual Regression Guide",
+                description="A practical handbook for stable desktop screenshot testing.",
                 category="Development",
                 tags=["qa", "desktop"],
                 is_pinned=True,
                 read_later=True,
+                created_at="2026-07-12T09:00:00",
             ),
             Bookmark(
                 id=502,
                 url="https://docs.python.org/3/library/tkinter.html",
                 title="Tkinter Reference",
+                description="Native desktop widgets, layout, events, and accessibility.",
                 category="Development",
                 tags=["python"],
+                visit_count=2,
+                created_at="2026-07-10T09:00:00",
             ),
             Bookmark(
                 id=503,
                 url="https://developer.chrome.com/docs/extensions",
                 title="Extension Platform Notes",
+                description="Manifest V3 service workers, side panels, and storage contracts.",
                 category="Browsers",
                 tags=["extension"],
+                created_at="2026-07-11T09:00:00",
             ),
         ]
         for bookmark in sample_bookmarks:
             app.bookmark_manager.add_bookmark(bookmark, save=False)
         app.bookmark_manager.save_bookmarks()
         app._refresh_all()
+        app.tree.selection_set("502", emit=False)
+        app.selected_bookmarks = [502]
+        app._update_right_rail_selection()
 
         verify_desktop_viewports(root, theme_manager, collapsible_rail=lambda: app._right_sidebar)
         root.geometry("1540x980")
+        theme_manager.set_theme("github_dark")
+        root.update()
+        results.append(
+            capture_tk_window(
+                root,
+                output_dir,
+                "desktop-main-list-dark",
+                ("Bookmark Organizer Pro", "Visual Regression Guide", "Focus", "Tkinter Reference"),
+            )
+        )
+
         theme_manager.set_theme("github_light")
         root.update()
         results.append(
@@ -680,7 +703,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
                 root,
                 output_dir,
                 "desktop-main-list-light",
-                ("Bookmark Organizer Pro", "Bookmark"),
+                ("Bookmark Organizer Pro", "Library", "Focus", "Tkinter Reference"),
             )
         )
 
@@ -691,14 +714,17 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
         )
         app._refresh_all()
         root.update()
+        app._view_snapshot_failures()
+        snapshot_report = root.winfo_children()[-1]
         results.append(
             capture_tk_window(
-                root,
+                snapshot_report,
                 output_dir,
                 "desktop-snapshot-failures-sidebar",
-                ("Next best action", "Retry failed snapshots", "1 snapshot"),
+                ("Snapshot Failure Report", "failed snapshot", "Retry Failed"),
             )
         )
+        destroy_window(snapshot_report)
 
         root.withdraw()
         theme_manager.set_theme("github_dark")
@@ -726,6 +752,26 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
             )
         )
         destroy_window(import_modal)
+
+        import_center = ImportCenterDialog(
+            root,
+            sources=build_import_sources(("chrome", "firefox")),
+            on_select=lambda _source: None,
+        )
+        apply_screen_aware_geometry(
+            import_center, 900, 680, screen_width=1280, screen_height=720,
+        )
+        import_center.update()
+        assert_actionable_controls_inside(import_center)
+        results.append(
+            capture_tk_window(
+                import_center,
+                output_dir,
+                "desktop-import-center",
+                ("Import Center", "Chrome bookmarks", "Files stay on this device"),
+            )
+        )
+        destroy_window(import_center)
 
         cleanup_dialog = CleanupReviewDialog(
             root,
@@ -758,7 +804,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
                 cleanup_dialog,
                 output_dir,
                 "desktop-cleanup-review",
-                ("Duplicate Review", "Apply Selected", "Restore Safepoint", "Remove #505"),
+                ("Duplicate Review", "Apply selected", "Restore last safepoint", "Remove #505"),
             )
         )
         destroy_window(cleanup_dialog)
@@ -785,7 +831,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
                 export_dialog,
                 output_dir,
                 "desktop-export-dialog",
-                ("Export Bookmarks", "Export Format", "Categories"),
+                ("Export Bookmarks", "Choose a format", "Choose categories"),
             )
         )
         destroy_window(export_dialog)

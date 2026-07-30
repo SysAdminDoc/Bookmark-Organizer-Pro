@@ -6,12 +6,57 @@ import tkinter as tk
 from datetime import datetime, timedelta
 from typing import Dict, List
 
-from bookmark_organizer_pro.i18n import _, format_message
+from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.ui.feedback import ToastNotification
-from bookmark_organizer_pro.ui.foundation import DesignTokens, display_or_fallback, pluralize, truncate_middle
+from bookmark_organizer_pro.ui.foundation import DesignTokens, display_or_fallback, truncate_middle
 from bookmark_organizer_pro.ui.shell_widgets import ViewMode
 from bookmark_organizer_pro.ui.widgets import get_theme
+
+
+def _relative_added(value: str, now: datetime | None = None) -> str:
+    """Return a compact date label for the library table."""
+    try:
+        parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+        if parsed.tzinfo is not None:
+            parsed = parsed.replace(tzinfo=None)
+    except (TypeError, ValueError):
+        return "—"
+    now = now or datetime.now()
+    delta = max(0, (now.date() - parsed.date()).days)
+    if delta == 0:
+        return "Today"
+    if delta == 1:
+        return "Yesterday"
+    if delta < 7:
+        return f"{delta} days ago"
+    return parsed.strftime("%b %d, %Y")
+
+
+def _bookmark_status(bookmark: Bookmark) -> str:
+    """Describe a bookmark state without relying on color alone."""
+    if not bookmark.is_valid:
+        return "● Needs review"
+    if bookmark.read_later:
+        return "● Read later"
+    if bookmark.visit_count:
+        return "● Read"
+    return "● Unread"
+
+
+def _saved_cell(value: str, now: datetime | None = None) -> str:
+    """Return a two-line saved date that stays readable in a dense row."""
+    try:
+        parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+        if parsed.tzinfo is not None:
+            parsed = parsed.replace(tzinfo=None)
+    except (TypeError, ValueError):
+        return "—"
+    now = now or datetime.now()
+    age_in_days = max(0, (now.date() - parsed.date()).days)
+    if age_in_days < 7:
+        return f"{_relative_added(value, now)}\n{parsed.strftime('%b %d')}"
+    return f"{parsed.strftime('%b %d')}\n{parsed.strftime('%Y')}"
 
 
 class BookmarkViewMixin:
@@ -68,21 +113,12 @@ class BookmarkViewMixin:
         else:
             bookmarks.sort(key=lambda b: (not b.is_pinned, b.title.lower()))
 
-        if self.count_label:
-            n = len(bookmarks)
-            total = len(self.bookmark_manager.bookmarks)
-            if total == 0:
-                self.count_label.configure(text=_("Library"))
-                if getattr(self, 'view_hint_label', None):
-                    self.view_hint_label.configure(text=_("Ready to import"))
-            elif n != total:
-                self.count_label.configure(text=format_message('{value_0} Shown', value_0=pluralize(n, 'bookmark')))
-                if getattr(self, 'view_hint_label', None):
-                    self.view_hint_label.configure(text=_("Filtered view"))
-            else:
-                self.count_label.configure(text=pluralize(n, "Bookmark"))
-                if getattr(self, 'view_hint_label', None):
-                    self.view_hint_label.configure(text=_("List view"))
+        if self.count_label and not bookmarks and not self.bookmark_manager.bookmarks:
+            self.count_label.configure(text=_("Library"))
+            if getattr(self, 'library_context_label', None):
+                self.library_context_label.configure(text=_("Ready for your first save"))
+            if getattr(self, 'view_hint_label', None):
+                self.view_hint_label.configure(text=_("Local and ready"))
 
         self._refresh_filter_counts()
         total_bookmarks = len(self.bookmark_manager.get_all_bookmarks())
@@ -95,6 +131,19 @@ class BookmarkViewMixin:
                 query=query,
                 quick_filter=quick_filter or ""
             )
+        if getattr(self, "collection_filter_btn", None):
+            self.collection_filter_btn.set_text(self.current_category or "All collections")
+        if getattr(self, "tag_filter_btn", None):
+            tag_label = "All tags"
+            if query.lower().startswith("tag:"):
+                tag_label = f"#{query.split(':', 1)[1]}"
+            self.tag_filter_btn.set_text(tag_label)
+        if getattr(self, "type_filter_btn", None):
+            type_labels = {
+                "pinned": "Pinned", "recent": "Inbox",
+                "broken": "Needs review", "untagged": "Untagged",
+            }
+            self.type_filter_btn.set_text(type_labels.get(quick_filter, "All types"))
 
         # Toggle empty state vs list view
         if hasattr(self, 'empty_state'):
@@ -138,20 +187,13 @@ class BookmarkViewMixin:
         favicon_updates = []
         
         for index, bm in enumerate(bookmarks):
-            # Build a calm, scannable row summary with important status first.
-            status_parts = []
-            if bm.is_pinned:
-                status_parts.append("★")
-            if bm.ai_confidence > 0:
-                status_parts.append("AI")
-            if not bm.is_valid:
-                status_parts.append("Needs review")
-            if bm.is_archived:
-                status_parts.append("Archived")
-
-            prefix = " · ".join(status_parts)
+            # Build calm two-line cells and keep state/favorite controls in their
+            # own predictable columns.
             title_text = display_or_fallback(bm.title, "Untitled bookmark")
-            title = f"{prefix} · {title_text}" if prefix else title_text
+            subtitle = truncate_middle(
+                display_or_fallback(bm.description or bm.notes, bm.url), 72,
+            )
+            title = f"{truncate_middle(title_text, 54)}\n{subtitle}"
             
             # Keep rows scan-friendly: show one primary tag plus a count.
             if bm.tags:
@@ -166,9 +208,12 @@ class BookmarkViewMixin:
             if remaining > 0:
                 tags_str += f" +{remaining}"
 
-            category = truncate_middle(display_or_fallback(bm.category, "Uncategorized"), 28)
-            url_display = display_or_fallback(bm.domain, "Unknown domain")
-            tags_str = truncate_middle(tags_str, 26)
+            category = truncate_middle(display_or_fallback(bm.category, "Uncategorized"), 22)
+            organization = f"{category}\n{truncate_middle(tags_str, 28)}"
+            added = _saved_cell(bm.created_at)
+            status = _bookmark_status(bm)
+            favorite = "★" if bm.is_pinned else "☆"
+            domain_initial = display_or_fallback(bm.domain, "?")[0].upper()
 
             row_tags = ["evenrow" if index % 2 else "oddrow"]
             if not bm.is_valid:
@@ -179,9 +224,17 @@ class BookmarkViewMixin:
             item_id = str(bm.id)
             row_specs.append({
                 "iid": item_id,
-                "text": "  ",  # Padding space
-                "values": (title, url_display, category, tags_str),
+                "text": domain_initial,
+                "values": (title, organization, added, status, favorite),
                 "tags": tuple(row_tags),
+                "sort_values": {
+                    "#0": bm.domain,
+                    "title": bm.title,
+                    "organization": bm.category,
+                    "saved": bm.created_at,
+                    "status": status,
+                    "favorite": int(bool(bm.is_pinned)),
+                },
             })
             if bm.id in previous_selection:
                 restored_selection.append(item_id)
@@ -210,6 +263,8 @@ class BookmarkViewMixin:
                     values=row["values"],
                     tags=row["tags"],
                 )
+                if hasattr(self.tree, "set_sort_values"):
+                    self.tree.set_sort_values(row["iid"], row["sort_values"])
         for item_id, favicon_path in favicon_updates:
             self.tree.set_favicon(item_id, favicon_path)
 
@@ -225,6 +280,8 @@ class BookmarkViewMixin:
             self.selected_bookmarks = []
         self._update_status_counts()
         self._update_selection_bar()
+        if hasattr(self, "_update_right_rail_selection"):
+            self._update_right_rail_selection()
     
     def _on_favicon_progress(self, completed: int, total: int, current: str):
         """Favicon progress callback - thread-safe"""

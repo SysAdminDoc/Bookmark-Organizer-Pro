@@ -35,6 +35,7 @@ from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.ui.components import ScrollableFrame
 from bookmark_organizer_pro.ui.foundation import FONTS
 from bookmark_organizer_pro.ui.widgets import ModernButton, apply_window_chrome, get_theme
+from bookmark_organizer_pro.ui.window_geometry import apply_screen_aware_geometry
 
 # Keep only the most recent rows mounted (see module docstring).
 MAX_FEED_ROWS = 200
@@ -121,7 +122,7 @@ class LiveWorkflowDialog:
         dialog = tk.Toplevel(parent)
         dialog.title(format_message('{value_0} — Live', value_0=title))
         dialog.configure(bg=theme.bg_primary)
-        dialog.geometry(f"{width}x{height}")
+        apply_screen_aware_geometry(dialog, width, height)
         dialog.minsize(int(width * 0.85), int(height * 0.78))
         dialog.transient(parent)
         dialog.grab_set()
@@ -137,14 +138,23 @@ class LiveWorkflowDialog:
             pass
 
         # ── Header ──
-        header = tk.Frame(dialog, bg=theme.bg_secondary, padx=20, pady=12)
+        header = tk.Frame(dialog, bg=theme.bg_dark, padx=20, pady=12)
         header.pack(fill=tk.X)
+        title_stack = tk.Frame(header, bg=theme.bg_dark)
+        title_stack.pack(side=tk.LEFT, fill=tk.X, expand=True)
         tk.Label(
-            header, text=title, bg=theme.bg_secondary,
+            title_stack, text=title, bg=theme.bg_dark,
             fg=theme.text_primary, font=FONTS.subtitle(bold=True),
-        ).pack(side=tk.LEFT)
+        ).pack(anchor="w")
+        tk.Label(
+            title_stack,
+            text=_("Live progress • you can stop safely at any time"),
+            bg=theme.bg_dark,
+            fg=theme.text_secondary,
+            font=FONTS.small(),
+        ).pack(anchor="w", pady=(2, 0))
         self.stats_label = tk.Label(
-            header, text=format_message('0 / {value_0}', value_0=self.total), bg=theme.bg_secondary,
+            header, text=format_message('0 / {value_0}', value_0=self.total), bg=theme.bg_dark,
             fg=theme.text_secondary, font=FONTS.body(),
         )
         self.stats_label.pack(side=tk.RIGHT)
@@ -159,6 +169,16 @@ class LiveWorkflowDialog:
         self.feed_frame = ScrollableFrame(dialog, bg=theme.bg_primary)
         self.feed_frame.pack(fill=tk.BOTH, expand=True)
         self.feed = self.feed_frame.inner
+        self.empty_label = tk.Label(
+            self.feed,
+            text=_("Preparing the first result…"),
+            bg=theme.bg_primary,
+            fg=theme.text_muted,
+            font=FONTS.body(),
+            padx=20,
+            pady=36,
+        )
+        self.empty_label.pack(fill=tk.X)
 
         # ── Footer ──
         footer = tk.Frame(dialog, bg=theme.bg_secondary, padx=16, pady=10)
@@ -351,6 +371,11 @@ class LiveWorkflowDialog:
         self._schedule_pump()
 
     def _reveal_one(self, render_fn: Callable[[tk.Widget, object], None]):
+        try:
+            if self.empty_label.winfo_exists():
+                self.empty_label.destroy()
+        except Exception:
+            pass
         try:
             render_fn(self.feed, self.theme)
         except Exception:

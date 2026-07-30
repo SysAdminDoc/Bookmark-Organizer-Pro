@@ -166,6 +166,35 @@ vm.runInContext(`(async () => {
             self.assertNotIn("function storageSet(", source)
         self.assertNotIn("async function enqueuePendingSave(", background_js)
 
+    def test_extension_surfaces_share_premium_workspace_hierarchy_and_states(self):
+        popup_html = (EXT_DIR / "popup.html").read_text(encoding="utf-8")
+        options_html = (EXT_DIR / "options.html").read_text(encoding="utf-8")
+        sidepanel_html = (EXT_DIR / "sidepanel.html").read_text(encoding="utf-8")
+        popup_css = (EXT_DIR / "popup.css").read_text(encoding="utf-8")
+
+        for html in (popup_html, options_html, sidepanel_html):
+            self.assertIn('class="product-header"', html)
+            self.assertIn('class="brand-copy"', html)
+        for html in (popup_html, sidepanel_html):
+            self.assertIn('class="workspace-card form-card"', html)
+            self.assertIn('aria-atomic="true"', html)
+
+        self.assertIn("--selected:", popup_css)
+        self.assertIn(".workspace-card", popup_css)
+        self.assertIn('.status[data-tone="success"]', popup_css)
+        self.assertIn('.status[data-tone="error"]', popup_css)
+        self.assertIn("button:disabled", popup_css)
+        self.assertIn("@media (max-width: 310px)", popup_css)
+        self.assertNotIn("border-radius: 999", popup_css)
+
+    def test_sidepanel_bookmark_rows_render_domain_glyphs_and_navigation_cues(self):
+        sidepanel_js = (EXT_DIR / "sidepanel.js").read_text(encoding="utf-8")
+
+        self.assertIn('glyph.className = "bookmark-glyph"', sidepanel_js)
+        self.assertIn('arrow.className = "bookmark-arrow"', sidepanel_js)
+        self.assertIn('glyph.setAttribute("aria-hidden", "true")', sidepanel_js)
+        self.assertIn('arrow.setAttribute("aria-hidden", "true")', sidepanel_js)
+
     def test_settings_popup_and_sidepanel_round_trip_through_background_vault(self):
         background_js = (EXT_DIR / "background.js").read_text(encoding="utf-8")
         shared_js = (EXT_DIR / "shared.js").read_text(encoding="utf-8")

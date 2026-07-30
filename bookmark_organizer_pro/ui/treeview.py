@@ -62,6 +62,7 @@ class SortableTreeview(ttk.Treeview):
         
         self._sort_column = None
         self._sort_reverse = False
+        self._sort_values: Dict[str, Dict[str, object]] = {}
         self._favicon_images: Dict[str, tk.PhotoImage] = {}
         self._placeholder_images: Dict[str, tk.PhotoImage] = {}
         
@@ -75,8 +76,18 @@ class SortableTreeview(ttk.Treeview):
     def _sort_by_column(self, column: str):
         """Sort treeview by column"""
         # Get all items
-        items = [(self.set(item, column) if column != "#0" else self.item(item, "text"), item) 
-                 for item in self.get_children('')]
+        items = [
+            (
+                self._sort_values.get(str(item), {}).get(
+                    column,
+                    self.set(item, column)
+                    if column != "#0"
+                    else self.item(item, "text"),
+                ),
+                item,
+            )
+            for item in self.get_children("")
+        ]
         
         # Toggle sort direction
         if self._sort_column == column:
@@ -108,6 +119,22 @@ class SortableTreeview(ttk.Treeview):
                 self.heading(col, text=current_text + indicator)
             else:
                 self.heading(col, text=current_text)
+
+    def set_sort_values(self, item_id: str, values: Dict[str, object]):
+        """Attach stable raw values for columns with human-formatted cells."""
+        self._sort_values[str(item_id)] = dict(values)
+
+    def column_at_event(self, event) -> str:
+        """Return the logical column under a pointer event."""
+        identified = super().identify_column(event.x)
+        try:
+            index = int(str(identified).lstrip("#"))
+        except (TypeError, ValueError):
+            return ""
+        if index == 0:
+            return "#0"
+        columns = tuple(self["columns"])
+        return str(columns[index - 1]) if index <= len(columns) else ""
     
     def set_favicon(self, item_id: str, image_path: str):
         """Set favicon for an item"""
@@ -212,23 +239,30 @@ class VirtualBookmarkSheet(tk.Frame):
         self._item_values: Dict[str, tuple] = {}
         self._item_text: Dict[str, str] = {}
         self._item_tags: Dict[str, tuple] = {}
+        self._item_sort_values: Dict[str, Dict[str, object]] = {}
         self._selected_ids: List[str] = []
         self._sort_column: str | None = None
         self._sort_reverse = False
+        self._hovered_row: int | None = None
 
         self._sheet = Sheet(
             self,
             headers=[""] * len(self._columns),
             data=[],
             show_row_index=False,
-            show_x_scrollbar=True,
+            show_x_scrollbar=False,
             show_y_scrollbar=True,
             default_row_height=DesignTokens.TREEVIEW_ROW_HEIGHT,
-            default_header_height=28,
+            default_header_height=DesignTokens.TABLE_HEADER_HEIGHT,
+            align="w",
+            header_align="w",
             font=FONTS.body(),
             header_font=FONTS.small(bold=True),
-            table_wrap="",
+            table_wrap="w",
             header_wrap="",
+            rounded_boxes=False,
+            show_vertical_grid=False,
+            show_horizontal_grid=True,
             column_drag_and_drop_perform=False,
             row_drag_and_drop_perform=False,
             show_selected_cells_border=False,
@@ -238,8 +272,10 @@ class VirtualBookmarkSheet(tk.Frame):
             table_grid_fg=theme.border_muted,
             table_selected_rows_bg=theme.selection,
             table_selected_rows_fg=theme.text_primary,
+            table_selected_rows_border_fg=theme.accent_primary,
             table_selected_cells_bg=theme.selection,
             table_selected_cells_fg=theme.text_primary,
+            table_selected_cells_border_fg=theme.accent_primary,
             table_selected_columns_bg=theme.selection,
             table_selected_columns_fg=theme.text_primary,
             header_bg=theme.bg_secondary,
@@ -271,6 +307,8 @@ class VirtualBookmarkSheet(tk.Frame):
         try:
             # Table-body clicks update the actionable selection; header clicks sort.
             self._sheet.MT.bind("<ButtonRelease-1>", self._on_table_release, add="+")
+            self._sheet.MT.bind("<Motion>", self._on_table_motion, add="+")
+            self._sheet.MT.bind("<Leave>", self._on_table_leave, add="+")
             self._sheet.CH.bind("<ButtonRelease-1>", self._on_header_release, add="+")
         except AttributeError:
             self._sheet.bind("<ButtonRelease-1>", self._on_header_release, add="+")
@@ -309,6 +347,10 @@ class VirtualBookmarkSheet(tk.Frame):
         self._item_values = {str(row["iid"]): tuple(row.get("values", ())) for row in rows}
         self._item_text = {str(row["iid"]): str(row.get("text", "")) for row in rows}
         self._item_tags = {str(row["iid"]): tuple(row.get("tags", ())) for row in rows}
+        self._item_sort_values = {
+            str(row["iid"]): dict(row.get("sort_values", {}))
+            for row in rows
+        }
 
         data = [
             [self._item_text[item_id], *self._item_values[item_id]]
@@ -319,6 +361,11 @@ class VirtualBookmarkSheet(tk.Frame):
             reset_col_positions=False,
             reset_row_positions=True,
             reset_highlights=True,
+            redraw=False,
+        )
+        self._sheet.set_all_row_heights(
+            DesignTokens.TREEVIEW_ROW_HEIGHT,
+            only_set_if_too_small=False,
             redraw=False,
         )
         self._apply_headers()
@@ -343,6 +390,7 @@ class VirtualBookmarkSheet(tk.Frame):
                 "text": self._item_text.get(existing, ""),
                 "values": self._item_values.get(existing, ()),
                 "tags": self._item_tags.get(existing, ()),
+                "sort_values": self._item_sort_values.get(existing, {}),
             }
             for existing in self._row_to_id
         ]
@@ -361,6 +409,7 @@ class VirtualBookmarkSheet(tk.Frame):
                 "text": self._item_text.get(existing, ""),
                 "values": self._item_values.get(existing, ()),
                 "tags": self._item_tags.get(existing, ()),
+                "sort_values": self._item_sort_values.get(existing, {}),
             }
             for existing in self._row_to_id
             if existing != item_id
@@ -438,6 +487,16 @@ class VirtualBookmarkSheet(tk.Frame):
         if row is None or row < 0 or row >= len(self._row_to_id):
             return ""
         return self._row_to_id[row]
+
+    def column_at_event(self, event) -> str:
+        """Return the logical column under a pointer event."""
+        try:
+            column = self._sheet.identify_column(event, allow_end=False)
+        except Exception:
+            return ""
+        if column is None or column < 0 or column >= len(self._columns):
+            return ""
+        return self._columns[column]
 
     def focus(self, item: str | None = None):
         if item is not None and str(item) in self._id_to_row:
@@ -517,8 +576,10 @@ class VirtualBookmarkSheet(tk.Frame):
             table_grid_fg=theme.border_muted,
             table_selected_rows_bg=theme.selection,
             table_selected_rows_fg=theme.text_primary,
+            table_selected_rows_border_fg=theme.accent_primary,
             table_selected_cells_bg=theme.selection,
             table_selected_cells_fg=theme.text_primary,
+            table_selected_cells_border_fg=theme.accent_primary,
             table_selected_columns_bg=theme.selection,
             table_selected_columns_fg=theme.text_primary,
             header_bg=theme.bg_secondary,
@@ -544,6 +605,11 @@ class VirtualBookmarkSheet(tk.Frame):
             default_row_height=row_height,
             font=FONTS.body(),
             header_font=FONTS.small(bold=True),
+        )
+        self._sheet.set_all_row_heights(
+            row_height,
+            only_set_if_too_small=False,
+            redraw=True,
         )
 
     def _sync_selection_from_sheet(self):
@@ -577,6 +643,32 @@ class VirtualBookmarkSheet(tk.Frame):
         # when tksheet's "select" extra-binding does not fire for a plain click.
         self.after_idle(self._sync_selection_from_sheet)
 
+    def _on_table_motion(self, event):
+        """Apply a quiet row hover without disturbing semantic row tags."""
+        try:
+            row = self._sheet.identify_row(event, exclude_index=True, allow_end=False)
+        except Exception:
+            row = None
+        if row == self._hovered_row:
+            return
+        self._hovered_row = row
+        self._apply_row_highlights(redraw=False)
+        if isinstance(row, int) and 0 <= row < len(self._row_to_id):
+            from .widget_runtime import get_theme
+            self._sheet.highlight_rows(
+                row,
+                bg=get_theme().bg_hover,
+                highlight_index=False,
+                redraw=False,
+            )
+        self._sheet.redraw()
+
+    def _on_table_leave(self, _event=None):
+        if self._hovered_row is None:
+            return
+        self._hovered_row = None
+        self._apply_row_highlights()
+
     def _on_header_release(self, event):
         try:
             column_index = self._sheet.identify_column(event, allow_end=False)
@@ -595,7 +687,10 @@ class VirtualBookmarkSheet(tk.Frame):
         selected = set(self._selected_ids)
 
         def sort_value(item_id: str):
-            if column == "#0":
+            raw_values = self._item_sort_values.get(item_id, {})
+            if column in raw_values:
+                value = raw_values[column]
+            elif column == "#0":
                 value = self._item_text.get(item_id, "")
             else:
                 value_index = self._value_index(column)
@@ -620,6 +715,7 @@ class VirtualBookmarkSheet(tk.Frame):
                 "text": self._item_text.get(item_id, ""),
                 "values": self._item_values.get(item_id, ()),
                 "tags": self._item_tags.get(item_id, ()),
+                "sort_values": self._item_sort_values.get(item_id, {}),
             }
             for item_id in self._row_to_id
         ]

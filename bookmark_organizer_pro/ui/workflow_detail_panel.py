@@ -1,4 +1,4 @@
-"""Bookmark detail side panel."""
+"""Contextual bookmark inspector for the primary library rail."""
 
 from __future__ import annotations
 
@@ -6,279 +6,300 @@ import tkinter as tk
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
+from urllib.parse import urlparse
 
-from bookmark_organizer_pro.i18n import _, format_message
+from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.extraction_templates import (
     format_structured_value,
     structured_metadata_fields,
-    structured_metadata_payload,
 )
 
-from .foundation import FONTS, DesignTokens, readable_text_on
-from .tk_interactions import make_keyboard_activatable
-from .widget_controls import ModernButton, ThemedWidget, create_tooltip
+from .foundation import FONTS, DesignTokens, display_or_fallback
+from .widget_controls import ModernButton, ThemedWidget
 from .widget_runtime import get_theme
-from .workflow_runtime import _open_external_url
 
 
-# =============================================================================
-# Split View with Details Panel
-# =============================================================================
+def _bookmark_type(url: str) -> str:
+    """Return a calm human label for the inspector metadata."""
+    suffix = Path(urlparse(str(url or "")).path).suffix.lower()
+    if suffix == ".pdf":
+        return _("PDF")
+    if suffix in {".epub", ".mobi"}:
+        return _("E-book")
+    if suffix in {".mp3", ".m4a", ".wav", ".ogg"}:
+        return _("Audio")
+    if suffix in {".mp4", ".webm", ".mov"}:
+        return _("Video")
+    return _("Website")
+
+
+def _format_date(value: str) -> str:
+    """Format persisted ISO timestamps without raising on legacy values."""
+    try:
+        parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return display_or_fallback(value)
+    return parsed.strftime("%b %d, %Y · %I:%M %p").replace(" 0", " ")
+
+
+def _next_action(bookmark: Bookmark) -> tuple[str, str, str, str]:
+    """Return focused next-step copy plus the action kind to invoke."""
+    if not bookmark.is_valid:
+        return (
+            _("Verify this bookmark"),
+            _("Review the URL and details before returning it to your library."),
+            _("Review details"),
+            "edit",
+        )
+    if bookmark.read_later:
+        return (
+            _("Continue where you left off"),
+            _("Open the source and keep it in your reading queue."),
+            _("Continue reading"),
+            "open",
+        )
+    if not str(bookmark.notes or "").strip():
+        return (
+            _("Add useful context"),
+            _("A short note will make this save easier to rediscover."),
+            _("Add a note"),
+            "edit",
+        )
+    return (
+        _("Revisit the source"),
+        _("Open the original page when you are ready."),
+        _("Open bookmark"),
+        "open",
+    )
+
+
 class BookmarkDetailPanel(tk.Frame, ThemedWidget):
-    """Split-view detail panel showing full bookmark metadata and notes.
-        """
-    
-    def __init__(self, parent, on_edit: Callable = None, 
-                 on_open: Callable = None,
-                 on_delete: Callable = None):
+    """Selected-bookmark inspector with actions, metadata, and one next step."""
+
+    def __init__(
+        self,
+        parent,
+        on_edit: Callable[[Bookmark], None] | None = None,
+        on_open: Callable[[Bookmark], None] | None = None,
+        on_delete: Callable[[Bookmark], None] | None = None,
+        on_close: Callable[[], None] | None = None,
+    ):
         theme = get_theme()
-        super().__init__(parent, bg=theme.bg_secondary, width=DesignTokens.RIGHT_SIDEBAR_WIDTH)
-        
+        super().__init__(parent, bg=theme.bg_dark, width=DesignTokens.RIGHT_SIDEBAR_WIDTH)
         self.on_edit = on_edit
         self.on_open = on_open
         self.on_delete = on_delete
+        self.on_close = on_close
         self.current_bookmark: Optional[Bookmark] = None
-        
-        self.pack_propagate(False)
-        
-        # Header
-        self.header = tk.Frame(self, bg=theme.bg_tertiary)
-        self.header.pack(fill=tk.X)
-        
-        tk.Label(
-            self.header, text=_("Bookmark Details"), bg=theme.bg_tertiary,
-            fg=theme.text_primary, font=FONTS.body(bold=True),
-            padx=15, pady=12
-        ).pack(side=tk.LEFT)
-        
-        # Close button
-        close_btn = tk.Label(
-            self.header, text=_("✕"), bg=theme.bg_tertiary,
-            fg=theme.text_muted, font=FONTS.header(bold=False),
-            cursor="hand2", padx=15
-        )
-        close_btn.pack(side=tk.RIGHT)
-        make_keyboard_activatable(close_btn, lambda: self.pack_forget())
-        create_tooltip(close_btn, "Close Details")
-        
-        # Content
-        self.content = tk.Frame(self, bg=theme.bg_secondary)
-        self.content.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
-        
-        # Placeholder
-        self.placeholder = tk.Label(
-            self.content, text=_("Select a bookmark to view details"),
-            bg=theme.bg_secondary, fg=theme.text_muted,
-            font=FONTS.body()
-        )
-        self.placeholder.pack(expand=True)
-    
-    def show_bookmark(self, bookmark: Bookmark):
-        """Display bookmark details"""
-        theme = get_theme()
-        self.current_bookmark = bookmark
-        
-        # Clear content
-        for widget in self.content.winfo_children():
-            widget.destroy()
-        
-        # Favicon / Icon
-        icon_frame = tk.Frame(self.content, bg=theme.bg_secondary)
-        icon_frame.pack(fill=tk.X, pady=(0, 15))
-        
-        icon_label = tk.Label(
-            icon_frame, text=bookmark.domain[0].upper(),
-            bg=theme.accent_primary, fg=readable_text_on(theme.accent_primary),
-            font=FONTS.hero(bold=True),
-            width=3, height=1
-        )
-        icon_label.pack(side=tk.LEFT)
-        
-        # Title
-        title_frame = tk.Frame(icon_frame, bg=theme.bg_secondary)
-        title_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=15)
-        
-        tk.Label(
-            title_frame, text=bookmark.title,
-            bg=theme.bg_secondary, fg=theme.text_primary,
-            font=FONTS.header(),
-            wraplength=200, justify=tk.LEFT, anchor="w"
-        ).pack(fill=tk.X)
-        
-        tk.Label(
-            title_frame, text=bookmark.domain,
-            bg=theme.bg_secondary, fg=theme.text_muted,
-            font=FONTS.body()
-        ).pack(fill=tk.X, anchor="w")
-        
-        # Actions
-        actions = tk.Frame(self.content, bg=theme.bg_secondary)
-        actions.pack(fill=tk.X, pady=15)
-        
-        ModernButton(
-            actions, text=_("Open"),
-            command=lambda: self._open_bookmark()
-        ).pack(side=tk.LEFT, padx=(0, 5))
-        
-        ModernButton(
-            actions, text=_("Edit"),
-            command=lambda: self._edit_bookmark()
-        ).pack(side=tk.LEFT, padx=(0, 5))
-        
-        ModernButton(
-            actions, text=_("Delete"), style="danger",
-            command=lambda: self._delete_bookmark()
-        ).pack(side=tk.LEFT)
-        
-        # Separator
-        tk.Frame(self.content, bg=theme.border, height=1).pack(fill=tk.X, pady=15)
-        
-        # Details
-        self._add_detail("URL", bookmark.url, is_link=True)
-        self._add_detail("Category", bookmark.category)
-        
-        if bookmark.tags:
-            tags_text = ", ".join(f"#{t}" for t in bookmark.tags)
-            self._add_detail("Tags", tags_text)
-        
-        self._add_detail("Added", self._format_date(bookmark.created_at))
-        
-        if bookmark.last_visited:
-            self._add_detail("Last Visited", self._format_date(bookmark.last_visited))
-        
-        self._add_detail("Visits", str(bookmark.visit_count))
+        self.content = tk.Frame(self, bg=theme.bg_dark)
+        self.content.pack(fill=tk.BOTH, expand=True, padx=DesignTokens.PANEL_PAD)
+        self.clear()
 
-        if bookmark.snapshot_path:
-            self._add_detail("Snapshot", self._format_date(bookmark.snapshot_at) or "Available")
-            try:
-                from bookmark_organizer_pro.services.snapshot_history import SnapshotHistoryStore
-                versions = SnapshotHistoryStore(Path(bookmark.snapshot_path).parent).list_versions(bookmark.id)
-                self._add_detail("Versions", str(len(versions)))
-                if versions:
-                    latest = versions[0]
-                    provenance = f"{latest.status_code or 'n/a'} · {latest.resolved_url}"
-                    self._add_detail("Capture", provenance)
-                if len(versions) > 1:
-                    report = SnapshotHistoryStore(Path(bookmark.snapshot_path).parent).change_report(
-                        versions[1].version_id, versions[0].version_id, max_diff_lines=1,
-                    )
-                    changes = []
-                    if report["content_changed"]:
-                        changes.append("content")
-                    if report["redirect_changed"]:
-                        changes.append("redirect")
-                    if report["status_changed"]:
-                        changes.append("status")
-                    self._add_detail("Changed", ", ".join(changes) if changes else "No change")
-            except (OSError, RuntimeError, ValueError, KeyError):
-                pass
-        
-        # Status indicators
-        status_parts = []
-        if bookmark.is_pinned:
-            status_parts.append("Pinned")
-        if bookmark.is_archived:
-            status_parts.append("Archived")
-        if not bookmark.is_valid:
-            status_parts.append("Needs review")
-        if bookmark.ai_categorized:
-            status_parts.append(f"AI ({int(bookmark.ai_confidence*100)}%)")
-        
-        if status_parts:
-            self._add_detail("Status", " • ".join(status_parts))
-        
-        structured_fields = structured_metadata_fields(bookmark)
-        if structured_fields:
-            template = structured_metadata_payload(bookmark).get("template", "")
-            self._add_detail("Template", str(template or "Structured metadata"))
-            for key, value in sorted(structured_fields.items()):
-                self._add_detail(key.replace("_", " ").title(), format_structured_value(value))
-
-        # Notes
-        if bookmark.notes:
-            tk.Frame(self.content, bg=theme.border, height=1).pack(fill=tk.X, pady=15)
-            
-            tk.Label(
-                self.content, text=_("Notes:"), bg=theme.bg_secondary,
-                fg=theme.text_secondary, font=FONTS.body(),
-                anchor="w"
-            ).pack(fill=tk.X)
-            
-            notes_text = tk.Text(
-                self.content, bg=theme.bg_tertiary, fg=theme.text_primary,
-                font=FONTS.body(), height=4, wrap=tk.WORD, bd=0
-            )
-            notes_text.pack(fill=tk.X, pady=5)
-            notes_text.insert("1.0", bookmark.notes)
-            notes_text.configure(state=tk.DISABLED)
-    
-    def _add_detail(self, label: str, value: str, is_link: bool = False):
-        """Add a detail row"""
-        theme = get_theme()
-        
-        row = tk.Frame(self.content, bg=theme.bg_secondary)
-        row.pack(fill=tk.X, pady=3)
-        
-        tk.Label(
-            row, text=format_message('{value_0}:', value_0=label), bg=theme.bg_secondary,
-            fg=theme.text_secondary, font=FONTS.small(),
-            width=12, anchor="w"
-        ).pack(side=tk.LEFT)
-        
-        value_label = tk.Label(
-            row, text=value[:40] + _("...") if len(value) > 43 else value,
-            bg=theme.bg_secondary,
-            fg=theme.text_link if is_link else theme.text_primary,
-            font=FONTS.small(),
-            anchor="w", cursor="hand2" if is_link else ""
-        )
-        value_label.pack(side=tk.LEFT, fill=tk.X)
-        
-        if is_link:
-            make_keyboard_activatable(value_label, lambda v=value: _open_external_url(v))
-    
-    def _format_date(self, date_str: str) -> str:
-        """Format date string nicely"""
-        try:
-            dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-            return dt.strftime("%Y-%m-%d %H:%M")
-        except Exception:
-            return date_str
-    
-    def _open_bookmark(self):
-        if self.current_bookmark and self.on_open:
-            self.on_open(self.current_bookmark)
-    
-    def _edit_bookmark(self):
-        if self.current_bookmark and self.on_edit:
-            self.on_edit(self.current_bookmark)
-    
-    def _delete_bookmark(self):
-        if self.current_bookmark and self.on_delete:
-            self.on_delete(self.current_bookmark)
-    
-    def clear(self):
-        """Clear the panel"""
+    def clear(self, message: str | None = None):
+        """Reset the rail to a useful, non-blank selection prompt."""
         self.current_bookmark = None
         for widget in self.content.winfo_children():
             widget.destroy()
-        
         theme = get_theme()
-        self.placeholder = tk.Label(
-            self.content, text=_("Select a bookmark to view details"),
-            bg=theme.bg_secondary, fg=theme.text_muted,
-            font=FONTS.body()
+        empty = tk.Frame(
+            self.content, bg=theme.bg_card,
+            highlightbackground=theme.card_border, highlightthickness=1,
         )
-        self.placeholder.pack(expand=True)
-# =============================================================================
-# Archive, local web capture, and summarization services are implemented in bookmark_organizer_pro.services.
-# =============================================================================
+        empty.pack(fill=tk.X, pady=(8, 0))
+        tk.Label(
+            empty, text=_("Select a bookmark"), bg=theme.bg_card,
+            fg=theme.text_primary, font=FONTS.body(bold=True),
+        ).pack(anchor="w", padx=14, pady=(14, 4))
+        tk.Label(
+            empty,
+            text=message or _("Choose one row to see notes, saved state, and quick actions."),
+            bg=theme.bg_card, fg=theme.text_secondary, font=FONTS.small(),
+            justify=tk.LEFT, wraplength=280,
+        ).pack(anchor="w", padx=14, pady=(0, 14))
 
+    def show_bookmark(self, bookmark: Bookmark, **_context):
+        """Render a selected bookmark without opening another window."""
+        theme = get_theme()
+        self.current_bookmark = bookmark
+        for widget in self.content.winfo_children():
+            widget.destroy()
 
+        hero = tk.Frame(self.content, bg=theme.bg_dark)
+        hero.pack(fill=tk.X, pady=(10, 8))
+        domain = display_or_fallback(bookmark.domain, "?")
+        tk.Label(
+            hero, text=domain[0].upper(), bg=theme.bg_tertiary,
+            fg=theme.text_primary, font=FONTS.hero(bold=True), width=3, pady=9,
+        ).pack(side=tk.LEFT, anchor="n", padx=(0, 12))
+        identity = tk.Frame(hero, bg=theme.bg_dark)
+        identity.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        tk.Label(
+            identity, text=display_or_fallback(bookmark.title, _("Untitled bookmark")),
+            bg=theme.bg_dark, fg=theme.text_primary, font=FONTS.subtitle(bold=True),
+            wraplength=250, justify=tk.LEFT, anchor="w",
+        ).pack(fill=tk.X)
+        tk.Label(
+            identity, text=domain, bg=theme.bg_dark,
+            fg=theme.text_muted, font=FONTS.small(), anchor="w",
+        ).pack(fill=tk.X, pady=(3, 0))
 
-# =============================================================================
-# AI Semantic Duplicate Detection
-# =============================================================================
-# AI duplicate/cost services are implemented in bookmark_organizer_pro.services.
-# =============================================================================
+        status_text, status_color = self._status_presentation(bookmark)
+        status = tk.Frame(self.content, bg=theme.bg_dark)
+        status.pack(fill=tk.X, pady=(2, 12))
+        tk.Label(
+            status, text=_("●"), bg=theme.bg_dark, fg=status_color,
+            font=FONTS.tiny(),
+        ).pack(side=tk.LEFT)
+        tk.Label(
+            status, text=status_text, bg=theme.bg_dark, fg=theme.text_secondary,
+            font=FONTS.small(),
+        ).pack(side=tk.LEFT, padx=(5, 0))
+        tk.Label(
+            status, text=_("Type: {kind}").format(kind=_bookmark_type(bookmark.url)),
+            bg=theme.bg_dark, fg=theme.text_muted, font=FONTS.tiny(),
+        ).pack(side=tk.RIGHT)
+
+        ModernButton(
+            self.content, text=_("Open"), icon="↗", style="primary",
+            command=self._open_bookmark, tooltip=_("Open this bookmark"),
+            padx=12, pady=9,
+        ).pack(fill=tk.X, pady=(0, 8))
+        actions = tk.Frame(self.content, bg=theme.bg_dark)
+        actions.pack(fill=tk.X, pady=(0, 14))
+        ModernButton(
+            actions, text=_("Edit"), icon="✎", command=self._edit_bookmark,
+            tooltip=_("Edit title, collection, tags, notes, and URL"), pady=8,
+        ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 4))
+        self.more_button = ModernButton(
+            actions, text=_("More"), icon="⋮", command=self._show_more_menu,
+            tooltip=_("More bookmark actions"), pady=8,
+        )
+        self.more_button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(4, 0))
+
+        self._render_next_action(bookmark)
+
+        self._separator()
+        self._section_label(_("Notes"))
+        notes = str(bookmark.notes or "").strip()
+        tk.Label(
+            self.content,
+            text=notes or _("No notes yet. Edit this bookmark to add context for your future self."),
+            bg=theme.bg_dark, fg=theme.text_secondary if notes else theme.text_muted,
+            font=FONTS.small(), justify=tk.LEFT, anchor="w", wraplength=318,
+        ).pack(fill=tk.X, pady=(0, 12))
+
+        self._separator()
+        self._detail(_("Collection"), display_or_fallback(bookmark.category, _("Uncategorized")))
+        tags = [*bookmark.tags, *bookmark.ai_tags]
+        self._detail(_("Tags"), "  ".join(f"#{tag}" for tag in tags) if tags else _("No tags"))
+        self._detail(_("Saved"), _format_date(bookmark.created_at))
+        self._detail(_("Offline copy"), self._offline_state(bookmark))
+
+        structured_fields = structured_metadata_fields(bookmark)
+        if structured_fields:
+            self._separator()
+            self._section_label(_("Extracted details"))
+            for key, value in sorted(structured_fields.items())[:6]:
+                label = key.replace("_", " ").title()
+                self._detail(label, format_structured_value(value))
+
+    def _render_next_action(self, bookmark: Bookmark):
+        """Render one calm, state-aware recommendation instead of analytics."""
+        theme = get_theme()
+        self._separator()
+        self._section_label(_("Next action"))
+        title, detail, action_label, action_kind = _next_action(bookmark)
+        card = tk.Frame(
+            self.content, bg=theme.bg_card,
+            highlightbackground=theme.card_border, highlightthickness=1,
+        )
+        card.pack(fill=tk.X, pady=(0, 14))
+        tk.Label(
+            card, text=title, bg=theme.bg_card,
+            fg=theme.text_primary, font=FONTS.body(bold=True),
+            anchor="w",
+        ).pack(fill=tk.X, padx=13, pady=(12, 4))
+        tk.Label(
+            card, text=detail, bg=theme.bg_card,
+            fg=theme.text_secondary, font=FONTS.small(),
+            justify=tk.LEFT, anchor="w", wraplength=270,
+        ).pack(fill=tk.X, padx=13, pady=(0, 10))
+        command = self._edit_bookmark if action_kind == "edit" else self._open_bookmark
+        ModernButton(
+            card, text=action_label, icon="→", style="primary",
+            command=command, tooltip=detail, padx=11, pady=8,
+        ).pack(fill=tk.X, padx=13, pady=(0, 12))
+
+    def _detail(self, label: str, value: str):
+        theme = get_theme()
+        tk.Label(
+            self.content, text=label, bg=theme.bg_dark,
+            fg=theme.text_muted, font=FONTS.tiny(), anchor="w",
+        ).pack(fill=tk.X, pady=(0, 2))
+        tk.Label(
+            self.content, text=display_or_fallback(value), bg=theme.bg_dark,
+            fg=theme.text_primary, font=FONTS.small(), anchor="w",
+            justify=tk.LEFT, wraplength=318,
+        ).pack(fill=tk.X, pady=(0, 10))
+
+    def _section_label(self, text: str):
+        theme = get_theme()
+        tk.Label(
+            self.content, text=text, bg=theme.bg_dark,
+            fg=theme.text_primary, font=FONTS.body(bold=True), anchor="w",
+        ).pack(fill=tk.X, pady=(0, 7))
+
+    def _separator(self):
+        theme = get_theme()
+        tk.Frame(self.content, bg=theme.border_muted, height=1).pack(fill=tk.X, pady=(2, 12))
+
+    def _status_presentation(self, bookmark: Bookmark) -> tuple[str, str]:
+        theme = get_theme()
+        if not bookmark.is_valid:
+            return _("Needs review"), theme.accent_warning
+        if bookmark.read_later:
+            return _("Read later"), theme.accent_secondary
+        if bookmark.visit_count:
+            return _("Read"), theme.accent_success
+        return _("Unread"), theme.accent_cyan
+
+    @staticmethod
+    def _offline_state(bookmark: Bookmark) -> str:
+        path = str(bookmark.snapshot_path or "").strip()
+        if not path:
+            return _("Not captured")
+        try:
+            size = Path(path).stat().st_size
+        except OSError:
+            return _("Capture unavailable")
+        if size >= 1024 * 1024:
+            rendered = f"{size / (1024 * 1024):.1f} MB"
+        else:
+            rendered = f"{max(1, round(size / 1024))} KB"
+        return _("Available ({size})").format(size=rendered)
+
+    def _show_more_menu(self):
+        theme = get_theme()
+        menu = tk.Menu(
+            self, tearoff=0, bg=theme.bg_secondary, fg=theme.text_primary,
+            activebackground=theme.selection, activeforeground=theme.text_primary,
+            borderwidth=0,
+        )
+        menu.add_command(label=_("Edit bookmark"), command=self._edit_bookmark)
+        menu.add_separator()
+        menu.add_command(label=_("Delete bookmark…"), command=self._delete_bookmark)
+        button = self.more_button
+        menu.tk_popup(button.winfo_rootx(), button.winfo_rooty() + button.winfo_height() + 3)
+
+    def _open_bookmark(self):
+        if self.current_bookmark and self.on_open:
+            self.on_open(self.current_bookmark)
+
+    def _edit_bookmark(self):
+        if self.current_bookmark and self.on_edit:
+            self.on_edit(self.current_bookmark)
+
+    def _delete_bookmark(self):
+        if self.current_bookmark and self.on_delete:
+            self.on_delete(self.current_bookmark)

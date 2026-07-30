@@ -8,10 +8,13 @@
 </head>
 <body class="sidepanel-body">
   <main class="panel">
-    <header>
+    <header class="product-header">
       <div class="brand-row">
         <span class="brand-mark">B</span>
-        <p class="eyebrow" data-i18n="extensionName">Bookmark Organizer Pro</p>
+        <div class="brand-copy">
+          <p class="product-name" data-i18n="extensionName">Bookmark Organizer Pro</p>
+          <p class="eyebrow" data-i18n="libraryCompanion">Library companion</p>
+        </div>
       </div>
     </header>
 
@@ -40,6 +43,10 @@
     </div>
 
     <div id="tab-recent" class="tab-content active" role="tabpanel" aria-labelledby="tab-btn-recent">
+      <div class="tab-heading">
+        <div><p class="section-kicker" data-i18n="library">Library</p><h1 data-i18n="recent">Recent</h1></div>
+        <span class="compact-count" id="recentCount" aria-hidden="true"></span>
+      </div>
       <ul id="recentList" class="bookmark-list" aria-busy="true"></ul>
       <button id="loadMoreRecent" class="secondary" type="button" hidden data-i18n="loadMore">Load More</button>
       <div id="rediscoverSection" style="display:none">
@@ -49,6 +56,7 @@
     </div>
 
     <div id="tab-search" class="tab-content" role="tabpanel" aria-labelledby="tab-btn-search" hidden>
+      <div class="tab-heading"><div><p class="section-kicker" data-i18n="find">Find</p><h1 data-i18n="search">Search</h1></div></div>
       <div class="search-box">
         <input id="searchInput" type="text" placeholder="Search bookmarks..." data-i18n-placeholder="searchBookmarksPlaceholder" autocomplete="off" aria-label="Search bookmarks" data-i18n-aria-label="searchBookmarks">
         <button id="searchBtn" type="button" data-i18n="search">Search</button>
@@ -58,7 +66,9 @@
 
     <div id="tab-add" class="tab-content" role="tabpanel" aria-labelledby="tab-btn-add" hidden>
       <div class="quick-add">
-        <p id="addPageTitle" class="current-page"></p>
+        <div class="tab-heading"><div><p class="section-kicker" data-i18n="currentPage">Current page</p><h1 data-i18n="add">Add</h1></div></div>
+        <p id="addPageTitle" class="current-page page-summary"></p>
+        <div class="workspace-card form-card">
         <label>
           <span data-i18n="category">Category</span>
           <input id="addCategory" type="text" autocomplete="off" list="categoryList">
@@ -81,11 +91,12 @@
           <span data-i18n="preserveSignedInPage">Preserve this signed-in page</span>
         </label>
         <p class="field-hint" data-i18n="captureHint">Uploads a sanitized page copy (up to 4.5 MB). Bounded same-site styles, images, and fonts are embedded; scripts and forms are removed, omissions are reported, and cookies are never sent.</p>
+        </div>
         <div class="actions">
           <button id="addSaveBtn" type="button" data-i18n="saveBookmark">Save Bookmark</button>
           <button id="importReadingListBtn" class="secondary" type="button" title="Import from Chrome Reading List" data-i18n="readingList" data-i18n-title="importReadingList">Reading List</button>
         </div>
-        <p id="addStatus" class="status" role="status" aria-live="polite"></p>
+        <p id="addStatus" class="status" role="status" aria-live="polite" aria-atomic="true"></p>
       </div>
     </div>
   </main>

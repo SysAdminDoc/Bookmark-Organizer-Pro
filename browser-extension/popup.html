@@ -6,43 +6,55 @@
   <title>Save to Bookmark Organizer Pro</title>
   <link rel="stylesheet" href="popup.css">
 </head>
-<body>
+<body class="popup-body">
   <main class="panel">
-    <header>
+    <header class="product-header">
       <div class="brand-row">
         <span class="brand-mark">B</span>
-        <p class="eyebrow" data-i18n="extensionName">Bookmark Organizer Pro</p>
+        <div class="brand-copy">
+          <p class="product-name" data-i18n="extensionName">Bookmark Organizer Pro</p>
+          <p class="eyebrow" data-i18n="localFirstCapture">Local-first capture</p>
+        </div>
+        <span class="privacy-mark" aria-label="Saved locally" data-i18n-aria-label="savedLocally" title="Saved locally" data-i18n-title="savedLocally">&#10003;</span>
       </div>
-      <h1 data-i18n="saveBookmark">Save Bookmark</h1>
-      <p id="pageTitle" class="page-summary" data-i18n="loadingActiveTab">Loading active tab...</p>
     </header>
 
-    <label>
-      <span data-i18n="category">Category</span>
-      <input id="category" type="text" autocomplete="off" list="categoryList">
-      <datalist id="categoryList"></datalist>
-    </label>
+    <section class="surface-heading">
+      <p class="section-kicker" data-i18n="currentPage">Current page</p>
+      <h1 data-i18n="saveBookmark">Save Bookmark</h1>
+      <p id="pageTitle" class="page-summary" data-i18n="loadingActiveTab">Loading active tab...</p>
+    </section>
 
-    <label>
-      <span data-i18n="tags">Tags</span>
-      <input id="tags" type="text" placeholder="design, research, reading" data-i18n-placeholder="tagsPlaceholder" autocomplete="off">
-    </label>
+    <section class="workspace-card form-card">
+      <label>
+        <span data-i18n="category">Category</span>
+        <input id="category" type="text" autocomplete="off" list="categoryList">
+        <datalist id="categoryList"></datalist>
+      </label>
 
-    <label>
-      <span data-i18n="notes">Notes</span>
-      <textarea id="notes" maxlength="5000" placeholder="Add context you will want when rediscovering this page." data-i18n-placeholder="notesPlaceholder"></textarea>
-    </label>
+      <label>
+        <span data-i18n="tags">Tags</span>
+        <input id="tags" type="text" placeholder="design, research, reading" data-i18n-placeholder="tagsPlaceholder" autocomplete="off">
+      </label>
 
-    <label class="checkbox-row">
-      <input id="readLater" type="checkbox">
-      <span data-i18n="readLater">Read Later</span>
-    </label>
+      <label>
+        <span data-i18n="notes">Notes</span>
+        <textarea id="notes" maxlength="5000" placeholder="Add context you will want when rediscovering this page." data-i18n-placeholder="notesPlaceholder"></textarea>
+      </label>
 
-    <label class="checkbox-row">
-      <input id="captureSnapshot" type="checkbox">
-      <span data-i18n="preserveSignedInPage">Preserve this signed-in page</span>
-    </label>
-    <p class="field-hint" data-i18n="captureHint">Uploads a sanitized page copy (up to 4.5 MB). Bounded same-site styles, images, and fonts are embedded; scripts and forms are removed, omissions are reported, and cookies are never sent.</p>
+      <div class="choice-group">
+        <label class="checkbox-row">
+          <input id="readLater" type="checkbox">
+          <span data-i18n="readLater">Read Later</span>
+        </label>
+
+        <label class="checkbox-row">
+          <input id="captureSnapshot" type="checkbox">
+          <span data-i18n="preserveSignedInPage">Preserve this signed-in page</span>
+        </label>
+        <p class="field-hint" data-i18n="captureHint">Uploads a sanitized page copy (up to 4.5 MB). Bounded same-site styles, images, and fonts are embedded; scripts and forms are removed, omissions are reported, and cookies are never sent.</p>
+      </div>
+    </section>
 
     <div class="actions">
       <button id="saveBookmark" type="button" data-i18n="saveBookmark">Save Bookmark</button>
@@ -60,7 +72,7 @@
       </div>
     </section>
 
-    <p id="status" class="status" role="status" aria-live="polite"></p>
+    <p id="status" class="status" role="status" aria-live="polite" aria-atomic="true"></p>
   </main>
   <script src="i18n.js"></script>
   <script src="shared.js"></script>

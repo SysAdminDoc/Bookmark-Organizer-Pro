@@ -34,6 +34,7 @@ from .quick_add import (
 )
 from .widget_controls import ModernButton, ThemedWidget
 from .widget_runtime import apply_window_chrome, get_theme
+from .window_geometry import apply_screen_aware_geometry
 
 # =============================================================================
 # AI background services are implemented in bookmark_organizer_pro.services.
@@ -63,13 +64,13 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         theme = get_theme()
         
         self.title(_("Add Bookmark"))
-        self.geometry("560x420")
+        apply_screen_aware_geometry(self, 600, 500)
+        self.minsize(520, 460)
+        self.resizable(True, False)
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
         self.grab_set()
         
-        # Make it appear centered and always on top
-        self.attributes('-topmost', True)
         apply_window_chrome(self)
 
         header = tk.Frame(self, bg=theme.bg_dark)
@@ -81,7 +82,7 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         ).pack(anchor="w", padx=24, pady=(18, 3))
 
         tk.Label(
-            header, text=_("Paste a URL now. You can refine title, category, and icon before saving."),
+            header, text=_("Save a link locally, then organize it so it is easy to find again."),
             bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small()
         ).pack(anchor="w", padx=24, pady=(0, 16))
         
@@ -104,6 +105,16 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
             highlightcolor=theme.border_active, font=FONTS.body()
         )
         self.url_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10, ipady=8)
+        self.url_feedback = tk.Label(
+            self,
+            text=_("Paste a full URL, or enter a domain and https:// will be added."),
+            bg=theme.bg_primary,
+            fg=theme.text_muted,
+            font=FONTS.tiny(),
+            anchor="w",
+        )
+        self.url_feedback.pack(fill=tk.X, padx=(138, 34), pady=(0, 8))
+        self.url_var.trace_add("write", lambda *_: self._clear_url_feedback())
         
         # Title field (optional)
         title_frame = tk.Frame(self, bg=theme.bg_primary)
@@ -205,7 +216,7 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         ).pack(side=tk.RIGHT)
         
         # Keyboard shortcuts
-        self.bind("<Return>", lambda e: self._add())
+        self.bind("<Control-Return>", lambda e: self._add())
         self.bind("<Escape>", lambda e: self.destroy())
         
         # Focus URL entry
@@ -213,6 +224,20 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
         self.url_entry.select_range(0, tk.END)
         
         self.center_window()
+
+    def _clear_url_feedback(self):
+        theme = get_theme()
+        self.url_feedback.configure(
+            text=_("Paste a full URL, or enter a domain and https:// will be added."),
+            fg=theme.text_muted,
+        )
+        self.url_entry.configure(highlightbackground=theme.border_muted)
+
+    def _show_url_error(self, message: str):
+        theme = get_theme()
+        self.url_feedback.configure(text=message, fg=theme.accent_error)
+        self.url_entry.configure(highlightbackground=theme.accent_error)
+        self.url_entry.focus_set()
 
     def _clear_title_placeholder(self, event=None):
         """Clear title helper text only when it is the active placeholder."""
@@ -394,8 +419,7 @@ class QuickAddDialog(tk.Toplevel, ThemedWidget):
             favicon_placeholder_active=self._favicon_placeholder_active,
         )
         if not payload:
-            messagebox.showwarning(_("Bookmark URL Needed"), error, parent=self)
-            self.url_entry.focus_set()
+            self._show_url_error(error or "Enter a bookmark URL before saving.")
             self.url_entry.select_range(0, tk.END)
             return
         

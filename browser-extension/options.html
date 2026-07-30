@@ -8,29 +8,44 @@
 </head>
 <body class="options-body">
   <main class="panel">
-    <header>
+    <header class="product-header">
       <div class="brand-row">
         <span class="brand-mark">B</span>
-        <p class="eyebrow" data-i18n="extensionSettings">Extension settings</p>
+        <div class="brand-copy">
+          <p class="product-name" data-i18n="extensionName">Bookmark Organizer Pro</p>
+          <p class="eyebrow" data-i18n="extensionSettings">Extension settings</p>
+        </div>
       </div>
-      <h1 data-i18n="localApi">Local API</h1>
-      <p data-i18n="connectDescription">Connect the extension to the local Bookmark Organizer Pro API.</p>
     </header>
 
-    <label>
-      <span data-i18n="apiPort">API port</span>
-      <input id="apiPort" type="number" min="1" max="65535" value="8765">
-    </label>
+    <section class="options-heading">
+      <p class="section-kicker" data-i18n="connection">Connection</p>
+      <h1 data-i18n="localApi">Local API</h1>
+      <p data-i18n="connectDescription">Connect the extension to the local Bookmark Organizer Pro API.</p>
+    </section>
 
-    <label>
-      <span data-i18n="apiToken">API token</span>
-      <input id="apiToken" type="password" autocomplete="off" spellcheck="false">
-    </label>
+    <section class="workspace-card settings-card">
+      <div class="setting-copy">
+        <h2 data-i18n="localConnection">Local connection</h2>
+        <p data-i18n="credentialPrivacy">Credentials stay in the extension vault and connect only to this device.</p>
+      </div>
+      <div class="settings-grid">
+        <label>
+          <span data-i18n="apiPort">API port</span>
+          <input id="apiPort" type="number" min="1" max="65535" value="8765" inputmode="numeric">
+        </label>
 
-    <label>
-      <span data-i18n="defaultCategory">Default category</span>
-      <input id="defaultCategory" type="text" value="Uncategorized / Needs Review">
-    </label>
+        <label>
+          <span data-i18n="apiToken">API token</span>
+          <input id="apiToken" type="password" autocomplete="off" spellcheck="false">
+        </label>
+      </div>
+
+      <label>
+        <span data-i18n="defaultCategory">Default category</span>
+        <input id="defaultCategory" type="text" value="Uncategorized / Needs Review">
+      </label>
+    </section>
 
     <div class="actions">
       <button id="saveOptions" type="button" data-i18n="saveSettings">Save Settings</button>
@@ -38,7 +53,7 @@
       <button id="replacePairing" class="secondary" type="button" data-i18n="replacePairing">Replace Pairing</button>
     </div>
 
-    <p id="status" class="status" role="status" aria-live="polite"></p>
+    <p id="status" class="status" role="status" aria-live="polite" aria-atomic="true"></p>
   </main>
   <script src="i18n.js"></script>
   <script src="shared.js"></script>

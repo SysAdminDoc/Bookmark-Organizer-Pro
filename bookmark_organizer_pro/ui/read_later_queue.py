@@ -7,11 +7,12 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable, Iterable, List
 
-from bookmark_organizer_pro.i18n import _, format_plural
+from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.read_later import ReadLaterQueue
 
 from .foundation import FONTS, truncate_middle
+from .window_geometry import apply_screen_aware_geometry
 from .widgets import ModernButton, apply_window_chrome, get_theme
 
 
@@ -60,7 +61,7 @@ class ReadLaterQueueDialog(tk.Toplevel):
 
         self.title(_("Read Later Queue"))
         self.configure(bg=self._theme.bg_primary)
-        self.geometry("760x560")
+        apply_screen_aware_geometry(self, 820, 600)
         self.minsize(680, 480)
         self.transient(parent)
         self.grab_set()
@@ -72,19 +73,21 @@ class ReadLaterQueueDialog(tk.Toplevel):
 
     def _build(self) -> None:
         theme = self._theme
-        header = tk.Frame(self, bg=theme.bg_primary)
-        header.pack(fill=tk.X, padx=22, pady=(20, 12))
+        header = tk.Frame(self, bg=theme.bg_dark)
+        header.pack(fill=tk.X, pady=(0, 12))
+        title_stack = tk.Frame(header, bg=theme.bg_dark)
+        title_stack.pack(fill=tk.X, padx=22, pady=(17, 15))
         tk.Label(
-            header,
+            title_stack,
             text=_("Read Later Queue"),
-            bg=theme.bg_primary,
+            bg=theme.bg_dark,
             fg=theme.text_primary,
             font=FONTS.title(bold=True),
         ).pack(anchor="w")
         tk.Label(
-            header,
+            title_stack,
             text=_("Open, reorder, complete, or remove queued bookmarks without leaving the desktop workspace."),
-            bg=theme.bg_primary,
+            bg=theme.bg_dark,
             fg=theme.text_secondary,
             font=FONTS.body(),
             wraplength=690,
@@ -113,6 +116,7 @@ class ReadLaterQueueDialog(tk.Toplevel):
         self.listbox.bind("<Double-Button-1>", lambda _event: self._open_selected())
         self.listbox.bind("<Return>", lambda _event: self._open_selected())
         self.listbox.bind("<space>", lambda _event: self._open_selected())
+        self.listbox.bind("<<ListboxSelect>>", lambda _event: self._sync_action_states())
 
         controls = tk.Frame(body, bg=theme.bg_primary)
         controls.pack(side=tk.RIGHT, fill=tk.Y, padx=(14, 0))
@@ -124,8 +128,11 @@ class ReadLaterQueueDialog(tk.Toplevel):
             (_("Mark Done"), self._mark_done, "success"),
             (_("Remove"), self._remove_selected, "danger"),
         ]
+        self._action_buttons: list[ModernButton] = []
         for text, command, style in button_specs:
-            ModernButton(controls, text=text, command=command, style=style, padx=14, pady=8).pack(fill=tk.X, pady=(0, 8))
+            button = ModernButton(controls, text=text, command=command, style=style, padx=14, pady=8)
+            button.pack(fill=tk.X, pady=(0, 8))
+            self._action_buttons.append(button)
 
         footer = tk.Frame(self, bg=theme.bg_primary)
         footer.pack(fill=tk.X, padx=22, pady=(0, 18))
@@ -140,6 +147,15 @@ class ReadLaterQueueDialog(tk.Toplevel):
         ).pack(side=tk.LEFT, fill=tk.X, expand=True)
         ModernButton(footer, text=_("Close"), command=self.destroy, padx=16, pady=8).pack(side=tk.RIGHT)
 
+    def _sync_action_states(self) -> None:
+        if not hasattr(self, "_action_buttons"):
+            return
+        has_rows = bool(self._rows)
+        has_selection = has_rows and bool(self.listbox.curselection())
+        for index, button in enumerate(self._action_buttons):
+            enabled = has_rows if index == 0 else has_selection
+            button.set_state("normal" if enabled else "disabled")
+
     def _all_bookmarks(self) -> List[Bookmark]:
         return list(self.bookmark_manager.get_all_bookmarks())
 
@@ -153,8 +169,9 @@ class ReadLaterQueueDialog(tk.Toplevel):
         self._rows = build_read_later_rows(self._all_bookmarks())
         self.listbox.delete(0, tk.END)
         if not self._rows:
-            self.listbox.insert(tk.END, _("Nothing queued"))
-            self._status_var.set(_("Read Later is empty. Add bookmarks from the editor or browser extension."))
+            self.listbox.insert(tk.END, _("Nothing queued — add a bookmark to Read Later to see it here."))
+            self._status_var.set(_("Queue is clear. Add items from the bookmark editor or browser extension."))
+            self._sync_action_states()
             return
 
         for row in self._rows:
@@ -169,13 +186,9 @@ class ReadLaterQueueDialog(tk.Toplevel):
                     break
         self.listbox.selection_set(selected_index)
         self.listbox.activate(selected_index)
-        count = len(self._rows)
-        self._status_var.set(format_plural(
-            "{count} queued bookmark.",
-            "{count} queued bookmarks.",
-            count,
-            count=count,
-        ))
+        self.listbox.see(selected_index)
+        self._status_var.set(_("{count} queued • changes save automatically").format(count=len(self._rows)))
+        self._sync_action_states()
 
     def _selected_row(self) -> ReadLaterQueueRow | None:
         if not self._rows:

@@ -177,7 +177,10 @@ class StyleManager:
             background=colors.bg_primary,
             foreground=colors.text_primary,
             fieldbackground=colors.bg_primary,
-            borderwidth=0,
+            borderwidth=DesignTokens.BORDER_WIDTH,
+            bordercolor=colors.border_muted,
+            lightcolor=colors.border_muted,
+            darkcolor=colors.border_muted,
             rowheight=DesignTokens.TREEVIEW_ROW_HEIGHT,
             font=FONTS.body(),
             relief="flat"
@@ -188,18 +191,25 @@ class StyleManager:
             foreground=colors.text_secondary,
             borderwidth=0,
             font=FONTS.small(bold=True),
-            padding=(DesignTokens.SPACE_MD, DesignTokens.SPACE_SM),
+            padding=(DesignTokens.SPACE_LG, DesignTokens.SPACE_MD),
             relief="flat"
         )
         
         self.style.map("Treeview",
             background=[
                 ("selected", colors.selection),
+                ("disabled", colors.bg_tertiary),
+                ("active", colors.bg_hover),
                 ("!selected", colors.bg_primary)
             ],
             foreground=[
                 ("selected", colors.text_primary),
+                ("disabled", colors.text_muted),
                 ("!selected", colors.text_primary)
+            ],
+            bordercolor=[
+                ("focus", colors.border_active),
+                ("!focus", colors.border_muted),
             ]
         )
         
@@ -220,7 +230,7 @@ class StyleManager:
             foreground=colors.text_primary,
             borderwidth=1,
             bordercolor=colors.border_muted,
-            focusthickness=0,
+            focusthickness=DesignTokens.FOCUS_RING_WIDTH,
             focuscolor=colors.border_active,
             padding=(DesignTokens.BUTTON_PAD_X, DesignTokens.BUTTON_PAD_Y),
             font=FONTS.small(bold=True)
@@ -246,7 +256,7 @@ class StyleManager:
         self.style.configure("Primary.TButton",
             background=colors.accent_primary,
             foreground=readable_text_on(colors.accent_primary),
-            borderwidth=0,
+            borderwidth=DesignTokens.BORDER_WIDTH,
             bordercolor=colors.accent_primary,
             padding=(DesignTokens.SPACE_LG, DesignTokens.SPACE_SM),
             font=FONTS.small(bold=True)
@@ -260,6 +270,11 @@ class StyleManager:
             ],
             foreground=[
                 ("disabled", colors.text_muted)
+            ],
+            bordercolor=[
+                ("focus", colors.border_active),
+                ("disabled", colors.border_muted),
+                ("!focus", colors.accent_primary),
             ]
         )
         
@@ -274,7 +289,11 @@ class StyleManager:
         self.style.map("Success.TButton",
             background=[
                 ("pressed", colors.status_success),
-                ("active", colors.status_success)
+                ("active", colors.status_success),
+                ("disabled", colors.bg_tertiary),
+            ],
+            foreground=[
+                ("disabled", colors.text_muted),
             ]
         )
         
@@ -289,7 +308,11 @@ class StyleManager:
         self.style.map("Danger.TButton",
             background=[
                 ("pressed", colors.status_error),
-                ("active", colors.status_error)
+                ("active", colors.status_error),
+                ("disabled", colors.bg_tertiary),
+            ],
+            foreground=[
+                ("disabled", colors.text_muted),
             ]
         )
         
@@ -305,7 +328,8 @@ class StyleManager:
         
         self.style.map("TEntry",
             fieldbackground=[
-                ("focus", colors.bg_tertiary),
+                ("disabled", colors.bg_tertiary),
+                ("focus", colors.bg_secondary),
                 ("!focus", colors.bg_secondary)
             ],
             bordercolor=[
@@ -332,14 +356,23 @@ class StyleManager:
         
         self.style.map("TCombobox",
             fieldbackground=[
+                ("disabled", colors.bg_tertiary),
                 ("readonly", colors.bg_secondary),
-                ("focus", colors.bg_tertiary)
+                ("focus", colors.bg_secondary)
             ],
             selectbackground=[("!focus", colors.selection)],
             selectforeground=[("!focus", colors.text_primary)],
             bordercolor=[
                 ("focus", colors.border_active),
                 ("!focus", colors.border_muted)
+            ],
+            foreground=[
+                ("disabled", colors.text_muted),
+                ("!disabled", colors.text_primary),
+            ],
+            arrowcolor=[
+                ("disabled", colors.text_muted),
+                ("!disabled", colors.text_secondary),
             ]
         )
         
@@ -513,7 +546,8 @@ class StyleManager:
         # Card style
         self.style.configure("Card.TFrame",
             background=colors.card_bg,
-            borderwidth=1,
+            borderwidth=DesignTokens.ELEVATION_BORDER_WIDTH,
+            bordercolor=colors.card_border,
             relief="solid"
         )
         
@@ -536,14 +570,26 @@ class StyleManager:
         self.style.configure("Toolbar.TButton",
             background=colors.bg_secondary,
             foreground=colors.text_primary,
-            borderwidth=0,
+            borderwidth=DesignTokens.BORDER_WIDTH,
+            bordercolor=colors.border_muted,
+            focusthickness=DesignTokens.FOCUS_RING_WIDTH,
+            focuscolor=colors.border_active,
             padding=(DesignTokens.SPACE_SM, DesignTokens.SPACE_SM)
         )
         
         self.style.map("Toolbar.TButton",
             background=[
                 ("pressed", colors.bg_hover),
-                ("active", colors.bg_tertiary)
+                ("active", colors.bg_tertiary),
+                ("disabled", colors.bg_tertiary),
+            ],
+            foreground=[
+                ("disabled", colors.text_muted),
+            ],
+            bordercolor=[
+                ("focus", colors.border_active),
+                ("active", colors.border_active),
+                ("!focus", colors.border_muted),
             ]
         )
         
@@ -580,7 +626,9 @@ class StyleManager:
         """Get tag configuration for treeview alternating rows and states"""
         return {
             "oddrow": {"background": colors.bg_primary},
-            "evenrow": {"background": colors.bg_secondary},
+            "evenrow": {"background": colors.bg_primary},
+            "hover": {"background": colors.bg_hover},
+            "focused": {"background": colors.bg_hover},
             "selected": {"background": colors.selection},
             "pinned": {"foreground": colors.accent_warning},
             "broken": {"foreground": colors.accent_error},

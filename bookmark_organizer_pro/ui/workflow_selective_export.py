@@ -23,6 +23,7 @@ from .quick_add import DEFAULT_CATEGORY
 from .tk_interactions import bind_scoped_mousewheel, make_keyboard_activatable
 from .widget_controls import ModernButton, ThemedWidget, Tooltip
 from .widget_runtime import apply_window_chrome, get_theme
+from .window_geometry import apply_screen_aware_geometry
 
 
 # =============================================================================
@@ -43,8 +44,8 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         self.title(_("Export Bookmarks"))
         # Fit within the screen so the bottom action buttons are never pushed
         # off-screen on smaller displays.
-        _h = min(660, max(480, self.winfo_screenheight() - 96))
-        self.geometry(f"600x{_h}")
+        _h = min(680, max(480, self.winfo_screenheight() - 96))
+        apply_screen_aware_geometry(self, 640, _h)
         self.minsize(520, min(560, _h))
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
@@ -53,7 +54,7 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         apply_window_chrome(self)
         
         # Header
-        header = tk.Frame(self, bg=theme.bg_dark, height=60)
+        header = tk.Frame(self, bg=theme.bg_dark, height=76)
         header.pack(fill=tk.X)
         header.pack_propagate(False)
         
@@ -67,9 +68,9 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
 
         tk.Label(
             title_stack,
-            text=_("Choose the scope, format, and metadata before writing a file."),
+            text=_("Choose what to include and preview the result before creating a portable file."),
             bg=theme.bg_dark, fg=theme.text_secondary,
-            font=FONTS.small(), anchor="w"
+            font=FONTS.small(), anchor="w", wraplength=580, justify=tk.LEFT
         ).pack(fill=tk.X, pady=(3, 0))
         
         # Action buttons — packed BEFORE the content so they are pinned to the
@@ -89,7 +90,7 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         
         # Format selection
         tk.Label(
-            content, text=_("Export Format"), bg=theme.bg_primary,
+            content, text=_("1. Choose a format"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.body(bold=True)
         ).pack(anchor="w")
 
@@ -112,7 +113,7 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         
         # Category selection
         tk.Label(
-            content, text=_("Categories"), bg=theme.bg_primary,
+            content, text=_("2. Choose categories"), bg=theme.bg_primary,
             fg=theme.text_primary, font=FONTS.body(bold=True)
         ).pack(anchor="w", pady=(10, 5))
 

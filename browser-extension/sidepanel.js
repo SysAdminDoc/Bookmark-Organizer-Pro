@@ -31,6 +31,11 @@ function renderBookmark(bm) {
   a.target = "_blank";
   a.rel = "noopener";
 
+  const glyph = document.createElement("span");
+  glyph.className = "bookmark-glyph";
+  glyph.setAttribute("aria-hidden", "true");
+  glyph.textContent = "B";
+
   const title = document.createElement("span");
   title.className = "bookmark-title";
   title.textContent = bm.title || bm.url;
@@ -42,6 +47,7 @@ function renderBookmark(bm) {
     const domain = document.createElement("span");
     domain.className = "bookmark-domain";
     domain.textContent = new URL(bm.url).hostname.replace(/^www\./, "");
+    glyph.textContent = domain.textContent.charAt(0) || "B";
     meta.appendChild(domain);
   } catch { /* ignore invalid URLs */ }
 
@@ -52,8 +58,15 @@ function renderBookmark(bm) {
     meta.appendChild(cat);
   }
 
+  const arrow = document.createElement("span");
+  arrow.className = "bookmark-arrow";
+  arrow.setAttribute("aria-hidden", "true");
+  arrow.textContent = "›";
+
+  a.appendChild(glyph);
   a.appendChild(title);
   a.appendChild(meta);
+  a.appendChild(arrow);
   li.appendChild(a);
   return li;
 }
@@ -177,6 +190,8 @@ async function loadRecent({ append = false } = {}) {
   } finally {
     recentLoading = false;
     list.setAttribute("aria-busy", "false");
+    const recentCount = document.getElementById("recentCount");
+    if (recentCount) recentCount.textContent = String(list.querySelectorAll(".bookmark-item").length);
   }
 }
 

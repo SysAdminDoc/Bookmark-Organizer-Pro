@@ -14,6 +14,7 @@ from bookmark_organizer_pro.services.category_delete_recovery import CategoryDel
 from .foundation import FONTS, DesignTokens, pluralize
 from .tk_interactions import bind_scoped_mousewheel, make_keyboard_activatable
 from .widgets import ModernButton, Tooltip, apply_window_chrome, get_theme
+from .window_geometry import apply_screen_aware_geometry
 
 
 # =============================================================================
@@ -38,7 +39,8 @@ class CategoryManagementDialog(tk.Toplevel):
         
         self.title(_("Manage Categories"))
         self.configure(bg=theme.bg_primary)
-        self.geometry("560x660")
+        apply_screen_aware_geometry(self, 620, 680)
+        self.minsize(520, 520)
         self.transient(parent)
         self.grab_set()
         apply_window_chrome(self)
@@ -129,10 +131,12 @@ class CategoryManagementDialog(tk.Toplevel):
             padx=22, pady=9
         ).pack(side=tk.RIGHT)
 
-        ModernButton(
-            footer, text=_("Restore Last Delete"), command=self._restore_last_deleted_category,
+        self.restore_button = ModernButton(
+            footer, text=_("Restore last delete"), command=self._restore_last_deleted_category,
             padx=16, pady=9
-        ).pack(side=tk.RIGHT, padx=(10, 0))
+        )
+        self.restore_button.pack(side=tk.RIGHT, padx=(10, 0))
+        self.restore_button.set_state("normal" if self._last_deleted_category else "disabled")
 
         self.bind("<Escape>", lambda e: self.destroy())
         self.center_window()
@@ -156,6 +160,12 @@ class CategoryManagementDialog(tk.Toplevel):
     def _set_status(self, message: str):
         if hasattr(self, "status_var"):
             self.status_var.set(message)
+
+    def _set_restore_button_state(self, state: str):
+        """Keep recovery logic usable in headless/service-driven call paths."""
+        button = getattr(self, "restore_button", None)
+        if button is not None:
+            button.set_state(state)
     
     def _populate_categories(self):
         """Populate the category list"""
@@ -313,6 +323,7 @@ class CategoryManagementDialog(tk.Toplevel):
                 self._set_status(str(exc))
                 return
             self._last_deleted_category = record
+            self._set_restore_button_state("normal")
             count = len(record["bookmark_ids"])
             self._populate_categories()
             if self.on_change:
@@ -330,6 +341,7 @@ class CategoryManagementDialog(tk.Toplevel):
             "category": self.category_manager.categories.get(name),
             "bookmark_ids": [bm.id for bm in bookmarks],
         }
+        self._set_restore_button_state("normal")
 
         for bm in bookmarks:
             bm.category = "Uncategorized / Needs Review"
@@ -354,6 +366,7 @@ class CategoryManagementDialog(tk.Toplevel):
                 self._set_status(str(exc))
                 return False
             self._last_deleted_category = None
+            self._set_restore_button_state("disabled")
             self._populate_categories()
             if self.on_change:
                 self.on_change()
@@ -381,6 +394,7 @@ class CategoryManagementDialog(tk.Toplevel):
             restored += 1
 
         self._last_deleted_category = None
+        self._set_restore_button_state("disabled")
         self._populate_categories()
         if self.on_change:
             self.on_change()

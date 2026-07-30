@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import tkinter as tk
+from tkinter import filedialog, ttk
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
 from typing import List
 
 from bookmark_organizer_pro.i18n import _
@@ -19,6 +19,7 @@ from bookmark_organizer_pro.services.reader_annotations import (
 
 from .foundation import FONTS, readable_text_on
 from .widget_controls import ModernButton
+from .window_geometry import apply_screen_aware_geometry
 from .widgets import apply_window_chrome, get_theme
 
 
@@ -41,7 +42,7 @@ class ReaderViewDialog(tk.Toplevel):
         self._deleted_highlight: ReaderHighlight | None = None
 
         self.title(_("Reader — {title}").format(title=bookmark.title))
-        self.geometry("920x700")
+        apply_screen_aware_geometry(self, 980, 720)
         self.minsize(720, 520)
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
@@ -77,12 +78,13 @@ class ReaderViewDialog(tk.Toplevel):
             font=FONTS.small(),
             anchor="w",
         ).pack(fill=tk.X, pady=(3, 0))
-        ModernButton(
+        self.export_button = ModernButton(
             header,
-            text=_("Export"),
+            text=_("Export highlights"),
             command=self._export_highlights,
             style="primary",
-        ).pack(side=tk.RIGHT, padx=(12, 0))
+        )
+        self.export_button.pack(side=tk.RIGHT, padx=(12, 0))
 
         body = tk.PanedWindow(self, orient=tk.HORIZONTAL, bg=theme.bg_primary, sashwidth=4)
         body.pack(fill=tk.BOTH, expand=True, padx=12, pady=12)
@@ -113,10 +115,10 @@ class ReaderViewDialog(tk.Toplevel):
             ),
         )
         self.text.configure(state=tk.DISABLED)
-        body.add(text_frame, minsize=420)
+        body.add(text_frame, minsize=500)
 
         side = tk.Frame(body, bg=theme.bg_secondary, padx=12, pady=12)
-        body.add(side, minsize=260)
+        body.add(side, minsize=330)
         side.grid_columnconfigure(0, weight=1)
         side.grid_rowconfigure(3, weight=3, minsize=80)
         side.grid_rowconfigure(6, weight=1, minsize=50)
@@ -148,7 +150,7 @@ class ReaderViewDialog(tk.Toplevel):
             font=FONTS.small(),
             anchor="w",
             justify=tk.LEFT,
-            wraplength=250,
+            wraplength=300,
         )
         self.status.grid(row=2, column=0, sticky="ew", pady=(0, 6))
 
@@ -175,16 +177,17 @@ class ReaderViewDialog(tk.Toplevel):
             width=10,
             state="readonly",
         )
-        self.color_combo.pack(side=tk.LEFT, padx=(0, 8))
-        ModernButton(
+        self.color_combo.pack(fill=tk.X)
+        self.add_button = ModernButton(
             controls,
-            text=_("Add"),
+            text=_("Add highlight"),
             command=self._add_highlight_from_selection,
             style="success",
             padx=10,
             pady=4,
             font=FONTS.small(),
-        ).pack(side=tk.LEFT)
+        )
+        self.add_button.pack(fill=tk.X, pady=(7, 0))
 
         tk.Label(
             side,
@@ -193,7 +196,7 @@ class ReaderViewDialog(tk.Toplevel):
             fg=theme.text_secondary,
             font=FONTS.small(),
             anchor="w",
-        ).grid(row=5, column=0, sticky="ew", pady=(10, 4))
+        ).grid(row=5, column=0, sticky="ew", pady=(9, 4))
         self.note_text = tk.Text(
             side,
             height=2,
@@ -209,25 +212,28 @@ class ReaderViewDialog(tk.Toplevel):
 
         note_actions = tk.Frame(side, bg=theme.bg_secondary)
         note_actions.grid(row=7, column=0, sticky="ew", pady=(8, 0))
-        ModernButton(
-            note_actions,
-            text=_("Save"),
+        primary_note_actions = tk.Frame(note_actions, bg=theme.bg_secondary)
+        primary_note_actions.pack(fill=tk.X)
+        self.save_note_button = ModernButton(
+            primary_note_actions,
+            text=_("Save note"),
             command=self._save_selected_note,
             style="primary",
             padx=10,
             pady=4,
             font=FONTS.small(),
-        ).pack(side=tk.LEFT, padx=(0, 8))
-        self.delete_highlight_button = ModernButton(
-            note_actions,
-            text=_("Delete"),
+        )
+        self.save_note_button.pack(side=tk.LEFT, padx=(0, 8))
+        self.delete_button = ModernButton(
+            primary_note_actions,
+            text=_("Delete highlight"),
             command=self._delete_selected_highlight,
             style="danger",
             padx=10,
             pady=4,
             font=FONTS.small(),
         )
-        self.delete_highlight_button.pack(side=tk.LEFT)
+        self.delete_button.pack(side=tk.LEFT)
         self.undo_delete_button = ModernButton(
             note_actions,
             text=_("Undo"),
@@ -238,7 +244,7 @@ class ReaderViewDialog(tk.Toplevel):
             font=FONTS.small(),
             tooltip=_("Restore the last deleted highlight (Ctrl+Z)"),
         )
-        self.undo_delete_button.pack(side=tk.LEFT, padx=(8, 0))
+        self.undo_delete_button.pack(fill=tk.X, pady=(8, 0))
 
     def _load_highlights(self) -> None:
         self._clear_highlight_tags()
@@ -250,9 +256,16 @@ class ReaderViewDialog(tk.Toplevel):
             self.highlight_list.insert(tk.END, f"{highlight.color} {highlight.char_start}-{highlight.char_end}: {preview}")
             self.highlight_ids.append(highlight.id)
         if self.highlight_ids:
-            self.status.configure(text=_("{count} saved").format(count=len(self.highlight_ids)))
+            self.status.configure(text=_("{count} highlight(s) saved locally").format(count=len(self.highlight_ids)))
         else:
-            self.status.configure(text=_("No highlights yet"))
+            self.status.configure(text=_("No highlights yet. Select a passage to create the first one."))
+        self.export_button.set_state("normal" if self.highlight_ids else "disabled")
+        self._sync_selection_actions()
+
+    def _sync_selection_actions(self) -> None:
+        selected = bool(self._selected_highlight_id())
+        self.save_note_button.set_state("normal" if selected else "disabled")
+        self.delete_button.set_state("normal" if selected else "disabled")
 
     def _clear_highlight_tags(self) -> None:
         self.text.configure(state=tk.NORMAL)
@@ -287,6 +300,7 @@ class ReaderViewDialog(tk.Toplevel):
     def _on_highlight_selected(self, _event=None) -> None:
         highlight_id = self._selected_highlight_id()
         if not highlight_id:
+            self._sync_selection_actions()
             return
         highlight = self.store.get(highlight_id)
         if not highlight:
@@ -294,15 +308,16 @@ class ReaderViewDialog(tk.Toplevel):
         self.note_text.delete("1.0", tk.END)
         self.note_text.insert("1.0", highlight.note)
         self.text.see(f"1.0 + {highlight.char_start} chars")
+        self._sync_selection_actions()
 
     def _add_highlight_from_selection(self) -> None:
         try:
             start_index, end_index = self.text.tag_ranges(tk.SEL)
         except ValueError:
-            messagebox.showinfo(_("Reader"), _("Select text first."), parent=self)
+            self.status.configure(text=_("Select a passage in the reader before adding a highlight."))
             return
         if not start_index or not end_index:
-            messagebox.showinfo(_("Reader"), _("Select text first."), parent=self)
+            self.status.configure(text=_("Select a passage in the reader before adding a highlight."))
             return
         start = text_index_offset(self.text, str(start_index))
         end = text_index_offset(self.text, str(end_index))
@@ -317,7 +332,7 @@ class ReaderViewDialog(tk.Toplevel):
                 note=note,
             )
         except ValueError as exc:
-            messagebox.showerror(_("Reader"), str(exc), parent=self)
+            self.status.configure(text=_("Could not save this highlight: {error}").format(error=str(exc)))
             return
         self.note_text.delete("1.0", tk.END)
         self._load_highlights()
@@ -325,7 +340,7 @@ class ReaderViewDialog(tk.Toplevel):
     def _save_selected_note(self) -> None:
         highlight_id = self._selected_highlight_id()
         if not highlight_id:
-            messagebox.showinfo(_("Reader"), _("Select a highlight first."), parent=self)
+            self.status.configure(text=_("Choose a saved highlight before editing its note."))
             return
         self.store.set_note(highlight_id, self.note_text.get("1.0", tk.END).strip())
         self._load_highlights()
@@ -333,7 +348,7 @@ class ReaderViewDialog(tk.Toplevel):
     def _delete_selected_highlight(self) -> None:
         highlight_id = self._selected_highlight_id()
         if not highlight_id:
-            messagebox.showinfo(_("Reader"), _("Select a highlight first."), parent=self)
+            self.status.configure(text=_("Choose a saved highlight before deleting it."))
             return
         deleted = self.store.delete_and_return(highlight_id)
         if deleted is None:

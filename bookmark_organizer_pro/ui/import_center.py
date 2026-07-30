@@ -12,6 +12,7 @@ from bookmark_organizer_pro.i18n import _, format_message
 from .foundation import FONTS
 from .tk_interactions import bind_scoped_mousewheel
 from .widgets import ModernButton, apply_window_chrome, get_theme
+from .window_geometry import apply_screen_aware_geometry
 
 
 @dataclass(frozen=True)
@@ -197,7 +198,7 @@ class ImportCenterDialog(tk.Toplevel):
 
         self.title(_("Import Center"))
         self.configure(bg=self._theme.bg_primary)
-        self.geometry("860x640")
+        apply_screen_aware_geometry(self, 900, 680)
         self.minsize(760, 520)
         self.transient(parent)
         self.grab_set()
@@ -208,24 +209,26 @@ class ImportCenterDialog(tk.Toplevel):
 
     def _build(self, intro: Optional[str]) -> None:
         theme = self._theme
-        header = tk.Frame(self, bg=theme.bg_primary)
-        header.pack(fill=tk.X, padx=24, pady=(22, 14))
+        header = tk.Frame(self, bg=theme.bg_dark)
+        header.pack(fill=tk.X, padx=0, pady=(0, 14))
+        title_stack = tk.Frame(header, bg=theme.bg_dark)
+        title_stack.pack(fill=tk.X, padx=24, pady=(18, 16))
 
         tk.Label(
-            header,
+            title_stack,
             text=_("Import Center"),
-            bg=theme.bg_primary,
+            bg=theme.bg_dark,
             fg=theme.text_primary,
             font=FONTS.title(bold=True),
         ).pack(anchor="w")
 
         tk.Label(
-            header,
-            text=intro or _("Choose the source that matches your export. Each path stays local and skips duplicates."),
-            bg=theme.bg_primary,
+            title_stack,
+            text=intro or _("Choose a source to start a private, local migration. Existing links are protected from duplicates."),
+            bg=theme.bg_dark,
             fg=theme.text_secondary,
             font=FONTS.body(),
-            wraplength=780,
+            wraplength=820,
             justify=tk.LEFT,
         ).pack(anchor="w", pady=(7, 0))
 
@@ -236,7 +239,8 @@ class ImportCenterDialog(tk.Toplevel):
         scrollbar = ttk.Scrollbar(body, orient=tk.VERTICAL, command=canvas.yview)
         self._cards = tk.Frame(canvas, bg=theme.bg_primary)
         self._cards.bind("<Configure>", lambda _event: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=self._cards, anchor="nw")
+        cards_window = canvas.create_window((0, 0), window=self._cards, anchor="nw")
+        canvas.bind("<Configure>", lambda event: canvas.itemconfigure(cards_window, width=event.width))
         canvas.configure(yscrollcommand=scrollbar.set)
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -249,7 +253,14 @@ class ImportCenterDialog(tk.Toplevel):
 
         footer = tk.Frame(self, bg=theme.bg_primary)
         footer.pack(fill=tk.X, padx=24, pady=(0, 18))
-        ModernButton(footer, text=_("Close"), command=self.destroy, padx=18, pady=8).pack(side=tk.RIGHT)
+        tk.Label(
+            footer,
+            text=_("{count} migration paths • Files stay on this device").format(count=len(self._sources)),
+            bg=theme.bg_primary,
+            fg=theme.text_muted,
+            font=FONTS.small(),
+        ).pack(side=tk.LEFT)
+        ModernButton(footer, text=_("Close Import Center"), command=self.destroy, padx=18, pady=8).pack(side=tk.RIGHT)
 
     def _add_card(self, source: ImportSource) -> None:
         theme = self._theme
@@ -298,11 +309,11 @@ class ImportCenterDialog(tk.Toplevel):
         ).pack(side=tk.RIGHT, padx=(14, 0))
 
         details = [
-            ("Accepted", source.accepted_formats),
+            (_("Accepts"), source.accepted_formats),
             ("Privacy", source.privacy_note),
             ("Duplicates", source.duplicate_policy),
             ("Summary", source.import_summary),
-            ("Next", source.next_action),
+            (_("Next step"), source.next_action),
         ]
         grid = tk.Frame(card, bg=theme.bg_secondary)
         grid.pack(fill=tk.X, pady=(12, 0))

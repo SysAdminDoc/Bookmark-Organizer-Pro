@@ -14,6 +14,7 @@ from .theme import ThemeColors, ThemeInfo, ThemeManager, theme_contrast_report
 from .tk_interactions import bind_scoped_mousewheel
 from .widget_controls import ModernButton, ThemedWidget
 from .widget_runtime import apply_window_chrome, get_theme
+from .window_geometry import apply_screen_aware_geometry
 
 
 # =============================================================================
@@ -65,7 +66,8 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         theme = get_theme()
         
         self.title(_("Create Custom Theme"))
-        self.geometry("700x650")
+        apply_screen_aware_geometry(self, 760, 680)
+        self.minsize(620, 520)
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
         self.grab_set()
@@ -92,7 +94,8 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         content = tk.Frame(canvas, bg=theme.bg_primary)
         
         content.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=content, anchor="nw", width=680)
+        content_window = canvas.create_window((0, 0), window=content, anchor="nw")
+        canvas.bind("<Configure>", lambda event: canvas.itemconfigure(content_window, width=event.width))
         canvas.configure(yscrollcommand=scrollbar.set)
         
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
@@ -426,7 +429,8 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
         theme = get_theme()
         
         self.title(_("Theme Settings"))
-        self.geometry("540x640")
+        apply_screen_aware_geometry(self, 600, 680)
+        self.minsize(520, 500)
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
         self.grab_set()
@@ -473,7 +477,8 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
             lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
         
-        canvas.create_window((0, 0), window=self.themes_inner, anchor="nw")
+        themes_window = canvas.create_window((0, 0), window=self.themes_inner, anchor="nw")
+        canvas.bind("<Configure>", lambda event: canvas.itemconfigure(themes_window, width=event.width))
         canvas.configure(yscrollcommand=scrollbar.set)
         
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)

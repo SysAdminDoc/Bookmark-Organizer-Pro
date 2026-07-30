@@ -19,9 +19,12 @@ class FontConfig:
 
     family: str
     mono_family: str = ""
-    size_display: int = 28
-    size_hero: int = 22
-    size_title: int = 18
+    # The desktop shell is information-dense. Keep the display scale compact
+    # enough that hierarchy comes from weight and spacing rather than oversized
+    # type that crowds the working area.
+    size_display: int = 24
+    size_hero: int = 20
+    size_title: int = 17
     size_subtitle: int = 14
     size_header: int = 13
     size_body: int = 11
@@ -80,7 +83,11 @@ FONTS = FontConfig(family=get_system_font(), mono_family=get_mono_font())
 
 
 class DesignTokens:
-    """Centralized spacing, sizing, and motion constants."""
+    """Centralized desktop design tokens.
+
+    The scale deliberately stops at an 8 px corner radius. Text controls use
+    restrained rectangular geometry rather than pill/oval treatments.
+    """
 
     SPACE_XS = 4
     SPACE_SM = 8
@@ -88,17 +95,23 @@ class DesignTokens:
     SPACE_LG = 16
     SPACE_XL = 24
     SPACE_XXL = 32
+    SPACE_XXXL = 40
 
-    RADIUS_SM = 4
-    RADIUS_MD = 6
+    RADIUS_SM = 3
+    RADIUS_MD = 5
     RADIUS_LG = 8
+
+    BORDER_WIDTH = 1
+    ELEVATION_BORDER_WIDTH = 1
+    ELEVATION_INSET = 1
 
     BUTTON_HEIGHT = 40
     BUTTON_PAD_X = 14
-    BUTTON_PAD_Y = 7
-    INPUT_HEIGHT = 36
-    ROW_HEIGHT = 32
-    TREEVIEW_ROW_HEIGHT = 36
+    BUTTON_PAD_Y = 8
+    INPUT_HEIGHT = 38
+    ROW_HEIGHT = 36
+    TREEVIEW_ROW_HEIGHT = 64
+    TABLE_HEADER_HEIGHT = 40
     HEADER_HEIGHT = 70
     SUMMARY_STRIP_HEIGHT = 112
     STATUS_BAR_HEIGHT = 34
@@ -111,11 +124,14 @@ class DesignTokens:
 
     SIDEBAR_WIDTH = 256
     SIDEBAR_MIN_WIDTH = 240
-    RIGHT_SIDEBAR_WIDTH = 368
+    RIGHT_SIDEBAR_WIDTH = 336
     CONTENT_PAD_X = 24
     CONTENT_PAD_Y = 18
     PANEL_PAD = 16
-    TOOLBAR_GAP = 6
+    CARD_PAD = 16
+    SECTION_GAP = 24
+    CONTROL_GAP = 8
+    TOOLBAR_GAP = 8
 
     LINE_HEIGHT_FACTOR = 1.5
 
