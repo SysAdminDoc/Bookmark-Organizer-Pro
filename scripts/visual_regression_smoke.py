@@ -594,6 +594,10 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
     from bookmark_organizer_pro.ui.dependencies import DependencyCheckDialog
     from bookmark_organizer_pro.ui.read_later_queue import ReadLaterQueueDialog
     from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog
+    from bookmark_organizer_pro.ui.treeview import (
+        SortableTreeview,
+        save_accessible_list_mode,
+    )
     from bookmark_organizer_pro.ui.widget_bookmark_editor import BookmarkEditorDialog
     from bookmark_organizer_pro.ui.window_geometry import apply_screen_aware_geometry
     from bookmark_organizer_pro.ui.workflow_selective_export import SelectiveExportDialog
@@ -614,6 +618,9 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
 
     results: list[CaptureResult] = []
     try:
+        empty_table = app.tree.semantic_snapshot()
+        if empty_table["state"] != "empty" or empty_table["rows"]:
+            raise VisualSmokeError("empty library is missing semantic table state")
         results.append(
             capture_tk_window(
                 root,
@@ -765,8 +772,50 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
         app.tree.selection_set("502", emit=False)
         app.selected_bookmarks = [502]
         app._update_right_rail_selection()
+        app.tree.sort_by_column("saved")
+        if (
+            list(app.tree.get_children()) != ["502", "503", "501"]
+            or app.tree.selection() != ("502",)
+            or app.selected_bookmarks != [502]
+        ):
+            raise VisualSmokeError(
+                "typed ascending date sort lost order or selection: "
+                f"rows={list(app.tree.get_children())!r} "
+                f"selection={app.tree.selection()!r} "
+                f"app_selection={app.selected_bookmarks!r}"
+            )
+        app._refresh_bookmark_list()
+        if (
+            list(app.tree.get_children()) != ["502", "503", "501"]
+            or app.tree.selection() != ("502",)
+        ):
+            raise VisualSmokeError(
+                "refresh lost active sort or selected row: "
+                f"rows={list(app.tree.get_children())!r} "
+                f"selection={app.tree.selection()!r} "
+                f"app_selection={app.selected_bookmarks!r}"
+            )
+        app.tree.sort_by_column("saved")
+        semantic_table = app.tree.semantic_snapshot()
+        if (
+            list(app.tree.get_children()) != ["501", "503", "502"]
+            or [header["label"] for header in semantic_table["headers"]]
+            != ["Site", "Title", "Collection / Tags", "Saved", "Status", "Pinned"]
+            or semantic_table["headers"][3]["sort"] != "descending"
+            or semantic_table["rows"][2]["position"] != 3
+            or not semantic_table["rows"][2]["selected"]
+        ):
+            raise VisualSmokeError(
+                "virtual table semantic state diverges from sorted visible rows"
+            )
 
         verify_desktop_viewports(root, theme_manager, collapsible_rail=lambda: app._right_sidebar)
+        if app.tree.selection() != ("502",) or app.selected_bookmarks != [502]:
+            raise VisualSmokeError(
+                "theme and viewport reconstruction lost table selection: "
+                f"selection={app.tree.selection()!r} "
+                f"app_selection={app.selected_bookmarks!r}"
+            )
         root.geometry("1540x980")
         theme_manager.set_theme("github_dark")
         root.update()
@@ -787,6 +836,12 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
             != theme_manager.current_theme.colors.accent_error
         ):
             raise VisualSmokeError("invalid search did not expose an error border")
+        search_table = app.tree.semantic_snapshot()
+        if (
+            search_table["state"] != "error"
+            or "errors" not in search_table["message"].lower()
+        ):
+            raise VisualSmokeError("invalid search is missing semantic error state")
         results.append(
             capture_tk_window(
                 root,
@@ -800,6 +855,9 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
             )
         )
         app._clear_search()
+        app.tree.selection_set("502", emit=False)
+        app.selected_bookmarks = [502]
+        app._update_right_rail_selection()
         root.update()
 
         theme_manager.set_theme("github_light")
@@ -812,6 +870,43 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
                 ("Bookmark Organizer Pro", "Library", "Focus", "Tkinter Reference"),
             )
         )
+
+        save_accessible_list_mode(True)
+        theme_manager.set_theme("github_dark")
+        root.update()
+        if not isinstance(app.tree, SortableTreeview):
+            raise VisualSmokeError(
+                "accessible preference did not rebuild the library as a native table"
+            )
+        native_table = app.tree.semantic_snapshot()
+        if (
+            [row["id"] for row in native_table["rows"]] != ["501", "503", "502"]
+            or native_table["headers"][3]["sort"] != "descending"
+            or not native_table["rows"][2]["selected"]
+        ):
+            raise VisualSmokeError(
+                "native table diverges from virtual sort or selection semantics: "
+                f"rows={[row['id'] for row in native_table['rows']]!r} "
+                f"sort={native_table['headers'][3]['sort']!r} "
+                f"selected={[row['id'] for row in native_table['rows'] if row['selected']]!r}"
+            )
+        results.append(
+            capture_tk_window(
+                root,
+                output_dir,
+                "desktop-main-list-accessible-dark",
+                (
+                    "Bookmark Organizer Pro",
+                    "Site",
+                    "Pinned",
+                    "Saved",
+                    "Tkinter Reference",
+                ),
+            )
+        )
+        save_accessible_list_mode(False)
+        app._apply_theme_live()
+        root.update()
 
         SnapshotFailureStore().record_failure(
             sample_bookmarks[1],

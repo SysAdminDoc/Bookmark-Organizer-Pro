@@ -78,3 +78,9 @@ Items moved here from ROADMAP.md because they have hard blockers preventing impl
 **Blocker:** Requires a Python 3.14t (free-threaded) CPython build for testing. Current CI matrix covers 3.10-3.13. The feature can only be validated after 3.14t is available in the CI environment and dependency ecosystem (fastembed, lancedb, etc.) confirms compatibility.
 
 **Source:** [S-145][S-157]
+
+## Re-enable the optional TUF updater dependency
+
+**Blocker:** The latest `tufup` release (0.10.0) pins `tuf==4.0.*`, which is affected by GHSA-qp9x-wp8f-qgjj on Windows; the fix is in `tuf` 7.0.0, but that version is incompatible with tufup's published constraint. Keep updater runtime code dormant and exclude tufup from release extras until an upstream-compatible release exists.
+
+**Source:** PyPI tufup 0.10.0 metadata; PyPI tuf 7.0.0; GHSA-qp9x-wp8f-qgjj

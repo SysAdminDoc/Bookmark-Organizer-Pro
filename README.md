@@ -627,7 +627,11 @@ Log file location: `~/.bookmark_organizer/logs/bookmark_organizer.log`
 ### Accessibility and responsive layout
 
 - **Settings > Accessible bookmark table** persists a native semantic table
-  mode for screen readers; the choice takes effect on the next launch.
+  mode for screen readers; the choice takes effect on the next launch. Native
+  and virtual modes share typed date/status/pin sorting, deterministic ties,
+  named Site and Pinned columns, selected-row position and sort announcements,
+  and explicit empty/loading/error state. Use **Enter** to open, **Space** to
+  toggle Pinned, and **Shift+F10** for row actions and keyboard sorting.
 - The contextual Focus rail collapses automatically at laptop widths and can
   be shown or hidden from **View > Focus rail**; the assistant opens on demand
   from **More > Ask your library**.

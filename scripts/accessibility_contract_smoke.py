@@ -8,6 +8,7 @@ import os
 import sys
 import tempfile
 from dataclasses import dataclass
+from datetime import datetime
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Sequence
@@ -241,23 +242,68 @@ def check_tk_interactions() -> dict[str, object]:
 
             table = BookmarkListWidget(
                 root,
-                columns=("title", "url"),
+                columns=("title", "saved", "favorite"),
                 accessible_mode=True,
-                show="headings",
+                show="tree headings",
                 selectmode="extended",
             )
             if not isinstance(table, SortableTreeview):
                 raise AccessibilityContractError("accessible mode must use a native ttk.Treeview")
+            table.heading("#0", text="Site")
             table.heading("title", text="Title")
-            table.heading("url", text="URL")
-            row_id = table.insert("", "end", values=("Example", "https://example.com"))
-            table.selection_set(row_id)
-            if table.heading("title", "text") != "Title" or table.selection() != (row_id,):
+            table.heading("saved", text="Saved")
+            table.heading("favorite", text="Pinned")
+            table.set_bookmark_rows([
+                {
+                    "iid": "2",
+                    "text": "example.com",
+                    "values": ("Older", "Jan 01\n2026", "No"),
+                    "sort_values": {
+                        "#0": "example.com",
+                        "title": "Older",
+                        "saved": datetime(2026, 1, 1),
+                        "favorite": False,
+                    },
+                },
+                {
+                    "iid": "10",
+                    "text": "python.org",
+                    "values": ("Newer", "Jan 02\n2026", "Yes"),
+                    "sort_values": {
+                        "#0": "python.org",
+                        "title": "Newer",
+                        "saved": datetime(2026, 1, 2),
+                        "favorite": True,
+                    },
+                },
+            ])
+            table.set_semantic_state("ready", "2 bookmarks")
+            table.sort_by_column("saved")
+            table.sort_by_column("saved")
+            table.selection_set("10")
+            snapshot = table.semantic_snapshot()
+            if table.heading("title", "text") != "Title" or table.selection() != ("10",):
                 raise AccessibilityContractError("native bookmark table lost header or selection semantics")
+            if (
+                [header["label"] for header in snapshot["headers"]]
+                != ["Site", "Title", "Saved", "Pinned"]
+                or snapshot["headers"][2]["sort"] != "descending"
+                or [row["id"] for row in snapshot["rows"]] != ["10", "2"]
+                or snapshot["rows"][0]["position"] != 1
+                or snapshot["rows"][0]["set_size"] != 2
+                or not snapshot["rows"][0]["selected"]
+            ):
+                raise AccessibilityContractError(
+                    "native bookmark table lost semantic sort, position, or selection state"
+                )
+            action_keys = {action["keys"] for action in snapshot["actions"]}
+            if action_keys != {"Enter", "Space", "Shift+F10"}:
+                raise AccessibilityContractError("native bookmark table lost keyboard action metadata")
             return {
                 "focusable_label": True,
                 "modern_button": True,
                 "native_bookmark_table": True,
+                "semantic_bookmark_table": True,
             }
         finally:
             root.destroy()

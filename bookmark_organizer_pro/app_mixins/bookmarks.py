@@ -59,6 +59,26 @@ def _saved_cell(value: str, now: datetime | None = None) -> str:
     return f"{parsed.strftime('%b %d')}\n{parsed.strftime('%Y')}"
 
 
+def _saved_sort_value(value: str) -> datetime | None:
+    """Parse the source timestamp once for typed table ordering."""
+    try:
+        parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    return parsed
+
+
+def _status_sort_value(bookmark: Bookmark) -> int:
+    """Return the explicit product order for bookmark status groups."""
+    if not bookmark.is_valid:
+        return 0
+    if bookmark.read_later:
+        return 1
+    if not bookmark.visit_count:
+        return 2
+    return 3
+
+
 class BookmarkViewMixin:
     """Bookmark filtering, list rendering, and favicon UI update behavior."""
 
@@ -66,6 +86,10 @@ class BookmarkViewMixin:
         """Refresh bookmark display with advanced filtering"""
         if not hasattr(self, 'tree') or not self.tree:
             return
+        set_semantic_state = getattr(self.tree, "set_semantic_state", None)
+        if set_semantic_state is not None:
+            set_semantic_state("loading", _("Loading bookmarks"))
+            self._refresh_table_semantic_status()
         
         # Get base bookmarks - always start from all bookmarks for quick filters
         if self.current_category:
@@ -74,6 +98,7 @@ class BookmarkViewMixin:
             bookmarks = self.bookmark_manager.get_all_bookmarks()
         
         query = self.search_query.strip() if hasattr(self, 'search_query') and self.search_query else ""
+        search_has_error = False
 
         # Apply quick filter (takes priority over search)
         quick_filter = getattr(self, 'quick_filter', None)
@@ -100,6 +125,7 @@ class BookmarkViewMixin:
                         query, category=self.current_category
                     )
                     diagnostics = self.bookmark_manager.search_engine.last_diagnostics
+                    search_has_error = bool(diagnostics)
                     if hasattr(self, "_set_search_validation"):
                         self._set_search_validation(diagnostics)
             elif hasattr(self, "_set_search_validation"):
@@ -119,6 +145,8 @@ class BookmarkViewMixin:
 
         self._refresh_filter_counts()
         total_bookmarks = len(self.bookmark_manager.get_all_bookmarks())
+        self._table_visible_total = len(bookmarks)
+        self._table_library_total = total_bookmarks
         self._set_collection_summary_visible(total_bookmarks > 0)
         self._set_content_header_visible(total_bookmarks > 0)
         if total_bookmarks > 0:
@@ -162,6 +190,28 @@ class BookmarkViewMixin:
                     pady=(0, DesignTokens.CONTENT_PAD_Y)
                 )
 
+        if set_semantic_state is not None:
+            if search_has_error:
+                set_semantic_state(
+                    "error",
+                    _("Search query has errors; no results are shown."),
+                )
+            elif not bookmarks:
+                set_semantic_state(
+                    "empty",
+                    (
+                        _("No bookmarks match the current view.")
+                        if total_bookmarks
+                        else _("Your bookmark library is empty.")
+                    ),
+                )
+            else:
+                set_semantic_state(
+                    "ready",
+                    _("{count} bookmarks in the current view.").format(
+                        count=len(bookmarks),
+                    ),
+                )
         self._populate_list_view(bookmarks)
 
     def _show_toast(self, message: str, style: str = "info"):
@@ -209,8 +259,11 @@ class BookmarkViewMixin:
             organization = f"{category}\n{truncate_middle(tags_str, 28)}"
             added = _saved_cell(bm.created_at)
             status = _bookmark_status(bm)
-            favorite = "★" if bm.is_pinned else "☆"
-            domain_initial = display_or_fallback(bm.domain, "?")[0].upper()
+            favorite = _("Yes") if bm.is_pinned else _("No")
+            site = truncate_middle(
+                display_or_fallback(bm.domain, _("Unknown site")),
+                14,
+            )
 
             row_tags = ["evenrow" if index % 2 else "oddrow"]
             if not bm.is_valid:
@@ -221,16 +274,16 @@ class BookmarkViewMixin:
             item_id = str(bm.id)
             row_specs.append({
                 "iid": item_id,
-                "text": domain_initial,
+                "text": site,
                 "values": (title, organization, added, status, favorite),
                 "tags": tuple(row_tags),
                 "sort_values": {
                     "#0": bm.domain,
                     "title": bm.title,
                     "organization": bm.category,
-                    "saved": bm.created_at,
-                    "status": status,
-                    "favorite": int(bool(bm.is_pinned)),
+                    "saved": _saved_sort_value(bm.created_at),
+                    "status": _status_sort_value(bm),
+                    "favorite": bool(bm.is_pinned),
                 },
             })
             if bm.id in previous_selection:
@@ -279,6 +332,62 @@ class BookmarkViewMixin:
         self._update_selection_bar()
         if hasattr(self, "_update_right_rail_selection"):
             self._update_right_rail_selection()
+
+    def _refresh_table_semantic_status(self, _event=None):
+        """Publish visible row, selection, state, sort, and action context."""
+        label = getattr(self, "library_footer_label", None)
+        snapshotter = getattr(getattr(self, "tree", None), "semantic_snapshot", None)
+        if label is None or snapshotter is None:
+            return
+        snapshot = snapshotter()
+        state = snapshot.get("state", "ready")
+        message = str(snapshot.get("message", ""))
+        if state != "ready":
+            label.configure(text=message)
+            return
+
+        visible = int(getattr(self, "_table_visible_total", len(snapshot["rows"])))
+        total = int(getattr(self, "_table_library_total", visible))
+        parts = [
+            _("{visible} of {total} bookmarks").format(
+                visible=visible,
+                total=total,
+            )
+        ]
+        selected_rows = [row for row in snapshot["rows"] if row["selected"]]
+        if len(selected_rows) == 1:
+            row = selected_rows[0]
+            parts.append(
+                _("row {position} of {total} selected").format(
+                    position=row["position"],
+                    total=row["set_size"],
+                )
+            )
+        elif selected_rows:
+            parts.append(
+                _("{count} rows selected").format(count=len(selected_rows))
+            )
+
+        sorted_header = next(
+            (
+                header for header in snapshot["headers"]
+                if header.get("sort") in {"ascending", "descending"}
+            ),
+            None,
+        )
+        if sorted_header is not None:
+            direction = (
+                _("descending")
+                if sorted_header["sort"] == "descending"
+                else _("ascending")
+            )
+            parts.append(
+                _("Sorted: {column} {direction}").format(
+                    column=sorted_header["label"],
+                    direction=direction,
+                )
+            )
+        label.configure(text=" · ".join(parts))
     
     def _on_favicon_progress(self, completed: int, total: int, current: str):
         """Favicon progress callback - thread-safe"""

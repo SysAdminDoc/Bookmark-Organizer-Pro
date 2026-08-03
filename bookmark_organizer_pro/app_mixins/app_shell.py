@@ -527,24 +527,26 @@ class AppShellMixin:
             selectmode="extended"
         )
         
-        # Configure columns with MORE padding for favicon
-        self.tree.heading("#0", text="\u00a0")
-        self.tree.column("#0", width=48, stretch=False, minwidth=48)
+        # Every cell has a named column in both the virtual and native table.
+        # This prevents the former one-letter and star cells from appearing as
+        # unexplained glyphs when site-icon fetching is disabled.
+        self.tree.heading("#0", text=_("Site"))
+        self.tree.column("#0", width=180, stretch=False, minwidth=130)
         
         self.tree.heading("title", text=_("Title"))
-        self.tree.column("title", width=320, minwidth=220)
+        self.tree.column("title", width=280, minwidth=210)
 
         self.tree.heading("organization", text=_("Collection / Tags"))
-        self.tree.column("organization", width=190, minwidth=145)
+        self.tree.column("organization", width=160, minwidth=135)
 
         self.tree.heading("saved", text=_("Saved"))
         self.tree.column("saved", width=92, minwidth=82)
 
         self.tree.heading("status", text=_("Status"))
-        self.tree.column("status", width=118, minwidth=104)
+        self.tree.column("status", width=108, minwidth=98)
 
-        self.tree.heading("favorite", text="\u00a0")
-        self.tree.column("favorite", width=44, stretch=False, minwidth=44)
+        self.tree.heading("favorite", text=_("Pinned"))
+        self.tree.column("favorite", width=70, stretch=False, minwidth=64)
         
         # Scrollbars
         tree_scroll_y = None
@@ -568,12 +570,27 @@ class AppShellMixin:
             bg=theme.bg_primary, fg=theme.text_muted,
             font=FONTS.tiny(), anchor="w",
         )
-        self.library_footer_label.pack(side=tk.LEFT, padx=10, pady=8)
-        tk.Label(
-            table_footer, text=_("Double-click to open  ·  Right-click for actions"),
+        self.library_actions_label = tk.Label(
+            table_footer,
+            text=_("Keyboard: Enter · Space · Shift+F10"),
             bg=theme.bg_primary, fg=theme.text_muted,
             font=FONTS.tiny(), anchor="e",
-        ).pack(side=tk.RIGHT, padx=10, pady=8)
+        )
+        self.library_actions_label.pack(side=tk.RIGHT, padx=10, pady=8)
+        Tooltip(
+            self.library_actions_label,
+            _(
+                "Enter opens. Space toggles Pinned. "
+                "Shift+F10 opens actions and sorting."
+            ),
+        )
+        self.library_footer_label.pack(
+            side=tk.LEFT,
+            fill=tk.X,
+            expand=True,
+            padx=10,
+            pady=8,
+        )
 
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         if tree_scroll_y is not None:
@@ -582,9 +599,13 @@ class AppShellMixin:
         # Tree bindings
         self.tree.bind("<Double-1>", self._on_item_double_click)
         self.tree.bind("<Return>", lambda e: self._open_selected())
+        self.tree.bind("<space>", self._toggle_pin_from_keyboard)
         self.tree.bind("<Button-3>", self._show_context_menu)
+        self.tree.bind("<Shift-F10>", self._show_context_menu)
+        self.tree.bind("<KeyPress-Menu>", self._show_context_menu)
         self.tree.bind("<ButtonRelease-1>", self._on_library_table_release, add="+")
         self.tree.bind("<<TreeviewSelect>>", self._on_selection_change)
+        self.tree.bind("<<TreeviewSort>>", self._refresh_table_semantic_status)
         
         # Ctrl+Scroll zoom binding
         self.tree.bind("<Control-MouseWheel>", self._on_mousewheel_zoom)
@@ -798,6 +819,13 @@ class AppShellMixin:
             self.tree.selection_set(item_id)
         self.selected_bookmarks = [int(item_id)]
         self._toggle_pin()
+
+    def _toggle_pin_from_keyboard(self, _event=None):
+        """Expose the direct Pinned-column operation without a pointer."""
+        if not self.tree.selection():
+            return "break"
+        self._toggle_pin()
+        return "break"
 
     def _show_library_view_menu(self):
         """Open a compact view menu anchored to the visible view-options control."""

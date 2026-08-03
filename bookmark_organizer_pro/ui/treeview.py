@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import tkinter as tk
+import math
+import unicodedata
+from datetime import date, datetime, timezone
+from numbers import Real
 from pathlib import Path
 from tkinter import ttk
-from typing import Dict, Iterable, List, Sequence
+from typing import Dict, Iterable, List, Mapping, Sequence
 
 from bookmark_organizer_pro.constants import SETTINGS_FILE
 from bookmark_organizer_pro.services.settings_store import (
@@ -21,6 +25,127 @@ except Exception:  # pragma: no cover - fallback keeps the app usable
 
 
 TKSHEET_AVAILABLE = Sheet is not None
+
+BOOKMARK_TABLE_ACTIONS = (
+    {"id": "open", "keys": "Enter"},
+    {"id": "toggle_pin", "keys": "Space"},
+    {"id": "actions", "keys": "Shift+F10"},
+    {"id": "sort", "keys": "Shift+F10"},
+)
+SEMANTIC_TABLE_STATES = frozenset(("loading", "ready", "empty", "error"))
+
+
+def _item_id_key(item_id: str) -> tuple:
+    """Sort numeric identifiers numerically and all other IDs predictably."""
+    text = str(item_id)
+    try:
+        return (0, int(text))
+    except ValueError:
+        normalized = unicodedata.normalize("NFKC", text).casefold()
+        return (1, normalized, text)
+
+
+def _typed_sort_key(value: object) -> tuple | None:
+    """Normalize a typed source value without guessing from display text."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        parsed = value
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return (0, parsed.astimezone(timezone.utc).timestamp())
+    if isinstance(value, date):
+        return (0, value.toordinal())
+    if isinstance(value, bool):
+        return (0, int(value))
+    if isinstance(value, Real):
+        numeric = float(value)
+        if math.isfinite(numeric):
+            return (0, numeric)
+        return None
+    text = unicodedata.normalize("NFKC", str(value)).casefold()
+    return (1, text)
+
+
+def sort_table_item_ids(
+    item_ids: Iterable[str],
+    values_by_id: Mapping[str, Mapping[str, object]],
+    column: str,
+    *,
+    reverse: bool = False,
+) -> List[str]:
+    """Return one deterministic table order with missing values always last."""
+    present: List[str] = []
+    missing: List[str] = []
+    normalized: Dict[str, tuple] = {}
+    for raw_item_id in item_ids:
+        item_id = str(raw_item_id)
+        key = _typed_sort_key(values_by_id.get(item_id, {}).get(column))
+        if key is None:
+            missing.append(item_id)
+        else:
+            normalized[item_id] = key
+            present.append(item_id)
+
+    # The first stable pass provides an invariant tie-breaker. The second
+    # changes only the typed source-value direction, never tie ordering.
+    present.sort(key=_item_id_key)
+    present.sort(key=normalized.__getitem__, reverse=bool(reverse))
+    missing.sort(key=_item_id_key)
+    return [*present, *missing]
+
+
+def build_table_semantic_snapshot(
+    *,
+    columns: Sequence[str],
+    header_labels: Mapping[str, str],
+    item_ids: Sequence[str],
+    cells_by_id: Mapping[str, Sequence[object]],
+    selected_ids: Iterable[str],
+    sort_column: str | None,
+    sort_reverse: bool,
+    state: str,
+    message: str,
+) -> dict:
+    """Build the adapter-neutral semantic table contract."""
+    if state not in SEMANTIC_TABLE_STATES:
+        raise ValueError(f"Unknown bookmark table state: {state}")
+    ordered_ids = [str(item_id) for item_id in item_ids]
+    selected = {str(item_id) for item_id in selected_ids}
+    headers = [
+        {
+            "id": column,
+            "label": str(header_labels.get(column, "")),
+            "sort": (
+                "descending" if sort_reverse else "ascending"
+            ) if column == sort_column else "none",
+        }
+        for column in columns
+    ]
+    rows = []
+    for position, item_id in enumerate(ordered_ids, start=1):
+        values = tuple(cells_by_id.get(item_id, ()))
+        rows.append({
+            "id": item_id,
+            "position": position,
+            "set_size": len(ordered_ids),
+            "selected": item_id in selected,
+            "cells": [
+                {
+                    "column": column,
+                    "value": str(values[index]) if index < len(values) else "",
+                }
+                for index, column in enumerate(columns)
+            ],
+        })
+    return {
+        "role": "table",
+        "state": state,
+        "message": str(message),
+        "headers": headers,
+        "rows": rows,
+        "actions": [dict(action) for action in BOOKMARK_TABLE_ACTIONS],
+    }
 
 
 def accessible_list_mode_enabled(settings_file: Path = SETTINGS_FILE) -> bool:
@@ -53,9 +178,15 @@ class SortableTreeview(ttk.Treeview):
         
         self._sort_column = None
         self._sort_reverse = False
+        self._base_headers: Dict[str, str] = {
+            column: "" for column in ("#0", *tuple(columns))
+        }
+        self._updating_sort_headers = False
         self._sort_values: Dict[str, Dict[str, object]] = {}
         self._favicon_images: Dict[str, tk.PhotoImage] = {}
         self._placeholder_images: Dict[str, tk.PhotoImage] = {}
+        self._semantic_state = "loading"
+        self._semantic_message = ""
         
         # Setup column headers for sorting
         for col in columns:
@@ -64,56 +195,150 @@ class SortableTreeview(ttk.Treeview):
         # Also make #0 (tree column) sortable if shown
         self.heading("#0", command=lambda: self._sort_by_column("#0"))
     
-    def _sort_by_column(self, column: str):
-        """Sort treeview by column"""
-        # Get all items
-        items = [
-            (
-                self._sort_values.get(str(item), {}).get(
-                    column,
-                    self.set(item, column)
-                    if column != "#0"
-                    else self.item(item, "text"),
-                ),
-                item,
+    def heading(self, column, option=None, **kwargs):
+        """Track stable header labels separately from sort indicators."""
+        if (
+            "text" in kwargs
+            and not self._updating_sort_headers
+            and hasattr(self, "_base_headers")
+        ):
+            self._base_headers[str(column)] = str(kwargs["text"])
+        return super().heading(column, option, **kwargs)
+
+    def set_bookmark_rows(self, rows: Sequence[dict]):
+        """Replace native rows while preserving selection and active sorting."""
+        selected = set(str(item) for item in self.selection())
+        existing = self.get_children("")
+        if existing:
+            super().delete(*existing)
+        self._sort_values = {}
+        for row in rows:
+            item_id = str(row["iid"])
+            super().insert(
+                "",
+                "end",
+                iid=item_id,
+                text=str(row.get("text", "")),
+                values=tuple(row.get("values", ())),
+                tags=tuple(row.get("tags", ())),
             )
-            for item in self.get_children("")
+            self._sort_values[item_id] = dict(row.get("sort_values", {}))
+        if self._sort_column:
+            self._apply_sort(self._sort_column, emit=False)
+        restored = [
+            item_id for item_id in self.get_children("")
+            if str(item_id) in selected
         ]
-        
-        # Toggle sort direction
+        if restored:
+            self.selection_set(restored)
+
+    def delete(self, *items):
+        for item in items:
+            self._sort_values.pop(str(item), None)
+        return super().delete(*items)
+
+    def _sort_source_values(self, column: str) -> Dict[str, Dict[str, object]]:
+        source: Dict[str, Dict[str, object]] = {}
+        for raw_item_id in self.get_children(""):
+            item_id = str(raw_item_id)
+            values = dict(self._sort_values.get(item_id, {}))
+            if column not in values:
+                values[column] = (
+                    self.item(item_id, "text")
+                    if column == "#0"
+                    else self.set(item_id, column)
+                )
+            source[item_id] = values
+        return source
+
+    def _apply_sort(self, column: str, *, emit: bool = True):
+        item_ids = [str(item) for item in self.get_children("")]
+        ordered = sort_table_item_ids(
+            item_ids,
+            self._sort_source_values(column),
+            column,
+            reverse=self._sort_reverse,
+        )
+        for index, item_id in enumerate(ordered):
+            self.move(item_id, "", index)
+        self._apply_sort_headers()
+        if emit:
+            self.event_generate("<<TreeviewSort>>")
+
+    def _sort_by_column(self, column: str):
+        """Toggle and apply typed deterministic sorting for one column."""
         if self._sort_column == column:
             self._sort_reverse = not self._sort_reverse
         else:
             self._sort_column = column
             self._sort_reverse = False
-        
-        # Sort items
+        self._apply_sort(column)
+
+    def sort_by_column(self, column: str):
+        """Public keyboard/menu sorting surface shared with the virtual table."""
+        if column not in ("#0", *tuple(self["columns"])):
+            raise ValueError(f"Unknown bookmark table column: {column}")
+        self._sort_by_column(column)
+        return "break"
+
+    def sort_state(self) -> tuple[str | None, bool]:
+        """Return the active column and reverse flag for shell reconstruction."""
+        return self._sort_column, self._sort_reverse
+
+    def restore_sort_state(self, column: str | None, reverse: bool = False):
+        """Restore an existing sort without toggling its direction."""
+        if column is None:
+            return
+        if column not in ("#0", *tuple(self["columns"])):
+            raise ValueError(f"Unknown bookmark table column: {column}")
+        self._sort_column = column
+        self._sort_reverse = bool(reverse)
+        self._apply_sort(column)
+
+    def _apply_sort_headers(self):
+        self._updating_sort_headers = True
         try:
-            # Try numeric sort first
-            items.sort(key=lambda x: float(x[0]) if x[0] else 0, reverse=self._sort_reverse)
-        except (ValueError, TypeError):
-            # Fall back to string sort
-            items.sort(key=lambda x: str(x[0]).lower(), reverse=self._sort_reverse)
-        
-        # Rearrange items
-        for index, (_, item) in enumerate(items):
-            self.move(item, '', index)
-        
-        # Update header to show sort direction
-        for col in self["columns"]:
-            current_text = str(self.heading(col, "text"))
-            # Remove existing sort indicators
-            current_text = current_text.replace(" ▲", "").replace(" ▼", "")
-            
-            if col == column:
-                indicator = " ▼" if self._sort_reverse else " ▲"
-                self.heading(col, text=current_text + indicator)
-            else:
-                self.heading(col, text=current_text)
+            for column in ("#0", *tuple(self["columns"])):
+                label = self._base_headers.get(column, "")
+                if column == self._sort_column:
+                    indicator = "▼" if self._sort_reverse else "▲"
+                    label = f"{label} {indicator}"
+                super().heading(column, text=label)
+        finally:
+            self._updating_sort_headers = False
 
     def set_sort_values(self, item_id: str, values: Dict[str, object]):
         """Attach stable raw values for columns with human-formatted cells."""
         self._sort_values[str(item_id)] = dict(values)
+
+    def set_semantic_state(self, state: str, message: str = ""):
+        """Expose non-row table state through the native fallback contract."""
+        if state not in SEMANTIC_TABLE_STATES:
+            raise ValueError(f"Unknown bookmark table state: {state}")
+        self._semantic_state = state
+        self._semantic_message = str(message)
+
+    def semantic_snapshot(self) -> dict:
+        """Return an inspectable native-table-equivalent semantic projection."""
+        columns = ("#0", *tuple(self["columns"]))
+        item_ids = [str(item) for item in self.get_children("")]
+        cells_by_id = {}
+        for item_id in item_ids:
+            values = tuple(self.item(item_id, "values"))
+            cells = [str(self.item(item_id, "text"))]
+            cells.extend(str(value) for value in values)
+            cells_by_id[item_id] = cells
+        return build_table_semantic_snapshot(
+            columns=columns,
+            header_labels=self._base_headers,
+            item_ids=item_ids,
+            cells_by_id=cells_by_id,
+            selected_ids=self.selection(),
+            sort_column=self._sort_column,
+            sort_reverse=self._sort_reverse,
+            state=self._semantic_state,
+            message=self._semantic_message,
+        )
 
     def column_at_event(self, event) -> str:
         """Return the logical column under a pointer event."""
@@ -235,6 +460,9 @@ class VirtualBookmarkSheet(tk.Frame):
         self._sort_column: str | None = None
         self._sort_reverse = False
         self._hovered_row: int | None = None
+        self._suppress_selection_events = False
+        self._semantic_state = "loading"
+        self._semantic_message = ""
 
         self._sheet = Sheet(
             self,
@@ -252,7 +480,7 @@ class VirtualBookmarkSheet(tk.Frame):
             table_wrap="w",
             header_wrap="",
             rounded_boxes=False,
-            show_vertical_grid=False,
+            show_vertical_grid=True,
             show_horizontal_grid=True,
             column_drag_and_drop_perform=False,
             row_drag_and_drop_perform=False,
@@ -342,34 +570,51 @@ class VirtualBookmarkSheet(tk.Frame):
             str(row["iid"]): dict(row.get("sort_values", {}))
             for row in rows
         }
+        if self._sort_column:
+            self._row_to_id = sort_table_item_ids(
+                self._row_to_id,
+                self._sort_source_values(self._sort_column),
+                self._sort_column,
+                reverse=self._sort_reverse,
+            )
+            self._id_to_row = {
+                item_id: index for index, item_id in enumerate(self._row_to_id)
+            }
 
         data = [
             [self._item_text[item_id], *self._item_values[item_id]]
             for item_id in self._row_to_id
         ]
-        self._sheet.set_sheet_data(
-            data,
-            reset_col_positions=False,
-            reset_row_positions=True,
-            reset_highlights=True,
-            redraw=False,
-        )
-        self._sheet.set_all_row_heights(
-            DesignTokens.TREEVIEW_ROW_HEIGHT,
-            only_set_if_too_small=False,
-            redraw=False,
-        )
-        self._apply_headers()
-        self._apply_column_widths()
-        self._apply_row_highlights(redraw=False)
+        self._suppress_selection_events = True
+        try:
+            self._sheet.set_sheet_data(
+                data,
+                reset_col_positions=False,
+                reset_row_positions=True,
+                reset_highlights=True,
+                redraw=False,
+            )
+            self._sheet.set_all_row_heights(
+                DesignTokens.TREEVIEW_ROW_HEIGHT,
+                only_set_if_too_small=False,
+                redraw=False,
+            )
+            self._apply_headers()
+            self._apply_column_widths()
+            self._apply_row_highlights(redraw=False)
 
-        restored = [item_id for item_id in self._row_to_id if item_id in previous_selection]
-        if restored:
-            self.selection_set(restored, emit=False)
-        else:
-            self._selected_ids = []
-            self._sheet.deselect("all", redraw=False)
-        self._sheet.redraw()
+            restored = [
+                item_id for item_id in self._row_to_id
+                if item_id in previous_selection
+            ]
+            if restored:
+                self.selection_set(restored, emit=False)
+            else:
+                self._selected_ids = []
+                self._sheet.deselect("all", redraw=False)
+            self._sheet.redraw()
+        finally:
+            self._suppress_selection_events = False
 
     def insert(self, _parent, index, iid=None, text="", values=(), tags=()):
         """Append one row. Kept for compatibility with Treeview callers."""
@@ -420,21 +665,31 @@ class VirtualBookmarkSheet(tk.Frame):
             item_ids = [str(item) for item in items]
         item_ids = [item_id for item_id in item_ids if item_id in self._id_to_row]
 
-        self._sheet.deselect("all", redraw=False)
-        for item_id in item_ids:
-            self._sheet.select_row(
-                self._id_to_row[item_id],
-                redraw=False,
-                run_binding_func=False,
-            )
-        self._selected_ids = item_ids
+        prior_suppression = self._suppress_selection_events
+        self._suppress_selection_events = True
+        try:
+            self._sheet.deselect("all", redraw=False)
+            for item_id in item_ids:
+                self._sheet.select_row(
+                    self._id_to_row[item_id],
+                    redraw=False,
+                    run_binding_func=False,
+                )
+            self._selected_ids = item_ids
+        finally:
+            self._suppress_selection_events = prior_suppression
         self._sheet.redraw()
         if emit:
             self.event_generate("<<TreeviewSelect>>")
 
     def selection_clear(self):
-        self._selected_ids = []
-        self._sheet.deselect("all", redraw=True)
+        prior_suppression = self._suppress_selection_events
+        self._suppress_selection_events = True
+        try:
+            self._selected_ids = []
+            self._sheet.deselect("all", redraw=True)
+        finally:
+            self._suppress_selection_events = prior_suppression
         self.event_generate("<<TreeviewSelect>>")
 
     def item(self, item: str, option: str | None = None, **kwargs):
@@ -509,6 +764,34 @@ class VirtualBookmarkSheet(tk.Frame):
 
     def set_placeholder(self, _item_id: str, _letter: str, _color: str):
         return None
+
+    def set_semantic_state(self, state: str, message: str = ""):
+        """Expose table states unavailable through tksheet's drawn canvas."""
+        if state not in SEMANTIC_TABLE_STATES:
+            raise ValueError(f"Unknown bookmark table state: {state}")
+        self._semantic_state = state
+        self._semantic_message = str(message)
+
+    def semantic_snapshot(self) -> dict:
+        """Return the same semantic projection as the native fallback."""
+        cells_by_id = {
+            item_id: [
+                self._item_text.get(item_id, ""),
+                *self._item_values.get(item_id, ()),
+            ]
+            for item_id in self._row_to_id
+        }
+        return build_table_semantic_snapshot(
+            columns=self._columns,
+            header_labels=self._headers,
+            item_ids=self._row_to_id,
+            cells_by_id=cells_by_id,
+            selected_ids=self._selected_ids,
+            sort_column=self._sort_column,
+            sort_reverse=self._sort_reverse,
+            state=self._semantic_state,
+            message=self._semantic_message,
+        )
 
     def yview(self, *args):
         return self._sheet.yview(*args)
@@ -604,6 +887,8 @@ class VirtualBookmarkSheet(tk.Frame):
         )
 
     def _sync_selection_from_sheet(self):
+        if self._suppress_selection_events:
+            return
         rows: set[int] = set()
         # Captures full-row selections AND rows touched by a single cell click.
         try:
@@ -669,35 +954,82 @@ class VirtualBookmarkSheet(tk.Frame):
             return
         self._sort_by_column(self._columns[column_index])
 
+    def _sort_source_values(self, column: str) -> Dict[str, Dict[str, object]]:
+        source: Dict[str, Dict[str, object]] = {}
+        for item_id in self._row_to_id:
+            values = dict(self._item_sort_values.get(item_id, {}))
+            if column not in values:
+                if column == "#0":
+                    values[column] = self._item_text.get(item_id, "")
+                else:
+                    value_index = self._value_index(column)
+                    display_values = self._item_values.get(item_id, ())
+                    values[column] = (
+                        display_values[value_index]
+                        if value_index is not None and value_index < len(display_values)
+                        else ""
+                    )
+            source[item_id] = values
+        return source
+
     def _sort_by_column(self, column: str):
-        if not self._row_to_id:
-            return
         reverse = not self._sort_reverse if self._sort_column == column else False
         self._sort_column = column
         self._sort_reverse = reverse
         selected = set(self._selected_ids)
-
-        def sort_value(item_id: str):
-            raw_values = self._item_sort_values.get(item_id, {})
-            if column in raw_values:
-                value = raw_values[column]
-            elif column == "#0":
-                value = self._item_text.get(item_id, "")
-            else:
-                value_index = self._value_index(column)
-                values = self._item_values.get(item_id, ())
-                value = values[value_index] if value_index is not None and value_index < len(values) else ""
-            try:
-                return (0, float(value))
-            except (TypeError, ValueError):
-                return (1, str(value).lower())
-
-        self._row_to_id.sort(key=sort_value, reverse=reverse)
+        self._row_to_id = sort_table_item_ids(
+            self._row_to_id,
+            self._sort_source_values(column),
+            column,
+            reverse=reverse,
+        )
         self._id_to_row = {item_id: index for index, item_id in enumerate(self._row_to_id)}
         self._apply_headers()
         self._redraw_from_cache()
         if selected:
             self.selection_set([item_id for item_id in self._row_to_id if item_id in selected], emit=False)
+        self.event_generate("<<TreeviewSort>>")
+
+    def sort_by_column(self, column: str):
+        """Public keyboard/menu sorting surface shared with native mode."""
+        if column not in self._columns:
+            raise ValueError(f"Unknown bookmark table column: {column}")
+        self._sort_by_column(column)
+        return "break"
+
+    def sort_state(self) -> tuple[str | None, bool]:
+        """Return the active column and reverse flag for shell reconstruction."""
+        return self._sort_column, self._sort_reverse
+
+    def restore_sort_state(self, column: str | None, reverse: bool = False):
+        """Restore an existing sort without toggling its direction."""
+        if column is None:
+            return
+        if column not in self._columns:
+            raise ValueError(f"Unknown bookmark table column: {column}")
+        self._sort_column = column
+        self._sort_reverse = bool(reverse)
+        selected = set(self._selected_ids)
+        self._row_to_id = sort_table_item_ids(
+            self._row_to_id,
+            self._sort_source_values(column),
+            column,
+            reverse=self._sort_reverse,
+        )
+        self._id_to_row = {
+            item_id: index for index, item_id in enumerate(self._row_to_id)
+        }
+        self._apply_headers()
+        self._redraw_from_cache()
+        if selected:
+            self.selection_set(
+                [
+                    item_id for item_id in self._row_to_id
+                    if item_id in selected
+                ],
+                emit=False,
+            )
+        self.event_generate("<<TreeviewSort>>")
 
     def _redraw_from_cache(self):
         rows = [
@@ -716,9 +1048,9 @@ class VirtualBookmarkSheet(tk.Frame):
         labels = []
         for column in self._columns:
             label = self._headers.get(column, "")
-            label = label.replace(" ▲", "").replace(" ▼", "")
             if column == self._sort_column:
-                label += " ▼" if self._sort_reverse else " ▲"
+                indicator = "▼" if self._sort_reverse else "▲"
+                label = f"{label} {indicator}"
             labels.append(label)
         self._sheet.headers(labels, reset_col_positions=False, redraw=True)
 

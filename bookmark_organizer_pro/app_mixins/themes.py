@@ -36,6 +36,15 @@ class ThemeActionsMixin:
         quick_filter = getattr(self, "quick_filter", None)
         current_category = getattr(self, "current_category", None)
         selected_ids = list(getattr(self, "selected_bookmarks", []) or [])
+        try:
+            selected_ids = [str(item_id) for item_id in self.tree.selection()]
+        except Exception:
+            pass
+        table_sort_state = (None, False)
+        try:
+            table_sort_state = self.tree.sort_state()
+        except Exception:
+            pass
         right_rail_mode = getattr(self, "_right_rail_active_mode", "focus")
         chat_state = None
         try:
@@ -76,6 +85,10 @@ class ThemeActionsMixin:
             self._suppress_search_callback = False
 
         self._refresh_all()
+        try:
+            self.tree.restore_sort_state(*table_sort_state)
+        except Exception:
+            pass
         for filter_name in self.filter_buttons:
             self._set_filter_visual(filter_name, filter_name == active_filter)
         valid_selection = [

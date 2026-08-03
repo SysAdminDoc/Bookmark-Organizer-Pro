@@ -24,6 +24,7 @@ def test_extension_accessibility_contracts_cover_all_extension_pages():
     assert report["tk"]["focusable_label"] is True
     assert report["tk"]["modern_button"] is True
     assert report["tk"]["native_bookmark_table"] is True
+    assert report["tk"]["semantic_bookmark_table"] is True
 
 
 def test_accessibility_contract_rejects_unlabelled_controls(tmp_path: Path):
@@ -217,3 +218,18 @@ def test_accessible_mode_selects_native_semantic_treeview(monkeypatch):
 
     assert result == "native-tree"
     assert calls == [("parent", ("title", "url"), {"show": "headings"})]
+
+
+def test_library_table_exposes_keyboard_actions_and_named_columns():
+    shell_source = (
+        ROOT / "bookmark_organizer_pro/app_mixins/app_shell.py"
+    ).read_text(encoding="utf-8")
+    for sequence in (
+        'self.tree.bind("<Return>"',
+        'self.tree.bind("<space>"',
+        'self.tree.bind("<Shift-F10>"',
+        'self.tree.bind("<KeyPress-Menu>"',
+    ):
+        assert sequence in shell_source
+    assert 'self.tree.heading("#0", text=_("Site"))' in shell_source
+    assert 'self.tree.heading("favorite", text=_("Pinned"))' in shell_source

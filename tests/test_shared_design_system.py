@@ -19,6 +19,8 @@ from bookmark_organizer_pro.app_mixins.bookmarks import (
     _bookmark_status,
     _relative_added,
     _saved_cell,
+    _saved_sort_value,
+    _status_sort_value,
 )
 from bookmark_organizer_pro.models import Bookmark
 from datetime import datetime
@@ -118,6 +120,30 @@ class _HoverSheet:
         self.redraws += 1
 
 
+class _SelectionSheet:
+    def __init__(self, table):
+        self.table = table
+        self.selected = set()
+        self.events = []
+
+    def deselect(self, *_args, **_kwargs):
+        self.selected.clear()
+        self.table._sync_selection_from_sheet()
+
+    def select_row(self, row, **_kwargs):
+        self.selected.add(row)
+        self.table._sync_selection_from_sheet()
+
+    def get_selected_rows(self, **_kwargs):
+        return self.selected
+
+    def redraw(self):
+        return None
+
+    def event_generate(self, sequence, **_kwargs):
+        self.events.append(sequence)
+
+
 def test_virtual_table_hover_is_quiet_and_row_scoped(monkeypatch):
     colors = ThemeColors()
     monkeypatch.setattr(
@@ -137,6 +163,21 @@ def test_virtual_table_hover_is_quiet_and_row_scoped(monkeypatch):
     assert restored == [False]
     assert table._sheet.highlighted[0][0] == 1
     assert table._sheet.highlighted[0][1]["bg"] == colors.bg_hover
+
+
+def test_virtual_table_programmatic_selection_is_atomic():
+    table = object.__new__(treeview.VirtualBookmarkSheet)
+    table._row_to_id = ["1", "2"]
+    table._id_to_row = {"1": 0, "2": 1}
+    table._selected_ids = ["1"]
+    table._suppress_selection_events = False
+    table._sheet = _SelectionSheet(table)
+
+    table.selection_set("2", emit=False)
+
+    assert table.selection() == ("2",)
+    assert table._sheet.selected == {1}
+    assert table._sheet.events == []
 
 
 def test_dropdown_keyboard_selection_wraps(monkeypatch):
@@ -168,6 +209,83 @@ def test_library_rows_surface_time_and_state_without_color_only():
     assert _bookmark_status(bookmark) == "● Read later"
     bookmark.is_valid = False
     assert _bookmark_status(bookmark) == "● Needs review"
+
+
+def test_bookmark_table_sorting_uses_typed_values_and_stable_ties():
+    values = {
+        "10": {"saved": _saved_sort_value("2026-01-02T00:00:00Z")},
+        "7": {"saved": _saved_sort_value("2025-12-31T20:00:00-04:00")},
+        "2": {"saved": _saved_sort_value("2026-01-01T00:00:00Z")},
+        "11": {"saved": _saved_sort_value("not-a-date")},
+    }
+
+    assert treeview.sort_table_item_ids(
+        values, values, "saved",
+    ) == ["2", "7", "10", "11"]
+    assert treeview.sort_table_item_ids(
+        values, values, "saved", reverse=True,
+    ) == ["10", "2", "7", "11"]
+
+    bookmark = Bookmark(id=1, url="https://example.com", title="Example")
+    assert _status_sort_value(bookmark) == 2
+    bookmark.visit_count = 1
+    assert _status_sort_value(bookmark) == 3
+    bookmark.read_later = True
+    assert _status_sort_value(bookmark) == 1
+    bookmark.is_valid = False
+    assert _status_sort_value(bookmark) == 0
+
+
+def test_virtual_and_native_tables_share_inspectable_semantic_contract():
+    columns = ("#0", "title", "saved", "favorite")
+    headers = {
+        "#0": "Site",
+        "title": "Title",
+        "saved": "Saved",
+        "favorite": "Pinned",
+    }
+    cells = {
+        "2": ("example.com", "Example", "Jan 01\n2026", "No"),
+        "10": ("python.org", "Python", "Jan 02\n2026", "Yes"),
+    }
+    expected = treeview.build_table_semantic_snapshot(
+        columns=columns,
+        header_labels=headers,
+        item_ids=("2", "10"),
+        cells_by_id=cells,
+        selected_ids=("10",),
+        sort_column="saved",
+        sort_reverse=True,
+        state="ready",
+        message="2 bookmarks",
+    )
+
+    virtual = object.__new__(treeview.VirtualBookmarkSheet)
+    virtual._columns = columns
+    virtual._headers = headers
+    virtual._row_to_id = ["2", "10"]
+    virtual._item_text = {item_id: values[0] for item_id, values in cells.items()}
+    virtual._item_values = {item_id: values[1:] for item_id, values in cells.items()}
+    virtual._selected_ids = ["10"]
+    virtual._sort_column = "saved"
+    virtual._sort_reverse = True
+    virtual._semantic_state = "ready"
+    virtual._semantic_message = "2 bookmarks"
+
+    assert virtual.semantic_snapshot() == expected
+    virtual.set_semantic_state("loading", "Loading bookmarks")
+    assert virtual.semantic_snapshot()["state"] == "loading"
+    virtual.set_semantic_state("error", "Search query has errors")
+    assert virtual.semantic_snapshot()["state"] == "error"
+    virtual.set_semantic_state("ready", "2 bookmarks")
+    assert all(header["label"] for header in expected["headers"])
+    assert expected["headers"][2]["sort"] == "descending"
+    assert expected["rows"][1]["position"] == 2
+    assert expected["rows"][1]["set_size"] == 2
+    assert expected["rows"][1]["selected"] is True
+    assert {action["keys"] for action in expected["actions"]} == {
+        "Enter", "Space", "Shift+F10",
+    }
 
 
 def test_contextual_inspector_formats_type_time_and_offline_state(tmp_path):
@@ -260,4 +378,19 @@ def test_favorite_column_release_routes_to_direct_pin_action():
     shell._toggle_pin_from_row = toggled.append
 
     assert shell._on_library_table_release(SimpleNamespace()) == "break"
+    assert toggled == ["42"]
+
+
+def test_favorite_column_has_keyboard_parity():
+    class Tree:
+        @staticmethod
+        def selection():
+            return ("42",)
+
+    shell = object.__new__(AppShellMixin)
+    shell.tree = Tree()
+    toggled = []
+    shell._toggle_pin = lambda: toggled.append("42")
+
+    assert shell._toggle_pin_from_keyboard() == "break"
     assert toggled == ["42"]

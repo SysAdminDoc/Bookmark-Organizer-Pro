@@ -14,6 +14,11 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Changed
 
+- Unified the virtual and native bookmark tables behind typed, deterministic
+  source-value sorting that survives data and theme refreshes; replaced
+  unexplained initial/star cells with named Site/Pinned columns, added
+  inspectable row/selection/sort/state/action semantics, and provided Enter,
+  Space, and Shift+F10 keyboard parity.
 - Versioned semantic indexes and collection-answer caches by embedder/model
   revision, vector dimension, chunker contract, normalized source digest, AI
   configuration, and generation; incompatible, legacy, or source-stale rows

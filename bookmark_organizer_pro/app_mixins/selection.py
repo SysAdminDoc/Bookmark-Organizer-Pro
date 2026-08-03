@@ -30,6 +30,8 @@ class SelectionActionsMixin:
         self._update_selection_bar()
         if hasattr(self, "_update_right_rail_selection"):
             self._update_right_rail_selection()
+        if hasattr(self, "_refresh_table_semantic_status"):
+            self._refresh_table_semantic_status()
         self._set_status(f"Selected {len(all_items)} bookmarks")
         return "break"  # Prevent default behavior
 
@@ -40,6 +42,8 @@ class SelectionActionsMixin:
         self._update_selection_bar()
         if hasattr(self, "_update_right_rail_selection"):
             self._update_right_rail_selection()
+        if hasattr(self, "_refresh_table_semantic_status"):
+            self._refresh_table_semantic_status()
         if self.selected_bookmarks:
             self._set_status(f"{pluralize(len(self.selected_bookmarks), 'bookmark')} selected")
     
@@ -76,12 +80,17 @@ class SelectionActionsMixin:
         if hasattr(self, "_toast"):
             self._toast(detail, "error")
 
-    def _show_context_menu(self, event):
-        """Show context menu with Send To and Search Domain options"""
+    def _show_context_menu(self, event=None):
+        """Show the row action/sort menu for pointer or keyboard invocation."""
         theme = get_theme()
-        item = self.tree.identify_row(event.y)
+        item = ""
+        if event is not None and getattr(event, "num", None) == 3:
+            item = self.tree.identify_row(event.y)
         if not item:
-            return
+            selected = self.tree.selection()
+            item = str(selected[0]) if selected else str(self.tree.focus() or "")
+        if not item:
+            return "break"
         
         # Select item if not already selected
         if item not in self.tree.selection():
@@ -108,6 +117,29 @@ class SelectionActionsMixin:
             )
         menu.add_command(label=_("Reader View"), command=self._open_reader_view)
         menu.add_command(label=_("Edit Bookmark"), command=self._edit_selected)
+        menu.add_separator()
+
+        sort_menu = tk.Menu(
+            menu,
+            tearoff=0,
+            bg=theme.bg_secondary,
+            fg=theme.text_primary,
+            activebackground=theme.bg_hover,
+            activeforeground=theme.text_primary,
+        )
+        for label, column in (
+            (_("Site"), "#0"),
+            (_("Title"), "title"),
+            (_("Collection / Tags"), "organization"),
+            (_("Saved"), "saved"),
+            (_("Status"), "status"),
+            (_("Pinned"), "favorite"),
+        ):
+            sort_menu.add_command(
+                label=label,
+                command=lambda value=column: self.tree.sort_by_column(value),
+            )
+        menu.add_cascade(label=_("Sort by"), menu=sort_menu)
         menu.add_separator()
         
         # Search Domain option
@@ -147,8 +179,14 @@ class SelectionActionsMixin:
         menu.add_separator()
         menu.add_command(label=_("Mark as Needs Review"), command=self._mark_as_broken)
         menu.add_command(label=_("Delete"), command=self._delete_selected)
-        
-        menu.tk_popup(event.x_root, event.y_root)
+
+        if event is not None and getattr(event, "num", None) == 3:
+            x_root, y_root = event.x_root, event.y_root
+        else:
+            x_root = self.tree.winfo_rootx() + 48
+            y_root = self.tree.winfo_rooty() + 72
+        menu.tk_popup(x_root, y_root)
+        return "break"
     
     def _send_to_category(self, category: str):
         """Send selected bookmarks to a category"""
