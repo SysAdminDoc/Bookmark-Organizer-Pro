@@ -84,3 +84,16 @@ Items moved here from ROADMAP.md because they have hard blockers preventing impl
 **Blocker:** The latest `tufup` release (0.10.0) pins `tuf==4.0.*`, which is affected by GHSA-qp9x-wp8f-qgjj on Windows; the fix is in `tuf` 7.0.0, but that version is incompatible with tufup's published constraint. Keep updater runtime code dormant and exclude tufup from release extras until an upstream-compatible release exists.
 
 **Source:** PyPI tufup 0.10.0 metadata; PyPI tuf 7.0.0; GHSA-qp9x-wp8f-qgjj
+
+## Roadmap cleanup — 2026-08-10 — ROADMAP.md
+
+**Blocked on:** The source roadmap marked this work as parked, optional, or dependent on external input.
+
+Blocked items moved from the actionable roadmap:
+
+- [ ] P3 — R-106: Prototype the 2026-07-28 MCP specification and MCP Apps
+  Why: `Roadmap_Blocked.md` treats MCP Apps as draft-only, but the final 2026-07-28 specification is published and current FastMCP documentation exposes spec-level UI configuration.
+  Evidence: MCP 2026-07-28 specification and security guidance; FastMCP changelog; `pyproject.toml` MCP/FastMCP ranges; `bookmark_organizer_pro/mcp_server.py`.
+  Touches: dependency compatibility matrix, MCP server resources/tools, optional AppConfig UI, capability negotiation, fallback and security tests, then the stale blocked entry if validation succeeds.
+  Acceptance: An isolated prototype runs the existing MCP contract suite against the minimum and latest allowed dependency versions, negotiates capabilities with both pre-2026-07-28 and final-spec clients, renders one read-only bookmark-search app without broadening scopes or exposing content unexpectedly, and documents a keep/reject decision with measured compatibility evidence.
+  Complexity: L

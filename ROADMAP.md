@@ -1,10 +1,8 @@
 # Roadmap — Bookmark Organizer Pro
 
-Date: 2026-07-29
+Actionable work only. Historical and completed roadmap material is archived in CHANGELOG.md; blocked work is kept in Roadmap_Blocked.md.
 
-## Research-Driven Additions
-
-### P1 — Next
+## Actionable Items
 
 - [ ] P1 — R-89: Make the bookmark table correct and semantically accessible
   Why: The default virtual table lacks native-table semantics and currently exposes render/sort defects including a stray glyph and display-string date ordering.
@@ -27,13 +25,6 @@ Date: 2026-07-29
   Acceptance: Every documented command succeeds from a clean checkout shell without manual `PYTHONPATH`; subprocess tests execute the literal documentation; long tests print named phases, enforce per-phase and total watchdogs, preserve failure artifacts, and terminate child processes cleanly.
   Complexity: M
 
-- [ ] P1 — R-92: Align runtime, updater, About, and release documentation with shipped behavior
-  Why: dependency/runtime claims, updater installation text, hard-coded About metadata, screenshots, and signing language do not consistently match the package or governing unsigned-release policy.
-  Evidence: `README.md`, `pyproject.toml`, verified requirements lock, updater docs, About UI, release checklist/assets, `Roadmap_Blocked.md`.
-  Touches: README/release/update docs, About metadata provider, screenshot generation, packaging/release contract tests.
-  Acceptance: One generated metadata source supplies version/build/runtime facts to package, About, and release docs; optional dependency names match install extras; updater docs describe only informational checks while application remains blocked; all signing instructions/gates are removed; after R-90, fresh screenshots pass the visual matrix; a docs test runs every supported command.
-  Complexity: M
-
 - [ ] P1 — R-93: Audit all user-visible strings through the localization pipeline
   Why: the current i18n check passes while visible Python and extension JavaScript strings can bypass registered translation sinks.
   Evidence: `bookmark_organizer_pro/i18n.py`, `locale/bop.pot`, `tests/test_i18n.py`, browser-extension sources; Chrome i18n API.
@@ -54,8 +45,6 @@ Date: 2026-07-29
   Touches: lifecycle/settings UI, scheduler, job ledger, snapshot history/failure UI, shutdown and clock-control tests.
   Acceptance: Enabling a schedule persists and starts one scheduler; restart restores it; disable/shutdown cancels it; overlapping runs are coalesced; offline/retryable failures use bounded backoff and remain visible; deterministic-clock tests prove due selection, restart, pause, retry, and no duplicate capture.
   Complexity: M
-
-### P2 — Later
 
 - [ ] P2 — R-96: Clarify extension category and search states
   Why: capture can show a blank default-category affordance, while search lacks explicit loading/no-results/error announcements and robust accessible state.
@@ -125,13 +114,4 @@ Date: 2026-07-29
   Evidence: `bookmark_organizer_pro/services/extraction_templates.py`, ingest/snapshot services; ArchiveBox configuration; Readeck extraction workflows.
   Touches: extraction-template schema/evaluator, preview UI, per-domain matching, import/export, safety and regression tests.
   Acceptance: A versioned rule can match a normalized host and use allowlisted CSS selectors/attribute/text transforms with strict size/time limits; preview compares default and repaired output before save; invalid selectors fail closed; rules cannot execute code or trigger new origins; fixtures lock repairs to representative pages.
-  Complexity: L
-
-### P3 — Under Consideration
-
-- [ ] P3 — R-106: Prototype the 2026-07-28 MCP specification and MCP Apps
-  Why: `Roadmap_Blocked.md` treats MCP Apps as draft-only, but the final 2026-07-28 specification is published and current FastMCP documentation exposes spec-level UI configuration.
-  Evidence: MCP 2026-07-28 specification and security guidance; FastMCP changelog; `pyproject.toml` MCP/FastMCP ranges; `bookmark_organizer_pro/mcp_server.py`.
-  Touches: dependency compatibility matrix, MCP server resources/tools, optional AppConfig UI, capability negotiation, fallback and security tests, then the stale blocked entry if validation succeeds.
-  Acceptance: An isolated prototype runs the existing MCP contract suite against the minimum and latest allowed dependency versions, negotiates capabilities with both pre-2026-07-28 and final-spec clients, renders one read-only bookmark-search app without broadening scopes or exposing content unexpectedly, and documents a keep/reject decision with measured compatibility evidence.
   Complexity: L
