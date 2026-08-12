@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import tkinter as tk
 from datetime import datetime
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 
 from bookmark_organizer_pro.i18n import format_message
 
@@ -26,6 +26,7 @@ from bookmark_organizer_pro.services.favicons import (
     save_favicon_policy,
 )
 from bookmark_organizer_pro.services.mcp_auth import MCPTokenManager
+from bookmark_organizer_pro.services.settings_store import load_settings
 from bookmark_organizer_pro.services.snapshot import SnapshotArchiver, SnapshotFailureStore
 from bookmark_organizer_pro.ui.cleanup_review import (
                 CleanupApplyResult,
@@ -71,6 +72,7 @@ class ToolsActionsMixin:
                        activeforeground=theme.text_primary, bd=0)
         menu.add_command(label=_("Assistant Provider Settings"), command=self._show_ai_settings)
         menu.add_command(label=_("Theme Settings"), command=lambda: ThemeSelectorDialog(self.root, self.theme_manager))
+        menu.add_command(label=_("Scheduled Snapshots"), command=self._show_snapshot_settings)
         menu.add_command(
             label=_("Access Credentials"),
             command=self._show_credential_security,
@@ -220,6 +222,173 @@ class ToolsActionsMixin:
             "success",
         )
 
+    def _show_snapshot_settings(self):
+        """Edit the persisted scheduled-snapshot preference."""
+        theme = get_theme()
+        settings = load_settings()
+        scheduler = self._ensure_snapshot_scheduler()
+        try:
+            initial_interval = max(
+                1, min(24 * 30, int(settings.get("auto_snapshot_interval_hours", 24) or 24))
+            )
+        except (TypeError, ValueError):
+            initial_interval = 24
+        enabled_var = tk.BooleanVar(
+            value=bool(settings.get("auto_snapshot_enabled", False)),
+        )
+        interval_var = tk.IntVar(value=initial_interval)
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title(_("Scheduled Snapshots"))
+        dialog.configure(bg=theme.bg_primary)
+        dialog.geometry("620x430")
+        dialog.minsize(520, 360)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        apply_window_chrome(dialog)
+
+        header = tk.Frame(dialog, bg=theme.bg_dark, padx=20, pady=16)
+        header.pack(fill=tk.X)
+        tk.Label(
+            header, text=_("Scheduled Snapshots"), bg=theme.bg_dark,
+            fg=theme.text_primary, font=FONTS.title(bold=True),
+        ).pack(anchor="w")
+        tk.Label(
+            header,
+            text=_("Re-capture selected bookmarks on a bounded local schedule."),
+            bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small(),
+            wraplength=560, justify=tk.LEFT,
+        ).pack(anchor="w", pady=(5, 0))
+
+        body = tk.Frame(dialog, bg=theme.bg_primary, padx=20, pady=18)
+        body.pack(fill=tk.BOTH, expand=True)
+        ttk.Checkbutton(
+            body, text=_("Enable scheduled snapshots"), variable=enabled_var,
+        ).pack(anchor="w", pady=(0, 14))
+
+        interval_row = tk.Frame(body, bg=theme.bg_primary)
+        interval_row.pack(fill=tk.X, anchor="w")
+        tk.Label(
+            interval_row, text=_("Capture interval (hours)"),
+            bg=theme.bg_primary, fg=theme.text_primary, font=FONTS.body(),
+        ).pack(side=tk.LEFT)
+        ttk.Spinbox(
+            interval_row, from_=1, to=24 * 30, textvariable=interval_var,
+            width=8, wrap=False,
+        ).pack(side=tk.LEFT, padx=(12, 0))
+
+        scheduled_count = len(scheduler.list_scheduled()) if scheduler else 0
+        tk.Label(
+            body,
+            text=format_message(
+                "{count} bookmark(s) currently scheduled. Use Tools to add or remove the selected bookmarks.",
+                count=scheduled_count,
+            ),
+            bg=theme.bg_primary, fg=theme.text_secondary, font=FONTS.small(),
+            wraplength=560, justify=tk.LEFT, anchor="w",
+        ).pack(fill=tk.X, pady=(18, 0))
+        tk.Label(
+            body,
+            text=_("Failures remain visible in Snapshot Failure Report and retry with bounded backoff."),
+            bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.tiny(),
+            wraplength=560, justify=tk.LEFT, anchor="w",
+        ).pack(fill=tk.X, pady=(8, 0))
+
+        footer = tk.Frame(dialog, bg=theme.bg_secondary, padx=16, pady=12)
+        footer.pack(fill=tk.X, side=tk.BOTTOM)
+
+        def save():
+            try:
+                interval = int(interval_var.get())
+            except (TypeError, ValueError, tk.TclError):
+                self._show_toast(_("Enter a valid snapshot interval."), "error")
+                return
+            if self._set_snapshot_schedule_preferences(bool(enabled_var.get()), interval):
+                dialog.destroy()
+                state = _("enabled") if enabled_var.get() else _("paused")
+                self._set_status(format_message(
+                    "Scheduled snapshots {state} ({hours}h interval)",
+                    state=state, hours=max(1, min(24 * 30, interval)),
+                ))
+                self._show_toast(
+                    format_message("Scheduled snapshots {state}", state=state),
+                    "success",
+                )
+
+        ModernButton(
+            footer, text=_("Cancel"), command=dialog.destroy,
+            padx=16, pady=7,
+        ).pack(side=tk.RIGHT, padx=(8, 0))
+        ModernButton(
+            footer, text=_("Save Settings"), command=save, style="success",
+            padx=18, pady=7,
+        ).pack(side=tk.RIGHT)
+        dialog.bind("<Escape>", lambda _event: dialog.destroy())
+
+    def _schedule_selected_snapshots(self):
+        """Add the current selection to the persisted snapshot schedule."""
+        bookmark_ids = [
+            int(bookmark_id)
+            for bookmark_id in (getattr(self, "selected_bookmarks", []) or [])
+            if bookmark_id is not None
+        ]
+        if not bookmark_ids:
+            self._show_toast(_("Select one or more bookmarks first."), "info")
+            return
+        scheduler = self._ensure_snapshot_scheduler()
+        if scheduler is None:
+            self._show_toast(_("Scheduled snapshots could not be initialized."), "error")
+            return
+        for bookmark_id in bookmark_ids:
+            scheduler.add(bookmark_id)
+        settings = load_settings()
+        try:
+            interval = int(
+                settings.get("auto_snapshot_interval_hours", scheduler.interval_hours)
+                or scheduler.interval_hours
+            )
+        except (TypeError, ValueError):
+            interval = scheduler.interval_hours
+        if not self._set_snapshot_schedule_preferences(True, interval):
+            return
+        self._set_status(format_message(
+            "Scheduled {count} bookmark(s) for automatic snapshots",
+            count=len(bookmark_ids),
+        ))
+        self._show_toast(
+            format_message("Scheduled {count} bookmark(s)", count=len(bookmark_ids)),
+            "success",
+        )
+
+    def _unschedule_selected_snapshots(self):
+        """Remove the current selection from the persisted snapshot schedule."""
+        bookmark_ids = [
+            int(bookmark_id)
+            for bookmark_id in (getattr(self, "selected_bookmarks", []) or [])
+            if bookmark_id is not None
+        ]
+        if not bookmark_ids:
+            self._show_toast(_("Select one or more bookmarks first."), "info")
+            return
+        scheduler = self._ensure_snapshot_scheduler()
+        if scheduler is None:
+            self._show_toast(_("Scheduled snapshots could not be initialized."), "error")
+            return
+        removed = 0
+        for bookmark_id in bookmark_ids:
+            if scheduler.is_scheduled(bookmark_id):
+                removed += 1
+            scheduler.remove(bookmark_id)
+        if not scheduler.list_scheduled():
+            scheduler.stop()
+        self._set_status(format_message(
+            "Removed {count} scheduled snapshot(s)", count=removed,
+        ))
+        self._show_toast(
+            format_message("Removed {count} scheduled snapshot(s)", count=removed),
+            "success",
+        )
+
     def _show_tools_menu(self):
         """Show tools menu"""
         theme = get_theme()
@@ -241,6 +410,9 @@ class ToolsActionsMixin:
 
         menu.add_command(label=_("Check All Links"), command=self._check_all_links)
         menu.add_command(label=_("View Dead Links"), command=self._view_dead_links)
+        menu.add_command(label=_("Schedule Selected Snapshots"), command=self._schedule_selected_snapshots)
+        menu.add_command(label=_("Remove Selected Snapshot Schedules"), command=self._unschedule_selected_snapshots)
+        menu.add_command(label=_("Scheduled Snapshot Settings"), command=self._show_snapshot_settings)
         menu.add_command(label=_("Snapshot Failure Report"), command=self._view_snapshot_failures)
         menu.add_command(label=_("Find Duplicates"), command=self._find_duplicates)
         menu.add_command(label=_("Smart Duplicate Scan"), command=self._smart_duplicate_scan)
@@ -1112,6 +1284,10 @@ class ToolsActionsMixin:
                     lines.append(f"    - {attempt.backend}: {attempt.message[:120]}")
             else:
                 lines.append(f"  Reason: {record.error[:160]}")
+            if record.retry_count:
+                lines.append(f"  Retry attempt: {record.retry_count}")
+            if record.next_retry_at:
+                lines.append(f"  Next retry after: {record.next_retry_at}")
             lines.append("")
         if len(records) > 20:
             lines.append(f"... and {len(records) - 20} more failure(s)")

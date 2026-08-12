@@ -455,6 +455,8 @@ class SnapshotFailureRecord:
     error: str
     retry_eligible: bool
     attempts: Tuple[SnapshotBackendAttempt, ...]
+    retry_count: int = 0
+    next_retry_at: str = ""
 
     @property
     def key(self) -> str:
@@ -471,6 +473,8 @@ class SnapshotFailureRecord:
             "error": self.error,
             "retry_eligible": self.retry_eligible,
             "attempts": [attempt.to_dict() for attempt in self.attempts],
+            "retry_count": self.retry_count,
+            "next_retry_at": self.next_retry_at,
         }
 
     @classmethod
@@ -485,6 +489,10 @@ class SnapshotFailureRecord:
             for item in data.get("attempts", [])
             if isinstance(item, dict)
         )
+        try:
+            retry_count = max(0, min(100, int(data.get("retry_count") or 0)))
+        except (TypeError, ValueError):
+            retry_count = 0
         return cls(
             bookmark_id=bookmark_id,
             url=str(data.get("url") or ""),
@@ -493,6 +501,8 @@ class SnapshotFailureRecord:
             error=str(data.get("error") or ""),
             retry_eligible=bool(data.get("retry_eligible", True)),
             attempts=attempts,
+            retry_count=retry_count,
+            next_retry_at=str(data.get("next_retry_at") or "")[:40],
         )
 
 
@@ -535,15 +545,25 @@ class SnapshotFailureStore:
         error: str,
         attempts: Iterable[SnapshotBackendAttempt],
         retry_eligible: bool = True,
+        *,
+        retry_count: int = 0,
+        next_retry_at: str = "",
+        failed_at: str = "",
     ) -> SnapshotFailureRecord:
+        try:
+            bounded_retry_count = max(0, min(100, int(retry_count)))
+        except (TypeError, ValueError):
+            bounded_retry_count = 0
         record = SnapshotFailureRecord(
             bookmark_id=int(bookmark.id) if bookmark.id is not None else None,
             url=bookmark.url or "",
             title=bookmark.title or bookmark.url or "",
-            failed_at=datetime.now().isoformat(),
+            failed_at=failed_at or datetime.now().isoformat(),
             error=error,
             retry_eligible=retry_eligible,
             attempts=tuple(attempts),
+            retry_count=bounded_retry_count,
+            next_retry_at=str(next_retry_at or "")[:40],
         )
         records = [item for item in self.list_failures() if item.key != record.key]
         records.append(record)

@@ -6,7 +6,9 @@ import tkinter as tk
 
 from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.logging_config import log
-from bookmark_organizer_pro.services.settings_store import load_settings
+from bookmark_organizer_pro.services.auto_snapshot import SnapshotScheduler
+from bookmark_organizer_pro.services.settings_store import load_settings, update_settings
+from bookmark_organizer_pro.services.snapshot import SnapshotArchiver
 from bookmark_organizer_pro.ui.foundation import pluralize
 
 
@@ -49,6 +51,7 @@ class LifecycleActionsMixin:
             self._set_status("Library ready")
 
         self._start_dead_link_scheduler()
+        self._start_snapshot_scheduler()
 
     def _post_to_ui(self, callback):
         """Enqueue a callback for the main-thread dispatcher without touching Tk."""
@@ -193,6 +196,88 @@ class LifecycleActionsMixin:
         except Exception:
             log.debug("Failed to start dead-link scanner", exc_info=True)
 
+    def _start_snapshot_scheduler(self):
+        """Restore scheduled snapshots once, after bookmarks are loaded."""
+        if getattr(self, "_snapshot_scheduler", None) is not None:
+            return self._snapshot_scheduler
+        try:
+            settings = load_settings()
+            interval = int(settings.get("auto_snapshot_interval_hours", 24))
+        except Exception:
+            settings = {}
+            interval = 24
+
+        try:
+            archiver = SnapshotArchiver()
+            scheduler = SnapshotScheduler(
+                self._capture_scheduled_snapshot,
+                self.bookmark_manager.get_bookmark,
+                interval_hours=interval,
+                failure_store=archiver.failure_store,
+            )
+            enabled = bool(settings.get("auto_snapshot_enabled", False))
+            if scheduler.interval_hours != interval:
+                scheduler.set_interval(interval)
+            if scheduler.enabled != enabled:
+                scheduler.set_enabled(enabled)
+            self._snapshot_archiver = archiver
+            self._snapshot_scheduler = scheduler
+            if enabled:
+                scheduler.start()
+                log.info(
+                    "Restored auto-snapshot scheduler (%sh, %s bookmarks)",
+                    scheduler.interval_hours,
+                    len(scheduler.list_scheduled()),
+                )
+            return scheduler
+        except Exception:
+            log.warning("Failed to restore auto-snapshot scheduler", exc_info=True)
+            return None
+
+    def _capture_scheduled_snapshot(self, bookmark):
+        """Capture one scheduled bookmark and persist the updated bookmark state."""
+        archiver = getattr(self, "_snapshot_archiver", None)
+        if archiver is None:
+            archiver = SnapshotArchiver()
+            self._snapshot_archiver = archiver
+        ok, detail = archiver.snapshot(bookmark)
+        if ok:
+            self.bookmark_manager.save_bookmarks()
+            self._post_to_ui(self._refresh_all)
+        return ok, detail
+
+    def _ensure_snapshot_scheduler(self):
+        scheduler = getattr(self, "_snapshot_scheduler", None)
+        return scheduler or self._start_snapshot_scheduler()
+
+    def _set_snapshot_schedule_preferences(self, enabled: bool, interval_hours: int) -> bool:
+        """Persist scheduler preferences and apply them to the one live instance."""
+        try:
+            interval = max(1, min(24 * 30, int(interval_hours)))
+            update_settings({
+                "auto_snapshot_enabled": bool(enabled),
+                "auto_snapshot_interval_hours": interval,
+            })
+            scheduler = self._ensure_snapshot_scheduler()
+            if scheduler is None:
+                raise RuntimeError("snapshot scheduler could not be initialized")
+            scheduler.set_interval(interval)
+            scheduler.set_enabled(bool(enabled))
+            if enabled:
+                scheduler.start()
+            else:
+                scheduler.stop()
+            return True
+        except (OSError, TypeError, ValueError, RuntimeError) as exc:
+            log.warning("Could not update scheduled snapshot settings: %s", exc)
+            self._set_status(format_message(
+                "Scheduled snapshots were not updated: {error}", error=str(exc)[:160],
+            ))
+            self._show_toast(
+                "Scheduled snapshot settings could not be saved", "error",
+            )
+            return False
+
     def _on_close(self):
         """Handle close — stop timers and background work before tearing down."""
         self._closing = True
@@ -211,6 +296,13 @@ class LifecycleActionsMixin:
                 scanner.stop()
             except Exception:
                 log.debug("Error stopping dead-link scanner", exc_info=True)
+
+        snapshot_scheduler = getattr(self, "_snapshot_scheduler", None)
+        if snapshot_scheduler is not None:
+            try:
+                snapshot_scheduler.stop()
+            except Exception:
+                log.debug("Error stopping auto-snapshot scheduler", exc_info=True)
 
         bookmark_manager = getattr(self, "bookmark_manager", None)
         if bookmark_manager is not None:

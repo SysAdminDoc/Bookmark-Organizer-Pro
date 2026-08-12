@@ -3160,5 +3160,203 @@ def test_stdlib_rss_fallback_rejects_complex_dtd_and_entity_subsets():
     assert root.tag == "rss"
 
 
+class TestSnapshotScheduler:
+    def test_schedule_reload_restores_interval_and_due_selection(self, tmp_path):
+        from datetime import datetime, timezone
+
+        from bookmark_organizer_pro.models import Bookmark
+        from bookmark_organizer_pro.services import auto_snapshot
+        from bookmark_organizer_pro.services.auto_snapshot import SnapshotScheduler
+        from bookmark_organizer_pro.services.snapshot import SnapshotFailureStore
+
+        now = datetime(2026, 8, 12, 12, tzinfo=timezone.utc)
+        due = Bookmark(id=1, url="https://due.example", title="Due")
+        due.snapshot_at = "2026-08-11T00:00:00+00:00"
+        fresh = Bookmark(id=2, url="https://fresh.example", title="Fresh")
+        fresh.snapshot_at = "2026-08-12T11:30:00+00:00"
+        bookmarks = {1: due, 2: fresh}
+        calls = []
+
+        def capture(bookmark):
+            calls.append(bookmark.id)
+            bookmark.snapshot_at = now.isoformat()
+            return True, "ok"
+
+        with patch.object(auto_snapshot, "SCHEDULE_FILE", tmp_path / "schedule.json"):
+            first = SnapshotScheduler(
+                capture,
+                bookmarks.get,
+                interval_hours=6,
+                failure_store=SnapshotFailureStore(tmp_path / "failures.json"),
+                clock=lambda: now,
+            )
+            first.add(1)
+            first.add(2)
+            first.set_interval(12)
+            first.set_enabled(True)
+
+            restored = SnapshotScheduler(
+                capture,
+                bookmarks.get,
+                interval_hours=24,
+                failure_store=SnapshotFailureStore(tmp_path / "failures.json"),
+                clock=lambda: now,
+            )
+            assert restored.interval_hours == 12
+            assert restored.enabled is True
+            assert restored.list_scheduled() == [1, 2]
+
+            stats = restored.run_once(now=now)
+
+        assert stats["success"] == 1
+        assert stats["skipped"] == 1
+        assert calls == [1]
+
+    def test_failures_use_bounded_backoff_and_defer_until_due(self, tmp_path):
+        from datetime import datetime, timedelta, timezone
+
+        from bookmark_organizer_pro.models import Bookmark
+        from bookmark_organizer_pro.services import auto_snapshot
+        from bookmark_organizer_pro.services.auto_snapshot import SnapshotScheduler
+        from bookmark_organizer_pro.services.snapshot import SnapshotFailureStore
+
+        current = [datetime(2026, 8, 12, 12, tzinfo=timezone.utc)]
+        bookmark = Bookmark(id=7, url="https://offline.example", title="Offline")
+        calls = []
+
+        def capture(_bookmark):
+            calls.append(1)
+            return False, "offline"
+
+        with patch.object(auto_snapshot, "SCHEDULE_FILE", tmp_path / "schedule.json"):
+            failures = SnapshotFailureStore(tmp_path / "failures.json")
+            scheduler = SnapshotScheduler(
+                capture,
+                lambda _bookmark_id: bookmark,
+                failure_store=failures,
+                clock=lambda: current[0],
+            )
+            scheduler.add(7)
+
+            first = scheduler.run_once(now=current[0])
+            record = failures.get_for_bookmark(bookmark)
+            assert first["failed"] == 1
+            assert record is not None
+            assert record.retry_count == 1
+            retry_at = datetime.fromisoformat(record.next_retry_at)
+            assert retry_at - current[0] == timedelta(minutes=5)
+
+            deferred = scheduler.run_once(now=current[0])
+            assert deferred["failed"] == 0
+            assert deferred["deferred"] == 1
+            assert calls == [1]
+
+            current[0] = retry_at + timedelta(seconds=1)
+            scheduler.run_once(now=current[0])
+            record = failures.get_for_bookmark(bookmark)
+            assert record is not None
+            assert record.retry_count == 2
+            assert calls == [1, 1]
+
+    def test_overlapping_passes_are_coalesced_and_disabled_scheduler_stays_paused(self, tmp_path):
+        import threading
+
+        from bookmark_organizer_pro.models import Bookmark
+        from bookmark_organizer_pro.services import auto_snapshot
+        from bookmark_organizer_pro.services.auto_snapshot import SnapshotScheduler
+
+        entered = threading.Event()
+        release = threading.Event()
+        bookmark = Bookmark(id=3, url="https://example.com", title="Example")
+
+        def capture(_bookmark):
+            entered.set()
+            release.wait(timeout=2)
+            return True, "ok"
+
+        with patch.object(auto_snapshot, "SCHEDULE_FILE", tmp_path / "schedule.json"):
+            scheduler = SnapshotScheduler(
+                capture,
+                lambda _bookmark_id: bookmark,
+                initial_delay_seconds=0,
+            )
+            scheduler.add(3)
+            scheduler.set_enabled(False)
+            scheduler.start()
+            assert scheduler._thread is None
+
+            worker = threading.Thread(target=scheduler.run_once)
+            worker.start()
+            assert entered.wait(timeout=2)
+            assert scheduler.run_once()["coalesced"] == 1
+            release.set()
+            worker.join(timeout=2)
+            assert not worker.is_alive()
+
+            scheduler.set_enabled(True)
+            waits = []
+            scheduler._wait = lambda timeout: waits.append(timeout) or True
+            scheduler.start()
+            scheduler.stop()
+            assert waits and waits[0] == 0
+
+    def test_lifecycle_restores_enabled_scheduler_and_stops_it_on_close(self):
+        from unittest.mock import MagicMock
+
+        from bookmark_organizer_pro.app_mixins.lifecycle import LifecycleActionsMixin
+
+        scheduler = MagicMock()
+        scheduler.interval_hours = 24
+        scheduler.enabled = False
+        scheduler.list_scheduled.return_value = [4, 8]
+        archiver = MagicMock()
+        archiver.failure_store = object()
+
+        class Harness(LifecycleActionsMixin):
+            pass
+
+        harness = Harness()
+        harness.bookmark_manager = MagicMock()
+        harness._capture_scheduled_snapshot = MagicMock()
+        harness._snapshot_scheduler = None
+        harness._snapshot_archiver = None
+
+        with patch(
+            "bookmark_organizer_pro.app_mixins.lifecycle.load_settings",
+            return_value={"auto_snapshot_enabled": True, "auto_snapshot_interval_hours": 24},
+        ), patch(
+            "bookmark_organizer_pro.app_mixins.lifecycle.SnapshotArchiver",
+            return_value=archiver,
+        ), patch(
+            "bookmark_organizer_pro.app_mixins.lifecycle.SnapshotScheduler",
+            return_value=scheduler,
+        ) as scheduler_factory:
+            restored = harness._start_snapshot_scheduler()
+
+        assert restored is scheduler
+        scheduler_factory.assert_called_once()
+        scheduler.set_enabled.assert_called_once_with(True)
+        scheduler.start.assert_called_once()
+
+        class Root:
+            def destroy(self):
+                self.destroyed = True
+
+        harness.root = Root()
+        harness._closing = False
+        harness._analytics_poll_id = None
+        harness._grid_after_id = None
+        harness._search_after = None
+        harness._dead_link_scanner = None
+        harness.favicon_manager = None
+        harness.task_runner = None
+        harness.ui_dispatcher = None
+        harness._theme_change_callback = None
+        harness.bookmark_manager.stop_file_watcher = MagicMock()
+        harness._on_close()
+        scheduler.stop.assert_called_once()
+        assert harness.root.destroyed is True
+
+
 if __name__ == "__main__":
     unittest.main()

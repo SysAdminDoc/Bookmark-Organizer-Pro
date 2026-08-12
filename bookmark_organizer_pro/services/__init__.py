@@ -6,6 +6,7 @@ from .ai_tools import (
     AITagSuggester,
     SemanticDuplicateDetector,
 )
+from .auto_snapshot import SnapshotScheduler
 from .ai_operation import (
     AIBudget,
     AIBudgetExceeded,
@@ -166,6 +167,7 @@ __all__ = [
     # Existing
     "AIBatchProcessor", "AICostTracker", "AITagSuggester",
     "SemanticDuplicateDetector", "BookmarkAPI",
+    "SnapshotScheduler",
     "AIBudget", "AIBudgetExceeded", "AICancellationToken",
     "AIOperation", "AIOperationCancelled", "AIOperationError",
     "call_ai", "estimate_tokens", "operation_scope",

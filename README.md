@@ -283,6 +283,7 @@ Native messaging and offline category/tag suggestions remain on the roadmap.
 
 ### Data Management
 - **Automatic Backups**: Timestamped backups with easy restore
+- **Scheduled Snapshots**: Persisted bookmark schedules with lifecycle recovery, pause controls, and bounded retry backoff
 - **Export Options**: HTML, JSON, CSV, OPML, XBEL, Markdown formats
 - **Structured Metadata Templates**: Safe JSON/YAML extraction templates capture fields for GitHub, docs, papers, videos, and store pages into bookmark metadata
 - **Soft Delete / Trash**: Recoverable deletion with trash management

@@ -4,13 +4,6 @@ Actionable work only. Historical and completed roadmap material is archived in C
 
 ## Actionable Items
 
-- [ ] P1 — R-95: Wire scheduled snapshots into lifecycle and recovery
-  Why: The former R-24 completion claim is not reachable: `auto_snapshot.py` and its saved interval exist without a verified application lifecycle that restores, runs, pauses, and recovers the scheduler.
-  Evidence: `bookmark_organizer_pro/services/auto_snapshot.py`, snapshot settings, lifecycle mixins, snapshot failure/history services, `CHANGELOG.md`.
-  Touches: lifecycle/settings UI, scheduler, job ledger, snapshot history/failure UI, shutdown and clock-control tests.
-  Acceptance: Enabling a schedule persists and starts one scheduler; restart restores it; disable/shutdown cancels it; overlapping runs are coalesced; offline/retryable failures use bounded backoff and remain visible; deterministic-clock tests prove due selection, restart, pause, retry, and no duplicate capture.
-  Complexity: M
-
 - [ ] P2 — R-96: Clarify extension category and search states
   Why: capture can show a blank default-category affordance, while search lacks explicit loading/no-results/error announcements and robust accessible state.
   Evidence: `browser-extension/popup.html`, `browser-extension/popup.js`, `browser-extension/sidepanel.html`, `browser-extension/sidepanel.js`, visual captures; Chrome bookmarks/storage/i18n APIs.
