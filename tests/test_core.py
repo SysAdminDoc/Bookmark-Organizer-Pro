@@ -1102,6 +1102,16 @@ class TestSearchQuery(unittest.TestCase):
         self.assertTrue(q.is_pinned)
         self.assertTrue(q.has_notes)
 
+    def test_reader_progress_status_filters(self):
+        bm = Bookmark(
+            id=1,
+            url="https://reader.example",
+            title="Reader",
+            reader_progress_state="in_progress",
+        )
+        self.assertTrue(SearchQuery("is:in-progress").matches(bm))
+        self.assertFalse(SearchQuery("is:finished").matches(bm))
+
     def test_visit_filter(self):
         q = SearchQuery("visits:>5")
         self.assertEqual(q.min_visits, 6)
@@ -2981,7 +2991,7 @@ class TestUIFoundation(unittest.TestCase):
             Bookmark(id=2, url="https://b.com", title="B", is_valid=False,
                      created_at="2026-01-01T00:00:00"),
             Bookmark(id=3, url="https://c.com", title="C", ai_tags=["ai"],
-                     created_at="2026-01-01T00:00:00"),
+                     created_at="2026-01-01T00:00:00", reader_progress_state="in_progress"),
         ]
         counts = build_filter_counts(bookmarks, now=now)
         self.assertEqual(counts.as_dict(), {
@@ -2990,6 +3000,7 @@ class TestUIFoundation(unittest.TestCase):
             "Recent": 1,
             "Broken": 1,
             "Untagged": 1,
+            "In Progress": 1,
         })
 
     def test_collection_summary_view_model(self):

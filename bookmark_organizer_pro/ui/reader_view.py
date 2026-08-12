@@ -5,7 +5,7 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import filedialog, ttk
 from pathlib import Path
-from typing import List
+from typing import Callable, List
 
 from bookmark_organizer_pro.i18n import _
 from bookmark_organizer_pro.models import Bookmark
@@ -15,6 +15,11 @@ from bookmark_organizer_pro.services.reader_annotations import (
     ReaderHighlight,
     export_annotations,
     read_extracted_text,
+)
+from bookmark_organizer_pro.services.reader_progress import (
+    DEFAULT_PROGRESS_STATE,
+    ReaderProgress,
+    ReaderProgressStore,
 )
 
 from .foundation import FONTS, readable_text_on
@@ -50,12 +55,36 @@ def reader_empty_message(bookmark: Bookmark) -> str:
 class ReaderViewDialog(tk.Toplevel):
     """Read extracted bookmark text and manage persisted highlights."""
 
-    def __init__(self, parent, bookmark: Bookmark, store: ReaderAnnotationStore | None = None):
+    def __init__(
+        self,
+        parent,
+        bookmark: Bookmark,
+        store: ReaderAnnotationStore | None = None,
+        progress_store: ReaderProgressStore | None = None,
+        on_progress_changed: Callable[[Bookmark], None] | None = None,
+    ):
         theme = get_theme()
         super().__init__(parent)
         self.bookmark = bookmark
         self.store = store or ReaderAnnotationStore()
+        self.progress_store = progress_store or ReaderProgressStore()
+        self.on_progress_changed = on_progress_changed
         self.text_content = read_extracted_text(bookmark)
+        self._progress: ReaderProgress | None = self.progress_store.restore(
+            int(bookmark.id), self.text_content,
+        )
+        if self._progress is None and bookmark.reader_progress_updated_at:
+            self._progress = ReaderProgress(
+                bookmark_id=int(bookmark.id),
+                state=bookmark.reader_progress_state,
+                position=bookmark.reader_progress_position,
+                content_length=len(self.text_content),
+                source_sha256=bookmark.reader_progress_source_sha256,
+                updated_at=bookmark.reader_progress_updated_at,
+            )
+        self.progress_store.apply_to_bookmark(self.bookmark, self._progress)
+        self._progress_after: str | None = None
+        self._restoring_progress = False
         self.highlight_ids: List[str] = []
         self._deleted_highlight: ReaderHighlight | None = None
 
@@ -68,15 +97,18 @@ class ReaderViewDialog(tk.Toplevel):
 
         self._build()
         self._load_highlights()
-        self.bind("<Escape>", lambda _event: self.destroy())
+        self._update_progress_display()
+        self.bind("<Escape>", lambda _event: self._close())
         self.bind("<Control-z>", self._undo_deleted_highlight)
         self.bind("<Command-z>", self._undo_deleted_highlight)
+        self.protocol("WM_DELETE_WINDOW", self._close)
         self.after(50, self.text.focus_set)
+        self.after_idle(self._restore_reader_position)
 
     def _build(self) -> None:
         theme = get_theme()
 
-        header = tk.Frame(self, bg=theme.bg_secondary, padx=16, pady=12)
+        header = tk.Frame(self, bg=theme.bg_secondary, padx=16, pady=8)
         header.pack(fill=tk.X)
         title_stack = tk.Frame(header, bg=theme.bg_secondary)
         title_stack.pack(side=tk.LEFT, fill=tk.X, expand=True)
@@ -105,7 +137,7 @@ class ReaderViewDialog(tk.Toplevel):
         self.export_button.pack(side=tk.RIGHT, padx=(12, 0))
 
         body = tk.PanedWindow(self, orient=tk.HORIZONTAL, bg=theme.bg_primary, sashwidth=4)
-        body.pack(fill=tk.BOTH, expand=True, padx=12, pady=12)
+        body.pack(fill=tk.BOTH, expand=True, padx=12, pady=6)
 
         text_frame = tk.Frame(body, bg=theme.bg_primary)
         self.text = tk.Text(
@@ -122,7 +154,8 @@ class ReaderViewDialog(tk.Toplevel):
             font=FONTS.body(),
         )
         scrollbar = ttk.Scrollbar(text_frame, orient=tk.VERTICAL, command=self.text.yview)
-        self.text.configure(yscrollcommand=scrollbar.set)
+        self.reader_scrollbar = scrollbar
+        self.text.configure(yscrollcommand=self._on_text_scroll)
         self.text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.text.insert(
@@ -137,6 +170,45 @@ class ReaderViewDialog(tk.Toplevel):
         side.grid_columnconfigure(0, weight=1)
         side.grid_rowconfigure(3, weight=3, minsize=80)
         side.grid_rowconfigure(6, weight=1, minsize=50)
+
+        progress_frame = tk.Frame(header, bg=theme.bg_secondary)
+        progress_frame.pack(side=tk.RIGHT, padx=(8, 0))
+        tk.Label(
+            progress_frame,
+            text=_("Reading progress"),
+            bg=theme.bg_secondary,
+            fg=theme.text_primary,
+            font=FONTS.body(bold=True),
+            anchor="w",
+        ).pack(fill=tk.X)
+        self.progress_label = tk.Label(
+            progress_frame,
+            text="",
+            bg=theme.bg_secondary,
+            fg=theme.text_secondary,
+            font=FONTS.small(),
+            anchor="w",
+        )
+        self.progress_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.progress_state_var = tk.StringVar(value="unread")
+        self.progress_combo = ttk.Combobox(
+            progress_frame,
+            textvariable=self.progress_state_var,
+            values=[_("Unread"), _("In progress"), _("Finished")],
+            state="readonly",
+            width=11,
+        )
+        self.progress_combo.pack(side=tk.LEFT, padx=(0, 5))
+        self.progress_combo.bind("<<ComboboxSelected>>", self._on_progress_combo)
+        self.reset_progress_button = ModernButton(
+            progress_frame,
+            text=_("Reset"),
+            command=self._reset_progress,
+            padx=3,
+            pady=1,
+            font=FONTS.tiny(),
+        )
+        self.reset_progress_button.pack(side=tk.LEFT)
 
         tk.Label(
             side,
@@ -273,6 +345,154 @@ class ReaderViewDialog(tk.Toplevel):
             tooltip=_("Restore the last deleted highlight (Ctrl+Z)"),
         )
         self.undo_delete_button.pack(side=tk.LEFT)
+
+    def _on_text_scroll(self, first: str, last: str) -> None:
+        self.reader_scrollbar.set(first, last)
+        self._schedule_progress_save()
+
+    def _on_progress_combo(self, _event=None) -> None:
+        selected = self.progress_state_var.get()
+        state = {
+            _("Unread"): "unread",
+            _("In progress"): "in_progress",
+            _("Finished"): "finished",
+        }.get(selected)
+        if state:
+            self._set_progress_state(state)
+
+    def _schedule_progress_save(self) -> None:
+        if not self.text_content or self._restoring_progress:
+            return
+        if self._progress_after is not None:
+            try:
+                self.after_cancel(self._progress_after)
+            except tk.TclError:
+                pass
+        self._progress_after = self.after(500, self._save_progress_position)
+
+    def _visible_position(self) -> int:
+        try:
+            first, _last = self.text.yview()
+            return max(0, min(len(self.text_content), round(float(first) * len(self.text_content))))
+        except (tk.TclError, TypeError, ValueError):
+            return 0
+
+    def _save_progress_position(self) -> None:
+        self._progress_after = None
+        if not self.text_content or self._restoring_progress:
+            return
+        position = self._visible_position()
+        state = self._progress.state if self._progress else getattr(
+            self.bookmark, "reader_progress_state", DEFAULT_PROGRESS_STATE,
+        )
+        if state == "unread" and position > 0:
+            state = "in_progress"
+        expected = self._progress.updated_at if self._progress else ""
+        write = self.progress_store.save(
+            int(self.bookmark.id),
+            self.text_content,
+            position,
+            state=state,
+            expected_updated_at=expected,
+        )
+        if write.progress is not None:
+            self._progress = write.progress
+            self.progress_store.apply_to_bookmark(self.bookmark, write.progress)
+            self._update_progress_display()
+            if write.applied and self.on_progress_changed:
+                self.on_progress_changed(self.bookmark)
+        if write.conflict:
+            self.status.configure(text=_("Reader progress changed elsewhere; kept the newer position."))
+
+    def _set_progress_state(self, state: str) -> None:
+        if state not in {"unread", "in_progress", "finished"}:
+            return
+        self._save_progress_position()
+        position = self._visible_position() if self.text_content else 0
+        expected = self._progress.updated_at if self._progress else ""
+        write = self.progress_store.save(
+            int(self.bookmark.id),
+            self.text_content,
+            position,
+            state=state,
+            expected_updated_at=expected,
+        )
+        if write.progress is not None:
+            self._progress = write.progress
+            self.progress_store.apply_to_bookmark(self.bookmark, write.progress)
+            self._update_progress_display()
+            if write.applied and self.on_progress_changed:
+                self.on_progress_changed(self.bookmark)
+        self.status.configure(
+            text=_("Reader state set to {state}.").format(
+                state={
+                    "unread": _("unread"),
+                    "in_progress": _("in progress"),
+                    "finished": _("finished"),
+                }[state],
+            )
+        )
+
+    def _reset_progress(self) -> None:
+        expected = self._progress.updated_at if self._progress else None
+        if self.progress_store.reset(int(self.bookmark.id), expected_updated_at=expected):
+            self._progress = None
+            self.progress_store.apply_to_bookmark(self.bookmark, None)
+            self._restoring_progress = True
+            try:
+                self.text.yview_moveto(0)
+            finally:
+                self._restoring_progress = False
+            self._update_progress_display()
+            if self.on_progress_changed:
+                self.on_progress_changed(self.bookmark)
+            self.status.configure(text=_("Reader progress reset."))
+        else:
+            self.status.configure(text=_("Reader progress changed elsewhere; reset was not applied."))
+
+    def _restore_reader_position(self) -> None:
+        progress = self._progress
+        if progress is None or not self.text_content:
+            return
+        position = max(0, min(len(self.text_content), progress.position))
+        fraction = position / max(1, len(self.text_content))
+        self._restoring_progress = True
+        try:
+            self.text.yview_moveto(fraction)
+        finally:
+            self._restoring_progress = False
+        self._update_progress_display()
+
+    def _update_progress_display(self) -> None:
+        state = self._progress.state if self._progress else getattr(
+            self.bookmark, "reader_progress_state", DEFAULT_PROGRESS_STATE,
+        )
+        state_label = {
+            "unread": _("Unread"),
+            "in_progress": _("In progress"),
+            "finished": _("Finished"),
+        }.get(state, _("Unread"))
+        self.progress_state_var.set(state_label)
+        position = self._progress.position if self._progress else getattr(
+            self.bookmark, "reader_progress_position", 0,
+        )
+        percent = round(100 * position / max(1, len(self.text_content)))
+        self.progress_label.configure(
+            text=_("{state} · {percent}% read").format(
+                state=state_label,
+                percent=max(0, min(100, percent)),
+            )
+        )
+
+    def _close(self):
+        if self._progress_after is not None:
+            try:
+                self.after_cancel(self._progress_after)
+            except tk.TclError:
+                pass
+            self._progress_after = None
+        self._save_progress_position()
+        self.destroy()
 
     def _load_highlights(self, select_id: str | None = None) -> None:
         self._clear_highlight_tags()

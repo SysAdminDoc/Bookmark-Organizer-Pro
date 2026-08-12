@@ -393,6 +393,7 @@ complete -c bop -n "__fish_seen_subcommand_from smart-collections" -l read-later
 complete -c bop -n "__fish_seen_subcommand_from smart-collections" -l no-read-later-only -d ""
 complete -c bop -n "__fish_seen_subcommand_from smart-collections" -l has-snapshot -d ""
 complete -c bop -n "__fish_seen_subcommand_from smart-collections" -l no-has-snapshot -d ""
+complete -c bop -n "__fish_seen_subcommand_from smart-collections" -l reader-state -d "Filter by persisted reader state" -r -a "unread" -a "in_progress" -a "finished"
 complete -c bop -f -n "__fish_seen_subcommand_from smart-collections" -a "list" -d "Action: list, eval, create, update"
 complete -c bop -f -n "__fish_seen_subcommand_from smart-collections" -a "eval" -d "Action: list, eval, create, update"
 complete -c bop -f -n "__fish_seen_subcommand_from smart-collections" -a "create" -d "Action: list, eval, create, update"

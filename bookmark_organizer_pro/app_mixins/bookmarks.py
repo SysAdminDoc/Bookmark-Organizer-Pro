@@ -37,6 +37,11 @@ def _bookmark_status(bookmark: Bookmark) -> str:
     """Describe a bookmark state without relying on color alone."""
     if not bookmark.is_valid:
         return "● Needs review"
+    reader_state = getattr(bookmark, "reader_progress_state", "unread")
+    if reader_state == "finished":
+        return "● Finished"
+    if reader_state == "in_progress":
+        return "● In progress"
     if bookmark.read_later:
         return "● Read later"
     if bookmark.visit_count:
@@ -74,6 +79,8 @@ def _status_sort_value(bookmark: Bookmark) -> int:
         return 0
     if bookmark.read_later:
         return 1
+    if getattr(bookmark, "reader_progress_state", "unread") == "in_progress":
+        return 2
     if not bookmark.visit_count:
         return 2
     return 3
@@ -113,6 +120,11 @@ class BookmarkViewMixin:
                 bookmarks = [bm for bm in bookmarks if bm.created_at and bm.created_at >= week_ago]
             elif quick_filter == "untagged":
                 bookmarks = [bm for bm in bookmarks if not bm.tags and not bm.ai_tags]
+            elif quick_filter == "in_progress":
+                bookmarks = [
+                    bm for bm in bookmarks
+                    if getattr(bm, "reader_progress_state", "unread") == "in_progress"
+                ]
         else:
             # Apply search query only if no quick filter
             if query:
@@ -167,6 +179,7 @@ class BookmarkViewMixin:
             type_labels = {
                 "pinned": "Pinned", "recent": "Inbox",
                 "broken": "Needs review", "untagged": "Untagged",
+                "in_progress": "In progress",
             }
             self.type_filter_btn.set_text(type_labels.get(quick_filter, "All types"))
 

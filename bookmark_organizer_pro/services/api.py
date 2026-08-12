@@ -760,6 +760,12 @@ class BookmarkAPI:
                         offset = _clamp_int(params.get('offset', [0])[0], 0, minimum=0, maximum=100_000)
                         read_later_only = _coerce_bool(params.get('read_later_only', [False])[0])
                         pinned_only = _coerce_bool(params.get('pinned_only', [False])[0])
+                        reader_state = str(params.get('reader_state', [''])[0] or '').strip().lower()
+                        if reader_state not in {'', 'unread', 'in_progress', 'finished'}:
+                            self._send_json({
+                                "error": "reader_state must be unread, in_progress, or finished",
+                            }, 400)
+                            return
 
                         if category:
                             bookmarks = [
@@ -775,6 +781,11 @@ class BookmarkAPI:
                             bookmarks = [bm for bm in bookmarks if bm.read_later]
                         if pinned_only:
                             bookmarks = [bm for bm in bookmarks if bm.is_pinned]
+                        if reader_state:
+                            bookmarks = [
+                                bm for bm in bookmarks
+                                if getattr(bm, 'reader_progress_state', 'unread') == reader_state
+                            ]
                         bookmarks.sort(key=lambda bm: (bm.created_at, bm.id or 0), reverse=True)
                         page = bookmarks[offset: offset + limit]
                         next_offset = offset + len(page)

@@ -104,6 +104,12 @@ def _bm_to_dict(bm: Bookmark) -> Dict[str, Any]:
         "snapshot_sha256": bm.snapshot_sha256,
         "snapshot_backend": bm.snapshot_backend,
         "flow_id": bm.flow_id,
+        "reader_progress": {
+            "state": getattr(bm, "reader_progress_state", "unread"),
+            "position": getattr(bm, "reader_progress_position", 0),
+            "source_sha256": getattr(bm, "reader_progress_source_sha256", ""),
+            "updated_at": getattr(bm, "reader_progress_updated_at", ""),
+        },
         "youtube_transcript": {
             "available": bool(getattr(bm, "youtube_transcript_path", "")),
             "language": getattr(bm, "youtube_transcript_language", ""),

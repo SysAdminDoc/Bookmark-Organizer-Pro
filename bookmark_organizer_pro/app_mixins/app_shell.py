@@ -336,6 +336,7 @@ class AppShellMixin:
             "Recent": _("Show bookmarks added in the last 7 days"),
             "Broken": _("Show bookmarks with broken links"),
             "Untagged": _("Show bookmarks without any tags"),
+            "In Progress": _("Show bookmarks currently in progress"),
         }
 
         for filter_name, label in [
@@ -344,6 +345,7 @@ class AppShellMixin:
             ("Recent", _("▱  Inbox")),
             ("Broken", _("⚑  Needs Review")),
             ("Untagged", _("◇  Untagged")),
+            ("In Progress", _("▣  In Progress")),
         ]:
             is_active = (filter_name == "All")  # All is active by default
             row = tk.Frame(

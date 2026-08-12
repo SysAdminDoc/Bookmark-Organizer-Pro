@@ -59,6 +59,13 @@ def _next_action(bookmark: Bookmark) -> tuple[str, str, str, str]:
             _("Continue reading"),
             "open",
         )
+    if getattr(bookmark, "reader_progress_state", "unread") == "in_progress":
+        return (
+            _("Continue where you left off"),
+            _("Resume the saved reader position for this bookmark."),
+            _("Continue reading"),
+            "open",
+        )
     if not str(bookmark.notes or "").strip():
         return (
             _("Add useful context"),
@@ -196,6 +203,18 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
         tags = [*bookmark.tags, *bookmark.ai_tags]
         self._detail(_("Tags"), "  ".join(f"#{tag}" for tag in tags) if tags else _("No tags"))
         self._detail(_("Saved"), _format_date(bookmark.created_at))
+        progress_labels = {
+            "unread": _("Unread"),
+            "in_progress": _("In progress"),
+            "finished": _("Finished"),
+        }
+        self._detail(
+            _("Reading progress"),
+            progress_labels.get(
+                getattr(bookmark, "reader_progress_state", "unread"),
+                _("Unread"),
+            ),
+        )
         self._detail(_("Offline copy"), self._offline_state(bookmark))
 
         structured_fields = structured_metadata_fields(bookmark)
@@ -262,6 +281,11 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
             return _("Needs review"), theme.accent_warning
         if bookmark.read_later:
             return _("Read later"), theme.accent_secondary
+        reader_state = getattr(bookmark, "reader_progress_state", "unread")
+        if reader_state == "finished":
+            return _("Finished"), theme.accent_success
+        if reader_state == "in_progress":
+            return _("In progress"), theme.accent_primary
         if bookmark.visit_count:
             return _("Read"), theme.accent_success
         return _("Unread"), theme.accent_cyan

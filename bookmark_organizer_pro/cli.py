@@ -461,6 +461,11 @@ class BookmarkCLI:
             action=argparse.BooleanOptionalAction,
             default=None,
         )
+        p.add_argument(
+            "--reader-state",
+            choices=["unread", "in_progress", "finished"],
+            help="Filter by persisted reader state",
+        )
         p.set_defaults(func=self._cmd_smart_collections)
 
         p = sub.add_parser("nl-query", help="Natural language query")
@@ -2113,6 +2118,8 @@ Top Domains:
                     parts.append(f"domains={f.domains}")
                 if f.keywords:
                     parts.append(f"keywords={f.keywords}")
+                if f.reader_state:
+                    parts.append(f"reader_state={f.reader_state}")
                 if parts:
                     print(f"    Filters: {', '.join(parts)}")
             for diagnostic in mgr.diagnostics:
@@ -2178,7 +2185,9 @@ Top Domains:
             raw = getattr(ns, field_name, None)
             if raw is not None:
                 values[field_name] = [item.strip() for item in raw.split(",") if item.strip()]
-        for field_name in ("after", "before", "read_later_only", "has_snapshot"):
+        for field_name in (
+            "after", "before", "read_later_only", "has_snapshot", "reader_state",
+        ):
             value = getattr(ns, field_name, None)
             if value is not None:
                 values[field_name] = value

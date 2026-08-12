@@ -1395,6 +1395,7 @@ _bop_completions() {
                 --no-read-later-only
                 --has-snapshot
                 --no-has-snapshot
+                --reader-state
             )
             case "$prev" in
                 --name)
@@ -1422,6 +1423,16 @@ _bop_completions() {
                     return 0
                     ;;
                 --before)
+                    return 0
+                    ;;
+                --reader-state)
+                    local -a values=(
+                        unread
+                        in_progress
+                        finished
+                    )
+                    _bop_complete_array "$cur" "${values[@]}"
+                    return 0
                     return 0
                     ;;
             esac

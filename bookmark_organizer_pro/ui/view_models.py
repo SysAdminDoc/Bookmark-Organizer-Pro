@@ -23,6 +23,7 @@ class FilterCountsViewModel:
     recent: int = 0
     broken: int = 0
     untagged: int = 0
+    in_progress: int = 0
 
     def as_dict(self) -> Dict[str, int]:
         return {
@@ -31,6 +32,7 @@ class FilterCountsViewModel:
             "Recent": self.recent,
             "Broken": self.broken,
             "Untagged": self.untagged,
+            "In Progress": self.in_progress,
         }
 
 
@@ -148,6 +150,11 @@ def build_filter_counts(bookmarks: Sequence, now: Optional[datetime] = None) -> 
         recent=sum(1 for bm in bookmarks if _is_recent(bm, week_ago)),
         broken=sum(1 for bm in bookmarks if not bool(getattr(bm, "is_valid", True))),
         untagged=sum(1 for bm in bookmarks if _is_untagged(bm)),
+        in_progress=sum(
+            1
+            for bm in bookmarks
+            if getattr(bm, "reader_progress_state", "unread") == "in_progress"
+        ),
     )
 
 

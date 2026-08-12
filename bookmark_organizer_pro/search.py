@@ -384,10 +384,11 @@ class SearchQuery:
             value = value.lower()
             if value not in {
                 "pinned", "archived", "broken", "stale", "recent", "untagged",
+                "in-progress", "finished", "unread",
             }:
                 self._diagnose(
                     "invalid_status_filter",
-                    "is: supports pinned, archived, broken, stale, recent, or untagged.",
+                    "is: supports pinned, archived, broken, stale, recent, untagged, in-progress, finished, or unread.",
                     token.start,
                     token.end,
                 )
@@ -470,7 +471,7 @@ class SearchQuery:
                 elif clause.kind == "has":
                     setattr(self, f"has_{clause.value}", True)
                 elif clause.kind == "is" and clause.value in {
-                    "pinned", "archived", "broken", "stale",
+                    "pinned", "archived", "broken", "stale", "in-progress", "finished", "unread",
                 }:
                     setattr(self, f"is_{clause.value}", True)
                 elif clause.kind == "visits" and clause.operator in {">", ">="}:
@@ -591,6 +592,12 @@ class SearchQuery:
                 matched = bookmark.is_stale
             elif value == "untagged":
                 matched = not all_tags
+            elif value == "in-progress":
+                matched = getattr(bookmark, "reader_progress_state", "unread") == "in_progress"
+            elif value == "finished":
+                matched = getattr(bookmark, "reader_progress_state", "unread") == "finished"
+            elif value == "unread":
+                matched = getattr(bookmark, "reader_progress_state", "unread") == "unread"
             else:
                 created = self._bookmark_created_at(bookmark)
                 now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -800,6 +807,9 @@ Date Filters:
 
 Status Filters:
   is:pinned              Pinned bookmarks
+  is:in-progress         Reader items currently in progress
+  is:finished            Reader items marked finished
+  is:unread              Reader items not started
   is:archived            Archived bookmarks
   is:broken              Broken links
   is:stale               Not visited in 90+ days

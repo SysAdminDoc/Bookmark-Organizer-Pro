@@ -3485,5 +3485,97 @@ class TestYouTubeTranscriptService:
         assert service.job_ledger.list_records(job_type="youtube_transcript_remove")[0].outcome == "success"
 
 
+class TestReaderProgressStore:
+    def test_progress_roundtrips_and_reanchors_after_representation_change(self, tmp_path):
+        from bookmark_organizer_pro.services.reader_progress import ReaderProgressStore
+
+        original = "Intro. " * 20 + "A durable target passage appears here. " + "Tail. " * 20
+        position = original.index("A durable target")
+        store = ReaderProgressStore(tmp_path / "reader-progress.json")
+        saved = store.save(
+            17,
+            original,
+            position,
+            state="in_progress",
+            updated_at="2020-08-12T12:00:00+00:00",
+        )
+        assert saved.applied is True
+        assert saved.progress is not None
+
+        restored = ReaderProgressStore(tmp_path / "reader-progress.json").restore(
+            17,
+            "New lead-in. " + original,
+        )
+
+        assert restored is not None
+        assert restored.state == "in_progress"
+        assert restored.position == position + len("New lead-in. ")
+        assert restored.source_sha256 != saved.progress.source_sha256
+
+    def test_stale_timestamp_cannot_replace_newer_progress_and_reset_is_explicit(self, tmp_path):
+        from bookmark_organizer_pro.services.reader_progress import ReaderProgressStore
+
+        store = ReaderProgressStore(tmp_path / "reader-progress.json")
+        current = store.save(
+            23,
+            "A long reader source",
+            12,
+            state="in_progress",
+            updated_at="2026-08-12T12:00:02+00:00",
+        )
+        stale = store.save(
+            23,
+            "A long reader source",
+            0,
+            state="unread",
+            updated_at="2026-08-12T12:00:01+00:00",
+        )
+
+        assert current.applied is True
+        assert stale.applied is False
+        assert stale.conflict is True
+        assert store.get(23).position == 12
+        assert store.get(23).state == "in_progress"
+        assert store.reset(23, expected_updated_at="2026-08-12T12:00:01+00:00") is False
+        assert store.reset(23, expected_updated_at=current.progress.updated_at) is True
+        assert store.get(23) is None
+
+    def test_bookmark_manager_hydrates_progress_for_filters_after_restart(self, tmp_path):
+        from bookmark_organizer_pro.core import CategoryManager
+        from bookmark_organizer_pro.managers.bookmarks import BookmarkManager
+        from bookmark_organizer_pro.services.reader_progress import ReaderProgressStore
+        from bookmark_organizer_pro.managers.tags import TagManager
+
+        manager = BookmarkManager(
+            CategoryManager(),
+            TagManager(),
+            filepath=tmp_path / "bookmarks.json",
+        )
+        bookmark = manager.add_bookmark(
+            _make_bookmark(id=88, url="https://reader-state.example"),
+        )
+        progress = ReaderProgressStore(tmp_path / "reader_progress.json")
+        saved = progress.save(
+            bookmark.id,
+            "Persisted reader content",
+            9,
+            state="in_progress",
+            updated_at="2026-08-12T12:00:00+00:00",
+        )
+        assert saved.applied
+
+        reloaded = BookmarkManager(
+            CategoryManager(),
+            TagManager(),
+            filepath=tmp_path / "bookmarks.json",
+        )
+
+        restored = reloaded.get_bookmark(88)
+        assert restored is not None
+        assert restored.reader_progress_state == "in_progress"
+        assert restored.reader_progress_position == 9
+        assert restored.reader_progress_source_sha256 == saved.progress.source_sha256
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -55,6 +55,20 @@ def test_date_comparisons_normalize_aware_and_naive_values_to_utc() -> None:
     assert not collection.matches(_bookmark("https://malformed.example", "not-a-date"))
 
 
+def test_reader_state_filter_matches_persisted_progress_state() -> None:
+    bookmark = _bookmark("https://reader.example")
+    bookmark.reader_progress_state = "in_progress"
+    collection = SmartCollection(
+        id="reader-state",
+        name="In progress",
+        filters=SmartCollectionFilter(reader_state="in_progress"),
+    )
+
+    assert collection.matches(bookmark)
+    bookmark.reader_progress_state = "finished"
+    assert not collection.matches(bookmark)
+
+
 @pytest.mark.parametrize(
     "filters,error",
     [

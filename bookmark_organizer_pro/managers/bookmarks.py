@@ -99,6 +99,11 @@ class BookmarkManager:
         self._batch_dirty = False
         self._batch_failed = False
         self.search_engine = SearchEngine()
+        from bookmark_organizer_pro.services.reader_progress import ReaderProgressStore
+
+        self.reader_progress_store = ReaderProgressStore(
+            path=self.filepath.parent / "reader_progress.json",
+        )
         self._load_bookmarks()
 
     @classmethod
@@ -154,6 +159,7 @@ class BookmarkManager:
             for bm in loaded:
                 self._assign_unique_id(bm)
                 self.bookmarks[bm.id] = bm
+            self.reader_progress_store.apply_to_bookmarks(self.bookmarks.values())
             self._committed_bookmarks = copy.deepcopy(self.bookmarks)
 
     def _restore_committed_state(self) -> None:
@@ -489,6 +495,10 @@ class BookmarkManager:
                 del self.bookmarks[bookmark_id]
                 snapshot = list(self.bookmarks.values())
                 self._save_snapshot(snapshot)
+                try:
+                    self.reader_progress_store.reset(bookmark_id)
+                except Exception as exc:
+                    log.warning("Could not remove reader progress for %s: %s", bookmark_id, exc)
                 return True
         return False
     
@@ -874,6 +884,11 @@ class BookmarkManager:
             if trash_ids:
                 snapshot = list(self.bookmarks.values())
                 self._save_snapshot(snapshot)
+                for bookmark_id in trash_ids:
+                    try:
+                        self.reader_progress_store.reset(bookmark_id)
+                    except Exception as exc:
+                        log.warning("Could not remove reader progress for %s: %s", bookmark_id, exc)
         return len(trash_ids)
 
     # ── Random Bookmark Rediscovery (inspired by Buku) ──────────────────

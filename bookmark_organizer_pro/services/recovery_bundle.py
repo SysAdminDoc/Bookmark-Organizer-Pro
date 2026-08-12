@@ -54,6 +54,7 @@ LIBRARY_FILES = (
     "snapshot_failures.json",
     "snapshot_history.json",
     "import_sessions.json",
+    "reader_progress.json",
 )
 LIBRARY_DIRS = ("snapshots", "extracted", "transcripts", "ai_snapshots")
 

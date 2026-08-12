@@ -29,6 +29,7 @@ from bookmark_organizer_pro.services.atomic_document_store import (
 SMART_COLLECTIONS_FILE = DATA_DIR / "smart_collections.json"
 _DOMAIN_LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 _LIST_FILTER_FIELDS = ("tags", "categories", "domains", "content_types", "keywords")
+READER_PROGRESS_STATES = {"", "unread", "in_progress", "finished"}
 
 
 def _parse_datetime(value: str, field_name: str) -> datetime | None:
@@ -89,6 +90,7 @@ class SmartCollectionFilter:
     before: str = ""
     read_later_only: bool = False
     has_snapshot: bool = False
+    reader_state: str = ""
 
 
 def validate_smart_collection_filter(filters: SmartCollectionFilter) -> SmartCollectionFilter:
@@ -116,6 +118,10 @@ def validate_smart_collection_filter(filters: SmartCollectionFilter) -> SmartCol
         if not isinstance(value, bool):
             raise ValueError(f"{field_name} must be a boolean")
         normalized[field_name] = value
+    reader_state = filters.reader_state.strip().lower() if isinstance(filters.reader_state, str) else filters.reader_state
+    if reader_state not in READER_PROGRESS_STATES:
+        raise ValueError("reader_state must be unread, in_progress, or finished")
+    normalized["reader_state"] = reader_state
     after = filters.after.strip() if isinstance(filters.after, str) else filters.after
     before = filters.before.strip() if isinstance(filters.before, str) else filters.before
     after_dt = _parse_datetime(after, "after")
@@ -205,6 +211,9 @@ class SmartCollection:
         if f.has_snapshot and not bookmark.snapshot_path:
             return False
 
+        if f.reader_state and getattr(bookmark, "reader_progress_state", "unread") != f.reader_state:
+            return False
+
         return True
 
     def evaluate(self, bookmarks: List[Bookmark]) -> List[Bookmark]:
@@ -233,6 +242,7 @@ class SmartCollection:
             before=str(filters_data.get("before") or ""),
             read_later_only=bool(filters_data.get("read_later_only")),
             has_snapshot=bool(filters_data.get("has_snapshot")),
+            reader_state=str(filters_data.get("reader_state") or ""),
         )
         return cls(
             id=str(d.get("id") or uuid.uuid4().hex),

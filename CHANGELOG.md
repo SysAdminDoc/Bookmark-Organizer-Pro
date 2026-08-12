@@ -23,6 +23,11 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   bookmark actions, CLI, and MCP: language selection, bounded and atomic
   language-specific artifacts, provenance metadata, searchable/rebuildable
   derived text, removal, durable job history, and classified retryable failures.
+- Added durable Reader View progress with an atomic sidecar, source digest and
+  bounded quote anchors for re-anchoring after content changes; explicit
+  Unread/In progress/Finished states, reset, optimistic stale-write protection,
+  restart hydration, sidebar/search/smart-collection filters, and a compact
+  accessible reader control are now available.
 - Replaced the monolithic performance gate with deterministic bulk fixtures,
   named cold/warm and core-operation cases at 100/1,000/5,000 bookmarks,
   per-case worker watchdogs, a 60-second total budget, and JSON reports.

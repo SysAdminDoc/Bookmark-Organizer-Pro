@@ -19,7 +19,7 @@ SEARCH_FILTER_HINTS = [
     ("content:", "content:keyword — search page text"),
     ("before:", "before:2025-01-01 — created before date"),
     ("after:", "after:2025-01-01 — created after date"),
-    ("is:", "is:pinned  is:broken  is:stale  is:archived  is:recent  is:untagged"),
+    ("is:", "is:pinned  is:in-progress  is:finished  is:unread  is:broken  is:stale  is:archived  is:recent  is:untagged"),
     ("has:", "has:notes  has:tags"),
     ("visits:", "visits:>5 — visited more than N times"),
     ("regex:", "regex:pattern — time-bounded regular expression"),
@@ -376,6 +376,8 @@ class FilterActionsMixin:
             self.quick_filter = "broken"
         elif filter_name == "Untagged":
             self.quick_filter = "untagged"
+        elif filter_name == "In Progress":
+            self.quick_filter = "in_progress"
         
         # Clear category selection (so All shows ALL bookmarks)
         self.current_category = None

@@ -855,7 +855,8 @@ _bop() {
                 '--read-later-only[]' \
                 '--no-read-later-only[]' \
                 '--has-snapshot[]' \
-                '--no-has-snapshot[]'
+                '--no-has-snapshot[]' \
+                '--reader-state[Filter by persisted reader state]:reader_state:(unread in_progress finished)'
             return
             ;;
         nl-query)

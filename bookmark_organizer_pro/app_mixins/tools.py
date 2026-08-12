@@ -1206,6 +1206,8 @@ class ToolsActionsMixin:
                 filters.append(f"keywords={','.join(sc.filters.keywords)}")
             if sc.filters.categories:
                 filters.append(f"categories={','.join(sc.filters.categories)}")
+            if sc.filters.reader_state:
+                filters.append(f"reader_state={sc.filters.reader_state}")
             if filters:
                 lines.append(f"    Filters: {'; '.join(filters)}")
         self._show_nonblocking_report(
@@ -1541,7 +1543,11 @@ class ToolsActionsMixin:
         if not bookmark:
             self._set_status("Selected bookmark was not found")
             return
-        ReaderViewDialog(self.root, bookmark)
+        ReaderViewDialog(
+            self.root,
+            bookmark,
+            on_progress_changed=lambda _bookmark: self._refresh_bookmark_list(),
+        )
         self._set_status(format_message("Reader opened for {title}", title=bookmark.title[:60]))
 
     def _open_graph_view(self):

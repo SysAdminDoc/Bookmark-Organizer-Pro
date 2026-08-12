@@ -4,13 +4,6 @@ Actionable work only. Historical and completed roadmap material is archived in C
 
 ## Actionable Items
 
-- [ ] P2 — R-100: Persist reader progress and add an in-progress queue
-  Why: competing readers make resumption a core state, while this reader does not persist a stable location across sessions/content revisions.
-  Evidence: `bookmark_organizer_pro/ui/reader_view.py`; Karakeep PR #2302; Readeck and Readwise Reader.
-  Touches: reader-state schema/store, reader UI, bookmark filters/smart collections, migration/export tests.
-  Acceptance: Using R-83’s selector contract, the app stores per-bookmark progress with representation digest and update time, restores the nearest valid anchored location, marks unread/in-progress/finished explicitly, offers an in-progress filter, and lets users reset progress; updates are throttled and never overwrite newer state.
-  Complexity: M
-
 - [ ] P2 — R-101: Complete accessible tag autocomplete
   Why: `TagEditor.available_tags` is documented as not wired, forcing exact free-text entry despite an existing tag vocabulary.
   Evidence: `bookmark_organizer_pro/ui/widget_controls.py::TagEditor`, bookmark/bulk editor call sites, extension tag input.

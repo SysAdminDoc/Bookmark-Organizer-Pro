@@ -2,7 +2,7 @@
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **verified offline snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
-Executable product contract: 63 CLI subcommands, 34 MCP tools, 6 AI providers, 3 extension surfaces, 52 service modules, 42 UI modules, and 43 test files.
+Executable product contract: 63 CLI subcommands, 34 MCP tools, 6 AI providers, 3 extension surfaces, 53 service modules, 42 UI modules, and 43 test files.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
 ![Version](https://img.shields.io/badge/Version-v6.12.0-2dd4bf.svg)
@@ -39,6 +39,11 @@ operations require a bearer token. Create purpose-named, optionally expiring
 MCP credentials under **Settings > Access Credentials**; each secret is shown
 once, while the inventory retains only a truncated fingerprint and salted
 verifier.
+
+Reader View now saves a bounded per-bookmark position and representation digest
+in a separate local sidecar. Choose Unread, In progress, or Finished, resume at
+the nearest anchored passage after re-extraction, reset the position, or use
+`is:in-progress` in search and the sidebar’s In Progress filter.
 
 YouTube transcripts are always opt-in. Select an eligible bookmark and use
 **Library tools > Fetch YouTube Transcript…** or the row context menu to choose a

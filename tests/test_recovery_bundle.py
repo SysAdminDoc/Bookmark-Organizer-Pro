@@ -47,6 +47,7 @@ def _write_library(root: Path, *, title: str = "Original") -> None:
         "tags.json": {"portable": {"count": 1}},
         "settings.json": {"theme": "studio_dark"},
         "reader_annotations.json": {"version": 1, "highlights": [{"bookmark_id": 1}]},
+        "reader_progress.json": {"progress": [{"bookmark_id": 1, "state": "in_progress", "position": 8}]},
         "flows.json": {"version": 1, "flows": [{"name": "Investigation"}]},
         "feeds.json": {"version": 1, "feeds": [{"url": "https://example.com/feed"}]},
         "smart_collections.json": {"version": 1, "collections": [{"name": "Research"}]},
@@ -76,6 +77,7 @@ def test_bundle_round_trip_restores_full_library_and_rewrites_portable_paths(tmp
         "tags.json",
         "settings.json",
         "reader_annotations.json",
+        "reader_progress.json",
         "flows.json",
         "feeds.json",
         "smart_collections.json",
@@ -98,6 +100,7 @@ def test_bundle_round_trip_restores_full_library_and_rewrites_portable_paths(tmp
     assert bookmark["snapshot_path"] == str((restored / "snapshots" / "1.html").resolve())
     assert bookmark["extracted_text_path"] == str((restored / "extracted" / "1.txt").resolve())
     assert json.loads((restored / "reader_annotations.json").read_text())["highlights"]
+    assert json.loads((restored / "reader_progress.json").read_text())["progress"][0]["state"] == "in_progress"
 
 
 def test_restore_defaults_to_non_mutating_dry_run(tmp_path):

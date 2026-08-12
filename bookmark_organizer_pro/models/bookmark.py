@@ -97,6 +97,10 @@ class Bookmark:
     youtube_transcript_backend: str = ""
     youtube_transcript_chars: int = 0
     youtube_transcript_truncated: bool = False
+    reader_progress_state: str = "unread"
+    reader_progress_position: int = 0
+    reader_progress_source_sha256: str = ""
+    reader_progress_updated_at: str = ""
     content_type: str = ""
     sentiment: str = ""
     flow_id: str = ""
@@ -119,6 +123,14 @@ class Bookmark:
             self.modified_at = self.created_at
         self.tags = _clean_tag_list(self.tags)
         self.ai_tags = _clean_tag_list(self.ai_tags)
+        if self.reader_progress_state not in {"unread", "in_progress", "finished"}:
+            self.reader_progress_state = "unread"
+        try:
+            self.reader_progress_position = max(0, int(self.reader_progress_position or 0))
+        except (TypeError, ValueError):
+            self.reader_progress_position = 0
+        self.reader_progress_source_sha256 = str(self.reader_progress_source_sha256 or "")[:64]
+        self.reader_progress_updated_at = str(self.reader_progress_updated_at or "")[:40]
         if not isinstance(self.custom_data, dict):
             self.custom_data = {}
 
@@ -239,6 +251,10 @@ class Bookmark:
             "youtube_transcript_backend": self.youtube_transcript_backend,
             "youtube_transcript_chars": self.youtube_transcript_chars,
             "youtube_transcript_truncated": self.youtube_transcript_truncated,
+            "reader_progress_state": self.reader_progress_state,
+            "reader_progress_position": self.reader_progress_position,
+            "reader_progress_source_sha256": self.reader_progress_source_sha256,
+            "reader_progress_updated_at": self.reader_progress_updated_at,
             "content_type": self.content_type,
             "sentiment": self.sentiment,
             "flow_id": self.flow_id,
@@ -342,6 +358,10 @@ class Bookmark:
             youtube_transcript_backend=str(d.get("youtube_transcript_backend") or ""),
             youtube_transcript_chars=safe_int(d.get("youtube_transcript_chars", 0)),
             youtube_transcript_truncated=safe_bool(d.get("youtube_transcript_truncated", False)),
+            reader_progress_state=str(d.get("reader_progress_state") or "unread"),
+            reader_progress_position=safe_int(d.get("reader_progress_position", 0)),
+            reader_progress_source_sha256=str(d.get("reader_progress_source_sha256") or ""),
+            reader_progress_updated_at=str(d.get("reader_progress_updated_at") or ""),
             content_type=str(d.get("content_type") or ""),
             sentiment=str(d.get("sentiment") or ""),
             flow_id=str(d.get("flow_id") or ""),

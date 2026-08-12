@@ -17,6 +17,7 @@ from .constants import (
     SCREENSHOTS_DIR, LOGS_DIR, DATA_DIR,
     MASTER_BOOKMARKS_FILE, FAILED_FAVICONS_FILE, CATEGORIES_FILE,
     AI_CONFIG_FILE, PATTERNS_FILE, SETTINGS_FILE, TAGS_FILE, LOG_FILE,
+    READER_PROGRESS_FILE,
     IS_WINDOWS, IS_MAC, IS_LINUX,
 )
 from .logging_config import AppLogger, log
@@ -80,6 +81,7 @@ from .services import (
     ChatMessage, ChatStreamEvent, ChatStreamResult, ChatTurn, CollectionChat,
     build_chat_stream_events, normalize_stream_chunk_chars, split_answer_chunks,
     ReadLaterQueue,
+    ReaderProgress, ReaderProgressStore, ReaderProgressWrite,
     RSS_AI_MODES, FeedConfig, FeedIngestor, FeedItem, FeedRegistry, parse_feed,
     SnapshotArchiver,
     LintReport, TagLinter, TagSuggestion,
@@ -126,6 +128,7 @@ __all__ = [
     "SCREENSHOTS_DIR", "LOGS_DIR", "DATA_DIR",
     "MASTER_BOOKMARKS_FILE", "FAILED_FAVICONS_FILE", "CATEGORIES_FILE",
     "AI_CONFIG_FILE", "PATTERNS_FILE", "SETTINGS_FILE", "TAGS_FILE", "LOG_FILE",
+    "READER_PROGRESS_FILE",
     "IS_WINDOWS", "IS_MAC", "IS_LINUX",
     # Logging
     "AppLogger", "log",
@@ -182,6 +185,7 @@ __all__ = [
     "ChatMessage", "ChatStreamEvent", "ChatStreamResult", "ChatTurn", "CollectionChat",
     "build_chat_stream_events", "normalize_stream_chunk_chars", "split_answer_chunks",
     "ReadLaterQueue",
+    "ReaderProgress", "ReaderProgressStore", "ReaderProgressWrite",
     "RSS_AI_MODES", "FeedConfig", "FeedIngestor", "FeedItem", "FeedRegistry", "parse_feed",
     "SnapshotArchiver",
     "LintReport", "TagLinter", "TagSuggestion",
