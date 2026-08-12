@@ -3358,5 +3358,132 @@ class TestSnapshotScheduler:
         assert harness.root.destroyed is True
 
 
+class TestYouTubeTranscriptService:
+    def test_capture_persists_language_provenance_and_job_metadata(self, tmp_path):
+        from bookmark_organizer_pro.services.job_ledger import JobLedger
+        from bookmark_organizer_pro.services.youtube_transcript import (
+            YouTubeTranscriptService,
+        )
+
+        bookmark = _make_bookmark(
+            id=42,
+            url="https://www.youtube.com/watch?si=shared&v=video-42&t=4",
+        )
+        extracted = tmp_path / "extracted.txt"
+        extracted.write_text("original page text", encoding="utf-8")
+        bookmark.extracted_text_path = str(extracted)
+        ledger = JobLedger(tmp_path / "jobs.json")
+        calls = []
+
+        def fetcher(url, language, timeout):
+            calls.append((url, language, timeout))
+            return True, "Hello & welcome.\nThis is the transcript."
+
+        service = YouTubeTranscriptService(
+            job_ledger=ledger,
+            fetcher=fetcher,
+            transcripts_dir=tmp_path / "transcripts",
+        )
+        result = service.capture(bookmark, language="pt_BR", timeout=12)
+
+        assert result.success is True
+        assert result.status == "success"
+        assert result.language == "pt-br"
+        assert result.path == str(tmp_path / "transcripts" / "42.pt-br.txt")
+        assert calls == [(bookmark.url, "pt-br", 12)]
+        assert Path(result.path).read_text(encoding="utf-8") == (
+            "Hello & welcome. This is the transcript."
+        )
+        assert service.apply(bookmark, result) is True
+        assert bookmark.extracted_text_path == str(extracted)
+        assert bookmark.youtube_transcript_language == "pt-br"
+        assert bookmark.youtube_transcript_sha256 == result.sha256
+        assert bookmark.youtube_transcript_chars == result.chars
+        record = ledger.get(result.job_id)
+        assert record is not None
+        assert record.language == "pt-br"
+        assert record.outcome == "success"
+
+    @pytest.mark.parametrize(
+        ("payload", "status", "retryable"),
+        [
+            ("No subtitles found", "no_captions", False),
+            ("This video is private", "unavailable", True),
+            ("HTTP 429: rate limit exceeded", "rate_limited", True),
+        ],
+    )
+    def test_provider_failures_are_classified_without_replacing_existing_transcript(
+        self, tmp_path, payload, status, retryable
+    ):
+        from bookmark_organizer_pro.services.job_ledger import JobLedger
+        from bookmark_organizer_pro.services.youtube_transcript import (
+            YouTubeTranscriptService,
+        )
+
+        old_path = tmp_path / "transcripts" / "7.en.txt"
+        old_path.parent.mkdir()
+        old_path.write_text("keep this", encoding="utf-8")
+        bookmark = _make_bookmark(
+            id=7,
+            url="https://youtu.be/video-7",
+            youtube_transcript_path=str(old_path),
+            youtube_transcript_language="en",
+            youtube_transcript_sha256="old-digest",
+        )
+        service = YouTubeTranscriptService(
+            job_ledger=JobLedger(tmp_path / "jobs.json"),
+            fetcher=lambda _url, _language, _timeout: (False, payload),
+            transcripts_dir=tmp_path / "transcripts",
+        )
+
+        result = service.capture(bookmark)
+
+        assert result.success is False
+        assert result.status == status
+        assert result.retryable is retryable
+        assert old_path.read_text(encoding="utf-8") == "keep this"
+        assert bookmark.youtube_transcript_path == str(old_path)
+        assert bookmark.youtube_transcript_sha256 == "old-digest"
+        record = service.job_ledger.get(result.job_id)
+        assert record is not None
+        assert record.outcome == "failure"
+        assert record.retryable is retryable
+
+    def test_capture_bounds_and_remove_clears_only_transcript_metadata(
+        self, tmp_path, monkeypatch
+    ):
+        from bookmark_organizer_pro.services.job_ledger import JobLedger
+        from bookmark_organizer_pro.services import youtube_transcript
+
+        monkeypatch.setattr(youtube_transcript, "MAX_TRANSCRIPT_CHARS", 32)
+        bookmark = _make_bookmark(
+            id=9,
+            url="https://www.youtube.com/shorts/short-9",
+            extracted_text_path="/still-existing/extracted.txt",
+        )
+        service = youtube_transcript.YouTubeTranscriptService(
+            job_ledger=JobLedger(tmp_path / "jobs.json"),
+            fetcher=lambda _url, _language, _timeout: (True, "word " * 20),
+            transcripts_dir=tmp_path / "transcripts",
+        )
+
+        result = service.capture(bookmark)
+        assert result.success is True
+        assert result.truncated is True
+        assert result.chars == 32
+        assert len(Path(result.path).read_text(encoding="utf-8")) == 32
+        assert service.apply(bookmark, result) is True
+
+        removed = service.remove(bookmark)
+
+        assert removed.success is True
+        assert removed.status == "removed"
+        assert not Path(result.path).exists()
+        assert bookmark.extracted_text_path == "/still-existing/extracted.txt"
+        assert bookmark.youtube_transcript_path == ""
+        assert bookmark.youtube_transcript_chars == 0
+        assert service.job_ledger.list_records(job_type="youtube_transcript_remove")[0].outcome == "success"
+
+
 if __name__ == "__main__":
     unittest.main()

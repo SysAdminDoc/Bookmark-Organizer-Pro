@@ -422,6 +422,7 @@ class ToolsActionsMixin:
         menu.add_command(label=_("Smart Collections"), command=self._show_smart_collections)
         menu.add_command(label=_("Read Later Queue"), command=self._show_read_later_queue)
         menu.add_command(label=_("Reader View"), command=self._open_reader_view)
+        menu.add_command(label=_("Fetch YouTube Transcript…"), command=self._fetch_youtube_transcripts)
         menu.add_command(label=_("Graph View"), command=self._open_graph_view)
         menu.add_command(label=_("Full Analytics"), command=self._show_analytics)
         menu.add_command(label=_("Migrate to SQLite"), command=self._migrate_to_sqlite)

@@ -39,6 +39,7 @@ _bop_completions() {
         help
         ai-audit
         ingest
+        transcript
         structured
         snapshot
         embed
@@ -334,6 +335,33 @@ _bop_completions() {
                 --templates)
                     _bop_complete_files "$cur"
                     return 0
+                    return 0
+                    ;;
+            esac
+            if [[ "$cur" == -* ]]; then
+                _bop_complete_array "$cur" "${options[@]}"
+                return 0
+            fi
+            return 0
+            ;;
+        transcript)
+            local -a options=(
+                -h
+                --help
+                --lang
+                --language
+                --timeout
+                --remove
+                --json
+            )
+            case "$prev" in
+                --lang)
+                    return 0
+                    ;;
+                --language)
+                    return 0
+                    ;;
+                --timeout)
                     return 0
                     ;;
             esac

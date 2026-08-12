@@ -65,6 +65,16 @@ from .hybrid_search import HybridResult, HybridSearch
 from .icons import AIIconSuggester, IconLibrary
 from .ingest import ContentIngestor, IngestResult
 from .job_ledger import JobLedger, JobRecord, JobRun
+from .youtube_transcript import (
+    TranscriptResult,
+    YouTubeTranscriptService,
+    classify_transcript_error,
+    fetch_transcript,
+    is_youtube_url,
+    normalize_language,
+    normalize_timeout,
+    save_transcript,
+)
 from .extraction_templates import (
     STRUCTURED_METADATA_KEY,
     ExtractionField,
@@ -207,6 +217,9 @@ __all__ = [
     "HIGHLIGHT_COLORS", "ReaderAnnotationStore", "ReaderHighlight",
     "export_bookmark_highlights", "normalize_highlight_color",
     "read_extracted_text", "render_highlights_markdown",
+    "TranscriptResult", "YouTubeTranscriptService", "classify_transcript_error",
+    "fetch_transcript", "is_youtube_url", "normalize_language",
+    "normalize_timeout", "save_transcript",
     "BundleReport", "RestoreResult", "create_recovery_bundle",
     "restore_recovery_bundle", "validate_recovery_bundle",
     "RSS_AI_MODES", "FeedConfig", "FeedIngestor", "FeedItem",

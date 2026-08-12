@@ -166,17 +166,22 @@ def normalize_highlight_color(value: str) -> str:
 
 def read_extracted_text(bookmark: Bookmark) -> str:
     """Read extracted text for a bookmark, returning an empty string on failure."""
-    if not bookmark.extracted_text_path:
-        return ""
-    try:
-        text_path = Path(bookmark.extracted_text_path).expanduser().resolve()
-        if not text_path.is_relative_to(app_constants.APP_DIR.resolve()):
-            log.warning(f"Refusing extracted text outside app data for bookmark {bookmark.id}")
-            return ""
-        return text_path.read_text(encoding="utf-8")
-    except OSError as exc:
-        log.warning(f"Could not read extracted text for bookmark {bookmark.id}: {exc}")
-        return ""
+    paths = [
+        str(bookmark.extracted_text_path or ""),
+        str(getattr(bookmark, "youtube_transcript_path", "") or ""),
+    ]
+    for path_value in paths:
+        if not path_value:
+            continue
+        try:
+            text_path = Path(path_value).expanduser().resolve()
+            if not text_path.is_relative_to(app_constants.APP_DIR.resolve()):
+                log.warning(f"Refusing derived text outside app data for bookmark {bookmark.id}")
+                continue
+            return text_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            log.warning(f"Could not read derived text for bookmark {bookmark.id}: {exc}")
+    return ""
 
 
 def _safe_filename_stem(value: str) -> str:

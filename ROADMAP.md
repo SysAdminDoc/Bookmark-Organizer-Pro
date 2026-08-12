@@ -4,13 +4,6 @@ Actionable work only. Historical and completed roadmap material is archived in C
 
 ## Actionable Items
 
-- [ ] P2 — R-99: Expose YouTube transcript ingestion as an explicit workflow
-  Why: The former R-12 completion claim is not reachable: a transcript service exists but users cannot discover, consent to, diagnose, or retry it as part of bookmark enrichment.
-  Evidence: `bookmark_organizer_pro/services/youtube_transcript.py`, ingest/reader/job-ledger services, `CHANGELOG.md`.
-  Touches: bookmark actions and settings, transcript service, content provenance/model, job history, CLI/MCP parity, tests.
-  Acceptance: Eligible YouTube bookmarks offer an opt-in transcript action with language choice and provenance; fetched text is bounded, stored as a distinct derived representation, searchable/rebuildable, and removable; unavailable/private/captionless/rate-limited cases are distinguished and retryable without corrupting existing content.
-  Complexity: M
-
 - [ ] P2 — R-100: Persist reader progress and add an in-progress queue
   Why: competing readers make resumption a core state, while this reader does not persist a stable location across sessions/content revisions.
   Evidence: `bookmark_organizer_pro/ui/reader_view.py`; Karakeep PR #2302; Readeck and Readwise Reader.

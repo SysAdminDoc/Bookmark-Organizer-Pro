@@ -19,6 +19,7 @@ _bop() {
         'help:Show help message'
         'ai-audit:Inspect AI audit log'
         'ingest:Extract text + reading time + language'
+        'transcript:Opt-in fetch or remove a YouTube transcript'
         'structured:Show structured metadata for a bookmark'
         'snapshot:Capture a verified offline snapshot'
         'embed:Build/update vector embeddings'
@@ -212,6 +213,17 @@ _bop() {
                 '-h[show this help message and exit]' \
                 '--help[show this help message and exit]' \
                 '--templates[Optional JSON/YAML structured extraction templates]:templates:_files'
+            return
+            ;;
+        transcript)
+            _arguments -s \
+                '-h[show this help message and exit]' \
+                '--help[show this help message and exit]' \
+                '--lang[Subtitle language, such as en or pt-BR]:lang:' \
+                '--language[Subtitle language, such as en or pt-BR]:lang:' \
+                '--timeout[Provider timeout in seconds (1-300)]:timeout:' \
+                '--remove[Remove the stored transcript]' \
+                '--json[Print machine-readable result]'
             return
             ;;
         structured)

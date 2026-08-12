@@ -64,6 +64,11 @@ def _write_bookmark_payload(z: zipfile.ZipFile, bookmark: Bookmark) -> None:
         and Path(bookmark.extracted_text_path).exists()
     ):
         z.write(bookmark.extracted_text_path, "extracted.txt")
+    if (
+        getattr(bookmark, "youtube_transcript_path", "")
+        and Path(bookmark.youtube_transcript_path).exists()
+    ):
+        z.write(bookmark.youtube_transcript_path, "youtube-transcript.txt")
 
 
 class ZipExporter:

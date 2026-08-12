@@ -17,8 +17,12 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   states with live loading, result-count, no-match, and error announcements;
   capture payloads now normalize blank categories at the shared boundary.
 - Added parser-derived Bash, Zsh, and Fish completion generation with a
-  deterministic `--check` drift gate covering all 62 CLI commands, options,
+  deterministic `--check` drift gate covering all 63 CLI commands, options,
   choices, and path-valued arguments.
+- Added an explicit, opt-in YouTube transcript workflow across the desktop
+  bookmark actions, CLI, and MCP: language selection, bounded and atomic
+  language-specific artifacts, provenance metadata, searchable/rebuildable
+  derived text, removal, durable job history, and classified retryable failures.
 - Replaced the monolithic performance gate with deterministic bulk fixtures,
   named cold/warm and core-operation cases at 100/1,000/5,000 bookmarks,
   per-case worker watchdogs, a 60-second total budget, and JSON reports.

@@ -74,6 +74,7 @@ class JobRecord:
     domain: str
     backend: str
     started_at: str
+    language: str = ""
     completed_at: str = ""
     duration_ms: int = 0
     bytes_processed: int = 0
@@ -105,6 +106,7 @@ class JobRecord:
                 bookmark_id=bookmark_id,
                 domain=safe_domain(value.get("domain")),
                 backend=str(value.get("backend") or "")[:80],
+                language=str(value.get("language") or "")[:32],
                 started_at=str(value.get("started_at") or "")[:40],
                 completed_at=str(value.get("completed_at") or "")[:40],
                 duration_ms=max(0, int(value.get("duration_ms") or 0)),
@@ -216,6 +218,7 @@ class JobLedger:
         bookmark_id: int | None = None,
         url_or_domain: str = "",
         backend: str = "",
+        language: str = "",
     ) -> JobRun:
         job_type = str(job_type or "unknown").strip().lower().replace(" ", "_")[:40]
         domain = safe_domain(url_or_domain)
@@ -238,6 +241,7 @@ class JobLedger:
                 bookmark_id=int(bookmark_id) if bookmark_id is not None else None,
                 domain=domain,
                 backend=str(backend or "")[:80],
+                language=str(language or "")[:32],
                 started_at=_now(),
                 attempt=attempt,
             )

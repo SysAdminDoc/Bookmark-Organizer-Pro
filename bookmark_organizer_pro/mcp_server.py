@@ -25,6 +25,7 @@ Tools exposed:
     chat_with_collection(question, restrict_ids) -> dict
     chat_with_collection_stream(question, restrict_ids, chunk_chars) -> dict
     summarize_bookmark(bookmark_id) -> dict                 (cited)
+    youtube_transcript(bookmark_id, language, remove, timeout) -> dict
     daily_digest() -> list
     list_dead_links() -> list
     list_flows() -> list
@@ -67,6 +68,7 @@ from bookmark_organizer_pro.services.reader_annotations import (
     read_extracted_text,
     render_highlights_markdown,
 )
+from bookmark_organizer_pro.services.youtube_transcript import YouTubeTranscriptService
 from bookmark_organizer_pro.services.zip_export import ZipExporter
 from bookmark_organizer_pro.services.rag_chat import CollectionChat, normalize_stream_chunk_chars
 from bookmark_organizer_pro.services.vector_store import VectorStore
@@ -102,6 +104,15 @@ def _bm_to_dict(bm: Bookmark) -> Dict[str, Any]:
         "snapshot_sha256": bm.snapshot_sha256,
         "snapshot_backend": bm.snapshot_backend,
         "flow_id": bm.flow_id,
+        "youtube_transcript": {
+            "available": bool(getattr(bm, "youtube_transcript_path", "")),
+            "language": getattr(bm, "youtube_transcript_language", ""),
+            "sha256": getattr(bm, "youtube_transcript_sha256", ""),
+            "fetched_at": getattr(bm, "youtube_transcript_fetched_at", ""),
+            "backend": getattr(bm, "youtube_transcript_backend", ""),
+            "chars": getattr(bm, "youtube_transcript_chars", 0),
+            "truncated": bool(getattr(bm, "youtube_transcript_truncated", False)),
+        },
     }
 
 
@@ -232,10 +243,11 @@ MCP_READ_ONLY_TOOLS = {
 MCP_DESTRUCTIVE_TOOLS = {
     "delete_bookmark", "update_bookmark", "toggle_pin",
     "mark_read_later", "add_tags", "remove_tags",
+    "youtube_transcript",
 }
 
 MCP_OPEN_WORLD_TOOLS = {
-    "add_bookmark", "chat_with_collection", "chat_with_collection_stream", "summarize_bookmark",
+    "add_bookmark", "youtube_transcript", "chat_with_collection", "chat_with_collection_stream", "summarize_bookmark",
 }
 
 
@@ -728,17 +740,36 @@ def t_list_categories() -> List[Dict]:
 
 def t_get_extracted_text(bookmark_id: int) -> str:
     bm = _services().bookmark_manager.get_bookmark(int(bookmark_id))
-    if not bm or not bm.extracted_text_path:
+    if not bm:
         return ""
-    try:
-        text_path = Path(bm.extracted_text_path).resolve()
-        data_root = Path(DATA_DIR).resolve()
-        if not text_path.is_relative_to(data_root):
-            log.warning(f"Blocked extracted_text_path outside data dir: {text_path}")
-            return ""
-        return text_path.read_text(encoding="utf-8")
-    except OSError:
-        return ""
+    return read_extracted_text(bm)
+
+
+def t_youtube_transcript(
+    bookmark_id: int,
+    language: str = "en",
+    remove: bool = False,
+    timeout: int = 60,
+) -> Dict[str, Any]:
+    """Fetch or remove one bookmark's opt-in YouTube transcript."""
+
+    s = _services()
+    bm = s.bookmark_manager.get_bookmark(int(bookmark_id))
+    if bm is None:
+        return {"status": "not_found", "error": "Bookmark not found"}
+    service = YouTubeTranscriptService()
+    result = (
+        service.remove(bm)
+        if remove
+        else service.capture(bm, language=language, timeout=timeout)
+    )
+    if result.success:
+        if not remove:
+            service.apply(bm, result)
+        s.bookmark_manager.save_bookmarks()
+    payload = result.to_dict()
+    payload["bookmark"] = _bm_to_dict(bm)
+    return payload
 
 
 def _bookmark_brief(s: BookmarkServices, bookmark_id: int) -> Optional[Dict[str, Any]]:
@@ -1404,6 +1435,18 @@ TOOLS = [
          },
          "required": ["bookmark_id"],
      }),
+    ("youtube_transcript", t_youtube_transcript,
+     "Opt-in fetch or remove a bounded YouTube transcript with durable provenance and retry status.",
+     {
+         "type": "object",
+         "properties": {
+             "bookmark_id": {"type": "integer", "description": "The YouTube bookmark ID"},
+             "language": {"type": "string", "description": "Subtitle language such as en or pt-BR", "default": "en"},
+             "remove": {"type": "boolean", "description": "Remove the stored transcript instead of fetching", "default": False},
+             "timeout": {"type": "integer", "description": "Provider timeout in seconds (1-300)", "default": 60},
+         },
+         "required": ["bookmark_id"],
+     }),
     ("list_reader_highlights", t_list_reader_highlights,
      "List saved reader highlights, optionally scoped to a bookmark or only highlights due for review.",
      {
@@ -1763,6 +1806,11 @@ def _build_fastmcp_server():
     @tool("get_extracted_text", "Return extracted readable text for a bookmark.")
     def get_extracted_text(bookmark_id: int) -> str:
         return t_get_extracted_text(bookmark_id)
+
+    @tool("youtube_transcript", "Fetch or remove an opt-in YouTube transcript.")
+    def youtube_transcript(bookmark_id: int, language: str = "en",
+                           remove: bool = False, timeout: int = 60) -> dict:
+        return t_youtube_transcript(bookmark_id, language, remove, timeout)
 
     @tool("list_reader_highlights", "List saved reader highlights.")
     def list_reader_highlights(bookmark_id: int | None = None, limit: int = 50,

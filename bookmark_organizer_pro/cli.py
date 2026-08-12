@@ -155,6 +155,17 @@ class BookmarkCLI:
         p.add_argument("--templates", help="Optional JSON/YAML structured extraction templates")
         p.set_defaults(func=self._cmd_ingest)
 
+        p = sub.add_parser("transcript", help="Opt-in fetch or remove a YouTube transcript")
+        p.add_argument("bookmark_id", type=int, help="YouTube bookmark ID")
+        p.add_argument(
+            "--lang", "--language", dest="lang", default="en",
+            help="Subtitle language, such as en or pt-BR",
+        )
+        p.add_argument("--timeout", type=int, default=60, help="Provider timeout in seconds (1-300)")
+        p.add_argument("--remove", action="store_true", help="Remove the stored transcript")
+        p.add_argument("--json", action="store_true", dest="as_json", help="Print machine-readable result")
+        p.set_defaults(func=self._cmd_transcript)
+
         p = sub.add_parser("structured", help="Show structured metadata for a bookmark")
         p.add_argument("bookmark_id", type=int, help="Bookmark ID")
         p.add_argument("--json", action="store_true", dest="as_json", help="Print raw JSON payload")
@@ -515,6 +526,7 @@ Commands:
 
 v6.0.0 commands:
   ingest [id...]                Extract text + reading time + language for bookmark(s)
+  transcript <id>               Opt-in fetch/remove a bounded YouTube transcript
   structured <id>               Show structured metadata extracted from templates
   snapshot <id>                 Capture a verified offline snapshot of a bookmark
   embed [id...]                 Build/update vector embeddings (uses ingested text)
@@ -958,6 +970,38 @@ Top Domains:
             return self._failure(f"{missing} requested bookmark(s) were not found")
         return 0
 
+    def _cmd_transcript(self, ns: argparse.Namespace):
+        """Fetch or remove one opt-in YouTube transcript."""
+        from bookmark_organizer_pro.services.youtube_transcript import YouTubeTranscriptService
+
+        bookmark = self.bookmark_manager.get_bookmark(ns.bookmark_id)
+        if not bookmark:
+            return self._failure("Bookmark not found")
+        service = YouTubeTranscriptService()
+        result = (
+            service.remove(bookmark)
+            if ns.remove
+            else service.capture(bookmark, language=ns.lang, timeout=ns.timeout)
+        )
+        if result.success:
+            if not ns.remove:
+                service.apply(bookmark, result)
+            self.bookmark_manager.save_bookmarks()
+        payload = result.to_dict()
+        payload["bookmark_id"] = bookmark.id
+        if ns.as_json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+        elif result.success:
+            action = "Removed" if ns.remove else "Fetched"
+            detail = f" ({result.chars} chars, {result.language})" if result.chars else ""
+            print(f"{action} YouTube transcript for bookmark {bookmark.id}{detail}.")
+        else:
+            print(
+                f"YouTube transcript {result.status}: "
+                f"{result.error or 'operation failed'}"
+            )
+        return 0 if result.success else 1
+
     def _cmd_structured(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.services.extraction_templates import (
             format_structured_value,
@@ -1299,7 +1343,15 @@ Top Domains:
             self.bookmark_manager.get_bookmark(record.bookmark_id)
             if record.bookmark_id is not None else None
         )
-        if record.job_type in {"snapshot", "ingest", "embedding", "metadata", "link_check"} and not bookmark:
+        if record.job_type in {
+            "snapshot",
+            "ingest",
+            "youtube_transcript",
+            "youtube_transcript_remove",
+            "embedding",
+            "metadata",
+            "link_check",
+        } and not bookmark:
             return False, "bookmark no longer exists"
 
         if record.job_type == "snapshot":
@@ -1314,6 +1366,23 @@ Top Domains:
             if result.success and result.apply_to(bookmark):
                 self.bookmark_manager.save_bookmarks()
             return result.success, result.error or "content ingested"
+        if record.job_type == "youtube_transcript":
+            from bookmark_organizer_pro.services.youtube_transcript import YouTubeTranscriptService
+            service = YouTubeTranscriptService()
+            result = service.capture(
+                bookmark,
+                language=record.language or "en",
+            )
+            if result.success:
+                service.apply(bookmark, result)
+                self.bookmark_manager.save_bookmarks()
+            return result.success, result.error or f"transcript {result.status}"
+        if record.job_type == "youtube_transcript_remove":
+            from bookmark_organizer_pro.services.youtube_transcript import YouTubeTranscriptService
+            result = YouTubeTranscriptService().remove(bookmark)
+            if result.success:
+                self.bookmark_manager.save_bookmarks()
+            return result.success, result.error or f"transcript {result.status}"
         if record.job_type == "embedding":
             from bookmark_organizer_pro.services.embeddings import EmbeddingService
             text = EmbeddingService.bookmark_source_text(bookmark)

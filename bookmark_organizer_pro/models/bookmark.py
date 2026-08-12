@@ -90,6 +90,13 @@ class Bookmark:
     snapshot_sha256: str = ""
     snapshot_backend: str = ""
     extracted_text_path: str = ""
+    youtube_transcript_path: str = ""
+    youtube_transcript_language: str = ""
+    youtube_transcript_sha256: str = ""
+    youtube_transcript_fetched_at: str = ""
+    youtube_transcript_backend: str = ""
+    youtube_transcript_chars: int = 0
+    youtube_transcript_truncated: bool = False
     content_type: str = ""
     sentiment: str = ""
     flow_id: str = ""
@@ -225,6 +232,13 @@ class Bookmark:
             "snapshot_sha256": self.snapshot_sha256,
             "snapshot_backend": self.snapshot_backend,
             "extracted_text_path": self.extracted_text_path,
+            "youtube_transcript_path": self.youtube_transcript_path,
+            "youtube_transcript_language": self.youtube_transcript_language,
+            "youtube_transcript_sha256": self.youtube_transcript_sha256,
+            "youtube_transcript_fetched_at": self.youtube_transcript_fetched_at,
+            "youtube_transcript_backend": self.youtube_transcript_backend,
+            "youtube_transcript_chars": self.youtube_transcript_chars,
+            "youtube_transcript_truncated": self.youtube_transcript_truncated,
             "content_type": self.content_type,
             "sentiment": self.sentiment,
             "flow_id": self.flow_id,
@@ -321,6 +335,13 @@ class Bookmark:
             snapshot_sha256=str(d.get("snapshot_sha256") or ""),
             snapshot_backend=str(d.get("snapshot_backend") or ""),
             extracted_text_path=str(d.get("extracted_text_path") or ""),
+            youtube_transcript_path=str(d.get("youtube_transcript_path") or ""),
+            youtube_transcript_language=str(d.get("youtube_transcript_language") or ""),
+            youtube_transcript_sha256=str(d.get("youtube_transcript_sha256") or ""),
+            youtube_transcript_fetched_at=str(d.get("youtube_transcript_fetched_at") or ""),
+            youtube_transcript_backend=str(d.get("youtube_transcript_backend") or ""),
+            youtube_transcript_chars=safe_int(d.get("youtube_transcript_chars", 0)),
+            youtube_transcript_truncated=safe_bool(d.get("youtube_transcript_truncated", False)),
             content_type=str(d.get("content_type") or ""),
             sentiment=str(d.get("sentiment") or ""),
             flow_id=str(d.get("flow_id") or ""),

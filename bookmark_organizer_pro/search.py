@@ -559,7 +559,15 @@ class SearchQuery:
         elif clause.kind == "url":
             matched = value_lower in bookmark.url.lower()
         elif clause.kind == "content":
-            body = _load_extracted_text(bookmark.id)
+            body = "\n".join(
+                filter(
+                    None,
+                    [
+                        _load_extracted_text(bookmark.id),
+                        _load_youtube_transcript(bookmark.id, bookmark.youtube_transcript_path),
+                    ],
+                )
+            )
             matched = bool(body) and value_lower in body.lower()
         elif clause.kind in {"after", "before"}:
             created = self._bookmark_created_at(bookmark)
@@ -831,6 +839,28 @@ def _load_extracted_text(bookmark_id: int) -> str:
     except OSError:
         pass
     return ""
+
+
+@lru_cache(maxsize=256)
+def _load_youtube_transcript(bookmark_id: int, path_value: str = "") -> str:
+    """Load one opt-in transcript without allowing paths outside app data."""
+
+    from .constants import APP_DIR, YOUTUBE_TRANSCRIPTS_DIR
+    from pathlib import Path
+
+    path = Path(path_value).expanduser() if path_value else None
+    if path is None:
+        matches = sorted(YOUTUBE_TRANSCRIPTS_DIR.glob(f"{int(bookmark_id)}.*.txt"))
+        path = matches[-1] if matches else None
+    if path is None:
+        return ""
+    try:
+        resolved = path.resolve()
+        if not resolved.is_relative_to(APP_DIR.resolve()):
+            return ""
+        return resolved.read_text(encoding="utf-8", errors="replace")[:2_000_000]
+    except (OSError, ValueError):
+        return ""
 
 
 def levenshtein_distance(s1: str, s2: str) -> int:

@@ -274,12 +274,27 @@ class EmbeddingService:
     @staticmethod
     def bookmark_source_text(bookmark: Any) -> str:
         """Load the exact text used by embedding commands for one bookmark."""
-        path_value = str(getattr(bookmark, "extracted_text_path", "") or "")
-        if path_value:
+        from bookmark_organizer_pro.constants import APP_DIR
+
+        paths = [
+            str(getattr(bookmark, "extracted_text_path", "") or ""),
+            str(getattr(bookmark, "youtube_transcript_path", "") or ""),
+        ]
+        bodies = []
+        for path_value in paths:
+            if not path_value:
+                continue
             try:
-                return Path(path_value).read_text(encoding="utf-8")
-            except OSError:
-                pass
+                path = Path(path_value).expanduser().resolve()
+                if not path.is_relative_to(APP_DIR.resolve()):
+                    continue
+                text = path.read_text(encoding="utf-8")
+            except (OSError, ValueError):
+                continue
+            if text and text not in bodies:
+                bodies.append(text)
+        if bodies:
+            return "\n\n".join(bodies)
         return "\n".join(
             filter(
                 None,

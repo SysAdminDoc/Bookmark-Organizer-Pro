@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import tkinter as tk
+from tkinter import simpledialog
+import threading
 import webbrowser
 from datetime import datetime
 
@@ -119,6 +121,26 @@ class SelectionActionsMixin:
                 command=lambda: self._open_offline_copy(first_bookmark),
             )
         menu.add_command(label=_("Reader View"), command=self._open_reader_view)
+        selected_bookmarks = [
+            self.bookmark_manager.get_bookmark(bookmark_id)
+            for bookmark_id in self.selected_bookmarks
+        ]
+        youtube_bookmarks = [
+            bookmark
+            for bookmark in selected_bookmarks
+            if bookmark is not None
+            and self._is_youtube_bookmark(bookmark)
+        ]
+        if youtube_bookmarks:
+            menu.add_command(
+                label=_("Fetch YouTube Transcript…"),
+                command=self._fetch_youtube_transcripts,
+            )
+        if any(getattr(bookmark, "youtube_transcript_path", "") for bookmark in youtube_bookmarks):
+            menu.add_command(
+                label=_("Remove YouTube Transcript"),
+                command=self._remove_youtube_transcripts,
+            )
         menu.add_command(label=_("Edit Bookmark"), command=self._edit_selected)
         menu.add_separator()
 
@@ -190,6 +212,105 @@ class SelectionActionsMixin:
             y_root = self.tree.winfo_rooty() + 72
         menu.tk_popup(x_root, y_root)
         return "break"
+
+    @staticmethod
+    def _is_youtube_bookmark(bookmark: Bookmark) -> bool:
+        from bookmark_organizer_pro.services.youtube_transcript import is_youtube_url
+
+        return is_youtube_url(bookmark.url)
+
+    def _youtube_transcript_action(self, *, remove: bool = False) -> None:
+        bookmarks = [
+            self.bookmark_manager.get_bookmark(bookmark_id)
+            for bookmark_id in (getattr(self, "selected_bookmarks", []) or [])
+        ]
+        if remove:
+            targets = [
+                bookmark
+                for bookmark in bookmarks
+                if bookmark is not None and getattr(bookmark, "youtube_transcript_path", "")
+            ]
+        else:
+            targets = [
+                bookmark
+                for bookmark in bookmarks
+                if bookmark is not None and self._is_youtube_bookmark(bookmark)
+            ]
+        if not targets:
+            self._show_toast(
+                _("Select an eligible YouTube bookmark first."),
+                "info",
+            )
+            return
+
+        language = "en"
+        if not remove:
+            language = simpledialog.askstring(
+                _("YouTube Transcript"),
+                _("Subtitle language (for example, en or pt-BR):"),
+                initialvalue="en",
+                parent=self.root,
+            )
+            if language is None:
+                return
+            language = language.strip()
+            if not language:
+                self._show_toast(_("Enter a subtitle language."), "error")
+                return
+
+        action = _("Removing") if remove else _("Fetching")
+        self._set_status(format_message(
+            "{action} YouTube transcript(s)…", action=action,
+        ))
+
+        def worker() -> None:
+            from bookmark_organizer_pro.services.youtube_transcript import YouTubeTranscriptService
+
+            service = YouTubeTranscriptService()
+            succeeded = 0
+            failed = 0
+            changed = False
+            for bookmark in targets:
+                result = (
+                    service.remove(bookmark)
+                    if remove
+                    else service.capture(bookmark, language=language)
+                )
+                if result.success:
+                    if not remove:
+                        changed = service.apply(bookmark, result) or changed
+                    succeeded += 1
+                else:
+                    failed += 1
+            if changed or (remove and succeeded):
+                self.bookmark_manager.save_bookmarks()
+            self._post_to_ui(
+                lambda: self._finish_youtube_transcripts(
+                    succeeded, failed, remove,
+                )
+            )
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _fetch_youtube_transcripts(self) -> None:
+        self._youtube_transcript_action(remove=False)
+
+    def _remove_youtube_transcripts(self) -> None:
+        self._youtube_transcript_action(remove=True)
+
+    def _finish_youtube_transcripts(self, succeeded: int, failed: int, remove: bool) -> None:
+        verb = _("Removed") if remove else _("Fetched")
+        message = format_message(
+            "{verb} {count} YouTube transcript(s)",
+            verb=verb,
+            count=succeeded,
+        )
+        if failed:
+            message += " " + format_message("{count} failed.", count=failed)
+        self._set_status(message)
+        self._toast(message, "error" if failed else "success")
+        if succeeded:
+            self._refresh_all()
     
     def _send_to_category(self, category: str):
         """Send selected bookmarks to a category"""

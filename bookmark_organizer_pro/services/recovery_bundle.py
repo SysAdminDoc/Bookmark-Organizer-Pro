@@ -55,7 +55,7 @@ LIBRARY_FILES = (
     "snapshot_history.json",
     "import_sessions.json",
 )
-LIBRARY_DIRS = ("snapshots", "extracted", "ai_snapshots")
+LIBRARY_DIRS = ("snapshots", "extracted", "transcripts", "ai_snapshots")
 
 
 @dataclass(frozen=True)
@@ -209,7 +209,7 @@ def _portable_path_index(data_dir: Path) -> list[dict[str, str]]:
     for item in items if isinstance(items, list) else []:
         if not isinstance(item, dict):
             continue
-        for field_name in ("snapshot_path", "extracted_text_path"):
+        for field_name in ("snapshot_path", "extracted_text_path", "youtube_transcript_path"):
             value = item.get(field_name)
             if not value:
                 continue
@@ -431,7 +431,7 @@ def _rewrite_portable_paths(staging: Path, target: Path, index: dict[str, Any]) 
     if json_path.is_file():
         raw = json.loads(json_path.read_text(encoding="utf-8"))
         items = raw if isinstance(raw, list) else raw.get("data", [])
-        lookup = {(str(item.get("id", "")), field): item for item in items if isinstance(item, dict) for field in ("snapshot_path", "extracted_text_path")}
+        lookup = {(str(item.get("id", "")), field): item for item in items if isinstance(item, dict) for field in ("snapshot_path", "extracted_text_path", "youtube_transcript_path")}
         for rewrite in rewrites:
             relative = rewrite.get("relative_path", "")
             if _safe_relative(relative) is None:
@@ -448,7 +448,7 @@ def _rewrite_portable_paths(staging: Path, target: Path, index: dict[str, Any]) 
             for bookmark_id, encoded in rows:
                 payload = json.loads(encoded)
                 changed = False
-                for field_name in ("snapshot_path", "extracted_text_path"):
+                for field_name in ("snapshot_path", "extracted_text_path", "youtube_transcript_path"):
                     relative = rewrite_lookup.get((str(bookmark_id), field_name))
                     if relative and _safe_relative(relative) is not None:
                         payload[field_name] = str((target / relative).resolve())

@@ -55,6 +55,7 @@ WRITE_TOOLS = {
     "toggle_pin", "mark_read_later", "add_tags", "remove_tags",
     "create_flow", "append_to_flow",
     "export_zip", "export_to_obsidian",
+    "youtube_transcript",
     "chat_with_collection", "chat_with_collection_stream", "summarize_bookmark",
     "update_reader_highlight_note", "relink_reader_highlight", "record_reader_review",
 }

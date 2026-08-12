@@ -82,6 +82,56 @@ class TestGetBookmark(MCPToolTestBase):
         self.assertIn("get-test.example.com", result["url"])
 
 
+class TestYouTubeTranscript(MCPToolTestBase):
+    def test_not_found_is_explicit(self):
+        result = self.ms.t_youtube_transcript(999999999)
+        self.assertEqual(result["status"], "not_found")
+
+    def test_fetch_is_opt_in_and_returns_provenance_without_local_path_in_bookmark(self):
+        from types import SimpleNamespace
+
+        added = self.ms.t_add_bookmark(
+            url="https://www.youtube.com/watch?v=mcp-transcript",
+            title="Transcript video",
+        )
+        result = SimpleNamespace(
+            success=True,
+            status="success",
+            language="es",
+            path="C:/private/transcripts/1.es.txt",
+            sha256="digest",
+            chars=12,
+            truncated=False,
+            to_dict=lambda: {
+                "status": "success",
+                "success": True,
+                "path": "C:/private/transcripts/1.es.txt",
+            },
+        )
+
+        def apply(bookmark, _result):
+            bookmark.youtube_transcript_path = "C:/private/transcripts/1.es.txt"
+            bookmark.youtube_transcript_language = "es"
+            bookmark.youtube_transcript_sha256 = "digest"
+            bookmark.youtube_transcript_chars = 12
+            return True
+
+        fake_service = SimpleNamespace(
+            capture=lambda bookmark, language, timeout: result,
+            apply=apply,
+        )
+        with patch.object(self.ms, "YouTubeTranscriptService", return_value=fake_service):
+            payload = self.ms.t_youtube_transcript(
+                added["id"], language="es", timeout=17,
+            )
+
+        self.assertEqual(payload["status"], "success")
+        self.assertTrue(payload["bookmark"]["youtube_transcript"]["available"])
+        self.assertEqual(payload["bookmark"]["youtube_transcript"]["language"], "es")
+        self.assertNotIn("youtube_transcript_path", payload["bookmark"])
+        self.assertEqual(payload["bookmark"]["youtube_transcript"]["sha256"], "digest")
+
+
 class TestSearch(MCPToolTestBase):
     def test_keyword_search(self):
         self.ms.t_add_bookmark(url="https://searchtest.example.com", title="Unique SearchMarker Title")
