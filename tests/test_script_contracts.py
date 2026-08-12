@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from scripts.contract_runtime import ContractTimeoutError, ScriptWatchdog, terminate_process_tree
+from benchmarks.bench_core import CASE_ORDER, run_benchmark
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -76,3 +77,20 @@ def test_terminate_process_tree_reaps_child() -> None:
     process = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
     terminate_process_tree(process, grace_seconds=1)
     assert process.poll() is not None
+
+
+def test_benchmark_report_has_bounded_named_workloads() -> None:
+    report = run_benchmark(
+        sizes=(8,),
+        case_timeout_seconds=5.0,
+        total_timeout_seconds=30.0,
+    )
+
+    assert report["schema_version"] == 1
+    assert report["passed"] is True
+    assert report["case_order"] == list(CASE_ORDER)
+    assert [case["name"] for case in report["cases"]] == list(CASE_ORDER)
+    assert all(case["status"] == "completed" for case in report["cases"])
+    assert all(case["watchdog_ms"] == 5000.0 for case in report["cases"])
+    dedupe = next(case for case in report["cases"] if case["name"] == "dedupe")
+    assert dedupe["duplicates"] >= 1

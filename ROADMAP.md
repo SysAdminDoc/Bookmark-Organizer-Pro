@@ -4,13 +4,6 @@ Actionable work only. Historical and completed roadmap material is archived in C
 
 ## Actionable Items
 
-- [ ] P2 — R-98: Replace the benchmark gate with bounded realistic workloads
-  Why: the documented direct command fails on imports and the repaired 500-add case exceeds two minutes, so it cannot provide timely regression signal.
-  Evidence: `benchmarks/bench_core.py --gate` execution on 2026-07-29; bookmark manager/storage APIs.
-  Touches: benchmark seeding/fixtures, per-operation timers, thresholds, command docs, optional CI performance job.
-  Acceptance: Setup uses bulk deterministic fixtures outside measured regions; startup, load, search, sort, save, dedupe, and incremental add are reported separately at named collection sizes; each case has a watchdog and machine-readable output; a warm/cold baseline completes within an explicitly documented local budget.
-  Complexity: M
-
 - [ ] P2 — R-99: Expose YouTube transcript ingestion as an explicit workflow
   Why: The former R-12 completion claim is not reachable: a transcript service exists but users cannot discover, consent to, diagnose, or retry it as part of bookmark enrichment.
   Evidence: `bookmark_organizer_pro/services/youtube_transcript.py`, ingest/reader/job-ledger services, `CHANGELOG.md`.

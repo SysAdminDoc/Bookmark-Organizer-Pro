@@ -198,6 +198,19 @@ python scripts/generate_completions.py
 python scripts/generate_completions.py --check
 ```
 
+### Performance gate
+
+The benchmark uses bulk deterministic fixtures outside the measured regions,
+then reports cold/warm startup, load, search, sort, save, dedupe, and one
+incremental persisted add at 100, 1,000, and 5,000 bookmarks. Each case runs in
+an isolated worker with a 10-second watchdog; the complete default gate has a
+60-second budget. Use JSON for CI or local comparison:
+
+```bash
+python benchmarks/bench_core.py --gate
+python benchmarks/bench_core.py --gate --json --output benchmark-report.json
+```
+
 Snapshot capture applies the same private/reserved-network, redirect, request,
 time, and byte limits to Python and Playwright fetches. Monolith and SingleFile
 executables cannot expose every internal request, so they are disabled by

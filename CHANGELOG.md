@@ -19,6 +19,9 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Added parser-derived Bash, Zsh, and Fish completion generation with a
   deterministic `--check` drift gate covering all 62 CLI commands, options,
   choices, and path-valued arguments.
+- Replaced the monolithic performance gate with deterministic bulk fixtures,
+  named cold/warm and core-operation cases at 100/1,000/5,000 bookmarks,
+  per-case worker watchdogs, a 60-second total budget, and JSON reports.
 - Added an isolated release builder that installs the verified Python 3.11/Windows lock, pins the packaging toolchain, embeds commit/lock/profile identity plus a CycloneDX SBOM, and runs the frozen artifact contract before publishing.
 - Added a headless `--release-contract` executable probe covering bundled category data, declared runtime capabilities, dependency versions, lock integrity, and SBOM parity.
 - Added deterministic Chromium ZIP and Firefox XPI extension builds with shared-manifest parity checks, Firefox `sidebar_action`/background-page support, web-ext lint, and a clean-profile temporary-install smoke.
