@@ -6,6 +6,20 @@ const DEFAULTS = {
 const PENDING_SAVES_KEY = "pendingSaves";
 const CLEARED_SAVES_KEY = "lastClearedPendingSaves";
 
+function normalizeDefaultCategory(value) {
+  const category = typeof value === "string" ? value.trim() : "";
+  return category || DEFAULTS.defaultCategory;
+}
+
+function normalizeConfig(config) {
+  const values = {
+    ...DEFAULTS,
+    ...config
+  };
+  values.defaultCategory = normalizeDefaultCategory(values.defaultCategory);
+  return values;
+}
+
 const api = globalThis.browser ?? globalThis.chrome;
 
 function storageGet(keys) {
@@ -66,7 +80,7 @@ async function getConfig() {
   if (!response || !response.ok || !response.config) {
     throw new Error("Extension credential service unavailable");
   }
-  return { ...DEFAULTS, ...response.config };
+  return normalizeConfig({ ...DEFAULTS, ...response.config });
 }
 
 function baseUrl(config) {
@@ -96,21 +110,25 @@ function isRetryableSaveStatus(status) {
 }
 
 async function saveBookmarkPayload(payload, config, { source = "unknown", journal = true } = {}) {
+  const normalizedPayload = {
+    ...payload,
+    category: normalizeDefaultCategory(payload.category || config?.defaultCategory)
+  };
   const headers = authHeaders(config);
-  if (payload.browser_snapshot) headers["X-BOP-Capture-Version"] = "1";
+  if (normalizedPayload.browser_snapshot) headers["X-BOP-Capture-Version"] = "1";
   try {
     const response = await fetch(`${baseUrl(config)}/bookmarks`, {
       method: "POST",
       headers,
-      body: JSON.stringify(payload)
+      body: JSON.stringify(normalizedPayload)
     });
     let body = {};
     try { body = await response.json(); } catch { /* response body is optional */ }
     const queued = journal && isRetryableSaveStatus(response.status);
-    if (queued) await enqueuePendingSave(payload, `HTTP ${response.status}`, source);
+    if (queued) await enqueuePendingSave(normalizedPayload, `HTTP ${response.status}`, source);
     return { status: response.status, body, queued };
   } catch {
-    if (journal) await enqueuePendingSave(payload, "API unavailable", source);
+    if (journal) await enqueuePendingSave(normalizedPayload, "API unavailable", source);
     return { status: 0, body: {}, queued: Boolean(journal) };
   }
 }
@@ -405,6 +423,34 @@ async function loadCategories(datalistId) {
   } catch { /* bundled file missing */ }
 }
 
+function renderDefaultCategoryAffordance(inputId, defaultId, hintId, category) {
+  if (typeof document === "undefined") return;
+  const effective = normalizeDefaultCategory(category);
+  const input = document.getElementById(inputId);
+  const defaultLabel = document.getElementById(defaultId);
+  const hint = document.getElementById(hintId);
+  if (input) {
+    input.dataset.defaultCategory = effective;
+    input.setAttribute("placeholder", typeof extensionMessage === "function"
+      ? extensionMessage("categoryBlankPlaceholder", [effective], "Use the default category")
+      : "Use the default category");
+  }
+  if (defaultLabel) {
+    defaultLabel.textContent = typeof extensionMessage === "function"
+      ? extensionMessage("categoryDefaultValue", [effective], `Default: ${effective}`)
+      : `Default: ${effective}`;
+  }
+  if (hint) {
+    hint.textContent = typeof extensionMessage === "function"
+      ? extensionMessage(
+        "categoryBlankHint",
+        [effective],
+        `Leave blank to use ${effective}. A blank category is never saved.`,
+      )
+      : `Leave blank to use ${effective}. A blank category is never saved.`;
+  }
+}
+
 function normalizePendingSave(payload, reason = "API unavailable", source = "context_menu") {
   return {
     id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -415,7 +461,7 @@ function normalizePendingSave(payload, reason = "API unavailable", source = "con
     payload: {
       url: payload.url,
       title: payload.title || payload.url,
-      category: payload.category || DEFAULTS.defaultCategory,
+      category: normalizeDefaultCategory(payload.category),
       tags: Array.isArray(payload.tags) ? payload.tags : (payload.tags || []),
       notes: payload.notes || "",
       read_later: Boolean(payload.read_later)

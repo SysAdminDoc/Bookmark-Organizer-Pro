@@ -44,7 +44,7 @@ async function getTrustedConfig() {
     defaultCategory: DEFAULTS.defaultCategory
   };
   const stored = await storageGet(publicDefaults);
-  return { ...DEFAULTS, ...stored, apiToken: await CredentialVault.getToken() };
+  return normalizeConfig({ ...stored, apiToken: await CredentialVault.getToken() });
 }
 
 async function handleTrustedMessage(message) {

@@ -239,6 +239,12 @@ with `python scripts/extension_firefox_smoke.py`; set `FIREFOX_BINARY` when
 Firefox is not installed in a standard or Playwright location. The smoke exits
 with status 2 and a structured limitation report when no Firefox runtime exists.
 
+Capture forms always show the effective named default category, and leaving the
+field blank still sends that category through the shared save boundary. The Side
+Panel search announces its waiting, loading, result-count, no-match, and error
+states through a live region; its responsive layout remains usable at narrow
+200% zoom-equivalent widths.
+
 Retryable API failures from every save surface enter the same deduplicated local
 journal. The popup and side panel show each pending title, source, time, and
 failure reason; retries retain failures, while JSON export and confirmed Clear

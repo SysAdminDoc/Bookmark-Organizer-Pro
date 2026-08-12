@@ -209,6 +209,132 @@ vm.runInContext(`(async () => {
         self.assertIn('runtimeMessage({ type: "bop:get-config" })', options_js)
         self.assertIn('{ ...DEFAULTS, ...response.config }', shared_js)
 
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for the category boundary harness")
+    def test_blank_capture_category_is_replaced_by_the_effective_default(self):
+        shared = EXT_DIR / "shared.js"
+        harness = r"""
+const fs = require("fs");
+const vm = require("vm");
+const calls = [];
+const chrome = {
+  storage: { local: {
+    get: async values => values,
+    set: async () => {}
+  } },
+  runtime: {
+    getURL: path => path,
+    sendMessage: async () => ({ ok: true, config: { apiPort: 8765, apiToken: "token", defaultCategory: "Research" } })
+  }
+};
+    const context = vm.createContext({
+      chrome,
+      calls,
+      fetch: async (url, options) => {
+    calls.push({ url, options });
+    return { status: 201, json: async () => ({}) };
+  },
+  console, URL, Date, Math
+});
+context.globalThis = context;
+vm.runInContext(fs.readFileSync(process.argv[1], "utf8"), context);
+vm.runInContext(`(async () => {
+  const config = { apiPort: 8765, apiToken: "token", defaultCategory: "Research" };
+  await saveBookmarkPayload({ url: "https://example.com", title: "Example", category: "" }, config);
+  globalThis.result = {
+    payload: JSON.parse(calls[0].options.body),
+    fallback: normalizeConfig({ defaultCategory: "" }).defaultCategory
+  };
+})()`, context).then(() => process.stdout.write(JSON.stringify(context.result)));
+"""
+        completed = subprocess.run(
+            ["node", "-e", harness, str(shared)],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = json.loads(completed.stdout)
+        self.assertEqual(result["payload"]["category"], "Research")
+        self.assertEqual(result["fallback"], "Uncategorized / Needs Review")
+
+    def test_extension_category_and_search_states_are_named_and_responsive(self):
+        popup_html = (EXT_DIR / "popup.html").read_text(encoding="utf-8")
+        sidepanel_html = (EXT_DIR / "sidepanel.html").read_text(encoding="utf-8")
+        options_html = (EXT_DIR / "options.html").read_text(encoding="utf-8")
+        sidepanel_js = (EXT_DIR / "sidepanel.js").read_text(encoding="utf-8")
+        options_js = (EXT_DIR / "options.js").read_text(encoding="utf-8")
+        popup_css = (EXT_DIR / "popup.css").read_text(encoding="utf-8")
+
+        for html, input_id, hint_id in (
+            (popup_html, "category", "categoryHint"),
+            (sidepanel_html, "addCategory", "addCategoryHint"),
+        ):
+            self.assertIn(f'id="{input_id}"', html)
+            self.assertIn(f'aria-describedby="{hint_id}"', html)
+            self.assertIn('class="category-default"', html)
+        self.assertIn('id="defaultCategoryHint"', options_html)
+        self.assertIn("normalizeDefaultCategory", options_js)
+        for marker in (
+            'id="searchStatus"',
+            'aria-busy="false"',
+            'data-i18n-aria-label="searchResults"',
+        ):
+            self.assertIn(marker, sidepanel_html)
+        for marker in (
+            "searchDebounceTimer",
+            "searchRequestId",
+            "searchLoading",
+            "searchResultCount",
+            "searchNoMatches",
+            "searchError",
+            "setTimeout",
+        ):
+            self.assertIn(marker, sidepanel_js)
+        self.assertIn("min-width: 0", popup_css)
+        self.assertIn("@media (max-width: 310px)", popup_css)
+
+    @unittest.skipUnless(importlib.util.find_spec("playwright"), "Playwright is required for search state coverage")
+    def test_sidepanel_search_announces_success_no_match_and_error_states(self):
+        from scripts import visual_regression_smoke as visual
+        from playwright.sync_api import sync_playwright
+
+        def route_handler(route):
+            url = route.request.url
+            if "/search?" in url and "missing" in url:
+                route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    body=json.dumps({"results": []}),
+                )
+            elif "/search?" in url and "error" in url:
+                route.abort()
+            else:
+                visual.fulfill_api(route)
+
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch()
+            context = browser.new_context(viewport={"width": 430, "height": 760})
+            context.add_init_script(visual.extension_init_script())
+            context.route("http://127.0.0.1:8765/**", route_handler)
+            page = context.new_page()
+            page.goto((EXT_DIR / "sidepanel.html").as_uri(), wait_until="domcontentloaded")
+            page.locator('[data-tab="search"]').click()
+
+            page.fill("#searchInput", "Visual")
+            page.wait_for_timeout(450)
+            self.assertIn("2 bookmarks found", page.locator("#searchStatus").inner_text())
+
+            page.fill("#searchInput", "missing")
+            page.wait_for_timeout(450)
+            self.assertIn("No bookmarks matched", page.locator("#searchStatus").inner_text())
+
+            page.fill("#searchInput", "error")
+            page.wait_for_timeout(450)
+            self.assertIn("Search could not be completed", page.locator("#searchStatus").inner_text())
+            context.close()
+            browser.close()
+
     @unittest.skipUnless(shutil.which("node"), "Node.js is required for the extension service-worker harness")
     def test_background_vault_migration_and_trusted_message_round_trip(self):
         harness = r"""

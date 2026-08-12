@@ -4,13 +4,6 @@ Actionable work only. Historical and completed roadmap material is archived in C
 
 ## Actionable Items
 
-- [ ] P2 — R-96: Clarify extension category and search states
-  Why: capture can show a blank default-category affordance, while search lacks explicit loading/no-results/error announcements and robust accessible state.
-  Evidence: `browser-extension/popup.html`, `browser-extension/popup.js`, `browser-extension/sidepanel.html`, `browser-extension/sidepanel.js`, visual captures; Chrome bookmarks/storage/i18n APIs.
-  Touches: extension popup/options/shared scripts and styles, locale catalogs, browser-extension tests.
-  Acceptance: The effective default category is always named and distinguishable from “no category”; category changes persist atomically; debounced search exposes loading, result count, no-results, and error states via live regions; controls have names/descriptions/focus order and remain usable at 200% zoom.
-  Complexity: M
-
 - [ ] P2 — R-97: Generate shell completions from CLI parser truth
   Why: The former R-77 completion claim has drifted: hand-maintained files omit 15 parser commands and advertise an invalid `flow delete` command.
   Evidence: `bookmark_organizer_pro/cli.py`, `scripts/completions/bop.bash`, `scripts/completions/bop.zsh`, `scripts/completions/bop.fish`, `CHANGELOG.md`.

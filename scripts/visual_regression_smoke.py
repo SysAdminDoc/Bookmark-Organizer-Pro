@@ -105,6 +105,21 @@ EXTENSION_SURFACES = (
         ("Add", "Read Later", "Save Bookmark"),
         click_selector='button[data-tab="add"]',
     ),
+    ExtensionSurface(
+        "extension-popup-200pct-dark",
+        "popup.html",
+        (220, 760),
+        "dark",
+        ("Save Bookmark", "Category", "Read Later"),
+    ),
+    ExtensionSurface(
+        "extension-sidepanel-search-200pct-light",
+        "sidepanel.html",
+        (220, 760),
+        "light",
+        ("Search", "Enter a query to search bookmarks."),
+        click_selector='button[data-tab="search"]',
+    ),
 )
 
 
@@ -1481,7 +1496,7 @@ def check_browser_layout(page, surface: ExtensionSurface) -> None:
             f"{surface.name} has horizontal overflow: {overflow['scrollWidth']} > {overflow['clientWidth']}"
         )
     if surface.html_file == "popup.html":
-        hint = page.locator(".field-hint").first
+        hint = page.locator(".choice-group .field-hint").first
         metrics = hint.evaluate(
             """(node) => {
                 const style = getComputedStyle(node);

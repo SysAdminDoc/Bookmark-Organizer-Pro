@@ -27,9 +27,13 @@
 
     <section class="workspace-card form-card">
       <label>
-        <span data-i18n="category">Category</span>
-        <input id="category" type="text" autocomplete="off" list="categoryList">
+        <span class="field-label-row">
+          <span data-i18n="category">Category</span>
+          <span id="categoryDefault" class="category-default" data-i18n="categoryDefaultValue">Default: Uncategorized / Needs Review</span>
+        </span>
+        <input id="category" type="text" autocomplete="off" list="categoryList" aria-describedby="categoryHint" data-i18n-placeholder="categoryBlankPlaceholder" placeholder="Use the default category">
         <datalist id="categoryList"></datalist>
+        <span id="categoryHint" class="field-hint category-hint" data-i18n="categoryBlankHint">Leave blank to use the named default category. A blank category is never saved.</span>
       </label>
 
       <label>

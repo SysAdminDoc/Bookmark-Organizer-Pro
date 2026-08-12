@@ -7,21 +7,26 @@ function setStatus(message, tone = "info") {
 }
 
 async function loadOptions() {
-  const stored = { ...DEFAULTS, ...(await storageGet(DEFAULTS)) };
+  const stored = normalizeConfig(await storageGet(DEFAULTS));
   const response = await runtimeMessage({ type: "bop:get-config" });
-  const values = response && response.ok ? { ...stored, ...response.config } : stored;
+  const values = response && response.ok
+    ? normalizeConfig({ ...stored, ...response.config })
+    : stored;
   document.getElementById("apiPort").value = values.apiPort;
   document.getElementById("apiToken").value = values.apiToken;
   document.getElementById("defaultCategory").value = values.defaultCategory;
+  renderDefaultCategoryAffordance(
+    "defaultCategory", "defaultCategoryValue", "defaultCategoryHint", values.defaultCategory,
+  );
 }
 
 async function currentConfig() {
-  const stored = { ...DEFAULTS, ...(await storageGet(DEFAULTS)) };
+  const stored = normalizeConfig(await storageGet(DEFAULTS));
   const response = await runtimeMessage({ type: "bop:get-config" });
   if (!response || !response.ok || !response.config) {
     throw new Error("Current credentials could not be read");
   }
-  return { ...stored, ...response.config };
+  return normalizeConfig({ ...stored, ...response.config });
 }
 
 async function writeApiToken(apiToken) {
@@ -38,20 +43,22 @@ async function restoreApiToken(apiToken) {
 }
 
 async function persistPairedConfig(candidate, previous) {
+  const next = normalizeConfig(candidate);
+  const prior = normalizeConfig(previous);
   let tokenChanged = false;
   try {
-    await writeApiToken(candidate.apiToken);
+    await writeApiToken(next.apiToken);
     tokenChanged = true;
-    const { apiPort: port, defaultCategory } = candidate;
+    const { apiPort: port, defaultCategory } = next;
     await storageSet({ apiPort: port, defaultCategory });
   } catch (error) {
     const rollbacks = [
       storageSet({
-        apiPort: previous.apiPort,
-        defaultCategory: previous.defaultCategory
+        apiPort: prior.apiPort,
+        defaultCategory: prior.defaultCategory
       })
     ];
-    if (tokenChanged) rollbacks.push(restoreApiToken(previous.apiToken));
+    if (tokenChanged) rollbacks.push(restoreApiToken(prior.apiToken));
     const outcomes = await Promise.allSettled(rollbacks);
     if (outcomes.some(outcome => outcome.status === "rejected")) {
       throw new Error("Settings could not be stored or restored");
@@ -63,7 +70,7 @@ async function persistPairedConfig(candidate, previous) {
 async function saveOptions({ replacePairing = false } = {}) {
   const port = Number.parseInt(document.getElementById("apiPort").value, 10);
   const apiToken = document.getElementById("apiToken").value.trim();
-  const defaultCategory = document.getElementById("defaultCategory").value.trim() || DEFAULTS.defaultCategory;
+  const defaultCategory = normalizeDefaultCategory(document.getElementById("defaultCategory").value);
 
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     setStatus(extensionMessage("validPortRequired", [], "Enter a valid TCP port."), "error");

@@ -59,9 +59,10 @@
       <div class="tab-heading"><div><p class="section-kicker" data-i18n="find">Find</p><h1 data-i18n="search">Search</h1></div></div>
       <div class="search-box">
         <input id="searchInput" type="text" placeholder="Search bookmarks..." data-i18n-placeholder="searchBookmarksPlaceholder" autocomplete="off" aria-label="Search bookmarks" data-i18n-aria-label="searchBookmarks">
-        <button id="searchBtn" type="button" data-i18n="search">Search</button>
+        <button id="searchBtn" type="button" aria-controls="searchResults" data-i18n="search">Search</button>
       </div>
-      <ul id="searchResults" class="bookmark-list"></ul>
+      <p id="searchStatus" class="status search-status" role="status" aria-live="polite" aria-atomic="true" aria-busy="false" data-i18n="searchReady">Enter a query to search bookmarks.</p>
+      <ul id="searchResults" class="bookmark-list" aria-busy="false" aria-label="Search results" data-i18n-aria-label="searchResults"></ul>
     </div>
 
     <div id="tab-add" class="tab-content" role="tabpanel" aria-labelledby="tab-btn-add" hidden>
@@ -70,9 +71,13 @@
         <p id="addPageTitle" class="current-page page-summary"></p>
         <div class="workspace-card form-card">
         <label>
-          <span data-i18n="category">Category</span>
-          <input id="addCategory" type="text" autocomplete="off" list="categoryList">
+          <span class="field-label-row">
+            <span data-i18n="category">Category</span>
+            <span id="addCategoryDefault" class="category-default" data-i18n="categoryDefaultValue">Default: Uncategorized / Needs Review</span>
+          </span>
+          <input id="addCategory" type="text" autocomplete="off" list="categoryList" aria-describedby="addCategoryHint" data-i18n-placeholder="categoryBlankPlaceholder" placeholder="Use the default category">
           <datalist id="categoryList"></datalist>
+          <span id="addCategoryHint" class="field-hint category-hint" data-i18n="categoryBlankHint">Leave blank to use the named default category. A blank category is never saved.</span>
         </label>
         <label>
           <span data-i18n="tags">Tags</span>

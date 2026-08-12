@@ -221,6 +221,23 @@ label {
   font-weight: 700;
 }
 
+.field-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+.category-default {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 650;
+  text-align: end;
+}
+
 input,
 textarea {
   width: 100%;
@@ -287,6 +304,10 @@ button:focus-visible,
   color: var(--subtle);
   font-size: 10.5px;
   line-height: 1.45;
+}
+
+.category-hint {
+  margin-inline-start: 0;
 }
 
 .actions {
@@ -440,7 +461,7 @@ button:disabled {
 
 .sidepanel-body {
   width: 100%;
-  min-width: 270px;
+  min-width: 0;
   max-width: none;
   height: 100vh;
   overflow-y: auto;
@@ -574,6 +595,15 @@ button:disabled {
   min-height: 36px;
   padding: 7px 11px;
   font-size: 12px;
+}
+
+.search-status {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+.search-status[aria-busy="true"] {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-soft));
 }
 
 .bookmark-list {
@@ -717,7 +747,7 @@ button:disabled {
 
 .options-body {
   width: auto;
-  min-width: 320px;
+  min-width: 0;
 }
 
 .options-body .panel {
@@ -779,7 +809,8 @@ button:disabled {
 
 @media (max-width: 520px) {
   body:not(.sidepanel-body):not(.options-body) {
-    width: 360px;
+    width: 100%;
+    max-width: 380px;
   }
 
   .options-body .panel {
@@ -795,6 +826,10 @@ button:disabled {
 }
 
 @media (max-width: 310px) {
+  body {
+    width: 100%;
+  }
+
   .sidepanel-body .panel {
     padding-inline: 10px;
   }
@@ -808,9 +843,31 @@ button:disabled {
     flex-wrap: wrap;
   }
 
+  #statusText {
+    flex: 1 1 calc(100% - 22px);
+    white-space: normal;
+  }
+
   .status-options {
     width: 100%;
     margin-inline-start: 0;
+  }
+
+  .search-box {
+    grid-template-columns: 1fr;
+  }
+
+  .search-box button {
+    width: 100%;
+  }
+
+  .tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .tab-btn + .tab-btn {
+    border-inline-start: 0;
+    border-top: 1px solid var(--border-soft);
   }
 
   .actions > button {

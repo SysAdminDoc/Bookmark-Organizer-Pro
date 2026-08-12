@@ -7,6 +7,9 @@ const RECENT_PAGE_SIZE = 30;
 let recentOffset = 0;
 let recentHasMore = false;
 let recentLoading = false;
+let searchDebounceTimer = null;
+let searchRequestId = 0;
+let searchLoading = false;
 
 class ApiResponseError extends Error {
   constructor(status) {
@@ -221,26 +224,88 @@ async function loadRediscover() {
 }
 
 async function doSearch(query) {
+  const requestId = ++searchRequestId;
   const results = document.getElementById("searchResults");
-  if (!query.trim()) {
-      showEmpty(results, extensionMessage("typeQuery", [], "Type a query and press Go."));
+  const searchButton = document.getElementById("searchBtn");
+  const searchStatus = document.getElementById("searchStatus");
+  const normalizedQuery = String(query || "").trim();
+  if (!normalizedQuery) {
+    searchLoading = false;
+    results.setAttribute("aria-busy", "false");
+    searchButton.disabled = false;
+    searchButton.textContent = extensionMessage("search", [], "Search");
+    searchStatus.setAttribute("aria-busy", "false");
+    searchStatus.dataset.tone = "info";
+    searchStatus.textContent = extensionMessage("searchReady", [], "Enter a query to search bookmarks.");
+    showEmpty(results, extensionMessage("typeQuery", [], "Type a query and press Go."));
     return;
   }
+  searchLoading = true;
+  results.setAttribute("aria-busy", "true");
+  searchStatus.setAttribute("aria-busy", "true");
+  searchStatus.dataset.tone = "info";
+  searchStatus.textContent = extensionMessage("searchLoading", [], "Searching bookmarks...");
+  searchButton.disabled = true;
+  searchButton.textContent = extensionMessage("loading", [], "Loading...");
   try {
     const config = await getConfig();
-    const data = await apiFetch(`/search?q=${encodeURIComponent(query)}`, config);
+    if (!config.apiToken) {
+      if (requestId !== searchRequestId) return;
+      showEmpty(results, extensionMessage("addTokenToConnect", [], "Add the API token in Options to connect."));
+      searchStatus.dataset.tone = "error";
+      searchStatus.textContent = extensionMessage("searchRequiresToken", [], "Add the API token in Options before searching.");
+      return;
+    }
+    const data = await apiFetch(`/search?q=${encodeURIComponent(normalizedQuery)}`, config);
     const hits = data.results || [];
+    if (requestId !== searchRequestId) return;
     if (!hits.length) {
-      showEmpty(results, extensionMessage("noSearchResults", [query], `No results for "${query}".`));
+      showEmpty(results, extensionMessage("noSearchResults", [normalizedQuery], `No results for "${normalizedQuery}".`));
+      searchStatus.dataset.tone = "info";
+      searchStatus.textContent = extensionMessage(
+        "searchNoMatches", [normalizedQuery], `No bookmarks matched "${normalizedQuery}".`,
+      );
       return;
     }
     results.innerHTML = "";
     for (const bm of hits.slice(0, 50)) {
       results.appendChild(renderBookmark(bm));
     }
+    searchStatus.dataset.tone = "success";
+    searchStatus.textContent = hits.length === 1
+      ? extensionMessage("searchResultOne", [], "1 bookmark found")
+      : extensionMessage("searchResultCount", [String(hits.length)], `${hits.length} bookmarks found`);
   } catch (error) {
+    if (requestId !== searchRequestId) return;
     showEmpty(results, connectionMessage(error));
+    searchStatus.dataset.tone = "error";
+    searchStatus.textContent = extensionMessage(
+      "searchError", [], "Search could not be completed. Check the local API and try again.",
+    );
+  } finally {
+    if (requestId === searchRequestId) {
+      searchLoading = false;
+      results.setAttribute("aria-busy", "false");
+      searchStatus.setAttribute("aria-busy", "false");
+      searchButton.disabled = false;
+      searchButton.textContent = extensionMessage("search", [], "Search");
+    }
   }
+}
+
+function scheduleSearch(query) {
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+  const normalizedQuery = String(query || "").trim();
+  if (!normalizedQuery) {
+    doSearch("");
+    return;
+  }
+  const searchStatus = document.getElementById("searchStatus");
+  searchStatus.textContent = extensionMessage("searchWaiting", [], "Waiting to search...");
+  searchDebounceTimer = setTimeout(() => {
+    searchDebounceTimer = null;
+    doSearch(normalizedQuery);
+  }, 250);
 }
 
 async function checkConnection() {
@@ -273,7 +338,15 @@ async function checkConnection() {
 }
 
 async function loadAddTab() {
-  const [tab] = await queryTabs({ active: true, currentWindow: true });
+  const [tabs, config] = await Promise.all([
+    queryTabs({ active: true, currentWindow: true }),
+    getConfig().catch(() => normalizeConfig(DEFAULTS)),
+  ]);
+  const tab = tabs[0];
+  document.getElementById("addCategory").value = config.defaultCategory;
+  renderDefaultCategoryAffordance(
+    "addCategory", "addCategoryDefault", "addCategoryHint", config.defaultCategory,
+  );
   const titleEl = document.getElementById("addPageTitle");
   if (tab && tab.url && isSaveableUrl(tab.url)) {
     titleEl.textContent = tab.title || tab.url;
@@ -455,10 +528,20 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   document.getElementById("searchBtn").addEventListener("click", () => {
+    if (searchLoading) return;
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = null;
     doSearch(document.getElementById("searchInput").value);
   });
+  document.getElementById("searchInput").addEventListener("input", e => {
+    scheduleSearch(e.target.value);
+  });
   document.getElementById("searchInput").addEventListener("keydown", e => {
-    if (e.key === "Enter") doSearch(e.target.value);
+    if (e.key === "Enter") {
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = null;
+      doSearch(e.target.value);
+    }
   });
 
   document.getElementById("addSaveBtn").addEventListener("click", saveBookmark);
@@ -500,6 +583,9 @@ document.addEventListener("DOMContentLoaded", () => {
   refreshPendingPanel().catch(() => {});
   loadRecent();
   loadRediscover();
+  renderDefaultCategoryAffordance(
+    "addCategory", "addCategoryDefault", "addCategoryHint", DEFAULTS.defaultCategory,
+  );
   loadCategories("categoryList");
 });
 

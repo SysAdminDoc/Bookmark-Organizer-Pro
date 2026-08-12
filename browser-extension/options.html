@@ -42,8 +42,12 @@
       </div>
 
       <label>
-        <span data-i18n="defaultCategory">Default category</span>
-        <input id="defaultCategory" type="text" value="Uncategorized / Needs Review">
+        <span class="field-label-row">
+          <span data-i18n="defaultCategory">Default category</span>
+          <span id="defaultCategoryValue" class="category-default" data-i18n="categoryDefaultValue">Default: Uncategorized / Needs Review</span>
+        </span>
+        <input id="defaultCategory" type="text" value="Uncategorized / Needs Review" aria-describedby="defaultCategoryHint">
+        <span id="defaultCategoryHint" class="field-hint category-hint" data-i18n="defaultCategoryHint">This named category is used whenever a capture leaves Category blank.</span>
       </label>
     </section>
 

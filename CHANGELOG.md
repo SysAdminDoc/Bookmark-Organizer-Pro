@@ -13,6 +13,9 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Added lifecycle-managed scheduled snapshots with persisted enable/interval
   settings, restart recovery, pause/shutdown cancellation, overlapping-pass
   coalescing, and bounded retry backoff with visible failure metadata.
+- Added explicit extension category defaults and debounced Side Panel search
+  states with live loading, result-count, no-match, and error announcements;
+  capture payloads now normalize blank categories at the shared boundary.
 - Added an isolated release builder that installs the verified Python 3.11/Windows lock, pins the packaging toolchain, embeds commit/lock/profile identity plus a CycloneDX SBOM, and runs the frozen artifact contract before publishing.
 - Added a headless `--release-contract` executable probe covering bundled category data, declared runtime capabilities, dependency versions, lock integrity, and SBOM parity.
 - Added deterministic Chromium ZIP and Firefox XPI extension builds with shared-manifest parity checks, Firefox `sidebar_action`/background-page support, web-ext lint, and a clean-profile temporary-install smoke.

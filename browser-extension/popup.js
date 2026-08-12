@@ -49,6 +49,9 @@ async function loadPopup() {
   const values = await getConfig();
 
   document.getElementById("category").value = values.defaultCategory;
+  renderDefaultCategoryAffordance(
+    "category", "categoryDefault", "categoryHint", values.defaultCategory,
+  );
   document.getElementById("pageTitle").textContent = activeTab?.title ||
     extensionMessage("noActiveTab", [], "No active tab");
 
