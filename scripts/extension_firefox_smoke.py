@@ -8,11 +8,17 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
 
-from build_extension import DEFAULT_OUTPUT, build_target
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.build_extension import DEFAULT_OUTPUT, build_target
+from scripts.contract_runtime import ScriptWatchdog, preserve_path, terminate_process_tree
 
 
 WEB_EXT_VERSION = "8.9.0"
@@ -66,69 +72,86 @@ def runtime_command(source_dir: Path, firefox: Path) -> list[str]:
 
 
 def _stop_process_tree(process: subprocess.Popen) -> None:
-    if process.poll() is not None:
-        return
-    if os.name == "nt":
-        subprocess.run(
-            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-        )
-    else:
-        process.terminate()
-    try:
-        process.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        process.kill()
+    terminate_process_tree(process)
 
 
-def run_smoke(source_dir: Path, firefox: Path, timeout: float = 25.0) -> dict[str, object]:
-    lint = subprocess.run(
-        lint_command(source_dir), capture_output=True, text=True, timeout=60, check=False
+def run_smoke(
+    source_dir: Path,
+    firefox: Path,
+    timeout: float = 25.0,
+    *,
+    total_timeout: float = 120.0,
+    phase_timeout: float = 60.0,
+    artifact_dir: Path | None = None,
+) -> dict[str, object]:
+    watchdog = ScriptWatchdog(
+        "firefox-smoke",
+        total_timeout=total_timeout,
+        phase_timeout=phase_timeout,
+        artifact_dir=artifact_dir,
     )
-    if lint.returncode:
-        raise RuntimeError(f"Firefox web-ext lint failed: {(lint.stdout + lint.stderr)[-1200:]}")
-    lint_report = json.loads(lint.stdout)
-    with tempfile.NamedTemporaryFile(prefix="bop-firefox-smoke-", suffix=".log", delete=False) as handle:
-        log_path = Path(handle.name)
-        process = subprocess.Popen(
-            runtime_command(source_dir, firefox),
-            stdout=handle,
-            stderr=subprocess.STDOUT,
-            start_new_session=os.name != "nt",
-        )
-    deadline = time.monotonic() + max(5.0, timeout)
+    log_path: Path | None = None
+    process: subprocess.Popen | None = None
     output = ""
     try:
+        watchdog.phase("web-ext-lint")
+        lint_timeout = min(60.0, watchdog.remaining_seconds)
+        lint = subprocess.run(
+            lint_command(source_dir), capture_output=True, text=True,
+            timeout=max(1.0, lint_timeout), check=False,
+        )
+        if lint.returncode:
+            raise RuntimeError(f"Firefox web-ext lint failed: {(lint.stdout + lint.stderr)[-1200:]}")
+        lint_report = json.loads(lint.stdout)
+
+        watchdog.phase("temporary-install")
+        with tempfile.NamedTemporaryFile(prefix="bop-firefox-smoke-", suffix=".log", delete=False) as handle:
+            log_path = Path(handle.name)
+            process = subprocess.Popen(
+                runtime_command(source_dir, firefox),
+                stdout=handle,
+                stderr=subprocess.STDOUT,
+                start_new_session=os.name != "nt",
+            )
+        deadline = time.monotonic() + max(5.0, timeout)
         while time.monotonic() < deadline:
+            watchdog.check("waiting for Firefox temporary install")
             output = log_path.read_text(encoding="utf-8", errors="replace")
-            if INSTALL_MARKER in output:
-                break
-            if process.poll() is not None:
+            if INSTALL_MARKER in output or process.poll() is not None:
                 break
             time.sleep(0.25)
-    finally:
-        _stop_process_tree(process)
+
+        if process is not None:
+            _stop_process_tree(process)
         output = log_path.read_text(encoding="utf-8", errors="replace")
-        for _attempt in range(10):
-            try:
-                log_path.unlink(missing_ok=True)
-                break
-            except PermissionError:
-                time.sleep(0.1)
-    if PROFILE_MARKER not in output:
-        raise RuntimeError("web-ext did not create a clean Firefox profile")
-    if INSTALL_MARKER not in output:
-        tail = "\n".join(output.splitlines()[-12:])
-        raise RuntimeError(f"Firefox did not install the temporary add-on within {timeout:g}s\n{tail}")
-    return {
-        "browser": "firefox",
-        "binary": str(firefox),
-        "clean_profile": True,
-        "temporary_addon_installed": True,
-        "lint": lint_report.get("summary", {}),
-    }
+        if PROFILE_MARKER not in output:
+            raise RuntimeError("web-ext did not create a clean Firefox profile")
+        if INSTALL_MARKER not in output:
+            tail = "\n".join(output.splitlines()[-12:])
+            raise RuntimeError(f"Firefox did not install the temporary add-on within {timeout:g}s\n{tail}")
+        watchdog.finish()
+        return {
+            "browser": "firefox",
+            "binary": str(firefox),
+            "clean_profile": True,
+            "temporary_addon_installed": True,
+            "lint": lint_report.get("summary", {}),
+        }
+    except BaseException as exc:
+        if log_path is not None and log_path.exists() and artifact_dir is not None:
+            preserve_path(log_path, artifact_dir / "web-ext.log")
+        watchdog.fail(exc)
+        raise
+    finally:
+        if process is not None:
+            _stop_process_tree(process)
+        if log_path is not None:
+            for _attempt in range(10):
+                try:
+                    log_path.unlink(missing_ok=True)
+                    break
+                except PermissionError:
+                    time.sleep(0.1)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -136,6 +159,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--firefox", default="", help="Firefox executable; also accepts FIREFOX_BINARY")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--timeout", type=float, default=25.0)
+    parser.add_argument("--total-timeout", type=float, default=120.0)
+    parser.add_argument("--phase-timeout", type=float, default=60.0)
+    parser.add_argument(
+        "--artifact-dir", type=Path,
+        default=ROOT / "build" / "diagnostics" / "firefox-smoke",
+        help="preserve phase report and runtime log here when the smoke fails",
+    )
     args = parser.parse_args(argv)
     artifact = build_target("firefox", args.output)
     firefox = discover_firefox(args.firefox)
@@ -146,7 +176,12 @@ def main(argv: list[str] | None = None) -> int:
             "artifact": artifact,
         }, indent=2))
         return 2
-    report = run_smoke(Path(str(artifact["directory"])), firefox, args.timeout)
+    report = run_smoke(
+        Path(str(artifact["directory"])), firefox, args.timeout,
+        total_timeout=args.total_timeout,
+        phase_timeout=args.phase_timeout,
+        artifact_dir=args.artifact_dir,
+    )
     print(json.dumps({"status": "passed", "artifact": artifact, "runtime": report}, indent=2))
     return 0
 

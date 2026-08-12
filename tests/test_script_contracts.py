@@ -1,0 +1,78 @@
+"""Clean-shell entry-point and contract-runtime checks."""
+
+from __future__ import annotations
+
+import json
+import os
+import shlex
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+import pytest
+
+from scripts.contract_runtime import ContractTimeoutError, ScriptWatchdog, terminate_process_tree
+
+
+ROOT = Path(__file__).resolve().parents[1]
+CONTRACT_START = "<!-- clean-shell-contract:start -->"
+CONTRACT_END = "<!-- clean-shell-contract:end -->"
+
+
+def _documented_contract_commands() -> list[list[str]]:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    block = readme.split(CONTRACT_START, 1)[1].split(CONTRACT_END, 1)[0]
+    return [
+        shlex.split(line.strip())
+        for line in block.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+
+
+def test_documented_contract_commands_run_without_pythonpath() -> None:
+    commands = _documented_contract_commands()
+    assert commands
+    environment = os.environ.copy()
+    environment.pop("PYTHONPATH", None)
+    for command in commands:
+        completed = subprocess.run(
+            command,
+            cwd=ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=45,
+            check=False,
+        )
+        assert completed.returncode == 0, (
+            f"documented command failed: {' '.join(command)}\n"
+            f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
+        )
+
+
+def test_watchdog_records_named_phases_and_failure_artifact(tmp_path: Path) -> None:
+    watchdog = ScriptWatchdog(
+        "test-contract",
+        total_timeout=1.0,
+        phase_timeout=0.02,
+        artifact_dir=tmp_path,
+    )
+    watchdog.phase("fixture")
+    time.sleep(0.03)
+    with pytest.raises(ContractTimeoutError):
+        watchdog.check("fixture stalled")
+
+    error = ContractTimeoutError("fixture stalled")
+    watchdog.fail(error)
+    report = json.loads((tmp_path / "contract-report.json").read_text(encoding="utf-8"))
+    assert report["status"] == "failed"
+    assert report["phases"][-1]["name"] == "fixture"
+    assert report["phases"][-1]["status"] == "failed"
+    assert "fixture stalled" in report["traceback"]
+
+
+def test_terminate_process_tree_reaps_child() -> None:
+    process = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    terminate_process_tree(process, grace_seconds=1)
+    assert process.poll() is not None

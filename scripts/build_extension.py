@@ -7,13 +7,17 @@ import argparse
 import hashlib
 import json
 import shutil
+import sys
 import zipfile
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from bookmark_organizer_pro.constants import APP_VERSION
 
 
-ROOT = Path(__file__).resolve().parents[1]
 SOURCE_DIR = ROOT / "browser-extension"
 DEFAULT_OUTPUT = ROOT / "build" / "browser-extension"
 TARGETS = {"chromium", "firefox"}

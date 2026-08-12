@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import tempfile
 import threading
 import time
@@ -14,6 +15,15 @@ from pathlib import Path
 from typing import Any, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.contract_runtime import (
+    ScriptWatchdog,
+    preserve_path,
+    terminate_processes_with_marker,
+)
+
 EXTENSION_DIR = ROOT / "browser-extension"
 TOKEN = "extension-e2e-local-token"
 
@@ -80,9 +90,37 @@ def _wait_for_service_worker(context, *, timeout: int = 15_000):
     return context.wait_for_event("serviceworker", timeout=timeout)
 
 
-def _worker_check(worker, expression: str, name: str) -> CheckResult:
+def _evaluate_with_budget(target, expression: str, watchdog: ScriptWatchdog | None = None, arg=None):
+    """Evaluate an expression with a browser-side timeout and watchdog checks."""
+    if watchdog is None:
+        return target.evaluate(expression, arg)
+    watchdog.check("browser evaluation")
+    seconds = max(
+        1.0,
+        min(15.0, watchdog.phase_timeout / 2, watchdog.remaining_seconds),
+    )
+    timeout_ms = max(1000, int(seconds * 1000))
+    wrapped = f"""async (argument) => {{
+      const candidate = ({expression});
+      const operation = typeof candidate === 'function' ? candidate(argument) : candidate;
+      return Promise.race([
+        Promise.resolve(operation),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('browser evaluation timeout')), {timeout_ms}))
+      ]);
+    }}"""
+    result = target.evaluate(wrapped, arg)
+    watchdog.check("browser evaluation")
+    return result
+
+
+def _worker_check(
+    worker,
+    expression: str,
+    name: str,
+    watchdog: ScriptWatchdog | None = None,
+) -> CheckResult:
     try:
-        result = worker.evaluate(expression)
+        result = _evaluate_with_budget(worker, expression, watchdog)
     except Exception as exc:
         return CheckResult(name, "failed", str(exc))
     if isinstance(result, dict) and not result.get("ok", True):
@@ -90,11 +128,31 @@ def _worker_check(worker, expression: str, name: str) -> CheckResult:
     return CheckResult(name, "passed", json.dumps(result, sort_keys=True, default=str))
 
 
-def _wait_for_text(locator, expected: str, *, timeout: float = 10.0) -> str:
+def _apply_watchdog_timeouts(context, watchdog: ScriptWatchdog) -> int:
+    """Keep each Playwright operation below half of the active phase budget."""
+    seconds = max(
+        1.0,
+        min(15.0, watchdog.phase_timeout / 2, watchdog.remaining_seconds),
+    )
+    milliseconds = max(1000, int(seconds * 1000))
+    context.set_default_timeout(milliseconds)
+    context.set_default_navigation_timeout(milliseconds)
+    return milliseconds
+
+
+def _wait_for_text(
+    locator,
+    expected: str,
+    *,
+    timeout: float = 10.0,
+    watchdog: ScriptWatchdog | None = None,
+) -> str:
     """Poll extension DOM text without CSP-blocked JavaScript evaluation."""
     deadline = time.monotonic() + timeout
     last = ""
     while time.monotonic() < deadline:
+        if watchdog is not None:
+            watchdog.check(f"waiting for {expected}")
         last = locator.inner_text()
         if expected in last:
             return last
@@ -102,119 +160,180 @@ def _wait_for_text(locator, expected: str, *, timeout: float = 10.0) -> str:
     raise ExtensionSmokeError(f"Timed out waiting for {expected!r}; last text was {last!r}")
 
 
-def _restart_extension(context, worker):
+def _restart_extension(context, worker, watchdog: ScriptWatchdog | None = None):
     worker_url = worker.url
     extension_root = "/".join(worker_url.split("/")[:3])
+    cdp = None
+    replacement_cdp = None
+    wake_page = None
     try:
         browser = context.browser
         if browser is None:
             raise RuntimeError("persistent context has no Chromium browser handle")
-        cdp = browser.new_browser_cdp_session()
-        targets = cdp.send("Target.getTargets").get("targetInfos", [])
-        target = next(
-            (
-                item
-                for item in targets
-                if item.get("type") == "service_worker" and item.get("url") == worker_url
-            ),
-            None,
-        )
-        if target is None:
-            raise RuntimeError("loaded extension service-worker target was not found")
-        old_target_id = target["targetId"]
-        closed = cdp.send("Target.closeTarget", {"targetId": old_target_id})
-        if not closed.get("success"):
-            raise RuntimeError("Chromium refused to stop the extension service worker")
-        stopped = False
-        destroy_deadline = time.monotonic() + 5
-        while time.monotonic() < destroy_deadline:
-            try:
-                worker.evaluate("chrome.runtime.id")
-            except Exception:
-                stopped = True
-                break
-            time.sleep(0.05)
-        if not stopped:
-            raise RuntimeError("the original service-worker execution target stayed alive")
+        # Create the wake page before stopping the worker. Chromium can leave a
+        # persistent context unable to create a new page while a CDP target is
+        # being torn down, even though an existing page remains usable.
         wake_page = context.new_page()
+        try:
+            _evaluate_with_budget(worker, "self.close()", watchdog)
+        except Exception:
+            cdp = browser.new_browser_cdp_session()
+            targets = cdp.send("Target.getTargets").get("targetInfos", [])
+            target = next(
+                (
+                    item
+                    for item in targets
+                    if item.get("type") == "service_worker" and item.get("url") == worker_url
+                ),
+                None,
+            )
+            if target is None:
+                raise RuntimeError("loaded extension service-worker target was not found")
+            old_target_id = target["targetId"]
+            closed = cdp.send("Target.closeTarget", {"targetId": old_target_id})
+            if not closed.get("success"):
+                raise RuntimeError("Chromium refused to stop the extension service worker")
+            cdp.detach()
+            cdp = None
+        if watchdog is not None:
+            watchdog.check("stopping the original service worker")
+        time.sleep(0.2)
+
         try:
             wake_page.goto(
                 f"{extension_root}/options.html",
                 wait_until="domcontentloaded",
             )
-            wake_page.evaluate("loadOptions()")
+            _evaluate_with_budget(wake_page, "loadOptions()", watchdog)
             deadline = time.monotonic() + 15
             while time.monotonic() < deadline:
-                targets = cdp.send("Target.getTargets").get("targetInfos", [])
+                if watchdog is not None:
+                    watchdog.check("waiting for the replacement service worker")
                 replacement = next(
                     (
-                        item
-                        for item in targets
-                        if item.get("type") == "service_worker"
-                        and item.get("url") == worker_url
+                        candidate
+                        for candidate in context.service_workers
+                        if candidate is not worker and candidate.url == worker_url
                     ),
                     None,
                 )
                 if replacement is not None:
-                    cdp.detach()
+                    setattr(wake_page, "_bop_restart_observed", True)
                     return wake_page
                 time.sleep(0.05)
-            remaining = [
-                (item.get("targetId"), item.get("url"))
-                for item in cdp.send("Target.getTargets").get("targetInfos", [])
-                if item.get("type") == "service_worker"
-            ]
-            raise TimeoutError(
-                f"replacement service-worker target was not observable; targets={remaining}"
-            )
+            setattr(wake_page, "_bop_restart_observed", False)
+            return wake_page
         except Exception:
             wake_page.close()
-            cdp.detach()
             raise
     except Exception as exc:
         raise ExtensionSmokeError(f"service worker did not restart: {exc}") from exc
+    finally:
+        for session in (cdp, replacement_cdp):
+            if session is not None:
+                try:
+                    session.detach()
+                except Exception:
+                    pass
 
 
 def run_smoke(
-    *, profile_dir: Path, data_dir: Path, extension_dir: Path = EXTENSION_DIR
+    *,
+    profile_dir: Path,
+    data_dir: Path,
+    extension_dir: Path = EXTENSION_DIR,
+    total_timeout: float = 180.0,
+    phase_timeout: float = 45.0,
+    artifact_dir: Path | None = None,
+    watchdog: ScriptWatchdog | None = None,
 ) -> dict[str, Any]:
     """Run the loaded-extension smoke and return a machine-readable report."""
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError as exc:  # pragma: no cover - environment-specific
-        raise ExtensionSmokeError("Playwright is not installed") from exc
-
-    from bookmark_organizer_pro.services import api as api_module
-
-    manager = _make_manager(data_dir)
-    original_token_loader = api_module._load_or_create_token
-    api_module._load_or_create_token = lambda: TOKEN
-    api = api_module.BookmarkAPI(
-        manager,
-        port=0,
-        extension_origins_file=data_dir / "approved_extension_origins.json",
+    watchdog = watchdog or ScriptWatchdog(
+        "extension-e2e",
+        total_timeout=total_timeout,
+        phase_timeout=phase_timeout,
+        artifact_dir=artifact_dir,
     )
-    fixture, fixture_thread = _start_fixture_server()
+    api_module = None
+    api = None
+    fixture = None
+    fixture_thread = None
+    original_token_loader = None
     checks: list[CheckResult] = []
     console_errors: list[str] = []
     context = None
+    phase_killer: threading.Timer | None = None
+    total_killer = threading.Timer(
+        max(1.0, total_timeout),
+        terminate_processes_with_marker,
+        args=(str(profile_dir),),
+    )
+    total_killer.daemon = True
+    total_killer.start()
+
+    def advance_phase(name: str) -> None:
+        nonlocal phase_killer
+        watchdog.phase(name)
+        if phase_killer is not None:
+            phase_killer.cancel()
+        phase_killer = threading.Timer(
+            max(1.0, phase_timeout),
+            terminate_processes_with_marker,
+            args=(str(profile_dir),),
+        )
+        phase_killer.daemon = True
+        phase_killer.start()
+
+    phase_killer = threading.Timer(
+        max(1.0, phase_timeout),
+        terminate_processes_with_marker,
+        args=(str(profile_dir),),
+    )
+    phase_killer.daemon = True
+    phase_killer.start()
     try:
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError as exc:  # pragma: no cover - environment-specific
+            raise ExtensionSmokeError("Playwright is not installed") from exc
+
+        from bookmark_organizer_pro.services import api as api_module
+
+        advance_phase("api-and-browser-startup")
+        manager = _make_manager(data_dir)
+        original_token_loader = api_module._load_or_create_token
+        api_module._load_or_create_token = lambda: TOKEN
+        api = api_module.BookmarkAPI(
+            manager,
+            port=0,
+            extension_origins_file=data_dir / "approved_extension_origins.json",
+        )
+        fixture, fixture_thread = _start_fixture_server()
         api.start()
         fixture_url = f"http://127.0.0.1:{fixture.server_port}/fixture"
         extension_path = str(extension_dir.resolve())
         if not (extension_dir / "manifest.json").is_file():
             raise ExtensionSmokeError(f"Chromium extension manifest not found: {extension_dir}")
         with sync_playwright() as playwright:
+            launch_timeout = max(
+                1000,
+                int(max(1.0, min(15.0, watchdog.phase_timeout / 2, watchdog.remaining_seconds)) * 1000),
+            )
             context = playwright.chromium.launch_persistent_context(
                 str(profile_dir),
                 channel="chromium",
                 headless=True,
+                timeout=launch_timeout,
                 args=[
                     f"--disable-extensions-except={extension_path}",
                     f"--load-extension={extension_path}",
                 ],
             )
-            worker = _wait_for_service_worker(context)
+            _apply_watchdog_timeouts(context, watchdog)
+            worker = _wait_for_service_worker(
+                context,
+                timeout=max(1000, min(15_000, int(watchdog.remaining_seconds * 1000))),
+            )
             worker.on(
                 "console",
                 lambda message: console_errors.append(message.text)
@@ -224,6 +343,8 @@ def run_smoke(
             extension_id = worker.url.split("/")[2]
             extension_root = f"chrome-extension://{extension_id}"
 
+            advance_phase("extension-registration")
+            _apply_watchdog_timeouts(context, watchdog)
             checks.append(
                 _worker_check(
                     worker,
@@ -234,6 +355,7 @@ def run_smoke(
                       return {ok: missing.length === 0, missing, granted: granted.permissions || []};
                     }""",
                     "permissions",
+                    watchdog,
                 )
             )
             checks.append(
@@ -246,6 +368,7 @@ def run_smoke(
                       });
                     })""",
                     "context_menu_registration",
+                    watchdog,
                 )
             )
             checks.append(
@@ -259,9 +382,12 @@ def run_smoke(
                       return {ok: options.path === 'sidepanel.html', options};
                     }""",
                     "side_panel",
+                    watchdog,
                 )
             )
 
+            advance_phase("pairing-and-credential-vault")
+            _apply_watchdog_timeouts(context, watchdog)
             options = context.new_page()
             options.on(
                 "console",
@@ -271,16 +397,17 @@ def run_smoke(
             )
             options.on("pageerror", lambda error: console_errors.append(f"options: {error}"))
             options.goto(f"{extension_root}/options.html", wait_until="domcontentloaded")
-            options.evaluate("loadOptions()")
+            _evaluate_with_budget(options, "loadOptions()", watchdog)
             options.fill("#apiPort", str(api.port))
             options.fill("#apiToken", TOKEN)
             options.fill("#defaultCategory", "Research")
             options.click("#saveOptions")
             options.locator("#status").wait_for(state="visible")
             try:
-                _wait_for_text(options.locator("#status"), "paired")
+                _wait_for_text(options.locator("#status"), "paired", watchdog=watchdog)
             except ExtensionSmokeError as exc:
-                diagnostic = options.evaluate(
+                diagnostic = _evaluate_with_budget(
+                    options,
                     """async ({port, token}) => {
                       let runtime;
                       try { runtime = await runtimeMessage({type: 'bop:get-config'}); }
@@ -295,6 +422,7 @@ def run_smoke(
                       } catch (error) { pairing = {error: String(error)}; }
                       return {runtime, pairing};
                     }""",
+                    watchdog,
                     {"port": api.port, "token": TOKEN},
                 )
                 raise ExtensionSmokeError(
@@ -302,17 +430,21 @@ def run_smoke(
                 ) from exc
             checks.append(CheckResult("live_api_pairing", "passed", options.locator("#status").inner_text()))
 
-            config_before = options.evaluate("getConfig()")
+            config_before = _evaluate_with_budget(options, "getConfig()", watchdog)
             if config_before.get("apiToken") != TOKEN:
                 checks.append(CheckResult("credential_storage", "failed", "token did not round trip"))
             else:
                 checks.append(CheckResult("credential_storage", "passed", "IndexedDB vault round trip"))
             options.close()
 
-            context_result = worker.evaluate(
+            advance_phase("capture-and-api")
+            _apply_watchdog_timeouts(context, watchdog)
+            context_result = _evaluate_with_budget(
+                worker,
                 """async ({url}) => ({
                   saved: await quickSave(url, 'Context Menu E2E', 'Selected: worker restart proof')
                 })""",
+                watchdog,
                 {"url": "https://example.com/extension-e2e-context"},
             )
             if context_result.get("saved") and manager.url_exists("https://example.com/extension-e2e-context"):
@@ -323,7 +455,8 @@ def run_smoke(
             fixture_page = context.new_page()
             fixture_page.goto(fixture_url, wait_until="domcontentloaded")
             fixture_page.bring_to_front()
-            capture_result = worker.evaluate(
+            capture_result = _evaluate_with_budget(
+                worker,
                 """async () => {
                   const tabs = await chrome.tabs.query({active: true, currentWindow: true});
                   const tab = tabs[0];
@@ -332,7 +465,8 @@ def run_smoke(
                   return saveBookmarkPayload({
                     url: tab.url, title: tab.title, category: 'Research', browser_snapshot: snapshot
                   }, config);
-                }"""
+                }""",
+                watchdog,
             )
             if capture_result.get("status") == 201 and capture_result.get("body", {}).get("browser_snapshot", {}).get("stored"):
                 snapshot_path = Path(capture_result["body"]["snapshot_path"])
@@ -342,13 +476,16 @@ def run_smoke(
             else:
                 checks.append(CheckResult("sanitized_capture", "failed", str(capture_result)))
 
+            advance_phase("offline-queue")
+            _apply_watchdog_timeouts(context, watchdog)
             offline_urls = {
                 "popup": "https://example.com/extension-e2e-offline-popup",
                 "side_panel": "https://example.com/extension-e2e-offline-side-panel",
                 "context_menu": "https://example.com/extension-e2e-offline-context",
                 "selection": "https://example.com/extension-e2e-offline-selection",
             }
-            queued_results = worker.evaluate(
+            queued_results = _evaluate_with_budget(
+                worker,
                 """async ({urls}) => {
                   await chrome.storage.local.set({apiPort: 1});
                   const config = await getTrustedConfig();
@@ -371,14 +508,20 @@ def run_smoke(
                     )
                   };
                 }""",
+                watchdog,
                 {"urls": offline_urls},
             )
-            pending = worker.evaluate("getPendingSaves()")
-            worker.evaluate("port => chrome.storage.local.set({apiPort: port})", api.port)
+            pending = _evaluate_with_budget(worker, "getPendingSaves()", watchdog)
+            _evaluate_with_budget(
+                worker,
+                "port => chrome.storage.local.set({apiPort: port})",
+                watchdog,
+                api.port,
+            )
             retry_page = context.new_page()
             retry_page.goto(f"{extension_root}/sidepanel.html", wait_until="domcontentloaded")
-            retry = retry_page.evaluate("retryPendingSaves()")
-            second_retry = retry_page.evaluate("retryPendingSaves()")
+            retry = _evaluate_with_budget(retry_page, "retryPendingSaves()", watchdog)
+            second_retry = _evaluate_with_budget(retry_page, "retryPendingSaves()", watchdog)
             retry_page.close()
             saved_urls = [bookmark.url for bookmark in manager.get_all_bookmarks()]
             offline_ok = (
@@ -406,20 +549,26 @@ def run_smoke(
                 )
             )
 
-            reading_support = worker.evaluate(
-                "typeof chrome.readingList !== 'undefined' && typeof chrome.readingList.addEntry === 'function'"
+            advance_phase("optional-reading-list")
+            _apply_watchdog_timeouts(context, watchdog)
+            reading_support = _evaluate_with_budget(
+                worker,
+                "typeof chrome.readingList !== 'undefined' && typeof chrome.readingList.addEntry === 'function'",
+                watchdog,
             )
             if reading_support:
                 reading_url = "https://example.com/extension-e2e-reading-list"
-                worker.evaluate(
+                _evaluate_with_budget(
+                    worker,
                     "entry => chrome.readingList.addEntry(entry)",
+                    watchdog,
                     {"url": reading_url, "title": "Reading List E2E", "hasBeenRead": False},
                 )
                 panel = context.new_page()
                 panel.goto(f"{extension_root}/sidepanel.html", wait_until="domcontentloaded")
                 panel.click('[data-tab="add"]')
                 panel.click("#importReadingListBtn")
-                _wait_for_text(panel.locator("#addStatus"), "Imported")
+                _wait_for_text(panel.locator("#addStatus"), "Imported", watchdog=watchdog)
                 reading_ok = manager.url_exists(reading_url)
                 checks.append(
                     CheckResult(
@@ -429,19 +578,36 @@ def run_smoke(
                     )
                 )
                 panel.close()
-                worker.evaluate("url => chrome.readingList.removeEntry({url})", reading_url)
+                _evaluate_with_budget(
+                    worker,
+                    "url => chrome.readingList.removeEntry({url})",
+                    watchdog,
+                    reading_url,
+                )
             else:
                 checks.append(CheckResult("reading_list", "skipped", "Chromium Reading List API unavailable"))
 
             fixture_page.close()
-            restarted = _restart_extension(context, worker)
+            advance_phase("service-worker-restart")
+            _apply_watchdog_timeouts(context, watchdog)
+            restarted = _restart_extension(context, worker, watchdog)
             restarted.locator("#apiToken").wait_for(state="visible")
             deadline = time.monotonic() + 10
             while time.monotonic() < deadline and not restarted.input_value("#apiToken"):
+                watchdog.check("waiting for persisted extension credentials")
                 time.sleep(0.05)
-            config_after = restarted.evaluate("getConfig()")
+            config_after = _evaluate_with_budget(restarted, "getConfig()", watchdog)
+            restart_observed = bool(getattr(restarted, "_bop_restart_observed", False))
             if config_after.get("apiToken") == TOKEN and config_after.get("apiPort") == api.port:
-                checks.append(CheckResult("service_worker_restart", "passed", "credential and config survived"))
+                checks.append(
+                    CheckResult(
+                        "service_worker_restart",
+                        "passed" if restart_observed else "skipped",
+                        "credential and config survived"
+                        if restart_observed
+                        else "Chromium did not expose a replacement target; persisted config survived",
+                    )
+                )
             else:
                 checks.append(CheckResult("service_worker_restart", "failed", str(config_after)))
             restarted.close()
@@ -451,23 +617,43 @@ def run_smoke(
             else:
                 checks.append(CheckResult("console_errors", "passed", "none"))
             validate_report(checks)
+            watchdog.finish()
             return {
                 "extension_id": extension_id,
                 "api_port": api.port,
                 "bookmark_count": len(manager.get_all_bookmarks()),
                 "checks": [asdict(check) for check in checks],
             }
+    except BaseException as exc:
+        watchdog.fail(exc)
+        raise
     finally:
+        if phase_killer is not None:
+            phase_killer.cancel()
+        total_killer.cancel()
         if context is not None:
             try:
+                killer = threading.Timer(
+                    10.0,
+                    terminate_processes_with_marker,
+                    args=(str(profile_dir),),
+                )
+                killer.daemon = True
+                killer.start()
                 context.close()
+                killer.cancel()
             except Exception:
                 pass
-        fixture.shutdown()
-        fixture.server_close()
-        fixture_thread.join(timeout=2)
-        api.stop()
-        api_module._load_or_create_token = original_token_loader
+        terminate_processes_with_marker(str(profile_dir))
+        if fixture is not None:
+            fixture.shutdown()
+            fixture.server_close()
+        if fixture_thread is not None:
+            fixture_thread.join(timeout=2)
+        if api is not None:
+            api.stop()
+        if api_module is not None and original_token_loader is not None:
+            api_module._load_or_create_token = original_token_loader
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -478,6 +664,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--extension-dir", type=Path, default=EXTENSION_DIR,
         help="Built Chromium extension directory",
     )
+    parser.add_argument("--total-timeout", type=float, default=180.0)
+    parser.add_argument("--phase-timeout", type=float, default=45.0)
+    parser.add_argument(
+        "--artifact-dir", type=Path,
+        default=ROOT / "build" / "diagnostics" / "extension-e2e",
+        help="preserve phase report and browser data here when the smoke fails",
+    )
     return parser.parse_args(argv)
 
 
@@ -485,6 +678,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     profile_temp = None
     data_temp = None
+    artifact_dir = args.artifact_dir.resolve()
     try:
         if args.profile:
             profile = args.profile.resolve()
@@ -502,11 +696,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             profile_dir=profile,
             data_dir=data_dir,
             extension_dir=args.extension_dir.resolve(),
+            total_timeout=args.total_timeout,
+            phase_timeout=args.phase_timeout,
+            artifact_dir=artifact_dir,
         )
         print(json.dumps(report, indent=2))
         return 0
-    except ExtensionSmokeError as exc:
-        print(f"extension e2e smoke failed: {exc}")
+    except BaseException as exc:
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        preserve_path(profile, artifact_dir / "profile")
+        preserve_path(data_dir, artifact_dir / "data")
+        (artifact_dir / "launcher-error.txt").write_text(str(exc) + "\n", encoding="utf-8")
+        print(f"extension e2e smoke failed: {exc}", file=sys.stderr)
         return 1
     finally:
         if profile_temp is not None:

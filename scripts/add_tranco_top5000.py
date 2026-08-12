@@ -7,7 +7,11 @@ well-known sites to categorize domains without needing AI or web lookups.
 
 import sys
 import zipfile
-sys.path.insert(0, ".")
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 # Infrastructure/CDN/API domains that users don't bookmark
 SKIP_DOMAINS = {
@@ -433,7 +437,7 @@ def main():
     print(f"  Uncategorized (skipped): {len(uncategorized)}")
 
     # Now write to file
-    filepath = "bookmark_organizer_pro/core/default_categories.py"
+    filepath = ROOT / "bookmark_organizer_pro/core/default_categories.py"
     with open(filepath, "r", encoding="utf-8") as f:
         file_lines = f.readlines()
 

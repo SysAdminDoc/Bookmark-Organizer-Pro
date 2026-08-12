@@ -2,7 +2,11 @@
 """Add categorized domains from user's bookmark file to default_categories.py."""
 
 import sys
-sys.path.insert(0, ".")
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 MANUAL_MAP = {
     # Forums / Imageboards
@@ -371,7 +375,7 @@ def main():
     total = sum(len(v) for v in additions.values())
     print(f"Adding {total} new patterns ({skipped} already exist)")
 
-    filepath = "bookmark_organizer_pro/core/default_categories.py"
+    filepath = ROOT / "bookmark_organizer_pro/core/default_categories.py"
     with open(filepath, "r", encoding="utf-8") as f:
         lines = f.readlines()
 

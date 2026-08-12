@@ -17,6 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts.contract_runtime import ScriptWatchdog
+
 
 class ReleaseArtifactSmokeError(AssertionError):
     """Raised when the built release artifact fails the local smoke contract."""
@@ -63,73 +65,95 @@ def smoke_artifact(
     expected_version: str,
     timeout: int = 120,
     allow_dirty: bool = False,
+    total_timeout: float | None = None,
+    artifact_dir: Path | None = None,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> SmokeResult:
     artifact = artifact.resolve()
     check_artifact_file(artifact)
-    completed = runner(
-        [str(artifact), "--version"],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-        timeout=timeout,
-        check=False,
+    watchdog = ScriptWatchdog(
+        "release-artifact",
+        total_timeout=total_timeout if total_timeout is not None else max(30.0, timeout * 2 + 10),
+        phase_timeout=float(timeout) + 2,
+        artifact_dir=artifact_dir,
     )
-    stdout = (completed.stdout or "").strip()
-    stderr = (completed.stderr or "").strip()
-    expected = f"Bookmark Organizer Pro v{expected_version}"
-    if completed.returncode != 0:
-        raise ReleaseArtifactSmokeError(f"{artifact.name} --version exited {completed.returncode}: {stderr}")
-    if expected not in stdout:
-        raise ReleaseArtifactSmokeError(f"{artifact.name} reported unexpected version output: {stdout!r}")
-    time.sleep(1)
-    if has_lingering_windows_process(artifact.name):
-        raise ReleaseArtifactSmokeError(f"{artifact.name} left a running process after --version")
-
-    with tempfile.TemporaryDirectory(prefix="bop-release-contract-") as tmp:
-        contract_path = Path(tmp) / "contract.json"
-        contract_completed = runner(
-            [str(artifact), "--release-contract", "--release-contract-output", str(contract_path)],
+    stdout = stderr = contract_stdout = contract_stderr = ""
+    try:
+        watchdog.phase("version-probe")
+        completed = runner(
+            [str(artifact), "--version"],
             cwd=ROOT,
             text=True,
             capture_output=True,
             timeout=timeout,
             check=False,
         )
-        contract_stdout = (contract_completed.stdout or "").strip()
-        contract_stderr = (contract_completed.stderr or "").strip()
-        if contract_completed.returncode != 0:
-            raise ReleaseArtifactSmokeError(
-                f"{artifact.name} release contract exited {contract_completed.returncode}: {contract_stderr}"
+        stdout = (completed.stdout or "").strip()
+        stderr = (completed.stderr or "").strip()
+        expected = f"Bookmark Organizer Pro v{expected_version}"
+        if completed.returncode != 0:
+            raise ReleaseArtifactSmokeError(f"{artifact.name} --version exited {completed.returncode}: {stderr}")
+        if expected not in stdout:
+            raise ReleaseArtifactSmokeError(f"{artifact.name} reported unexpected version output: {stdout!r}")
+        time.sleep(1)
+        if has_lingering_windows_process(artifact.name):
+            raise ReleaseArtifactSmokeError(f"{artifact.name} left a running process after --version")
+
+        watchdog.phase("release-contract")
+        with tempfile.TemporaryDirectory(prefix="bop-release-contract-") as tmp:
+            contract_path = Path(tmp) / "contract.json"
+            contract_completed = runner(
+                [str(artifact), "--release-contract", "--release-contract-output", str(contract_path)],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                timeout=timeout,
+                check=False,
             )
-        try:
-            payload = contract_path.read_text(encoding="utf-8") if contract_path.is_file() else contract_stdout
-            contract = json.loads(payload)
-        except (OSError, json.JSONDecodeError) as exc:
-            raise ReleaseArtifactSmokeError(f"{artifact.name} returned invalid release contract: {exc}") from exc
-    if not isinstance(contract, dict) or not contract.get("ok"):
-        raise ReleaseArtifactSmokeError(f"{artifact.name} release contract failed: {contract.get('errors', [])}")
-    if contract.get("app_version") != expected_version:
-        raise ReleaseArtifactSmokeError("release contract version does not match the expected artifact version")
-    if contract.get("release_profile") != "all":
-        raise ReleaseArtifactSmokeError("release artifact was not built from the all profile")
-    if contract.get("dirty") and not allow_dirty:
-        raise ReleaseArtifactSmokeError("release artifact was built from a dirty worktree")
-    categories = contract.get("capabilities", {}).get("default_categories", {})
-    if categories.get("categories", 0) < 48 or categories.get("patterns", 0) < 7500:
-        raise ReleaseArtifactSmokeError("release artifact default category asset is incomplete")
-    if contract.get("sbom_components", 0) < 1:
-        raise ReleaseArtifactSmokeError("release artifact has no embedded SBOM components")
-    time.sleep(1)
-    if has_lingering_windows_process(artifact.name):
-        raise ReleaseArtifactSmokeError(f"{artifact.name} left a running process after release-contract smoke")
-    return SmokeResult(
-        artifact=artifact,
-        stdout=stdout,
-        stderr="\n".join(part for part in (stderr, contract_stderr) if part),
-        returncode=completed.returncode,
-        contract=contract,
-    )
+            contract_stdout = (contract_completed.stdout or "").strip()
+            contract_stderr = (contract_completed.stderr or "").strip()
+            if contract_completed.returncode != 0:
+                raise ReleaseArtifactSmokeError(
+                    f"{artifact.name} release contract exited {contract_completed.returncode}: {contract_stderr}"
+                )
+            try:
+                payload = contract_path.read_text(encoding="utf-8") if contract_path.is_file() else contract_stdout
+                contract = json.loads(payload)
+            except (OSError, json.JSONDecodeError) as exc:
+                raise ReleaseArtifactSmokeError(f"{artifact.name} returned invalid release contract: {exc}") from exc
+        if not isinstance(contract, dict) or not contract.get("ok"):
+            raise ReleaseArtifactSmokeError(f"{artifact.name} release contract failed: {contract.get('errors', [])}")
+        if contract.get("app_version") != expected_version:
+            raise ReleaseArtifactSmokeError("release contract version does not match the expected artifact version")
+        if contract.get("release_profile") != "all":
+            raise ReleaseArtifactSmokeError("release artifact was not built from the all profile")
+        if contract.get("dirty") and not allow_dirty:
+            raise ReleaseArtifactSmokeError("release artifact was built from a dirty worktree")
+        categories = contract.get("capabilities", {}).get("default_categories", {})
+        if categories.get("categories", 0) < 48 or categories.get("patterns", 0) < 7500:
+            raise ReleaseArtifactSmokeError("release artifact default category asset is incomplete")
+        if contract.get("sbom_components", 0) < 1:
+            raise ReleaseArtifactSmokeError("release artifact has no embedded SBOM components")
+        time.sleep(1)
+        if has_lingering_windows_process(artifact.name):
+            raise ReleaseArtifactSmokeError(f"{artifact.name} left a running process after release-contract smoke")
+        watchdog.finish()
+        return SmokeResult(
+            artifact=artifact,
+            stdout=stdout,
+            stderr="\n".join(part for part in (stderr, contract_stderr) if part),
+            returncode=completed.returncode,
+            contract=contract,
+        )
+    except BaseException as exc:
+        if artifact_dir is not None:
+            artifact_dir.mkdir(parents=True, exist_ok=True)
+            (artifact_dir / "version.stdout.txt").write_text(stdout + "\n", encoding="utf-8")
+            (artifact_dir / "version.stderr.txt").write_text(stderr + "\n", encoding="utf-8")
+            (artifact_dir / "contract.stdout.txt").write_text(contract_stdout + "\n", encoding="utf-8")
+            (artifact_dir / "contract.stderr.txt").write_text(contract_stderr + "\n", encoding="utf-8")
+        watchdog.fail(exc)
+        raise
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -139,6 +163,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--artifact", type=Path, default=default_artifact(), help="artifact path to execute")
     parser.add_argument("--version", default=APP_VERSION, help="expected application version")
     parser.add_argument("--timeout", type=int, default=120, help="artifact execution timeout in seconds")
+    parser.add_argument("--total-timeout", type=float, default=250.0)
+    parser.add_argument(
+        "--artifact-dir", type=Path,
+        default=ROOT / "build" / "diagnostics" / "release-artifact",
+        help="preserve phase report and probe output here when the smoke fails",
+    )
     parser.add_argument("--allow-dirty", action="store_true", help="allow a development artifact built from dirty source")
     args = parser.parse_args(argv)
 
@@ -148,6 +178,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             expected_version=args.version,
             timeout=args.timeout,
             allow_dirty=args.allow_dirty,
+            total_timeout=args.total_timeout,
+            artifact_dir=args.artifact_dir,
         )
     except ReleaseArtifactSmokeError as exc:
         print(f"release artifact smoke failed: {exc}", file=sys.stderr)

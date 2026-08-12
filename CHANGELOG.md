@@ -14,6 +14,10 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Changed
 
+- Made documented package and extension entry points hermetic from a clean
+  checkout shell; literal README command checks now run without `PYTHONPATH`,
+  and browser, Firefox, visual, and release smokes report named phases with
+  bounded per-phase/total watchdogs, child cleanup, and failure artifacts.
 - Unified the virtual and native bookmark tables behind typed, deterministic
   source-value sorting that survives data and theme refreshes; replaced
   unexplained initial/star cells with named Site/Pinned columns, added

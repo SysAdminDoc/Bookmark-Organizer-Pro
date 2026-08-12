@@ -4,13 +4,6 @@ Actionable work only. Historical and completed roadmap material is archived in C
 
 ## Actionable Items
 
-- [ ] P1 — R-91: Make documented scripts hermetic and observable
-  Why: Direct clean-shell invocations of package and extension scripts fail on package imports, and long end-to-end runs lack bounded phase feedback.
-  Evidence: `scripts/package_contract_audit.py`, `scripts/build_extension.py`, extension E2E scripts, README/release commands.
-  Touches: script entry points/import bootstrap or module wrappers, command documentation, subprocess contract tests, CI timeouts/progress.
-  Acceptance: Every documented command succeeds from a clean checkout shell without manual `PYTHONPATH`; subprocess tests execute the literal documentation; long tests print named phases, enforce per-phase and total watchdogs, preserve failure artifacts, and terminate child processes cleanly.
-  Complexity: M
-
 - [ ] P1 — R-93: Audit all user-visible strings through the localization pipeline
   Why: the current i18n check passes while visible Python and extension JavaScript strings can bypass registered translation sinks.
   Evidence: `bookmark_organizer_pro/i18n.py`, `locale/bop.pot`, `tests/test_i18n.py`, browser-extension sources; Chrome i18n API.

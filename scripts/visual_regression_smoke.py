@@ -23,6 +23,9 @@ from typing import Iterable, Sequence
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+from scripts.contract_runtime import ScriptWatchdog
+
 DEFAULT_OUTPUT_DIR = Path(tempfile.gettempdir()) / "bookmark-organizer-pro-visual-smoke"
 DESKTOP_VIEWPORTS = (
     (1280, 720, 1.0),
@@ -254,6 +257,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default="all",
         help="surface group to capture",
     )
+    parser.add_argument("--total-timeout", type=float, default=300.0)
+    parser.add_argument("--phase-timeout", type=float, default=180.0)
     return parser.parse_args(argv)
 
 
@@ -1551,12 +1556,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         temp_data = tempfile.TemporaryDirectory(prefix="bop-visual-data-", ignore_cleanup_errors=True)
         data_dir = Path(temp_data.name).resolve()
 
+    watchdog = ScriptWatchdog(
+        "visual-smoke",
+        total_timeout=args.total_timeout,
+        phase_timeout=args.phase_timeout,
+        artifact_dir=output_dir,
+    )
     try:
         results: list[CaptureResult] = []
         if args.surface in {"all", "desktop"}:
+            watchdog.phase("desktop-surfaces")
             results.extend(run_desktop_smoke(output_dir, data_dir))
+            watchdog.check("desktop surface capture")
         if args.surface in {"all", "extension"}:
+            watchdog.phase("extension-surfaces")
             results.extend(run_extension_smoke(output_dir))
+            watchdog.check("extension surface capture")
 
         summary = {
             "output_dir": str(output_dir),
@@ -1565,9 +1580,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 for result in results
             ],
         }
+        watchdog.finish()
         print(json.dumps(summary, indent=2))
         return 0
     except VisualSmokeError as exc:
+        watchdog.fail(exc)
+        print(f"visual smoke failed: {exc}", file=sys.stderr)
+        return 1
+    except BaseException as exc:
+        watchdog.fail(exc)
         print(f"visual smoke failed: {exc}", file=sys.stderr)
         return 1
     finally:

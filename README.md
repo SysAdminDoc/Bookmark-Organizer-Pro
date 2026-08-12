@@ -2,7 +2,7 @@
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **verified offline snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
-Executable product contract: 62 CLI subcommands, 33 MCP tools, 6 AI providers, 3 extension surfaces, 51 service modules, 42 UI modules, and 42 test files.
+Executable product contract: 62 CLI subcommands, 33 MCP tools, 6 AI providers, 3 extension surfaces, 51 service modules, 42 UI modules, and 43 test files.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
 ![Version](https://img.shields.io/badge/Version-v6.12.0-2dd4bf.svg)
@@ -98,6 +98,28 @@ Regenerate the platform lock with `python scripts/package_contract_audit.py --up
 `python scripts/build_release.py` creates an isolated environment, installs the
 hash-verified lock and exact build toolchain, embeds version/commit/lock/profile
 identity and an SBOM, builds with PyInstaller, and runs the artifact smoke.
+
+Before shipping from a clean checkout shell, the bounded entry-point contract
+can verify imports and argument parsing without a browser, GUI, Firefox, or
+release artifact:
+
+<!-- clean-shell-contract:start -->
+python scripts/build_extension.py all
+python scripts/package_contract_audit.py
+python -m bookmark_organizer_pro.i18n --check
+python scripts/visual_regression_smoke.py --help
+python scripts/accessibility_contract_smoke.py --help
+python scripts/extension_e2e_smoke.py --help
+python scripts/extension_firefox_smoke.py --help
+python scripts/dependency_vulnerability_audit.py --help
+python scripts/release_artifact_smoke.py --help
+python scripts/build_release.py --help
+<!-- clean-shell-contract:end -->
+
+The browser and release smokes accept `--total-timeout`, `--phase-timeout`,
+and `--artifact-dir`. They print named phases, terminate timed-out child
+processes, and preserve the phase report plus captured logs/profiles in the
+artifact directory when a run fails.
 
 The localization check fails when the gettext template is stale, desktop UI
 text bypasses `_()`, `ngettext()`, or the named-placeholder helpers, extension
