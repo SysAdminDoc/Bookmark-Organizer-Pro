@@ -4,13 +4,6 @@ Actionable work only. Historical and completed roadmap material is archived in C
 
 ## Actionable Items
 
-- [ ] P2 — R-97: Generate shell completions from CLI parser truth
-  Why: The former R-77 completion claim has drifted: hand-maintained files omit 15 parser commands and advertise an invalid `flow delete` command.
-  Evidence: `bookmark_organizer_pro/cli.py`, `scripts/completions/bop.bash`, `scripts/completions/bop.zsh`, `scripts/completions/bop.fish`, `CHANGELOG.md`.
-  Touches: CLI command model, Bash/Zsh/Fish completion generation, docs, generated-file contract tests.
-  Acceptance: One parser-derived command/option model generates all supported shells; a contract test compares every parser path and choice to generated completions, rejects nonexistent paths, and verifies quoting for spaces/non-ASCII values.
-  Complexity: S
-
 - [ ] P2 — R-98: Replace the benchmark gate with bounded realistic workloads
   Why: the documented direct command fails on imports and the repaired 500-add case exceeds two minutes, so it cannot provide timely regression signal.
   Evidence: `benchmarks/bench_core.py --gate` execution on 2026-07-29; bookmark manager/storage APIs.

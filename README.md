@@ -186,6 +186,18 @@ operational or not-found failure, `2` for invalid usage, and `130` when
 interrupted. Diagnostics are written to stderr, so stdout remains suitable for
 pipes and machine-readable command output.
 
+### Shell completions
+
+The Bash, Zsh, and Fish files in `scripts/completions/` are generated from the
+live `argparse` CLI parser, including command-specific options and choices.
+Regenerate them after changing `bookmark_organizer_pro/cli.py`, or use the
+check mode in CI:
+
+```bash
+python scripts/generate_completions.py
+python scripts/generate_completions.py --check
+```
+
 Snapshot capture applies the same private/reserved-network, redirect, request,
 time, and byte limits to Python and Playwright fetches. Monolith and SingleFile
 executables cannot expose every internal request, so they are disabled by
