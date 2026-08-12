@@ -1161,6 +1161,14 @@ _bop_completions() {
                 --help
                 --color
                 --note
+                --text
+                --note-filter
+                --tag
+                --bookmark-id
+                --review
+                --anchor
+                --limit
+                --offset
                 --output
                 --format
                 --template
@@ -1179,6 +1187,48 @@ _bop_completions() {
                     return 0
                     ;;
                 --note)
+                    return 0
+                    ;;
+                --text)
+                    return 0
+                    ;;
+                --note-filter)
+                    return 0
+                    ;;
+                --tag)
+                    return 0
+                    ;;
+                --bookmark-id)
+                    return 0
+                    ;;
+                --review)
+                    local -a values=(
+                        all
+                        new
+                        due
+                        scheduled
+                        reviewed
+                    )
+                    _bop_complete_array "$cur" "${values[@]}"
+                    return 0
+                    return 0
+                    ;;
+                --anchor)
+                    local -a values=(
+                        all
+                        anchored
+                        reanchored
+                        orphaned
+                        unverified
+                    )
+                    _bop_complete_array "$cur" "${values[@]}"
+                    return 0
+                    return 0
+                    ;;
+                --limit)
+                    return 0
+                    ;;
+                --offset)
                     return 0
                     ;;
                 --output)

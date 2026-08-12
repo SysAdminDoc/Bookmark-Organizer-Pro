@@ -4,13 +4,6 @@ Actionable work only. Historical and completed roadmap material is archived in C
 
 ## Actionable Items
 
-- [ ] P2 — R-103: Add a global highlights workspace
-  Why: annotation CRUD and review scheduling exist per bookmark, but users cannot search, filter, export, or repair highlights across the collection.
-  Evidence: `bookmark_organizer_pro/services/reader_annotations.py`, reader UI; Zotero 8; Readwise Reader.
-  Touches: highlight query/projection service, desktop workspace, export/CLI/MCP adapters, orphan/review integration, accessibility tests.
-  Acceptance: After R-83, a keyboard-accessible workspace filters highlights by text, note, tag, color, bookmark, review status, and orphan status; opens the anchored source; supports batch export and safe delete/undo; and paginates without loading all page content.
-  Complexity: L
-
 - [ ] P2 — R-104: Productize organization rules with preview and undo
   Why: `SmartTagManager` contains reusable rule logic but is not a discoverable, auditable product workflow.
   Evidence: `bookmark_organizer_pro/services/organization.py::SmartTagManager`, bulk-tag and recovery infrastructure.

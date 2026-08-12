@@ -63,6 +63,7 @@ DESKTOP_SURFACES = (
     "desktop-snapshot-failures-sidebar",
     "desktop-export-dialog",
     "desktop-reader-view",
+    "desktop-highlights-workspace",
     "desktop-reader-highlight-deleted",
     "desktop-reader-orphaned-highlight",
     "desktop-graph-view",
@@ -780,6 +781,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
     from bookmark_organizer_pro.ui.dependencies import DependencyCheckDialog
     from bookmark_organizer_pro.ui.read_later_queue import ReadLaterQueueDialog
     from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog
+    from bookmark_organizer_pro.ui.highlights_workspace import HighlightsWorkspaceDialog
     from bookmark_organizer_pro.ui.treeview import (
         SortableTreeview,
         save_accessible_list_mode,
@@ -1326,6 +1328,48 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
         if reader_store.get(reader_dialog.highlight_ids[0]) is None:
             raise VisualSmokeError("Reader highlight undo did not restore the deleted record")
         destroy_window(reader_dialog)
+
+        reader_store.add_from_text(
+            sample_bookmarks[0].id,
+            article_text,
+            26,
+            66,
+            color="green",
+            note="Review from the collection workspace",
+        )
+        highlights_workspace = HighlightsWorkspaceDialog(
+            root,
+            app.bookmark_manager,
+            store=reader_store,
+        )
+        _prepare_background_window(highlights_workspace)
+        assert_actionable_controls_inside(highlights_workspace)
+        assert_named_controls_visible(
+            highlights_workspace,
+            (
+                "Highlights workspace",
+                "Apply filters",
+                "Open source",
+                "Export filtered",
+                "Delete selected",
+            ),
+        )
+        results.append(
+            capture_tk_window(
+                highlights_workspace,
+                output_dir,
+                "desktop-highlights-workspace",
+                (
+                    "Highlights workspace",
+                    "Search saved passages",
+                    "Bookmark",
+                    "Highlight",
+                    "Review",
+                    "Export filtered",
+                ),
+            )
+        )
+        destroy_window(highlights_workspace)
 
         changed_article_text = (
             "The source was re-extracted with a replacement introduction. "

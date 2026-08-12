@@ -62,6 +62,7 @@ class ReaderViewDialog(tk.Toplevel):
         store: ReaderAnnotationStore | None = None,
         progress_store: ReaderProgressStore | None = None,
         on_progress_changed: Callable[[Bookmark], None] | None = None,
+        highlight_id: str | None = None,
     ):
         theme = get_theme()
         super().__init__(parent)
@@ -69,6 +70,7 @@ class ReaderViewDialog(tk.Toplevel):
         self.store = store or ReaderAnnotationStore()
         self.progress_store = progress_store or ReaderProgressStore()
         self.on_progress_changed = on_progress_changed
+        self.highlight_id = str(highlight_id or "").strip()
         self.text_content = read_extracted_text(bookmark)
         self._progress: ReaderProgress | None = self.progress_store.restore(
             int(bookmark.id), self.text_content,
@@ -96,7 +98,7 @@ class ReaderViewDialog(tk.Toplevel):
         apply_window_chrome(self)
 
         self._build()
-        self._load_highlights()
+        self._load_highlights(select_id=self.highlight_id or None)
         self._update_progress_display()
         self.bind("<Escape>", lambda _event: self._close())
         self.bind("<Control-z>", self._undo_deleted_highlight)

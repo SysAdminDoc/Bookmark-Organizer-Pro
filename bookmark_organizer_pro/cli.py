@@ -371,10 +371,26 @@ class BookmarkCLI:
                         choices=["list", "add", "note", "delete", "due", "review", "export"],
                         help="Action: list, add, note, delete, due, review, export")
         p.add_argument("reader_args", nargs="*", help="Action-specific arguments")
-        p.add_argument("--color", default="yellow",
+        p.add_argument("--color", default="",
                         choices=["yellow", "green", "blue", "pink"],
-                        help="Highlight color (default: yellow)")
+                        help="Filter color, or highlight color for add (default: yellow for add)")
         p.add_argument("--note", default="", help="Note text")
+        p.add_argument("--text", default="", help="Filter selected highlight text")
+        p.add_argument("--note-filter", default="", help="Filter highlight notes")
+        p.add_argument("--tag", default="", help="Filter highlight tags")
+        p.add_argument("--bookmark-id", type=int, help="Filter the global workspace by bookmark ID")
+        p.add_argument(
+            "--review", default="all",
+            choices=["all", "new", "due", "scheduled", "reviewed"],
+            help="Filter review state",
+        )
+        p.add_argument(
+            "--anchor", default="all",
+            choices=["all", "anchored", "reanchored", "orphaned", "unverified"],
+            help="Filter anchor state",
+        )
+        p.add_argument("--limit", type=int, default=50, help="Global workspace page size")
+        p.add_argument("--offset", type=int, default=0, help="Global workspace page offset")
         p.add_argument("--output", help="Export output directory")
         p.add_argument("--format", choices=["markdown", "csv", "json"], default="markdown",
                         help="Reader export format (default: markdown)")
@@ -1702,6 +1718,10 @@ Top Domains:
             export_annotations,
             export_bookmark_highlights,
         )
+        from bookmark_organizer_pro.services.highlight_workspace import (
+            HighlightWorkspaceQuery,
+            HighlightWorkspaceService,
+        )
         usage = (
             "usage: reader {list <bookmark-id>|add <bookmark-id> <start> <end> "
             "[--color yellow|green|blue|pink] [--note TEXT]|note <highlight-id> "
@@ -1715,6 +1735,44 @@ Top Domains:
             return self._usage_error(usage)
 
         store = ReaderAnnotationStore()
+
+        if sub == "list" and (not reader_args or reader_args[0].lower() == "all"):
+            workspace = HighlightWorkspaceService(bookmark_manager=self.bookmark_manager)
+            try:
+                page = workspace.query(
+                    HighlightWorkspaceQuery.create(
+                        text=ns.text,
+                        note=ns.note_filter,
+                        tag=ns.tag,
+                        color=ns.color,
+                        bookmark_id=ns.bookmark_id,
+                        review_status=ns.review,
+                        anchor_status=ns.anchor,
+                        limit=ns.limit,
+                        offset=ns.offset,
+                    )
+                )
+            except ValueError as exc:
+                return self._usage_error(f"error: {exc}")
+            if not page.items:
+                print("(no reader highlights)")
+                return 0
+            print(
+                f"{page.total} matching highlight(s); showing "
+                f"{page.offset + 1}-{page.offset + len(page.items)}"
+            )
+            for item in page.items:
+                title = item.bookmark_title or "(missing bookmark)"
+                preview = item.preview or "(empty highlight)"
+                note = f" note={item.highlight.note[:40]}" if item.highlight.note else ""
+                print(
+                    f"{item.id} bookmark={item.bookmark_id} {title} "
+                    f"[{item.highlight.color} {item.review_status} {item.highlight.anchor_status}] "
+                    f"{preview}{note}"
+                )
+            if page.has_more:
+                print(f"next offset: {page.next_offset}")
+            return 0
 
         if sub == "list" and reader_args:
             try:
@@ -1741,7 +1799,7 @@ Top Domains:
                 return self._usage_error(
                     "error: bookmark ID and range must be integers"
                 )
-            color = ns.color
+            color = ns.color or "yellow"
             note = ns.note
             if color.lower() not in HIGHLIGHT_COLORS:
                 return self._usage_error(
@@ -1798,7 +1856,10 @@ Top Domains:
             export_all = reader_args[0].lower() == "all"
             if export_all:
                 bookmarks = self.bookmark_manager.get_all_bookmarks()
-                highlights = store.list_all()
+                workspace = HighlightWorkspaceService(
+                    store=store,
+                    bookmarks=bookmarks,
+                )
             else:
                 try:
                     bid = int(reader_args[0])
@@ -1812,8 +1873,37 @@ Top Domains:
                 bookmarks = [bm]
                 highlights = store.list_for_bookmark(bid)
 
-            advanced = export_all or ns.format != "markdown" or ns.template or ns.changed_since
-            if not advanced:
+            advanced = ns.format != "markdown" or ns.template or ns.changed_since
+            if export_all:
+                suffix = {"markdown": ".md", "csv": ".csv", "json": ".json"}[ns.format]
+                output = Path(ns.output) if ns.output else (
+                    Path.cwd() / f"reader-annotations{suffix}"
+                )
+                if output.exists() and output.is_dir():
+                    output = output / f"reader-annotations{suffix}"
+                elif not output.suffix:
+                    output = output / f"reader-annotations{suffix}"
+                try:
+                    path = workspace.export(
+                        output,
+                        query=HighlightWorkspaceQuery.create(
+                            text=ns.text,
+                            note=ns.note_filter,
+                            tag=ns.tag,
+                            color=ns.color,
+                            bookmark_id=ns.bookmark_id,
+                            review_status=ns.review,
+                            anchor_status=ns.anchor,
+                            limit=ns.limit,
+                            offset=0,
+                        ),
+                        output_format=ns.format,
+                        template_path=ns.template,
+                        changed_since=ns.changed_since,
+                    )
+                except (OSError, ValueError, json.JSONDecodeError) as exc:
+                    return self._failure(f"Reader export failed: {exc}")
+            elif not advanced:
                 path = export_bookmark_highlights(
                     bookmarks[0], highlights,
                     output_dir=Path(ns.output) if ns.output else None,

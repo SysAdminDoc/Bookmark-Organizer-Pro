@@ -233,3 +233,19 @@ def test_library_table_exposes_keyboard_actions_and_named_columns():
         assert sequence in shell_source
     assert 'self.tree.heading("#0", text=_("Site"))' in shell_source
     assert 'self.tree.heading("favorite", text=_("Pinned"))' in shell_source
+
+
+def test_highlights_workspace_exposes_keyboard_actions_and_bounded_source_loading():
+    workspace_source = (
+        ROOT / "bookmark_organizer_pro/ui/highlights_workspace.py"
+    ).read_text(encoding="utf-8")
+    for sequence in (
+        'self.bind("<Escape>"',
+        'self.bind("<Return>"',
+        'self.bind("<Delete>"',
+        'self.tree.bind("<Double-1>"',
+    ):
+        assert sequence in workspace_source
+    assert 'selectmode="extended"' in workspace_source
+    assert "highlight_id=item.id" in workspace_source
+    assert "read_extracted_text" not in workspace_source

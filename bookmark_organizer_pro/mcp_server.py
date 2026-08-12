@@ -16,9 +16,9 @@ Tools exposed:
     list_tags() -> list
     list_categories() -> list
     get_extracted_text(bookmark_id) -> str
-    list_reader_highlights(bookmark_id, limit, offset, due_only) -> list
+    list_reader_highlights(bookmark_id, limit, offset, due_only, filters) -> list
     list_due_reader_reviews(limit, offset) -> list
-    export_reader_highlights(bookmark_id) -> dict
+    export_reader_highlights(bookmark_id, filters) -> dict
     update_reader_highlight_note(highlight_id, note) -> dict
     relink_reader_highlight(highlight_id, char_start, char_end) -> dict
     record_reader_review(highlight_id, quality) -> dict
@@ -39,7 +39,6 @@ import importlib
 import json
 import sys
 import threading
-from datetime import date
 from urllib.parse import urlsplit
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -67,6 +66,12 @@ from bookmark_organizer_pro.services.reader_annotations import (
     ReaderHighlight,
     read_extracted_text,
     render_highlights_markdown,
+)
+from bookmark_organizer_pro.services.highlight_workspace import (
+    MAX_EXPORT_HIGHLIGHTS,
+    MAX_PAGE_SIZE,
+    HighlightWorkspaceQuery,
+    HighlightWorkspaceService,
 )
 from bookmark_organizer_pro.services.youtube_transcript import YouTubeTranscriptService
 from bookmark_organizer_pro.services.zip_export import ZipExporter
@@ -142,6 +147,10 @@ class BookmarkServices:
         self.zip_exporter = ZipExporter()
         self.digest = DailyDigestService()
         self.reader_annotations = ReaderAnnotationStore()
+        self.highlights_workspace = HighlightWorkspaceService(
+            store=self.reader_annotations,
+            bookmark_manager=self.bookmark_manager,
+        )
         self.dead_links = DeadLinkScanner(
             get_bookmarks=lambda: self.bookmark_manager.get_all_bookmarks(),
         )
@@ -832,8 +841,15 @@ def _preview_reconciled_reader_highlights(
     )
 
 
-def _reader_highlight_due(highlight: ReaderHighlight, today_iso: str) -> bool:
-    return not highlight.sr_next_review or highlight.sr_next_review <= today_iso
+def _highlights_workspace(s: BookmarkServices) -> HighlightWorkspaceService:
+    """Return the shared projection, tolerating lightweight test service holders."""
+    workspace = getattr(s, "highlights_workspace", None)
+    if workspace is not None:
+        return workspace
+    return HighlightWorkspaceService(
+        store=s.reader_annotations,
+        bookmark_manager=s.bookmark_manager,
+    )
 
 
 def t_list_reader_highlights(
@@ -841,22 +857,59 @@ def t_list_reader_highlights(
     limit: int = 50,
     offset: int = 0,
     due_only: bool = False,
-) -> List[Dict]:
-    """List persisted reader highlights for MCP clients."""
+    text: str = "",
+    note: str = "",
+    tag: str = "",
+    color: str = "",
+    review_status: str = "all",
+    anchor_status: str = "all",
+) -> List[Dict] | Dict[str, str]:
+    """List reader highlights with bounded global filters and pagination."""
     limit = _clamp_limit(limit)
     offset = _clamp_offset(offset)
     s = _services()
-    highlights = _preview_reconciled_reader_highlights(s, bookmark_id)
-    if due_only:
-        today_iso = date.today().isoformat()
-        highlights = [
-            item
-            for item in highlights
-            if _reader_highlight_due(item, today_iso)
-        ]
-        highlights.sort(key=lambda item: (item.sr_next_review or "", item.created_at))
-    window = highlights[offset: offset + limit]
-    return [_reader_highlight_to_dict(item, s) for item in window]
+    text = _sanitize_str(text, 2_000)
+    note = _sanitize_str(note, 2_000)
+    tag = _sanitize_str(tag, 500)
+    color = _sanitize_str(color, 100)
+    review_status = _sanitize_str(review_status, 100) or "all"
+    anchor_status = _sanitize_str(anchor_status, 100) or "all"
+
+    # Preserve the legacy bookmark-scoped reconciliation path for clients that
+    # explicitly request it without global filters. Collection-wide queries are
+    # metadata-only so listing cannot fan out into one source-file read per row.
+    if bookmark_id is not None and not any((
+        text, note, tag, color,
+        review_status.casefold() != "all",
+        anchor_status.casefold() != "all",
+        due_only,
+    )):
+        highlights = _preview_reconciled_reader_highlights(s, bookmark_id)
+        window = highlights[offset: offset + limit]
+        return [_reader_highlight_to_dict(item, s) for item in window]
+
+    try:
+        query = HighlightWorkspaceQuery.create(
+            text=text,
+            note=note,
+            tag=tag,
+            color=color,
+            bookmark_id=bookmark_id,
+            review_status="due" if due_only else review_status,
+            anchor_status=anchor_status,
+            limit=limit,
+            offset=offset,
+        )
+        page = _highlights_workspace(s).query(query)
+    except ValueError as exc:
+        return {"error": str(exc)}
+    result = []
+    for item in page.items:
+        payload = _reader_highlight_to_dict(item.highlight, s)
+        payload["review_status"] = item.review_status
+        payload["bookmark_exists"] = item.bookmark_exists
+        result.append(payload)
+    return result
 
 
 def t_list_due_reader_reviews(limit: int = 50, offset: int = 0) -> List[Dict]:
@@ -864,32 +917,112 @@ def t_list_due_reader_reviews(limit: int = 50, offset: int = 0) -> List[Dict]:
     limit = _clamp_limit(limit)
     offset = _clamp_offset(offset)
     s = _services()
-    today_iso = date.today().isoformat()
-    due = [
-        item
-        for item in _preview_reconciled_reader_highlights(s)
-        if _reader_highlight_due(item, today_iso)
-    ]
-    due.sort(key=lambda item: (item.sr_next_review or "", item.created_at))
-    return [_reader_highlight_to_dict(item, s) for item in due[offset: offset + limit]]
-
-
-def t_export_reader_highlights(bookmark_id: int) -> Dict:
-    """Return Markdown for one bookmark's reader highlights without writing a file."""
-    s = _services()
-    bm = s.bookmark_manager.get_bookmark(int(bookmark_id))
-    if bm is None:
-        return {"error": "Bookmark not found"}
-    highlights = s.reader_annotations.reconcile_for_bookmark(
-        int(bookmark_id),
-        read_extracted_text(bm),
-        persist=False,
+    page = _highlights_workspace(s).query(
+        HighlightWorkspaceQuery.create(
+            review_status="due",
+            limit=limit,
+            offset=offset,
+        )
     )
+    return [_reader_highlight_to_dict(item.highlight, s) for item in page.items]
+
+
+def _collect_workspace_highlights(
+    s: BookmarkServices,
+    query: HighlightWorkspaceQuery,
+) -> tuple[list, HighlightWorkspaceQuery] | Dict[str, str]:
+    """Collect a bounded filtered projection for an in-memory MCP export."""
+    workspace = _highlights_workspace(s)
+    first = workspace.query(
+        HighlightWorkspaceQuery(**{**query.to_dict(), "limit": MAX_PAGE_SIZE, "offset": 0})
+    )
+    if first.total > MAX_EXPORT_HIGHLIGHTS:
+        return {"error": f"export is limited to {MAX_EXPORT_HIGHLIGHTS} highlights"}
+    records = list(first.items)
+    while first.has_more:
+        first = workspace.query(
+            HighlightWorkspaceQuery(
+                **{
+                    **query.to_dict(),
+                    "limit": MAX_PAGE_SIZE,
+                    "offset": first.next_offset or 0,
+                }
+            )
+        )
+        records.extend(first.items)
+    return records, query
+
+
+def t_export_reader_highlights(
+    bookmark_id: Optional[int] = None,
+    text: str = "",
+    note: str = "",
+    tag: str = "",
+    color: str = "",
+    review_status: str = "all",
+    anchor_status: str = "all",
+) -> Dict:
+    """Return Markdown for one bookmark or a bounded filtered collection export."""
+    s = _services()
+    if bookmark_id is not None:
+        try:
+            normalized_id = int(bookmark_id)
+        except (TypeError, ValueError):
+            return {"error": "Bookmark ID must be an integer"}
+        bm = s.bookmark_manager.get_bookmark(normalized_id)
+        if bm is None:
+            return {"error": "Bookmark not found"}
+        highlights = s.reader_annotations.reconcile_for_bookmark(
+            normalized_id,
+            read_extracted_text(bm),
+            persist=False,
+        )
+        return {
+            "bookmark": _bookmark_brief(s, normalized_id),
+            "highlight_count": len(highlights),
+            "format": "markdown",
+            "markdown": render_highlights_markdown(bm, highlights),
+        }
+
+    try:
+        query = HighlightWorkspaceQuery.create(
+            text=_sanitize_str(text, 2_000),
+            note=_sanitize_str(note, 2_000),
+            tag=_sanitize_str(tag, 500),
+            color=_sanitize_str(color, 100),
+            review_status=_sanitize_str(review_status, 100) or "all",
+            anchor_status=_sanitize_str(anchor_status, 100) or "all",
+            limit=MAX_PAGE_SIZE,
+            offset=0,
+        )
+        collected = _collect_workspace_highlights(s, query)
+    except ValueError as exc:
+        return {"error": str(exc)}
+    if isinstance(collected, dict):
+        return collected
+    records, _query = collected
+    bookmarks = _highlights_workspace(s)._bookmark_map()
+    grouped: dict[int, list[ReaderHighlight]] = {}
+    for item in records:
+        grouped.setdefault(item.bookmark_id, []).append(item.highlight)
+    sections = []
+    for bookmark_id, highlights in grouped.items():
+        bookmark = bookmarks.get(
+            bookmark_id,
+            Bookmark(
+                id=bookmark_id,
+                url=f"about:blank#bookmark-{bookmark_id}",
+                title=f"Missing bookmark {bookmark_id}",
+            ),
+        )
+        sections.append(render_highlights_markdown(bookmark, highlights).rstrip())
     return {
-        "bookmark": _bookmark_brief(s, int(bookmark_id)),
-        "highlight_count": len(highlights),
+        "bookmark": None,
+        "bookmark_count": len(grouped),
+        "highlight_count": len(records),
+        "filters": query.to_dict(),
         "format": "markdown",
-        "markdown": render_highlights_markdown(bm, highlights),
+        "markdown": "\n\n".join(sections) + ("\n" if sections else ""),
     }
 
 
@@ -1454,7 +1587,7 @@ TOOLS = [
          "required": ["bookmark_id"],
      }),
     ("list_reader_highlights", t_list_reader_highlights,
-     "List saved reader highlights, optionally scoped to a bookmark or only highlights due for review.",
+     "List saved reader highlights with collection-wide filters and bounded pagination.",
      {
          "type": "object",
          "properties": {
@@ -1462,6 +1595,12 @@ TOOLS = [
              "limit": {"type": "integer", "description": "Max highlights to return (default 50)", "default": 50},
              "offset": {"type": "integer", "description": "Skip first N highlights for pagination", "default": 0},
              "due_only": {"type": "boolean", "description": "If true, only return highlights due for review", "default": False},
+             "text": {"type": "string", "description": "Case-insensitive selected-text filter"},
+             "note": {"type": "string", "description": "Case-insensitive note filter"},
+             "tag": {"type": "string", "description": "Exact highlight-tag filter"},
+             "color": {"type": "string", "description": "Highlight color name or supported hex value"},
+             "review_status": {"type": "string", "description": "all, new, due, scheduled, or reviewed", "default": "all"},
+             "anchor_status": {"type": "string", "description": "all, anchored, reanchored, orphaned, or unverified", "default": "all"},
          },
      }),
     ("list_due_reader_reviews", t_list_due_reader_reviews,
@@ -1474,13 +1613,18 @@ TOOLS = [
          },
      }),
     ("export_reader_highlights", t_export_reader_highlights,
-     "Return one bookmark's reader highlights as Markdown without writing files.",
+     "Return one bookmark's or a filtered collection's reader highlights as Markdown without writing files.",
      {
          "type": "object",
          "properties": {
-             "bookmark_id": {"type": "integer", "description": "The bookmark ID to export highlights for"},
+             "bookmark_id": {"type": "integer", "description": "Optional bookmark ID; omit for a collection export"},
+             "text": {"type": "string", "description": "Case-insensitive selected-text filter for collection export"},
+             "note": {"type": "string", "description": "Case-insensitive note filter for collection export"},
+             "tag": {"type": "string", "description": "Exact highlight-tag filter for collection export"},
+             "color": {"type": "string", "description": "Highlight color filter for collection export"},
+             "review_status": {"type": "string", "description": "all, new, due, scheduled, or reviewed", "default": "all"},
+             "anchor_status": {"type": "string", "description": "all, anchored, reanchored, orphaned, or unverified", "default": "all"},
          },
-         "required": ["bookmark_id"],
      }),
     ("update_reader_highlight_note", t_update_reader_highlight_note,
      "Update the note attached to a saved reader highlight.",
@@ -1820,16 +1964,41 @@ def _build_fastmcp_server():
 
     @tool("list_reader_highlights", "List saved reader highlights.")
     def list_reader_highlights(bookmark_id: int | None = None, limit: int = 50,
-                               offset: int = 0, due_only: bool = False) -> list[dict]:
-        return t_list_reader_highlights(bookmark_id, limit, offset, due_only)
+                               offset: int = 0, due_only: bool = False,
+                               text: str = "", note: str = "", tag: str = "",
+                               color: str = "", review_status: str = "all",
+                               anchor_status: str = "all") -> list[dict] | dict:
+        return t_list_reader_highlights(
+            bookmark_id=bookmark_id,
+            limit=limit,
+            offset=offset,
+            due_only=due_only,
+            text=text,
+            note=note,
+            tag=tag,
+            color=color,
+            review_status=review_status,
+            anchor_status=anchor_status,
+        )
 
     @tool("list_due_reader_reviews", "List reader highlights due for SM-2 review.")
     def list_due_reader_reviews(limit: int = 50, offset: int = 0) -> list[dict]:
         return t_list_due_reader_reviews(limit, offset)
 
     @tool("export_reader_highlights", "Return reader highlights as Markdown.")
-    def export_reader_highlights(bookmark_id: int) -> dict:
-        return t_export_reader_highlights(bookmark_id)
+    def export_reader_highlights(bookmark_id: int | None = None, text: str = "",
+                                 note: str = "", tag: str = "", color: str = "",
+                                 review_status: str = "all",
+                                 anchor_status: str = "all") -> dict:
+        return t_export_reader_highlights(
+            bookmark_id=bookmark_id,
+            text=text,
+            note=note,
+            tag=tag,
+            color=color,
+            review_status=review_status,
+            anchor_status=anchor_status,
+        )
 
     @tool("update_reader_highlight_note", "Update a saved reader highlight note.")
     def update_reader_highlight_note(highlight_id: str, note: str = "") -> dict:

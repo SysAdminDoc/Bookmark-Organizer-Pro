@@ -44,6 +44,9 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   snapshot history/failures, extracted artifacts, transcripts, and embeddings;
   the Focus inspector now exposes bounded retry/remove actions, while support
   diagnostics report aggregate processing health without bookmark content.
+- Added a collection-wide highlights workspace with metadata-only filtering and
+  pagination, bookmark/review/anchor facets, batch export, safe delete/undo,
+  anchored Reader View opening, and shared CLI/MCP query adapters.
 
 ### Changed
 

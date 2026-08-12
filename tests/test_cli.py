@@ -374,6 +374,10 @@ class TestCLIReader(CLITestBase):
         self.assertIn("pink", out)
         self.assertIn("reader", out)
 
+        out = self._run(["reader", "list", "all", "--text", "reader", "--color", "pink"])
+        self.assertIn("1 matching highlight(s)", out)
+        self.assertIn("Reader CLI", out)
+
         output_dir = Path(self._tmp) / "reader_cli_exports"
         out = self._run(["reader", "export", str(bookmark.id), "--output", str(output_dir)])
 

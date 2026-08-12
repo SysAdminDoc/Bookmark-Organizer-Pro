@@ -326,8 +326,16 @@ complete -c bop -f -n "__fish_seen_subcommand_from read-later" -a "done" -d "Act
 complete -c bop -f -n "__fish_seen_subcommand_from read-later" -a "list" -d "Action: add, next, done, list"
 complete -c bop -n "__fish_seen_subcommand_from reader" -s h -d "show this help message and exit"
 complete -c bop -n "__fish_seen_subcommand_from reader" -l help -d "show this help message and exit"
-complete -c bop -n "__fish_seen_subcommand_from reader" -l color -d "Highlight color (default: yellow)" -r -a "yellow" -a "green" -a "blue" -a "pink"
+complete -c bop -n "__fish_seen_subcommand_from reader" -l color -d "Filter color, or highlight color for add (default: yellow for add)" -r -a "yellow" -a "green" -a "blue" -a "pink"
 complete -c bop -n "__fish_seen_subcommand_from reader" -l note -d "Note text" -r
+complete -c bop -n "__fish_seen_subcommand_from reader" -l text -d "Filter selected highlight text" -r
+complete -c bop -n "__fish_seen_subcommand_from reader" -l note-filter -d "Filter highlight notes" -r
+complete -c bop -n "__fish_seen_subcommand_from reader" -l tag -d "Filter highlight tags" -r
+complete -c bop -n "__fish_seen_subcommand_from reader" -l bookmark-id -d "Filter the global workspace by bookmark ID" -r
+complete -c bop -n "__fish_seen_subcommand_from reader" -l review -d "Filter review state" -r -a "all" -a "new" -a "due" -a "scheduled" -a "reviewed"
+complete -c bop -n "__fish_seen_subcommand_from reader" -l anchor -d "Filter anchor state" -r -a "all" -a "anchored" -a "reanchored" -a "orphaned" -a "unverified"
+complete -c bop -n "__fish_seen_subcommand_from reader" -l limit -d "Global workspace page size" -r
+complete -c bop -n "__fish_seen_subcommand_from reader" -l offset -d "Global workspace page offset" -r
 complete -c bop -n "__fish_seen_subcommand_from reader" -l output -d "Export output directory" -r
 complete -c bop -n "__fish_seen_subcommand_from reader" -l format -d "Reader export format (default: markdown)" -r -a "markdown" -a "csv" -a "json"
 complete -c bop -n "__fish_seen_subcommand_from reader" -l template -d "JSON annotation export template" -r

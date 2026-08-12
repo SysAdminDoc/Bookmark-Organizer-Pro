@@ -3766,5 +3766,108 @@ def test_snapshot_timeline_removes_one_history_version_without_deleting_current(
     assert current.exists()
 
 
+def test_highlight_workspace_filters_paginates_and_exports_without_source_reads(tmp_path):
+    from bookmark_organizer_pro.services.highlight_workspace import (
+        HighlightWorkspaceQuery,
+        HighlightWorkspaceService,
+    )
+    from bookmark_organizer_pro.services.reader_annotations import (
+        ReaderAnnotationStore,
+        ReaderHighlight,
+    )
+
+    bookmarks = [
+        _make_bookmark(id=71, title="Research Paper", category="Research", tags=["papers"]),
+        _make_bookmark(id=72, title="Second Paper", category="Research", tags=["papers"]),
+    ]
+    store = ReaderAnnotationStore(tmp_path / "reader_annotations.json")
+    orphan = ReaderHighlight(
+        id="orphan-71",
+        bookmark_id=71,
+        char_start=4,
+        char_end=20,
+        text="Selected evidence",
+        quote_exact="Selected evidence",
+        anchor_status="orphaned",
+        orphan_reason="source changed",
+        color="green",
+        note="Review this claim",
+        tags=["claim"],
+        created_at="2026-01-01T00:00:00+00:00",
+        modified_at="2026-01-03T00:00:00+00:00",
+    )
+    scheduled = ReaderHighlight(
+        id="scheduled-72",
+        bookmark_id=72,
+        char_start=0,
+        char_end=8,
+        text="Background",
+        quote_exact="Background",
+        anchor_status="anchored",
+        color="blue",
+        sr_repetitions=2,
+        sr_next_review="2999-01-01",
+        created_at="2026-01-02T00:00:00+00:00",
+        modified_at="2026-01-04T00:00:00+00:00",
+    )
+    assert store.restore(orphan)
+    assert store.restore(scheduled)
+    workspace = HighlightWorkspaceService(store=store, bookmarks=bookmarks)
+
+    page = workspace.query(
+        HighlightWorkspaceQuery.create(
+            text="evidence",
+            tag="CLAIM",
+            anchor_status="orphan",
+            limit=1,
+        )
+    )
+    assert page.total == 1
+    assert page.items[0].bookmark_title == "Research Paper"
+    assert page.items[0].review_status == "new"
+    assert page.items[0].to_dict()["bookmark"]["url"] == bookmarks[0].url
+
+    with pytest.raises(ValueError, match="color is not supported"):
+        HighlightWorkspaceQuery.create(color="not-a-color")
+
+    scheduled_page = workspace.query(
+        HighlightWorkspaceQuery.create(review_status="scheduled", limit=1)
+    )
+    assert scheduled_page.total == 1
+    assert scheduled_page.items[0].id == "scheduled-72"
+
+    deleted = workspace.delete_many([orphan.id, orphan.id])
+    assert [item.id for item in deleted] == [orphan.id]
+    assert workspace.get(orphan.id) is None
+    assert workspace.restore_many(deleted) == 1
+
+    output = workspace.export(
+        tmp_path / "highlights.json",
+        highlight_ids=[orphan.id],
+        output_format="json",
+    )
+    exported = json.loads(output.read_text(encoding="utf-8"))
+    assert exported["records"][0]["highlight_text"] == "Selected evidence"
+
+    missing = ReaderHighlight(
+        id="missing-bookmark",
+        bookmark_id=999,
+        char_start=0,
+        char_end=4,
+        text="Lost",
+        quote_exact="Lost",
+        created_at="2026-01-05T00:00:00+00:00",
+        modified_at="2026-01-05T00:00:00+00:00",
+    )
+    assert store.restore(missing)
+    missing_output = workspace.export(
+        tmp_path / "missing.json",
+        highlight_ids=[missing.id],
+        output_format="json",
+    )
+    missing_export = json.loads(missing_output.read_text(encoding="utf-8"))
+    assert missing_export["records"][0]["document_title"] == "Missing bookmark 999"
+
+
 if __name__ == "__main__":
     unittest.main()

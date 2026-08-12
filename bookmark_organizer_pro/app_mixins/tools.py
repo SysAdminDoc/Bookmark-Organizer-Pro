@@ -37,6 +37,7 @@ from bookmark_organizer_pro.ui.cleanup_review import (
 )
 from bookmark_organizer_pro.ui.foundation import FONTS, readable_text_on
 from bookmark_organizer_pro.ui.graph_view import GraphViewDialog
+from bookmark_organizer_pro.ui.highlights_workspace import HighlightsWorkspaceDialog
 from bookmark_organizer_pro.ui.management_dialogs import (
     CategoryManagementDialog,
     CredentialSecurityDialog,
@@ -422,6 +423,7 @@ class ToolsActionsMixin:
         menu.add_command(label=_("Smart Collections"), command=self._show_smart_collections)
         menu.add_command(label=_("Read Later Queue"), command=self._show_read_later_queue)
         menu.add_command(label=_("Reader View"), command=self._open_reader_view)
+        menu.add_command(label=_("Highlights workspace"), command=self._open_highlights_workspace)
         menu.add_command(label=_("Fetch YouTube Transcript…"), command=self._fetch_youtube_transcripts)
         menu.add_command(label=_("Graph View"), command=self._open_graph_view)
         menu.add_command(label=_("Full Analytics"), command=self._show_analytics)
@@ -1549,6 +1551,10 @@ class ToolsActionsMixin:
             on_progress_changed=lambda _bookmark: self._refresh_bookmark_list(),
         )
         self._set_status(format_message("Reader opened for {title}", title=bookmark.title[:60]))
+
+    def _open_highlights_workspace(self):
+        """Open collection-wide highlight search without loading source pages."""
+        HighlightsWorkspaceDialog(self.root, self.bookmark_manager)
 
     def _open_graph_view(self):
         """Open the bookmark relationship graph."""

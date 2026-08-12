@@ -131,6 +131,14 @@ from .processing_timeline import (
     ProcessingTimelineService,
     sanitize_processing_error,
 )
+from .highlight_workspace import (
+    GlobalHighlightsService,
+    HighlightWorkspace,
+    HighlightWorkspacePage,
+    HighlightWorkspaceQuery,
+    HighlightWorkspaceRecord,
+    HighlightWorkspaceService,
+)
 from .recovery_bundle import (
     BundleReport,
     RestoreResult,
@@ -235,6 +243,8 @@ __all__ = [
     "ReaderProgressStore", "ReaderProgressWrite", "reader_progress_source_sha256",
     "ProcessingTimeline", "ProcessingTimelineEvent", "ProcessingTimelineService",
     "sanitize_processing_error",
+    "GlobalHighlightsService", "HighlightWorkspace", "HighlightWorkspacePage",
+    "HighlightWorkspaceQuery", "HighlightWorkspaceRecord", "HighlightWorkspaceService",
     "TranscriptResult", "YouTubeTranscriptService", "classify_transcript_error",
     "fetch_transcript", "is_youtube_url", "normalize_language",
     "normalize_timeout", "save_transcript",

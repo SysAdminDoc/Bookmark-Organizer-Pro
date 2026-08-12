@@ -730,8 +730,16 @@ _bop() {
             _arguments -s \
                 '-h[show this help message and exit]' \
                 '--help[show this help message and exit]' \
-                '--color[Highlight color (default: yellow)]:color:(yellow green blue pink)' \
+                '--color[Filter color, or highlight color for add (default: yellow for add)]:color:(yellow green blue pink)' \
                 '--note[Note text]:note:' \
+                '--text[Filter selected highlight text]:text:' \
+                '--note-filter[Filter highlight notes]:note_filter:' \
+                '--tag[Filter highlight tags]:tag:' \
+                '--bookmark-id[Filter the global workspace by bookmark ID]:bookmark_id:' \
+                '--review[Filter review state]:review:(all new due scheduled reviewed)' \
+                '--anchor[Filter anchor state]:anchor:(all anchored reanchored orphaned unverified)' \
+                '--limit[Global workspace page size]:limit:' \
+                '--offset[Global workspace page offset]:offset:' \
                 '--output[Export output directory]:output:_files' \
                 '--format[Reader export format (default: markdown)]:format:(markdown csv json)' \
                 '--template[JSON annotation export template]:template:_files' \

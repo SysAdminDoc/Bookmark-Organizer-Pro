@@ -459,6 +459,49 @@ class TestReaderMCPTools(MCPToolTestBase):
         self.assertEqual([item["id"] for item in due], [highlight.id])
         self.assertEqual([item["id"] for item in due_filtered], [highlight.id])
 
+    def test_global_highlight_filters_do_not_read_source_files(self):
+        bookmark, store = self._install_reader_services()
+        highlight = store.add_from_text(
+            bookmark.id,
+            "Alpha selected reader passage omega",
+            6,
+            29,
+            note="Collection note",
+        )
+
+        with patch.object(
+            self.ms,
+            "read_extracted_text",
+            side_effect=AssertionError("global highlight listing read source text"),
+        ):
+            listed = self.ms.t_list_reader_highlights(
+                text="selected reader",
+                note="collection",
+                review_status="new",
+                anchor_status="anchored",
+                limit=1,
+            )
+
+        self.assertEqual([item["id"] for item in listed], [highlight.id])
+        self.assertEqual(listed[0]["review_status"], "new")
+        self.assertTrue(listed[0]["bookmark_exists"])
+
+        invalid = self.ms.t_list_reader_highlights(color="not-a-color")
+        self.assertIn("error", invalid)
+
+        with patch.object(
+            self.ms,
+            "read_extracted_text",
+            side_effect=AssertionError("global highlight export read source text"),
+        ):
+            exported = self.ms.t_export_reader_highlights(
+                text="selected reader",
+                note="collection",
+                anchor_status="anchored",
+            )
+        self.assertEqual(exported["highlight_count"], 1)
+        self.assertIn("> selected reader passage", exported["markdown"])
+
     def test_reader_tools_report_not_found_and_validation_errors(self):
         self._install_reader_services()
 
