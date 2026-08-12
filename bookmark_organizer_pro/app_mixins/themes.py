@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from bookmark_organizer_pro.i18n import format_message
 from bookmark_organizer_pro.ui.widgets import apply_window_chrome, get_theme
 
 
@@ -11,7 +12,7 @@ class ThemeActionsMixin:
     def _on_theme_change(self, theme_name: str):
         """Handle theme change - apply live"""
         self._apply_theme_live()
-        self._set_status(f"Theme changed to {theme_name}")
+        self._set_status(format_message("Theme changed to {theme}", theme=theme_name))
     
     def _apply_theme_live(self):
         """Rebuild the themed shell so every native Tk surface repaints."""

@@ -167,7 +167,7 @@ class CategoryManagementDialog(tk.Toplevel):
 
     def _set_status(self, message: str):
         if hasattr(self, "status_var"):
-            self.status_var.set(message)
+            self.status_var.set(_(message))
 
     def _set_restore_button_state(self, state: str):
         """Keep recovery logic usable in headless/service-driven call paths."""
@@ -337,9 +337,10 @@ class CategoryManagementDialog(tk.Toplevel):
             if self.on_change:
                 self.on_change()
             moved = f"; moved {pluralize(count, 'bookmark')}" if count else ""
-            self._set_status(
-                f"Deleted '{name}'{moved}. Restore Last Delete remains available after restart."
-            )
+            self._set_status(format_message(
+                "Deleted '{name}'{moved}. Restore Last Delete remains available after restart.",
+                name=name, moved=moved,
+            ))
             return
 
         bookmarks = list(self.bookmark_manager.get_bookmarks_by_category(name))
@@ -363,7 +364,10 @@ class CategoryManagementDialog(tk.Toplevel):
         if self.on_change:
             self.on_change()
         moved = f"; moved {pluralize(count, 'bookmark')}" if count else ""
-        self._set_status(f"Deleted '{name}'{moved}. Restore Last Delete is available.")
+        self._set_status(format_message(
+            "Deleted '{name}'{moved}. Restore Last Delete is available.",
+            name=name, moved=moved,
+        ))
 
     def _restore_last_deleted_category(self):
         recovery = getattr(self, "_category_delete_recovery", None)
@@ -378,7 +382,10 @@ class CategoryManagementDialog(tk.Toplevel):
             self._populate_categories()
             if self.on_change:
                 self.on_change()
-            self._set_status(f"Restored '{name}' and {pluralize(restored, 'bookmark')}.")
+            self._set_status(format_message(
+                "Restored '{name}' and {bookmarks}.",
+                name=name, bookmarks=pluralize(restored, "bookmark"),
+            ))
             return True
 
         record = self._last_deleted_category
@@ -406,7 +413,10 @@ class CategoryManagementDialog(tk.Toplevel):
         self._populate_categories()
         if self.on_change:
             self.on_change()
-        self._set_status(f"Restored '{name}' and {pluralize(restored, 'bookmark')}.")
+        self._set_status(format_message(
+            "Restored '{name}' and {bookmarks}.",
+            name=name, bookmarks=pluralize(restored, "bookmark"),
+        ))
         return True
 
     def center_window(self):
@@ -549,7 +559,7 @@ class CustomFaviconDialog(tk.Toplevel):
 
     def _set_status(self, message: str):
         if hasattr(self, "status_var"):
-            self.status_var.set(message)
+            self.status_var.set(_(message))
     
     def _apply(self):
         """Apply custom favicon"""

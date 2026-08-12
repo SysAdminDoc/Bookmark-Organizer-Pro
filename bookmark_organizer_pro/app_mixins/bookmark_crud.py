@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Dict
 
 from bookmark_organizer_pro.commands import DeleteBookmarksCommand
+from bookmark_organizer_pro.i18n import format_message
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.ui.bookmark_workflows import QuickAddDialog
 from bookmark_organizer_pro.ui.foundation import pluralize
@@ -27,7 +28,9 @@ class BookmarkCrudMixin:
         url = str(data.get("url", "")).strip()
         valid, error = validate_url(url)
         if not valid or not url.startswith(("http://", "https://")):
-            self._show_toast(f"Bookmark was not added: {error or 'unsupported URL'}", "error")
+            self._show_toast(format_message(
+                "Bookmark was not added: {error}", error=error or "unsupported URL",
+            ), "error")
             return
         
         bookmark = self.bookmark_manager.add_bookmark_clean(
@@ -44,7 +47,7 @@ class BookmarkCrudMixin:
         self.favicon_manager.download_async(bookmark.domain, bookmark.id)
         
         self._refresh_all()
-        self._set_status(f"Added bookmark: {bookmark.title}")
+        self._set_status(format_message("Added bookmark: {title}", title=bookmark.title))
         self._show_toast("Bookmark added", "success")
     
     def _edit_selected(self):
@@ -82,7 +85,7 @@ class BookmarkCrudMixin:
         if urls:
             self.root.clipboard_clear()
             self.root.clipboard_append('\n'.join(urls))
-            self._set_status(f"Copied {pluralize(len(urls), 'URL')}")
+            self._set_status(format_message("Copied {urls}", urls=pluralize(len(urls), "URL")))
     
     def _toggle_pin(self):
         """Toggle pin status"""
@@ -95,7 +98,9 @@ class BookmarkCrudMixin:
                 changed += 1
         self._refresh_bookmark_list()
         if changed:
-            self._set_status(f"Updated pin state for {pluralize(changed, 'bookmark')}")
+            self._set_status(format_message(
+                "Updated pin state for {bookmarks}", bookmarks=pluralize(changed, "bookmark"),
+            ))
     
     def _delete_selected(self):
         """Delete selected bookmarks with undo support"""
@@ -113,4 +118,7 @@ class BookmarkCrudMixin:
         self.selected_bookmarks.clear()
         self._refresh_all()
         self._update_selection_bar()
-        self._show_toast(f"Deleted {pluralize(count, 'bookmark')}. Undo is available from Edit.", "info")
+        self._show_toast(format_message(
+            "Deleted {bookmarks}. Undo is available from Edit.",
+            bookmarks=pluralize(count, "bookmark"),
+        ), "info")

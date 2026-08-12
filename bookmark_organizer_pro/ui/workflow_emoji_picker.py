@@ -69,9 +69,9 @@ class EmojiPicker(tk.Toplevel, ThemedWidget):
             font=FONTS.body()
         )
         search_entry.pack(fill=tk.X, ipady=8)
-        search_entry.insert(0, "Search emojis...")
-        search_entry.bind("<FocusIn>", lambda e: search_entry.delete(0, tk.END) 
-                          if search_entry.get().startswith("Search") else None)
+        search_entry.insert(0, _("Search emojis..."))
+        search_entry.bind("<FocusIn>", lambda e: search_entry.delete(0, tk.END)
+                          if search_entry.get().startswith(_("Search")) else None)
         
         # Emoji grid with scrolling
         container = tk.Frame(self, bg=theme.bg_primary)

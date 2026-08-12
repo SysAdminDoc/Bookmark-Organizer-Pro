@@ -122,11 +122,15 @@ processes, and preserve the phase report plus captured logs/profiles in the
 artifact directory when a run fails.
 
 The localization check fails when the gettext template is stale, desktop UI
-text bypasses `_()`, `ngettext()`, or the named-placeholder helpers, extension
-copy bypasses `data-i18n`/`extensionMessage()`, or plural and format placeholders
-drift. Its only literal allowlist is non-language one-character brand glyphs and
-the HTML `<title>` fallback that is replaced through `data-i18n-title`; add human
-translations separately rather than generating them.
+text bypasses `_()`, `N_()`, `pgettext()`, `ngettext()`, `npgettext()`, or the
+named-placeholder helpers, extension copy bypasses `data-i18n`/`extensionMessage()`,
+or plural and format placeholders drift. Central desktop status, toast, count,
+and widget-text sinks are registered and translate their final copy; extension
+checks cover both manifests, HTML titles/attributes, runtime message calls, and
+Chrome substitution declarations. `qps-ploc` and `qps-plocm` pseudo-locales
+expand copy for layout checks, and missing extension keys use a visible
+humanized fallback instead of exposing raw identifiers. Add human translations
+separately rather than generating them.
 
 ### v6 CLI quickstart
 

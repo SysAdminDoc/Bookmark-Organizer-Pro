@@ -216,7 +216,7 @@ class BookmarkViewMixin:
 
     def _show_toast(self, message: str, style: str = "info"):
         """Show a non-blocking toast notification."""
-        ToastNotification.show(self.root, message, style)
+        ToastNotification.show(self.root, _(message), style)
 
     def _populate_list_view(self, bookmarks: List[Bookmark]):
         """Populate the virtualized bookmark table with bookmarks."""

@@ -93,6 +93,49 @@ def test_plural_and_format_placeholders_must_match(tmp_path):
     assert any("placeholders differ" in violation for violation in violations)
 
 
+def test_contextual_gettext_and_plural_contracts_preserve_metadata(tmp_path):
+    package = tmp_path / "bookmark_organizer_pro"
+    package.mkdir()
+    source = package / "messages.py"
+    source.write_text(
+        'from bookmark_organizer_pro.i18n import npgettext, pgettext\n'
+        'pgettext("menu", "Open")\n'
+        'npgettext("table", "{count} row", "{count} rows", 2, count=2)\n',
+        encoding="utf-8",
+    )
+
+    assert ("menu", "Open") in i18n.collect_contextual_strings(package)
+    assert ("table", "{count} row", "{count} rows") in i18n.collect_contextual_plural_strings(package)
+    assert i18n.desktop_placeholder_violations(package) == []
+
+
+def test_production_catalog_preserves_contextual_entries():
+    pot = i18n.build_pot()
+    assert 'msgctxt "read-later"' in pot
+    assert 'msgid "Open"' in pot
+
+
+def test_extension_runtime_literals_fail_localization_contract(tmp_path):
+    extension = tmp_path / "extension"
+    shutil.copytree(i18n.EXTENSION_DIR, extension)
+    popup_path = extension / "popup.js"
+    popup_path.write_text(
+        popup_path.read_text(encoding="utf-8") + '\nsetStatus("Runtime bypass");\n',
+        encoding="utf-8",
+    )
+
+    violations = i18n.extension_locale_violations(extension)
+    assert any("visible message call must use extensionMessage" in violation for violation in violations)
+
+    sidepanel_path = extension / "sidepanel.js"
+    sidepanel_path.write_text(
+        sidepanel_path.read_text(encoding="utf-8") + '\nshowEmpty(document.body, "Runtime empty state");\n',
+        encoding="utf-8",
+    )
+    violations = i18n.extension_locale_violations(extension)
+    assert any("visible empty-state message must use extensionMessage" in violation for violation in violations)
+
+
 def test_missing_desktop_key_fails_template_gate(tmp_path):
     incomplete = tmp_path / "bop.pot"
     incomplete.write_text(i18n.build_pot().replace('msgid "Dashboard"', 'msgid "Missing"'), encoding="utf-8")
@@ -139,6 +182,19 @@ def test_extension_literal_and_placeholder_drift_fail_local_gate(tmp_path):
     assert any("saveBookmark message placeholders" in violation for violation in violations)
 
 
+def test_extension_title_requires_localization_marker(tmp_path):
+    extension = tmp_path / "extension"
+    shutil.copytree(i18n.EXTENSION_DIR, extension)
+    popup_path = extension / "popup.html"
+    html = popup_path.read_text(encoding="utf-8").replace(
+        'data-i18n-title="popupTitle"', 'data-title-fallback="popupTitle"',
+    )
+    popup_path.write_text(html, encoding="utf-8")
+
+    violations = i18n.extension_locale_violations(extension)
+    assert any("visible HTML title requires data-i18n-title" in violation for violation in violations)
+
+
 @pytest.mark.skipif(not shutil.which("node"), reason="Node.js is required for the MV3 locale harness")
 def test_extension_applies_active_language_rtl_and_messages():
     harness = r"""
@@ -178,3 +234,51 @@ process.stdout.write(JSON.stringify({ lang: root.lang, dir: root.dir, text: labe
     assert completed.returncode == 0, completed.stderr
     result = json.loads(completed.stdout)
     assert result == {"lang": "ar-EG", "dir": "rtl", "text": "حفظ الإشارة", "title": "حفظ"}
+
+
+@pytest.mark.skipif(not shutil.which("node"), reason="Node.js is required for the MV3 pseudo-locale harness")
+def test_extension_pseudo_locale_expands_and_humanizes_missing_keys():
+    harness = r"""
+const fs = require("fs");
+const vm = require("vm");
+const label = {
+  dataset: { i18n: "saveBookmark" }, textContent: "Save Bookmark",
+  getAttribute() { return ""; }, setAttribute() {}
+};
+const root = {
+  dataset: { i18nTitle: "popupTitle" }, lang: "en", dir: "ltr", title: "Fallback",
+  getAttribute() { return ""; }, setAttribute() {}
+};
+const document = {
+  documentElement: root, readyState: "complete", title: "Fallback",
+  querySelectorAll(selector) {
+    if (selector === "[data-i18n]") return [label];
+    if (selector === "[data-i18n-title]") return [root];
+    return [];
+  }
+};
+const chrome = { i18n: { getUILanguage: () => "qps-plocm", getMessage: () => "" } };
+const context = vm.createContext({ chrome, document, navigator: { language: "en" }, console });
+context.globalThis = context;
+vm.runInContext(fs.readFileSync(process.argv[1], "utf8"), context);
+process.stdout.write(JSON.stringify({
+  dir: root.dir,
+  text: label.textContent,
+  title: document.title,
+  missing: context.extensionMessage("missingKey", [], "")
+}));
+"""
+    completed = subprocess.run(
+        ["node", "-e", harness, str(i18n.EXTENSION_DIR / "i18n.js")],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+        timeout=10,
+    )
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(completed.stdout)
+    assert result["dir"] == "rtl"
+    assert len(result["text"]) > len("Save Bookmark") * 1.25
+    assert "missingKey" != result["missing"]
+    assert result["missing"].startswith("\u202b")

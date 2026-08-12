@@ -32,7 +32,7 @@ class SelectionActionsMixin:
             self._update_right_rail_selection()
         if hasattr(self, "_refresh_table_semantic_status"):
             self._refresh_table_semantic_status()
-        self._set_status(f"Selected {len(all_items)} bookmarks")
+        self._set_status(format_message("Selected {count} bookmarks", count=len(all_items)))
         return "break"  # Prevent default behavior
 
     def _on_selection_change(self, event):
@@ -45,7 +45,10 @@ class SelectionActionsMixin:
         if hasattr(self, "_refresh_table_semantic_status"):
             self._refresh_table_semantic_status()
         if self.selected_bookmarks:
-            self._set_status(f"{pluralize(len(self.selected_bookmarks), 'bookmark')} selected")
+            self._set_status(format_message(
+                "{bookmarks} selected",
+                bookmarks=pluralize(len(self.selected_bookmarks), "bookmark"),
+            ))
     
     def _on_item_double_click(self, event):
         """Handle double-click"""
@@ -202,7 +205,9 @@ class SelectionActionsMixin:
                 count += 1
         
         self._refresh_all()
-        self._set_status(f"Moved {count} bookmark(s) to '{category}'")
+        self._set_status(format_message(
+            "Moved {count} bookmark(s) to '{category}'", count=count, category=category,
+        ))
     
     def _mark_as_broken(self):
         """Mark selected bookmarks as broken"""
@@ -217,4 +222,6 @@ class SelectionActionsMixin:
                 self.bookmark_manager.update_bookmark(bookmark)
         
         self._refresh_bookmark_list()
-        self._set_status(f"Marked {len(self.selected_bookmarks)} bookmark(s) as broken")
+        self._set_status(format_message(
+            "Marked {count} bookmark(s) as broken", count=len(self.selected_bookmarks),
+        ))

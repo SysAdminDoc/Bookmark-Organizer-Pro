@@ -590,4 +590,4 @@ to deal in the Software without restriction.
         preview_text.focus_set()
 
     def _set_status(self, message: str):
-        self.status_var.set(message)
+        self.status_var.set(_(message))

@@ -45,13 +45,27 @@ _PSEUDO_ACCENTS = str.maketrans(
 _FORMAT_TOKEN = re.compile(r"(\{[^{}]+\}|%\([^)]+\)[#0 +\-]?[0-9.]?[a-zA-Z]|%[sdif])")
 _UI_LITERAL_KEYWORDS = {"label", "message", "placeholder", "prompt", "text", "title", "tooltip"}
 _MESSAGE_METHODS = {"askokcancel", "askyesno", "showerror", "showinfo", "showwarning"}
-_TRANSLATION_CALLS = {"_", "N_", "format_message", "format_plural", "ngettext"}
+_TRANSLATION_CALLS = {
+    "_", "N_", "format_message", "format_plural", "ngettext", "pgettext", "npgettext",
+}
+_STATUS_METHODS = {
+    "_set_status", "_show_toast", "_toast", "set_status", "setStatus", "set_counts", "set_text",
+}
 _EXTENSION_PLACEHOLDER = re.compile(r"\$([A-Za-z][A-Za-z0-9_]*)\$")
 _EXTENSION_UI_ASSIGNMENT = re.compile(
     r"(?:textContent|innerText|placeholder|\.title)\s*=\s*([\"'`])(.*?)\1\s*;"
 )
 _EXTENSION_MESSAGE_CALL = re.compile(
     r"extensionMessage\(\s*([\"'])([A-Za-z0-9_@]+)\1\s*,\s*\[([^\]]*)\]"
+)
+_EXTENSION_DIRECT_MESSAGE_CALL = re.compile(
+    r"\b(?:setStatus|setAddStatus|showEmpty|confirm)\(\s*([\"'`])([^\n]*?)\1"
+)
+_EXTENSION_SHOW_EMPTY_CALL = re.compile(
+    r"\bshowEmpty\(\s*[^,\n]+,\s*([\"'`])([^\n]*?)\1"
+)
+_EXTENSION_ATTRIBUTE_ASSIGNMENT = re.compile(
+    r"\bsetAttribute\(\s*([\"'])(?:aria-label|title|placeholder)\1\s*,\s*([\"'`])([^\n]*?)\2"
 )
 
 
@@ -66,6 +80,24 @@ def N_(message: str) -> str:
 
 def ngettext(singular: str, plural: str, n: int) -> str:
     return _translation.ngettext(singular, plural, n)
+
+
+def pgettext(context: str, message: str) -> str:
+    """Translate *message* with a disambiguating gettext context."""
+    translator = getattr(_translation, "pgettext", None)
+    if translator is not None:
+        return translator(context, message)
+    translated = _translation.gettext(f"{context}\x04{message}")
+    return translated.split("\x04", 1)[-1]
+
+
+def npgettext(context: str, singular: str, plural: str, n: int) -> str:
+    """Translate a plural message with a disambiguating gettext context."""
+    translator = getattr(_translation, "npgettext", None)
+    if translator is not None:
+        return translator(context, singular, plural, n)
+    translated = _translation.ngettext(f"{context}\x04{singular}", f"{context}\x04{plural}", n)
+    return translated.split("\x04", 1)[-1]
 
 
 def format_message(message: str, /, **values) -> str:
@@ -100,6 +132,12 @@ class PseudoTranslations(gettext.NullTranslations):
 
     def ngettext(self, singular: str, plural: str, n: int) -> str:
         return self.gettext(singular if n == 1 else plural)
+
+    def pgettext(self, _context: str, message: str) -> str:
+        return self.gettext(message)
+
+    def npgettext(self, _context: str, singular: str, plural: str, n: int) -> str:
+        return self.ngettext(singular, plural, n)
 
 
 def active_language() -> str:
@@ -187,6 +225,14 @@ def _ui_literal_expressions(call):
     elif method in _MESSAGE_METHODS:
         for index, argument in enumerate(call.args[:2]):
             yield "title" if index == 0 else "message", argument
+    elif (
+        method == "insert"
+        and len(call.args) >= 2
+        and isinstance(call.args[0], ast.Constant)
+        and call.args[0].value != ""
+        and isinstance(call.args[1], ast.Constant)
+    ):
+        yield "text", call.args[1]
 
 
 def _untranslated_expressions(expression):
@@ -195,10 +241,19 @@ def _untranslated_expressions(expression):
 
     if isinstance(expression, ast.Call) and _call_name(expression.func) in _TRANSLATION_CALLS:
         return
-    if isinstance(expression, (ast.Constant, ast.JoinedStr)):
-        if not isinstance(expression, ast.Constant) or (
-            isinstance(expression.value, str) and expression.value.strip()
-        ):
+    if isinstance(expression, ast.Constant):
+        value = expression.value
+        if isinstance(value, str) and value.strip():
+            compact = value.strip()
+            if len(compact) != 1 or not compact.isupper():
+                yield expression
+        return
+    if isinstance(expression, ast.JoinedStr):
+        literal_parts = [
+            part.value for part in expression.values
+            if isinstance(part, ast.Constant) and isinstance(part.value, str)
+        ]
+        if any(part.strip() and any(character.isalpha() for character in part) for part in literal_parts):
             yield expression
         return
     if isinstance(expression, ast.IfExp):
@@ -283,10 +338,11 @@ def desktop_placeholder_violations(src_root: Path | None = None) -> list[str]:
                     )
             elif (
                 isinstance(node.func, ast.Name)
-                and name in {"format_plural", "ngettext"}
-                and len(node.args) >= 2
+                and name in {"format_plural", "ngettext", "npgettext"}
+                and len(node.args) >= (3 if name == "npgettext" else 2)
             ):
-                singular, plural = node.args[:2]
+                offset = 1 if name == "npgettext" else 0
+                singular, plural = node.args[offset:offset + 2]
                 if not all(
                     isinstance(value, ast.Constant) and isinstance(value.value, str)
                     for value in (singular, plural)
@@ -299,7 +355,7 @@ def desktop_placeholder_violations(src_root: Path | None = None) -> list[str]:
                     violations.append(
                         f"{rel}:{node.lineno}: ngettext placeholders differ between forms"
                     )
-                elif name == "format_plural":
+                elif name in {"format_plural", "npgettext"}:
                     actual = {keyword.arg for keyword in node.keywords if keyword.arg}
                     if singular_fields != actual:
                         violations.append(
@@ -327,18 +383,56 @@ def collect_translatable_strings(src_root: Path | None = None) -> dict[str, list
                 strings.setdefault(value.value, []).append((rel, line_number))
 
         for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
             if (
-                isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Name)
+                isinstance(node.func, ast.Name)
                 and node.func.id in {"_", "N_", "format_message"}
                 and node.args
                 and isinstance(node.args[0], ast.Constant)
                 and isinstance(node.args[0].value, str)
             ):
                 add(node.args[0], node.lineno)
+            method = node.func.attr if isinstance(node.func, ast.Attribute) else ""
+            if method in _STATUS_METHODS and node.args:
+                add(node.args[0], node.lineno)
     for locations in strings.values():
         locations.sort()
 
+    return strings
+
+
+def collect_contextual_strings(
+    src_root: Path | None = None,
+) -> dict[tuple[str, str], list[tuple[str, int]]]:
+    """Collect literal ``pgettext`` messages for contextual POT entries."""
+    import ast
+
+    src_root = src_root or Path(__file__).resolve().parent
+    strings: dict[tuple[str, str], list[tuple[str, int]]] = {}
+    for py_file in sorted(src_root.rglob("*.py")):
+        rel = py_file.relative_to(src_root.parent).as_posix()
+        try:
+            tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(rel))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "pgettext"
+                and len(node.args) >= 2
+                and all(
+                    isinstance(argument, ast.Constant) and isinstance(argument.value, str)
+                    for argument in node.args[:2]
+                )
+            ):
+                continue
+            strings.setdefault((node.args[0].value, node.args[1].value), []).append(
+                (rel, node.lineno),
+            )
+    for locations in strings.values():
+        locations.sort()
     return strings
 
 
@@ -375,10 +469,45 @@ def collect_plural_strings(
     return plurals
 
 
+def collect_contextual_plural_strings(
+    src_root: Path | None = None,
+) -> dict[tuple[str, str, str], list[tuple[str, int]]]:
+    """Collect literal ``npgettext`` pairs for contextual plural POT entries."""
+    import ast
+
+    src_root = src_root or Path(__file__).resolve().parent
+    plurals: dict[tuple[str, str, str], list[tuple[str, int]]] = {}
+    for py_file in sorted(src_root.rglob("*.py")):
+        rel = py_file.relative_to(src_root.parent).as_posix()
+        try:
+            tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(rel))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "npgettext"
+                and len(node.args) >= 3
+                and all(
+                    isinstance(argument, ast.Constant) and isinstance(argument.value, str)
+                    for argument in node.args[:3]
+                )
+            ):
+                continue
+            pair = (node.args[0].value, node.args[1].value, node.args[2].value)
+            plurals.setdefault(pair, []).append((rel, node.lineno))
+    for locations in plurals.values():
+        locations.sort()
+    return plurals
+
+
 def build_pot() -> str:
     """Build the gettext template contents from current source strings."""
     strings = collect_translatable_strings()
     plurals = collect_plural_strings()
+    contextual_strings = collect_contextual_strings()
+    contextual_plurals = collect_contextual_plural_strings()
 
     lines = [
         '# Bookmark Organizer Pro — Translation Template',
@@ -396,11 +525,29 @@ def build_pot() -> str:
         lines.append(f'msgid "{_escape_pot(msg)}"')
         lines.append('msgstr ""')
         lines.append('')
+    for (context, msg), locations in sorted(contextual_strings.items()):
+        for rel, line_number in locations:
+            lines.append(f"#: {rel}:{line_number}")
+        lines.append(f'msgctxt "{_escape_pot(context)}"')
+        lines.append(f'msgid "{_escape_pot(msg)}"')
+        lines.append('msgstr ""')
+        lines.append('')
     for (singular, plural), locations in sorted(plurals.items()):
         for rel, line_number in locations:
             lines.append(f"#: {rel}:{line_number}")
         if _format_fields(singular):
             lines.append("#, python-brace-format")
+        lines.append(f'msgid "{_escape_pot(singular)}"')
+        lines.append(f'msgid_plural "{_escape_pot(plural)}"')
+        lines.append('msgstr[0] ""')
+        lines.append('msgstr[1] ""')
+        lines.append('')
+    for (context, singular, plural), locations in sorted(contextual_plurals.items()):
+        for rel, line_number in locations:
+            lines.append(f"#: {rel}:{line_number}")
+        if _format_fields(singular):
+            lines.append("#, python-brace-format")
+        lines.append(f'msgctxt "{_escape_pot(context)}"')
         lines.append(f'msgid "{_escape_pot(singular)}"')
         lines.append(f'msgid_plural "{_escape_pot(plural)}"')
         lines.append('msgstr[0] ""')
@@ -433,8 +580,10 @@ def extension_message_keys(extension_dir: Path | None = None) -> set[str]:
     """Collect manifest and HTML chrome.i18n keys used by extension documents."""
     extension_dir = extension_dir or EXTENSION_DIR
     keys: set[str] = set()
-    manifest = (extension_dir / "manifest.json").read_text(encoding="utf-8")
-    keys.update(re.findall(r"__MSG_([A-Za-z0-9_@]+)__", manifest))
+    for manifest_path in (extension_dir / "manifest.json", extension_dir / "manifest.firefox.json"):
+        if manifest_path.exists():
+            manifest = manifest_path.read_text(encoding="utf-8")
+            keys.update(re.findall(r"__MSG_([A-Za-z0-9_@]+)__", manifest))
     attribute = re.compile(
         r"data-i18n(?:-placeholder|-title|-aria-label)?=[\"']([A-Za-z0-9_@]+)[\"']"
     )
@@ -500,7 +649,14 @@ class _ExtensionHTMLAudit(HTMLParser):
         if not text or not any(character.isalpha() for character in text) or not self.stack:
             return
         tag, attributes = self.stack[-1]
-        if tag in {"script", "style", "title"} or (len(text) == 1 and text.isupper()):
+        if tag in {"script", "style"} or (len(text) == 1 and text.isupper()):
+            return
+        if tag == "title":
+            root_attributes = self.stack[0][1] if self.stack else {}
+            if "data-i18n-title" not in root_attributes:
+                self.violations.append(
+                    f"{self.rel}:{self.getpos()[0]}: visible HTML title requires data-i18n-title"
+                )
             return
         if "data-i18n" not in attributes:
             self.violations.append(
@@ -577,6 +733,27 @@ def extension_locale_violations(
                     violations.append(
                         f"{rel}:{line_number}: extension UI assignment must use extensionMessage()"
                     )
+        for match in _EXTENSION_DIRECT_MESSAGE_CALL.finditer(source):
+            visible = re.sub(r"\$\{[^}]+\}", "", match.group(2))
+            if any(character.isalpha() for character in visible):
+                line_number = source.count("\n", 0, match.start()) + 1
+                violations.append(
+                    f"{rel}:{line_number}: visible message call must use extensionMessage()"
+                )
+        for match in _EXTENSION_SHOW_EMPTY_CALL.finditer(source):
+            visible = re.sub(r"\$\{[^}]+\}", "", match.group(2))
+            if any(character.isalpha() for character in visible):
+                line_number = source.count("\n", 0, match.start()) + 1
+                violations.append(
+                    f"{rel}:{line_number}: visible empty-state message must use extensionMessage()"
+                )
+        for match in _EXTENSION_ATTRIBUTE_ASSIGNMENT.finditer(source):
+            visible = re.sub(r"\$\{[^}]+\}", "", match.group(3))
+            if any(character.isalpha() for character in visible):
+                line_number = source.count("\n", 0, match.start()) + 1
+                violations.append(
+                    f"{rel}:{line_number}: visible attribute must use extensionMessage()"
+                )
     return violations
 
 

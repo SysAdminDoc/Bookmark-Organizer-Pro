@@ -7,7 +7,7 @@ import tkinter as tk
 from pathlib import Path
 from typing import List
 
-from bookmark_organizer_pro.i18n import _
+from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.importers import (
     BrowserProfileImporter,
     BrowserProfileSessionImporter,
@@ -235,11 +235,18 @@ class ImportExportMixin:
         bookmarks = self.bookmark_manager.get_all_bookmarks()
         self.favicon_manager.queue_bookmarks(bookmarks)
         
-        self._set_status(f"Imported {pluralize(added, 'bookmark')}; skipped {pluralize(dupes, 'duplicate')}")
+        self._set_status(format_message(
+            "Imported {added}; skipped {duplicates}",
+            added=pluralize(added, "bookmark"), duplicates=pluralize(dupes, "duplicate"),
+        ))
         
         if added > 0 or dupes > 0:
             self._show_toast(
-                f"Imported {pluralize(added, 'bookmark')}. Skipped {pluralize(dupes, 'duplicate')}.",
+                format_message(
+                    "Imported {added}. Skipped {duplicates}.",
+                    added=pluralize(added, "bookmark"),
+                    duplicates=pluralize(dupes, "duplicate"),
+                ),
                 "success" if added > 0 else "info"
             )
 

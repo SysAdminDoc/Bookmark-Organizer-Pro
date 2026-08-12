@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import List
 
 from bookmark_organizer_pro.ai import create_failover_client
-from bookmark_organizer_pro.i18n import _
+from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.ai_audit_log import log_summary, log_tag_suggestion
@@ -130,7 +130,10 @@ class AiEnrichmentMixin:
 
                 bm_data = [{"url": bm.url, "title": bm.title} for bm in real_batch]
 
-                dialog.set_status(f"Processing {start + 1}–{end} of {len(bookmarks)}…")
+                dialog.set_status(format_message(
+                    "Processing {start}–{end} of {total}…",
+                    start=start + 1, end=end, total=len(bookmarks),
+                ))
 
                 try:
                     results = client.categorize_bookmarks(
@@ -191,9 +194,14 @@ class AiEnrichmentMixin:
 
             self.bookmark_manager.save_bookmarks()
 
-            summary = f"Done — {tagged} tagged, {processed - tagged - skipped_urls} unchanged"
+            summary = format_message(
+                "Done — {tagged} tagged, {unchanged} unchanged",
+                tagged=tagged, unchanged=processed - tagged - skipped_urls,
+            )
             if skipped_urls:
-                summary += f", {skipped_urls} login/auth pages skipped"
+                summary += format_message(
+                    ", {count} login/auth pages skipped", count=skipped_urls,
+                )
             dialog.signal_finish(summary)
             self._post_to_ui(self._refresh_all)
 
@@ -243,7 +251,10 @@ class AiEnrichmentMixin:
                 end = min(start + batch_size, len(bookmarks))
                 batch = bookmarks[start:end]
 
-                dialog.set_status(f"Processing {start + 1}–{end} of {len(bookmarks)}…")
+                dialog.set_status(format_message(
+                    "Processing {start}–{end} of {total}…",
+                    start=start + 1, end=end, total=len(bookmarks),
+                ))
 
                 bm_list = "\n".join([f"- {bm.title} ({bm.url})" for bm in batch])
                 prompt = (
@@ -293,7 +304,9 @@ class AiEnrichmentMixin:
                     time.sleep(rate_delay)
 
             self.bookmark_manager.save_bookmarks()
-            dialog.signal_finish(f"Done — {updated} summaries generated")
+            dialog.signal_finish(format_message(
+                "Done — {count} summaries generated", count=updated,
+            ))
             self._post_to_ui(self._refresh_all)
 
         dialog.run(_worker)

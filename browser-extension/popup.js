@@ -53,12 +53,12 @@ async function loadPopup() {
     extensionMessage("noActiveTab", [], "No active tab");
 
   if (!activeTab || !isSaveableUrl(activeTab.url)) {
-    setUnavailable("Open an HTTP or HTTPS page before saving.");
+    setUnavailable(extensionMessage("openWebPage", [], "Open an HTTP or HTTPS page before saving."));
     return;
   }
 
   if (!values.apiToken) {
-    setUnavailable("Add the local API token in Options before saving.");
+    setUnavailable(extensionMessage("addTokenBeforeSaving", [], "Add the local API token in Options before saving."));
     return;
   }
 
@@ -77,10 +77,12 @@ async function refreshPendingPanel() {
   const cleared = await getClearedPendingSaves();
   panel.hidden = pending.length === 0 && !cleared;
   count.textContent = pending.length
-    ? `${pending.length} pending save${pending.length === 1 ? "" : "s"}`
+    ? pending.length === 1
+      ? extensionMessage("onePendingSave", [], "1 pending save")
+      : extensionMessage("pendingSavesCount", [String(pending.length)], `${pending.length} pending saves`)
     : cleared
-      ? `${cleared.items.length} cleared save${cleared.items.length === 1 ? "" : "s"} can be restored`
-      : "0 pending saves";
+      ? extensionMessage("clearedSavesRestorable", [String(cleared.items.length)], `${cleared.items.length} cleared saves can be restored`)
+      : extensionMessage("zeroPendingSaves", [], "0 pending saves");
   renderPendingSaves(document.getElementById("pendingList"), pending);
   document.getElementById("retryPending").disabled = pending.length === 0;
   document.getElementById("exportPending").disabled = pending.length === 0;
@@ -90,20 +92,32 @@ async function refreshPendingPanel() {
 
 async function retryPendingQueue() {
   const result = await retryPendingSaves();
-  setStatus(`Retried ${result.attempted}; resolved ${result.resolved}.`, result.remaining ? "warning" : "success");
+  setStatus(extensionMessage(
+    "retriedPendingSaves",
+    [String(result.attempted), String(result.resolved)],
+    `Retried ${result.attempted}; resolved ${result.resolved}.`,
+  ), result.remaining ? "warning" : "success");
   await refreshPendingPanel();
 }
 
 async function clearPendingQueue() {
-  if (!globalThis.confirm("Clear the pending save journal? You can undo this from the same panel.")) return;
+  if (!globalThis.confirm(extensionMessage(
+    "confirmClearPending",
+    [],
+    "Clear the pending save journal? You can undo this from the same panel.",
+  ))) return;
   const cleared = await clearPendingSaves({ confirmed: true });
-  setStatus(`Cleared ${cleared} pending quick save${cleared === 1 ? "" : "s"}.`, "info");
+  setStatus(cleared === 1
+    ? extensionMessage("clearedOnePendingSave", [], "Cleared 1 pending save")
+    : extensionMessage("clearedPendingSaves", [String(cleared)], `Cleared ${cleared} pending saves`), "info");
   await refreshPendingPanel();
 }
 
 async function restorePendingQueue() {
   const restored = await restoreClearedPendingSaves();
-  setStatus(`Restored ${restored} pending save${restored === 1 ? "" : "s"}.`, "success");
+  setStatus(restored === 1
+    ? extensionMessage("restoredOnePendingSave", [], "Restored 1 pending save")
+    : extensionMessage("restoredPendingSaves", [String(restored)], `Restored ${restored} pending saves`), "success");
   await refreshPendingPanel();
 }
 
@@ -138,7 +152,7 @@ async function saveBookmark() {
     }
     const result = await saveBookmarkPayload(payload, values, { source: "popup" });
     if (result.queued) {
-      setStatus("API unavailable. Save added to the retry journal.", "warning");
+      setStatus(extensionMessage("queuedSave", [], "API unavailable. Save added to the retry journal."), "warning");
       await refreshPendingPanel();
     } else if (result.status === 201) {
       const preserved = result.body && result.body.browser_snapshot;
@@ -150,10 +164,10 @@ async function saveBookmark() {
     } else if (result.status === 401) {
       setStatus(extensionMessage("invalidToken", [], "Invalid API token. Check Options."), "error");
     } else {
-      setStatus(`Save failed (${result.status}).`, "error");
+      setStatus(extensionMessage("saveFailed", [String(result.status)], `Save failed (${result.status}).`), "error");
     }
   } catch (error) {
-    setStatus(error?.message || "Cannot reach the local API. Start the app or run: bop api-server", "error");
+    setStatus(extensionMessage("apiUnavailable", [], "Cannot reach the local API. Start the app or run: bop api-server"), "error");
   } finally {
     setBusy(false);
   }
@@ -161,24 +175,26 @@ async function saveBookmark() {
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("saveBookmark").addEventListener("click", () => {
-    saveBookmark().catch(() => setStatus("Save failed.", "error"));
+    saveBookmark().catch(() => setStatus(extensionMessage("saveFailedGeneric", [], "Save failed."), "error"));
   });
   document.getElementById("openOptions").addEventListener("click", () => {
-    openOptionsPage().catch(() => setStatus("Options could not be opened.", "error"));
+    openOptionsPage().catch(() => setStatus(extensionMessage("optionsOpenFailed", [], "Options could not be opened."), "error"));
   });
   document.getElementById("retryPending").addEventListener("click", () => {
-    retryPendingQueue().catch(() => setStatus("Pending retry failed.", "error"));
+    retryPendingQueue().catch(() => setStatus(extensionMessage("pendingRetryFailed", [], "Pending retry failed."), "error"));
   });
   document.getElementById("clearPending").addEventListener("click", () => {
-    clearPendingQueue().catch(() => setStatus("Pending queue could not be cleared.", "error"));
+    clearPendingQueue().catch(() => setStatus(extensionMessage("pendingClearFailed", [], "Pending queue could not be cleared."), "error"));
   });
   document.getElementById("restorePending").addEventListener("click", () => {
-    restorePendingQueue().catch(() => setStatus("Cleared saves could not be restored.", "error"));
+    restorePendingQueue().catch(() => setStatus(extensionMessage("pendingRestoreFailed", [], "Cleared saves could not be restored."), "error"));
   });
   document.getElementById("exportPending").addEventListener("click", () => {
-    exportPendingSaves().then(count => setStatus(`Exported ${count} pending save${count === 1 ? "" : "s"}.`, "success"))
-      .catch(() => setStatus("Pending saves could not be exported.", "error"));
+    exportPendingSaves().then(count => setStatus(count === 1
+      ? extensionMessage("exportedOnePendingSave", [], "Exported 1 pending save")
+      : extensionMessage("exportedPendingSaves", [String(count)], `Exported ${count} pending saves`), "success"))
+      .catch(() => setStatus(extensionMessage("pendingExportFailed", [], "Pending saves could not be exported."), "error"));
   });
   refreshPendingPanel().catch(() => {});
-  loadPopup().catch(() => setStatus("Could not load the active tab.", "error"));
+  loadPopup().catch(() => setStatus(extensionMessage("activeTabLoadFailed", [], "Could not load the active tab."), "error"));
 });

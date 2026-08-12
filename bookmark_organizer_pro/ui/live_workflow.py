@@ -293,7 +293,7 @@ class LiveWorkflowDialog:
     def _apply_status(self, text: str):
         if self._alive():
             try:
-                self.status_label.configure(text=text)
+                self.status_label.configure(text=_(text))
             except Exception:
                 pass
 
@@ -327,7 +327,7 @@ class LiveWorkflowDialog:
     def signal_finish(self, summary: str, *, outcome: str = "success"):
         """Mark the run complete. The dialog flips to "Done" only after every
         queued row has been revealed, so the drip animation always finishes."""
-        self._post_worker_event(self._mark_finished, str(summary), str(outcome))
+        self._post_worker_event(self._mark_finished, _(str(summary)), str(outcome))
 
     def _mark_finished(self, summary: str, outcome: str):
         if not getattr(self, "_accept_events", True):

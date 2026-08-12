@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import List
 
 from bookmark_organizer_pro.ai import create_failover_client
-from bookmark_organizer_pro.i18n import _
+from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.ai_audit_log import log_categorize, log_title_improvement
@@ -29,9 +29,10 @@ class AiCategorizationMixin:
         if not bookmarks:
             return
 
-        self._set_status(
-            f"Categorizing {len(bookmarks)} bookmarks with {self._ai_provider_name()}"
-        )
+        self._set_status(format_message(
+            "Categorizing {count} bookmarks with {provider}",
+            count=len(bookmarks), provider=self._ai_provider_name(),
+        ))
         if hasattr(self, "_show_toast"):
             self._show_toast("Assistant categorization started", "info")
 
@@ -71,10 +72,11 @@ class AiCategorizationMixin:
                 batch = bookmarks[start:end]
                 bm_data = [{"url": bm.url, "title": bm.title} for bm in batch]
 
-                dialog.set_status(
-                    f"Processing {start + 1}–{end} of {len(bookmarks)}… "
-                    f"({client.last_provider}/{client.last_model})"
-                )
+                dialog.set_status(format_message(
+                    "Processing {start}–{end} of {total}… ({provider}/{model})",
+                    start=start + 1, end=end, total=len(bookmarks),
+                    provider=client.last_provider, model=client.last_model,
+                ))
 
                 try:
                     results = client.categorize_bookmarks(bm_data, categories, allow_new, suggest_tags)
@@ -211,12 +213,12 @@ class AiCategorizationMixin:
             self.bookmark_manager.save_bookmarks()
             self.category_manager.save_categories()
 
-            summary = (
-                f"Done — {processed} processed, {applied_count} categorized"
-                f", {titles_changed} titles improved"
+            summary = format_message(
+                "Done — {processed} processed, {categorized} categorized, {titles} titles improved",
+                processed=processed, categorized=applied_count, titles=titles_changed,
             )
             if failover_count:
-                summary += f", {failover_count} via failover"
+                summary += format_message(", {count} via failover", count=failover_count)
             dialog.signal_finish(summary)
             self._post_to_ui(self._refresh_all)
 

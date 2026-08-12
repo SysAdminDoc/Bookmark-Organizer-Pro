@@ -78,7 +78,7 @@ class ZoomActionsMixin:
         if self.root:
             self.root.update_idletasks()
 
-        self._set_status(f"Zoom: {self.zoom_level}%")
+        self._set_status(format_message("Zoom: {level}%", level=self.zoom_level))
 
     def _rescale_layout(self, scale: float):
         """Resize header, sidebar, status bar, and padding based on zoom scale."""

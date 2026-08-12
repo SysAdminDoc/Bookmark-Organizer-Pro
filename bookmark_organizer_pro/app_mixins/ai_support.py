@@ -43,7 +43,9 @@ class AiSupportMixin:
         if self.ai_config.is_configured():
             return True
 
-        self._set_status(f"{action_name} needs Assistant Settings before it can run")
+        self._set_status(format_message(
+            "{action} needs Assistant Settings before it can run", action=action_name,
+        ))
         if hasattr(self, "_show_toast"):
             self._show_toast("Choose an assistant provider to continue", "info")
         self._show_ai_settings()

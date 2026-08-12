@@ -72,8 +72,13 @@ class AiMenuDataMixin:
         if count:
             delete_snapshot(latest["snapshot_id"])
             self._refresh_all()
-            self._show_toast(f"Restored {count} bookmarks to the previous assistant state", "success")
-            self._set_status(f"Undid assistant {latest['operation']} — {count} bookmarks restored")
+            self._show_toast(format_message(
+                "Restored {count} bookmarks to the previous assistant state", count=count,
+            ), "success")
+            self._set_status(format_message(
+                "Undid assistant {operation} — {count} bookmarks restored",
+                operation=latest["operation"], count=count,
+            ))
         else:
             self._show_toast("No bookmarks could be restored", "info")
 
@@ -107,7 +112,7 @@ class AiMenuDataMixin:
                 _("No suggested tags are available to accept.\n\n"
                 "Use Suggest Tags first to generate suggestions."))
         
-        self._set_status(f"Accepted {tags_added} suggested tags")
+        self._set_status(format_message("Accepted {count} suggested tags", count=tags_added))
     
     def _export_ai_data(self):
         """Export AI-enriched bookmark data to JSON"""
@@ -160,7 +165,9 @@ class AiMenuDataMixin:
             
             messagebox.showinfo(_("Export Complete"),
                 format_message('Assistant data exported successfully.\n\nFile: {value_0}\nBookmarks: {value_1}\nCategories: {value_2}', value_0=filepath, value_1=len(bookmarks), value_2=len(export_data['categories'])))
-            self._set_status(f"Exported assistant data to {Path(filepath).name}")
+            self._set_status(format_message(
+                "Exported assistant data to {path}", path=Path(filepath).name,
+            ))
             
         except Exception as e:
             messagebox.showerror(_("Export Error"), format_message('Failed to export: {value_0}', value_0=str(e)))
@@ -319,7 +326,7 @@ class AiMenuDataMixin:
             total_patterns = sum(len(p) for p in export_data["categories"].values())
             messagebox.showinfo(_("Patterns Exported"),
                 format_message('Category patterns exported successfully!\n\nFile: {value_0}\nCategories: {value_1}\nTotal patterns: {value_2}\n\nShare this file to help improve categorization for others!', value_0=Path(filepath).name, value_1=len(export_data['categories']), value_2=total_patterns))
-            self._set_status(f"Exported {total_patterns} learned patterns")
+            self._set_status(format_message("Exported {count} learned patterns", count=total_patterns))
             
         except Exception as e:
             messagebox.showerror(_("Export Error"), format_message('Failed to export: {value_0}', value_0=str(e)))
@@ -373,7 +380,10 @@ class AiMenuDataMixin:
             
             messagebox.showinfo(_("Import Complete"),
                 format_message('Learned patterns imported.\n\nNew categories: {value_0}\nPatterns added: {value_1}', value_0=imported, value_1=updated))
-            self._set_status(f"Imported {imported} categories, {updated} patterns")
+            self._set_status(format_message(
+                "Imported {categories} categories, {patterns} patterns",
+                categories=imported, patterns=updated,
+            ))
             
         except Exception as e:
             messagebox.showerror(_("Import Error"), format_message('Failed to import: {value_0}', value_0=str(e)))

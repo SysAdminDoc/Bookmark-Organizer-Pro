@@ -4,13 +4,6 @@ Actionable work only. Historical and completed roadmap material is archived in C
 
 ## Actionable Items
 
-- [ ] P1 — R-93: Audit all user-visible strings through the localization pipeline
-  Why: the current i18n check passes while visible Python and extension JavaScript strings can bypass registered translation sinks.
-  Evidence: `bookmark_organizer_pro/i18n.py`, `locale/bop.pot`, `tests/test_i18n.py`, browser-extension sources; Chrome i18n API.
-  Touches: i18n extractor/audit, Python UI strings, extension `_locales` and runtime messages, translator guidance, tests.
-  Acceptance: Static auditing recognizes every approved desktop and extension translation API and fails on unregistered visible literals; catalogs include context/placeholders/plurals, pseudolocalization runs in both surfaces, layout tests cover expansion, and missing keys fall back visibly without raw identifiers.
-  Complexity: L
-
 - [ ] P1 — R-94: Add end-to-end assistant cancellation and failure budgets
   Why: long AI operations have no uniform Stop contract across UI workers, streaming clients, retries, caches, and job history.
   Evidence: AI UI/client services and `bookmark_organizer_pro/services/job_ledger.py`; Joplin PR #15946 and PR #15944.

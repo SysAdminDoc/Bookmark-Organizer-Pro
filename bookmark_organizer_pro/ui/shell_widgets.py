@@ -6,7 +6,7 @@ import tkinter as tk
 from enum import Enum
 from typing import Callable, List, Tuple
 
-from bookmark_organizer_pro.i18n import _
+from bookmark_organizer_pro.i18n import _, format_message
 
 from .foundation import FONTS, DesignTokens
 from .tk_interactions import make_keyboard_activatable, route_pointer_to_control
@@ -279,16 +279,21 @@ class StatusBar(tk.Frame, ThemedWidget):
     
     def set_status(self, message: str):
         """Set status message"""
-        self.status_label.configure(text=message)
+        self.status_label.configure(text=_(message))
     
     def set_counts(self, total: int, selected: int = 0, filtered: int = None):
         """Set bookmark counts"""
         if filtered is not None and filtered != total:
-            text = f"{selected} selected • {filtered} shown • {total} total"
+            text = format_message(
+                "{selected} selected • {filtered} shown • {total} total",
+                selected=selected, filtered=filtered, total=total,
+            )
         elif selected > 0:
-            text = f"{selected} selected • {total} total"
+            text = format_message(
+                "{selected} selected • {total} total", selected=selected, total=total,
+            )
         else:
-            text = f"{total} bookmarks"
+            text = format_message("{total} bookmarks", total=total)
         self.counts_label.configure(text=text)
     
     def show_progress(self, value: float, message: str = ""):

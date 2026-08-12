@@ -354,7 +354,7 @@ class ModernButton(tk.Frame, ThemedWidget):
             self.label.configure(bg=self._disabled_bg)
     
     def set_text(self, text):
-        self.text = text
+        self.text = _(text)
         self.label.configure(text=self._display_text())
 
 

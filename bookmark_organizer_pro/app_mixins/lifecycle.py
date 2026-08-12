@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import tkinter as tk
 
-from bookmark_organizer_pro.i18n import format_message
+from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.services.settings_store import load_settings
 from bookmark_organizer_pro.ui.foundation import pluralize
@@ -42,7 +42,9 @@ class LifecycleActionsMixin:
                     "error",
                 )
         elif bookmarks:
-            self._set_status(f"Loaded {pluralize(len(bookmarks), 'bookmark')}")
+            self._set_status(format_message(
+                "Loaded {bookmarks}", bookmarks=pluralize(len(bookmarks), "bookmark"),
+            ))
         else:
             self._set_status("Library ready")
 
@@ -85,7 +87,7 @@ class LifecycleActionsMixin:
         """Set status message and update counts"""
         if self.status_label:
             try:
-                self.status_label.configure(text=message)
+                self.status_label.configure(text=_(message))
             except Exception:
                 pass
         # Update counts whenever status changes

@@ -85,8 +85,8 @@ class SmartFiltersPanel(tk.Frame, ThemedWidget):
             bg=theme.bg_tertiary, fg=theme.text_primary, bd=0
         )
         date_from.pack(side=tk.LEFT, padx=5)
-        date_from.insert(0, "YYYY-MM-DD")
-        date_from.bind("<FocusIn>", lambda e: date_from.delete(0, tk.END) if date_from.get() == "YYYY-MM-DD" else None)
+        date_from.insert(0, _("YYYY-MM-DD"))
+        date_from.bind("<FocusIn>", lambda e: date_from.delete(0, tk.END) if date_from.get() == _("YYYY-MM-DD") else None)
         
         tk.Label(
             date_frame, text=_("To:"), bg=theme.bg_secondary,

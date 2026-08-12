@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from bookmark_organizer_pro.constants import APP_NAME
-from bookmark_organizer_pro.i18n import _, format_message
+from bookmark_organizer_pro.i18n import _, format_message, pgettext
 from bookmark_organizer_pro.ui.components import DragDropImportArea, ScrollableFrame
 from bookmark_organizer_pro.ui.feedback import EmptyState, FilteredEmptyState
 from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, readable_text_on
@@ -426,7 +426,7 @@ class AppShellMixin:
         )
         self._rl_count_label.pack(side=tk.RIGHT)
         rl_open = tk.Label(
-            rl_header, text=_("Open"), bg=theme.bg_dark,
+            rl_header, text=pgettext("read-later", "Open"), bg=theme.bg_dark,
             fg=theme.accent_primary, font=FONTS.tiny(bold=True), cursor="hand2",
         )
         rl_open.pack(side=tk.RIGHT, padx=(0, 8))

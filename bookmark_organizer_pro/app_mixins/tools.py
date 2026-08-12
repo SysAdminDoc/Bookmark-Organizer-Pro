@@ -289,7 +289,10 @@ class ToolsActionsMixin:
             return safepoint
         except Exception as exc:
             log.warning("Maintenance safepoint failed before %s: %s", label, exc)
-            self._set_status(f"{label.replace('-', ' ').title()} skipped: recovery safepoint unavailable")
+            self._set_status(format_message(
+                "{label} skipped: recovery safepoint unavailable",
+                label=label.replace("-", " ").title(),
+            ))
             self._toast("Could not create a recovery safepoint; no changes were made", "error")
             return None
 
@@ -310,7 +313,9 @@ class ToolsActionsMixin:
                 return True
         except Exception as exc:
             log.exception("Failed to restore maintenance safepoint %s", safepoint)
-            self._set_status(f"Maintenance safepoint restore failed: {exc}")
+            self._set_status(format_message(
+                "Maintenance safepoint restore failed: {error}", error=exc,
+            ))
             self._toast("Maintenance safepoint restore failed; see logs", "error")
             return False
 
@@ -416,10 +421,14 @@ class ToolsActionsMixin:
             bm.parent_category = ""
         self.bookmark_manager.save_bookmarks()
         self._refresh_all()
-        self._set_status(
-            f"Flattened {len(categorized)} bookmarks out of folders; restore available from Tools"
-        )
-        self._toast(f"Moved {len(categorized)} bookmarks out of folders; safepoint ready", "success")
+        self._set_status(format_message(
+            "Flattened {count} bookmarks out of folders; restore available from Tools",
+            count=len(categorized),
+        ))
+        self._toast(format_message(
+            "Moved {count} bookmarks out of folders; safepoint ready",
+            count=len(categorized),
+        ), "success")
 
     def _clear_all_categories(self):
         """Reset every bookmark's category to 'Uncategorized / Needs Review'."""
@@ -451,8 +460,13 @@ class ToolsActionsMixin:
             bm.ai_tags = []
         self.bookmark_manager.save_bookmarks()
         self._refresh_all()
-        self._set_status(f"Cleared tags from {len(tagged)} bookmarks; restore available from Tools")
-        self._toast(f"Cleared tags from {len(tagged)} bookmarks; safepoint ready", "success")
+        self._set_status(format_message(
+            "Cleared tags from {count} bookmarks; restore available from Tools",
+            count=len(tagged),
+        ))
+        self._toast(format_message(
+            "Cleared tags from {count} bookmarks; safepoint ready", count=len(tagged),
+        ), "success")
 
     def _organize_selected(self):
         """Auto-categorize + tag selected bookmarks using the pattern engine."""
@@ -471,8 +485,14 @@ class ToolsActionsMixin:
                 changed += 1
         self.bookmark_manager.save_bookmarks()
         self._refresh_all()
-        self._set_status(f"Organized {len(self.selected_bookmarks)} bookmarks ({changed} re-categorized)")
-        self._show_toast(f"Re-categorized {changed} of {len(self.selected_bookmarks)} bookmarks", "success")
+        self._set_status(format_message(
+            "Organized {total} bookmarks ({changed} re-categorized)",
+            total=len(self.selected_bookmarks), changed=changed,
+        ))
+        self._show_toast(format_message(
+            "Re-categorized {changed} of {total} bookmarks",
+            changed=changed, total=len(self.selected_bookmarks),
+        ), "success")
 
     def _categorize_all_bookmarks(self):
         """Reprocess all bookmarks and categorize them based on category patterns - non-blocking"""
@@ -529,14 +549,20 @@ class ToolsActionsMixin:
                 self._refresh_all()
                 
                 if self._cat_cancelled:
-                    self._set_status(f"Cancelled. Changed {self._cat_changed} bookmarks.")
-                    self._toast(f"Categorization cancelled after {self._cat_changed} changes", "warning")
+                    self._set_status(format_message(
+                        "Cancelled. Changed {count} bookmarks.", count=self._cat_changed,
+                    ))
+                    self._toast(format_message(
+                        "Categorization cancelled after {count} changes", count=self._cat_changed,
+                    ), "warning")
                 else:
-                    self._set_status(f"Categorized {self._cat_changed} bookmarks")
-                    self._toast(
-                        f"Categorized {self._cat_changed} bookmarks; {self._cat_unchanged} unchanged",
-                        "success",
-                    )
+                    self._set_status(format_message(
+                        "Categorized {count} bookmarks", count=self._cat_changed,
+                    ))
+                    self._toast(format_message(
+                        "Categorized {count} bookmarks; {unchanged} unchanged",
+                        count=self._cat_changed, unchanged=self._cat_unchanged,
+                    ), "success")
                 return
             
             # Process batch of 20
@@ -617,11 +643,15 @@ class ToolsActionsMixin:
             self._refresh_category_list()
             self._refresh_analytics()
             
-            self._set_status(f"Imported {imported} categories, updated {updated}")
-            self._toast(
-                f"Imported {imported} categories; updated {updated}; total {len(self.category_manager.categories)}",
-                "success",
-            )
+            self._set_status(format_message(
+                "Imported {imported} categories, updated {updated}",
+                imported=imported, updated=updated,
+            ))
+            self._toast(format_message(
+                "Imported {imported} categories; updated {updated}; total {total}",
+                imported=imported, updated=updated,
+                total=len(self.category_manager.categories),
+            ), "success")
             
         except json.JSONDecodeError as e:
             messagebox.showerror(
@@ -739,10 +769,16 @@ class ToolsActionsMixin:
             self.bookmark_manager.save_bookmarks()
             progress_frame.destroy()
             status = "Cancelled" if self._link_check_cancelled else "Complete"
-            self._set_status(f"{status}: Found {broken_count[0]} broken links")
+            self._set_status(format_message(
+                "{status}: Found {broken} broken links",
+                status=status, broken=broken_count[0],
+            ))
             self._refresh_all()
             if not self._link_check_cancelled:
-                self._show_toast(f"Checked {checked_count[0]} links, found {broken_count[0]} broken", "success" if broken_count[0] == 0 else "warning")
+                self._show_toast(format_message(
+                    "Checked {checked} links, found {broken} broken",
+                    checked=checked_count[0], broken=broken_count[0],
+                ), "success" if broken_count[0] == 0 else "warning")
 
         threading.Thread(target=_worker, daemon=True).start()
 
@@ -779,8 +815,12 @@ class ToolsActionsMixin:
             if removed:
                 self.bookmark_manager.save_bookmarks()
                 self._refresh_all()
-            self._set_status(f"Removed {removed} duplicates; restore available from Tools")
-            self._toast(f"Removed {removed} duplicate bookmarks; safepoint ready", "success")
+            self._set_status(format_message(
+                "Removed {count} duplicates; restore available from Tools", count=removed,
+            ))
+            self._toast(format_message(
+                "Removed {count} duplicate bookmarks; safepoint ready", count=removed,
+            ), "success")
             return f"Removed {removed} duplicate bookmark(s). Restore is available from this dialog or Tools."
 
         self._show_cleanup_review_dialog(
@@ -804,7 +844,9 @@ class ToolsActionsMixin:
                 self._post_to_ui(lambda: self._show_dup_results(report))
             except Exception as exc:
                 msg = str(exc)
-                self._post_to_ui(lambda: self._set_status(f"Duplicate scan failed: {msg}"))
+                self._post_to_ui(lambda: self._set_status(format_message(
+                    "Duplicate scan failed: {error}", error=msg,
+                )))
 
         threading.Thread(target=_run, daemon=True).start()
 
@@ -855,8 +897,12 @@ class ToolsActionsMixin:
             if removed:
                 self.bookmark_manager.save_bookmarks()
                 self._refresh_all()
-            self._set_status(f"Smart duplicates: removed {removed}; restore available from Tools")
-            self._toast(f"Removed {removed} smart duplicate bookmark(s); safepoint ready", "success")
+            self._set_status(format_message(
+                "Smart duplicates: removed {count}; restore available from Tools", count=removed,
+            ))
+            self._toast(format_message(
+                "Removed {count} smart duplicate bookmark(s); safepoint ready", count=removed,
+            ), "success")
             return f"Removed {removed} duplicate bookmark(s). Restore is available from this dialog or Tools."
 
         total = sum(len(getattr(group, "bookmark_ids", [])) - 1 for group in raw_groups)
@@ -881,7 +927,9 @@ class ToolsActionsMixin:
                 self._post_to_ui(lambda: self._show_lint_results(suggestions))
             except Exception as exc:
                 msg = str(exc)
-                self._post_to_ui(lambda: self._set_status(f"Tag lint failed: {msg}"))
+                self._post_to_ui(lambda: self._set_status(format_message(
+                    "Tag lint failed: {error}", error=msg,
+                )))
 
         threading.Thread(target=_run, daemon=True).start()
 
@@ -926,12 +974,18 @@ class ToolsActionsMixin:
                 if applied:
                     self.bookmark_manager.save_bookmarks()
                     self._refresh_all()
-                self._set_status(f"Tag lint: applied {applied} merge(s); restore available from Tools")
-                self._toast(f"Applied {applied} tag merge(s); safepoint ready", "success")
+                self._set_status(format_message(
+                    "Tag lint: applied {count} merge(s); restore available from Tools",
+                    count=applied,
+                ))
+                self._toast(format_message(
+                    "Applied {count} tag merge(s); safepoint ready", count=applied,
+                ), "success")
                 return f"Applied {applied} tag merge(s). Restore is available from this dialog or Tools."
             except Exception as exc:
-                self._set_status(f"Tag lint apply failed: {exc}")
-                return f"Tag lint apply failed: {exc}"
+                detail = format_message("Tag lint apply failed: {error}", error=exc)
+                self._set_status(detail)
+                return detail
 
         self._show_cleanup_review_dialog(
             "Tag Cleanup Review",
@@ -1090,7 +1144,9 @@ class ToolsActionsMixin:
         failed = 0
         skipped = 0
 
-        self._set_status(f"Retrying {len(records)} failed snapshot(s)...")
+        self._set_status(format_message(
+            "Retrying {count} failed snapshot(s)...", count=len(records),
+        ))
         for record in records:
             bookmark = by_id.get(record.bookmark_id) if record.bookmark_id is not None else None
             if bookmark is None:
@@ -1107,21 +1163,26 @@ class ToolsActionsMixin:
         if success:
             self.bookmark_manager.save_bookmarks()
             self._refresh_all()
-        self._set_status(
-            f"Snapshot retry complete: {success} fixed, {failed} still failing, {skipped} missing"
-        )
+        self._set_status(format_message(
+            "Snapshot retry complete: {success} fixed, {failed} still failing, {skipped} missing",
+            success=success, failed=failed, skipped=skipped,
+        ))
         style = "success" if success and failed == 0 else "info"
-        self._toast(
-            f"Snapshot retry complete: {success} fixed, {failed} failed, {skipped} skipped",
-            style,
-        )
+        self._toast(format_message(
+            "Snapshot retry complete: {success} fixed, {failed} failed, {skipped} skipped",
+            success=success, failed=failed, skipped=skipped,
+        ), style)
 
     def _clear_snapshot_failures(self):
         """Clear saved snapshot failure reports."""
         cleared = SnapshotFailureStore().clear_all()
         self._refresh_all()
-        self._set_status(f"Cleared {cleared} snapshot failure report(s)")
-        self._toast(f"Cleared {cleared} snapshot failure report(s)", "success")
+        self._set_status(format_message(
+            "Cleared {count} snapshot failure report(s)", count=cleared,
+        ))
+        self._toast(format_message(
+            "Cleared {count} snapshot failure report(s)", count=cleared,
+        ), "success")
 
     def _clean_urls(self):
         """Clean tracking params"""
@@ -1130,8 +1191,12 @@ class ToolsActionsMixin:
             return
         count = self.bookmark_manager.clean_tracking_params()
         self._refresh_all()
-        self._set_status(f"Cleaned {count} URLs; restore available from Tools")
-        self._toast(f"Cleaned {count} URLs; safepoint ready", "success")
+        self._set_status(format_message(
+            "Cleaned {count} URLs; restore available from Tools", count=count,
+        ))
+        self._toast(format_message(
+            "Cleaned {count} URLs; safepoint ready", count=count,
+        ), "success")
 
     def _show_analytics(self):
         """Show full analytics"""
@@ -1146,7 +1211,7 @@ class ToolsActionsMixin:
         filepath = backup_dir / f"backup_{timestamp}.json"
         
         self.bookmark_manager.export_json(str(filepath))
-        self._set_status(f"Backup saved to {filepath.name}")
+        self._set_status(format_message("Backup saved to {path}", path=filepath.name))
 
     def _clear_favicon_cache(self):
         """Clear favicon cache"""
@@ -1171,7 +1236,9 @@ class ToolsActionsMixin:
             return
 
         self._set_status("Redownloading all favicons...")
-        self._toast(f"Redownloading favicons for {len(bookmarks)} bookmarks", "info")
+        self._toast(format_message(
+            "Redownloading favicons for {count} bookmarks", count=len(bookmarks),
+        ), "info")
         self.favicon_manager.redownload_all_favicons(bookmarks)
 
     def _redownload_missing_favicons(self):
@@ -1198,10 +1265,10 @@ class ToolsActionsMixin:
             return
 
         self._set_status("Redownloading missing favicons...")
-        self._toast(
-            f"Retrying {missing_count} missing favicon(s) and {failed_count} failed domain(s)",
-            "info",
-        )
+        self._toast(format_message(
+            "Retrying {missing} missing favicon(s) and {failed} failed domain(s)",
+            missing=missing_count, failed=failed_count,
+        ), "info")
         self.favicon_manager.redownload_missing_favicons(bookmarks)
 
     def _show_category_manager(self):
@@ -1234,7 +1301,7 @@ class ToolsActionsMixin:
 
         sqlite_path = MASTER_BOOKMARKS_FILE.with_suffix(".sqlite")
         if sqlite_path.exists():
-            self._set_status(f"SQLite already exists at {sqlite_path}")
+            self._set_status(format_message("SQLite already exists at {path}", path=sqlite_path))
             self._toast("SQLite database already exists; rename it before migrating again", "info")
             return
 
@@ -1245,7 +1312,9 @@ class ToolsActionsMixin:
             return
 
         self._set_status("Migrating to SQLite...")
-        self._toast(f"Migrating {len(bookmarks)} bookmark(s) to SQLite", "info")
+        self._toast(format_message(
+            "Migrating {count} bookmark(s) to SQLite", count=len(bookmarks),
+        ), "info")
 
         def _worker():
             try:
@@ -1259,8 +1328,10 @@ class ToolsActionsMixin:
         threading.Thread(target=_worker, daemon=True).start()
 
     def _on_sqlite_migrate_done(self, count, path):
-        self._set_status(f"Migrated {count} bookmarks to SQLite")
-        self._show_toast(f"SQLite migration complete: {count} bookmarks", "success")
+        self._set_status(format_message("Migrated {count} bookmarks to SQLite", count=count))
+        self._show_toast(format_message(
+            "SQLite migration complete: {count} bookmarks", count=count,
+        ), "success")
         self._show_nonblocking_report(
             "Migration Complete",
             [
@@ -1271,7 +1342,7 @@ class ToolsActionsMixin:
                 "  BOOKMARK_STORAGE_BACKEND=sqlite",
                 "or pass --backend sqlite to the CLI.",
             ],
-            f"Migrated {count} bookmarks to SQLite",
+            format_message("Migrated {count} bookmarks to SQLite", count=count),
         )
 
     def _on_sqlite_migrate_error(self, exc):
@@ -1294,7 +1365,7 @@ class ToolsActionsMixin:
             self._set_status("Selected bookmark was not found")
             return
         ReaderViewDialog(self.root, bookmark)
-        self._set_status(f"Reader opened for {bookmark.title[:60]}")
+        self._set_status(format_message("Reader opened for {title}", title=bookmark.title[:60]))
 
     def _open_graph_view(self):
         """Open the bookmark relationship graph."""
@@ -1303,4 +1374,6 @@ class ToolsActionsMixin:
             self._show_toast("No bookmarks to graph", "info")
             return
         GraphViewDialog(self.root, bookmarks, on_open_bookmark=self._open_bookmark)
-        self._set_status(f"Graph opened with {len(bookmarks)} bookmark(s)")
+        self._set_status(format_message(
+            "Graph opened with {count} bookmark(s)", count=len(bookmarks),
+        ))

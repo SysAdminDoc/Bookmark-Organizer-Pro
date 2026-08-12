@@ -81,21 +81,25 @@ function showEmpty(container, message) {
 
 function connectionMessage(error) {
   if (error instanceof ApiResponseError && error.status === 401) {
-    return "The API token was rejected. Open Options and replace it.";
+    return extensionMessage("tokenRejectedDetail", [], "The API token was rejected. Open Options and replace it.");
   }
   if (error instanceof ApiResponseError) {
-    return `The local API returned ${error.status}. Try again or check the app logs.`;
+    return extensionMessage(
+      "apiReturnedError",
+      [String(error.status)],
+      `The local API returned ${error.status}. Try again or check the app logs.`,
+    );
   }
-  return "Cannot reach the local API. Start the app or run: bop api-server";
+  return extensionMessage("apiUnavailable", [], "Cannot reach the local API. Start the app or run: bop api-server");
 }
 
-function setRecentLoadMore(hasMore, label = "Load More") {
+function setRecentLoadMore(hasMore, label = "") {
   const button = document.getElementById("loadMoreRecent");
   if (!button) return;
   recentHasMore = Boolean(hasMore);
   button.hidden = !recentHasMore;
   button.disabled = false;
-  button.textContent = label;
+  button.textContent = label || extensionMessage("loadMore", [], "Load More");
 }
 
 async function refreshPendingPanel() {
@@ -105,10 +109,12 @@ async function refreshPendingPanel() {
   const cleared = await getClearedPendingSaves();
   panel.hidden = pending.length === 0 && !cleared;
   count.textContent = pending.length
-    ? `${pending.length} pending save${pending.length === 1 ? "" : "s"}`
+    ? pending.length === 1
+      ? extensionMessage("onePendingSave", [], "1 pending save")
+      : extensionMessage("pendingSavesCount", [String(pending.length)], `${pending.length} pending saves`)
     : cleared
-      ? `${cleared.items.length} cleared save${cleared.items.length === 1 ? "" : "s"} can be restored`
-      : "0 pending saves";
+      ? extensionMessage("clearedSavesRestorable", [String(cleared.items.length)], `${cleared.items.length} cleared saves can be restored`)
+      : extensionMessage("zeroPendingSaves", [], "0 pending saves");
   renderPendingSaves(document.getElementById("pendingList"), pending);
   document.getElementById("retryPending").disabled = pending.length === 0;
   document.getElementById("exportPending").disabled = pending.length === 0;
@@ -162,7 +168,7 @@ async function loadRecent({ append = false } = {}) {
   try {
     const config = await getConfig();
     if (!config.apiToken) {
-      showEmpty(list, "Add the API token in Options to connect.");
+      showEmpty(list, extensionMessage("addTokenToConnect", [], "Add the API token in Options to connect."));
       setRecentLoadMore(false);
       return;
     }
@@ -170,7 +176,7 @@ async function loadRecent({ append = false } = {}) {
     const data = await apiFetch(`/bookmarks?limit=${RECENT_PAGE_SIZE}&offset=${recentOffset}`, config);
     const bookmarks = data.bookmarks || [];
     if (!bookmarks.length && !append) {
-      showEmpty(list, "No bookmarks yet. Save the current page from the Add tab.");
+      showEmpty(list, extensionMessage("noBookmarksYet", [], "No bookmarks yet. Save the current page from the Add tab."));
       setRecentLoadMore(false);
       return;
     }
@@ -182,7 +188,7 @@ async function loadRecent({ append = false } = {}) {
     setRecentLoadMore(Boolean(data.has_more));
   } catch (error) {
     if (append) {
-      setRecentLoadMore(recentHasMore, "Retry");
+      setRecentLoadMore(recentHasMore, extensionMessage("retry", [], "Retry"));
     } else {
       showEmpty(list, connectionMessage(error));
       setRecentLoadMore(false);
@@ -217,7 +223,7 @@ async function loadRediscover() {
 async function doSearch(query) {
   const results = document.getElementById("searchResults");
   if (!query.trim()) {
-    showEmpty(results, "Type a query and press Go.");
+      showEmpty(results, extensionMessage("typeQuery", [], "Type a query and press Go."));
     return;
   }
   try {
@@ -225,7 +231,7 @@ async function doSearch(query) {
     const data = await apiFetch(`/search?q=${encodeURIComponent(query)}`, config);
     const hits = data.results || [];
     if (!hits.length) {
-      showEmpty(results, `No results for "${query}".`);
+      showEmpty(results, extensionMessage("noSearchResults", [query], `No results for "${query}".`));
       return;
     }
     results.innerHTML = "";
@@ -285,12 +291,12 @@ async function saveBookmark() {
   const saveBtn = document.getElementById("addSaveBtn");
   const url = titleEl.dataset.url;
   if (!url) {
-    setAddStatus("No saveable page.", "error");
+    setAddStatus(extensionMessage("noSaveablePage", [], "No saveable page."), "error");
     return;
   }
   const config = await getConfig();
   if (!config.apiToken) {
-    setAddStatus("Set API token in Options.", "error");
+    setAddStatus(extensionMessage("tokenRequiredShort", [], "Set API token in Options."), "error");
     return;
   }
 
@@ -314,7 +320,7 @@ async function saveBookmark() {
     }
     const result = await saveBookmarkPayload(payload, config, { source: "side_panel" });
     if (result.queued) {
-      setAddStatus("API unavailable. Save added to the retry journal.", "warning");
+      setAddStatus(extensionMessage("queuedSave", [], "API unavailable. Save added to the retry journal."), "warning");
       await refreshPendingPanel();
     } else if (result.status === 201) {
       const preserved = result.body && result.body.browser_snapshot;
@@ -327,10 +333,10 @@ async function saveBookmark() {
     } else if (result.status === 401) {
       setAddStatus(extensionMessage("invalidToken", [], "Invalid token. Check Options."), "error");
     } else {
-      setAddStatus(`Save failed (${result.status}).`, "error");
+      setAddStatus(extensionMessage("saveFailed", [String(result.status)], `Save failed (${result.status}).`), "error");
     }
   } catch (error) {
-    setAddStatus(error?.message || "Cannot reach the local API. Start the app or run: bop api-server", "error");
+    setAddStatus(extensionMessage("apiUnavailable", [], "Cannot reach the local API. Start the app or run: bop api-server"), "error");
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = extensionMessage("saveBookmark", [], "Save Bookmark");
@@ -346,7 +352,7 @@ function setAddStatus(message, tone) {
 async function importReadingList() {
   const button = document.getElementById("importReadingListBtn");
   if (!api.readingList || !api.readingList.query) {
-    setAddStatus("Reading List API not available in this browser.", "error");
+    setAddStatus(extensionMessage("readingListUnavailable", [], "Reading List API not available in this browser."), "error");
     return;
   }
   try {
@@ -354,7 +360,7 @@ async function importReadingList() {
     button.textContent = extensionMessage("importing", [], "Importing...");
     const config = await getConfig();
     if (!config.apiToken) {
-      setAddStatus("Set API token in Options first.", "error");
+      setAddStatus(extensionMessage("tokenRequiredFirst", [], "Set API token in Options first."), "error");
       return;
     }
     const items = await api.readingList.query({});
@@ -381,15 +387,27 @@ async function importReadingList() {
         else failed++;
       } catch { failed++; }
     }
-    const itemWord = items.length === 1 ? "item" : "items";
-    const detail = duplicates ? `; ${duplicates} already saved` : "";
-    const queueDetail = queued ? `; ${queued} queued for retry` : "";
-    const failureDetail = failed ? `; ${failed} failed` : "";
-    setAddStatus(`Imported ${imported} of ${items.length} reading list ${itemWord}${detail}${queueDetail}${failureDetail}.`, failed ? "error" : (queued ? "warning" : "success"));
+    const itemWord = items.length === 1
+      ? extensionMessage("readingListItem", [], "item")
+      : extensionMessage("readingListItems", [], "items");
+    const detail = duplicates
+      ? extensionMessage("readingListAlreadySaved", [String(duplicates)], `; ${duplicates} already saved`)
+      : "";
+    const queueDetail = queued
+      ? extensionMessage("readingListQueued", [String(queued)], `; ${queued} queued for retry`)
+      : "";
+    const failureDetail = failed
+      ? extensionMessage("readingListFailed", [String(failed)], `; ${failed} failed`)
+      : "";
+    setAddStatus(extensionMessage(
+      "readingListImportSummary",
+      [String(imported), String(items.length), itemWord, `${detail}${queueDetail}${failureDetail}`],
+      `Imported ${imported} of ${items.length} reading list ${itemWord}${detail}${queueDetail}${failureDetail}.`,
+    ), failed ? "error" : (queued ? "warning" : "success"));
     if (queued) await refreshPendingPanel();
     if (imported > 0) loadRecent();
   } catch {
-    setAddStatus("Could not access reading list.", "error");
+    setAddStatus(extensionMessage("readingListAccessFailed", [], "Could not access reading list."), "error");
   } finally {
     button.disabled = false;
     button.textContent = extensionMessage("readingList", [], "Reading List");

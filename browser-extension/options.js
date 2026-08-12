@@ -79,7 +79,7 @@ async function saveOptions({ replacePairing = false } = {}) {
   try {
     previous = await currentConfig();
   } catch {
-    setStatus("Could not read the current settings. Nothing was changed.", "error");
+    setStatus(extensionMessage("currentSettingsReadFailed", [], "Could not read the current settings. Nothing was changed."), "error");
     return;
   }
 
@@ -88,20 +88,21 @@ async function saveOptions({ replacePairing = false } = {}) {
   try {
     pairing = await pairExtension(candidate, { replace: replacePairing });
   } catch {
-    setStatus("Cannot reach the local API. Start the app and try again. Previous settings were kept.", "error");
+    setStatus(extensionMessage("apiUnavailableKeepSettings", [], "Cannot reach the local API. Start the app and try again. Previous settings were kept."), "error");
     return;
   }
 
   if (pairing.status === 409 && pairing.body.replace_required) {
-    setStatus("This API is paired with another extension ID. Use Replace Pairing to recover this install. Previous settings were kept.", "error");
+    setStatus(extensionMessage("pairingConflict", [], "This API is paired with another extension ID. Use Replace Pairing to recover this install. Previous settings were kept."), "error");
     return;
   }
   if (pairing.status === 401) {
-    setStatus("Server reached but token is invalid. Previous settings were kept.", "error");
+    setStatus(extensionMessage("serverInvalidTokenKeepSettings", [], "Server reached but token is invalid. Previous settings were kept."), "error");
     return;
   }
   if (pairing.status !== 200 || !pairing.body.paired) {
-    setStatus(`${pairing.body.error || `Pairing failed: HTTP ${pairing.status}`} Previous settings were kept.`, "error");
+    const detail = pairing.body.error || `Pairing failed: HTTP ${pairing.status}`;
+    setStatus(extensionMessage("pairingFailedKeepSettings", [detail], `${detail} Previous settings were kept.`), "error");
     return;
   }
 
@@ -110,8 +111,8 @@ async function saveOptions({ replacePairing = false } = {}) {
   } catch (error) {
     const restored = error && error.message !== "Settings could not be stored or restored";
     setStatus(restored
-      ? "Pairing succeeded, but settings could not be stored. Previous settings were restored."
-      : "Pairing succeeded, but settings could not be stored or restored. Reopen Options before saving bookmarks.", "error");
+      ? extensionMessage("pairingStorageFailedRestored", [], "Pairing succeeded, but settings could not be stored. Previous settings were restored.")
+      : extensionMessage("pairingStorageFailed", [], "Pairing succeeded, but settings could not be stored or restored. Reopen Options before saving bookmarks."), "error");
     return;
   }
   setStatus(replacePairing
@@ -124,11 +125,11 @@ async function testConnection() {
   const token = document.getElementById("apiToken").value.trim();
 
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    setStatus("Enter a valid TCP port first.", "error");
+    setStatus(extensionMessage("validPortFirst", [], "Enter a valid TCP port first."), "error");
     return;
   }
   if (!token) {
-    setStatus("Enter the local API token before testing.", "error");
+    setStatus(extensionMessage("tokenRequiredTesting", [], "Enter the local API token before testing."), "error");
     return;
   }
 
@@ -149,7 +150,7 @@ async function testConnection() {
     } else if (response.status === 401) {
       setStatus(extensionMessage("serverInvalidToken", [], "Server reached but token is invalid."), "error");
     } else {
-      setStatus(`Unexpected response: ${response.status}`, "error");
+      setStatus(extensionMessage("unexpectedResponse", [String(response.status)], `Unexpected response: ${response.status}`), "error");
     }
   } catch {
     setStatus(extensionMessage("apiUnavailable", [], "Cannot reach the local API. Start the app or run: bop api-server"), "error");
@@ -160,14 +161,14 @@ async function testConnection() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  loadOptions().catch(() => setStatus("Could not load options.", "error"));
+  loadOptions().catch(() => setStatus(extensionMessage("optionsLoadFailed", [], "Could not load options."), "error"));
   document.getElementById("saveOptions").addEventListener("click", () => {
-    saveOptions().catch(() => setStatus("Could not save options.", "error"));
+    saveOptions().catch(() => setStatus(extensionMessage("optionsSaveFailed", [], "Could not save options."), "error"));
   });
   document.getElementById("testConnection").addEventListener("click", () => {
-    testConnection().catch(() => setStatus("Connection test failed.", "error"));
+    testConnection().catch(() => setStatus(extensionMessage("connectionTestFailed", [], "Connection test failed."), "error"));
   });
   document.getElementById("replacePairing").addEventListener("click", () => {
-    saveOptions({ replacePairing: true }).catch(() => setStatus("Could not replace pairing.", "error"));
+    saveOptions({ replacePairing: true }).catch(() => setStatus(extensionMessage("pairingReplaceFailed", [], "Could not replace pairing."), "error"));
   });
 });

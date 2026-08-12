@@ -221,7 +221,7 @@ Respond with ONLY valid JSON in this exact format:
                 format_message('Updated {value_0} bookmark title(s).', value_0=applied),
                 parent=self.root
             )
-            self._set_status(f"Updated {applied} titles")
+            self._set_status(format_message("Updated {count} titles", count=applied))
         
         def select_all():
             for _old_title, _new_title, var in check_vars:

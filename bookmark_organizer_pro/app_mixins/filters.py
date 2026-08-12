@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import tkinter as tk
 
-from bookmark_organizer_pro.i18n import _
+from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.ui import build_filter_counts
 from bookmark_organizer_pro.ui.foundation import FONTS, format_compact_count
 from bookmark_organizer_pro.ui.widgets import get_theme
@@ -304,7 +304,7 @@ class FilterActionsMixin:
         self.root.after(50, reset_flag)
         
         self._refresh_bookmark_list()
-        self._set_status(f"Filtering by domain: {domain}")
+        self._set_status(format_message("Filtering by domain: {domain}", domain=domain))
     
     def _select_category(self, category: str):
         """Select category"""
@@ -338,7 +338,7 @@ class FilterActionsMixin:
         self.root.after(50, reset_flag)
         
         if self.current_category:
-            self._set_status(f"Category: {category}")
+            self._set_status(format_message("Category: {category}", category=category))
         else:
             self._set_status("Showing all bookmarks")
     
@@ -394,7 +394,7 @@ class FilterActionsMixin:
         if filter_name == "All":
             self._set_status("Showing all bookmarks")
         else:
-            self._set_status(f"Filter: {filter_name}")
+            self._set_status(format_message("Filter: {filter}", filter=filter_name))
     
     def _cancel_search_debounce(self):
         """Cancel any pending search debounce"""
