@@ -105,6 +105,39 @@ def test_graph_view_uses_shared_geometry_and_full_viewport_matrix():
     assert "_verify_viewport" in smoke_source
 
 
+def test_visual_smoke_asserts_graph_dialog_geometry_and_label_collisions():
+    root = Path(__file__).resolve().parents[1]
+    graph_source = (root / "bookmark_organizer_pro/ui/graph_view.py").read_text(encoding="utf-8")
+    smoke_source = inspect.getsource(smoke.run_desktop_smoke)
+    graph_smoke_source = inspect.getsource(smoke.assert_graph_labels_visible)
+    dialog_smoke_source = inspect.getsource(smoke.verify_dialog_viewports)
+
+    assert "_on_canvas_configure" in graph_source
+    assert "_graph_label_text" in graph_source
+    assert "_GRAPH_LABEL_OFFSETS" in graph_source
+    assert "assert_graph_labels_visible" in smoke_source
+    assert "graph labels overlap" in graph_smoke_source
+    assert "DESKTOP_VIEWPORTS" in dialog_smoke_source
+    assert '"github_dark", "github_light"' in dialog_smoke_source
+
+
+def test_visual_smoke_asserts_dialog_footers_theme_tokens_and_popup_helper():
+    root = Path(__file__).resolve().parents[1]
+    editor_source = (root / "bookmark_organizer_pro/ui/widget_bookmark_editor.py").read_text(encoding="utf-8")
+    about_source = (root / "bookmark_organizer_pro/ui/about.py").read_text(encoding="utf-8")
+    popup_source = (root / "browser-extension/popup.css").read_text(encoding="utf-8")
+    smoke_source = inspect.getsource(smoke.run_desktop_smoke)
+    browser_source = inspect.getsource(smoke.check_browser_layout)
+
+    assert "self.btn_frame.pack(side=tk.BOTTOM" in editor_source
+    assert "self.footer.pack(fill=tk.X, side=tk.BOTTOM)" in about_source
+    assert "assert_widgets_do_not_overlap" in smoke_source
+    assert "assert_combobox_uses_theme" in smoke_source
+    assert "assert_widget_inside(about, about.footer" in smoke_source
+    assert "-webkit-line-clamp" not in popup_source
+    assert "helper text is still truncated" in browser_source
+
+
 def test_root_minimum_allows_documented_laptop_viewport():
     root = Path(__file__).resolve().parents[1]
     app_source = (root / "bookmark_organizer_pro" / "app.py").read_text(encoding="utf-8")

@@ -23,6 +23,13 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   cells, blank headers, and stale focus state; live accessibility and visual
   smokes now inspect native Treeview headings and Site cells as well as the
   virtual adapter.
+- Turned the visual smoke matrix into a defect gate for graph label bounds and
+  keyboard help, reserved editor/About footers, themed combobox fields, and
+  fully visible extension helper text across supported desktop themes and
+  viewports.
+- Made local API deadline cleanup deterministic on Windows by using an
+  unbuffered request reader, closing expired sockets, and releasing admission
+  leases idempotently when a timed-out handler is still unwinding.
 - Versioned semantic indexes and collection-answer caches by embedder/model
   revision, vector dimension, chunker contract, normalized source digest, AI
   configuration, and generation; incompatible, legacy, or source-stale rows

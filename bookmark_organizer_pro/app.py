@@ -30,6 +30,7 @@ from bookmark_organizer_pro.services import HighSpeedFaviconManager, load_favico
 from bookmark_organizer_pro.theme_runtime import get_theme, get_theme_manager
 from bookmark_organizer_pro.ui.infrastructure import NonBlockingTaskRunner, TkEventDispatcher
 from bookmark_organizer_pro.ui.shell_widgets import ViewMode
+from bookmark_organizer_pro.ui.style_manager import style_manager
 from bookmark_organizer_pro.ui.widgets import ThemedWidget, apply_window_chrome
 
 
@@ -101,6 +102,10 @@ class FinalBookmarkOrganizerApp(
     
     def __init__(self, root: tk.Tk):
         self.root = root
+        # The launcher initializes ttk before constructing the app, but tests,
+        # embedded callers, and the visual smoke harness may instantiate the
+        # app directly. Keep those paths on the same themed widget contract.
+        style_manager.initialize(root)
         self.theme_manager = get_theme_manager()
         self._theme_change_callback = (
             lambda theme_info: self._on_theme_change(theme_info.display_name)

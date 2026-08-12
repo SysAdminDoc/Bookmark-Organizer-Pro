@@ -523,6 +523,92 @@ def assert_no_horizontal_overflow(window) -> None:
         raise VisualSmokeError("horizontal overflow: " + ", ".join(failures[:8]))
 
 
+def _widget_bounds(widget) -> tuple[int, int, int, int]:
+    return (
+        widget.winfo_rootx(),
+        widget.winfo_rooty(),
+        widget.winfo_rootx() + widget.winfo_width(),
+        widget.winfo_rooty() + widget.winfo_height(),
+    )
+
+
+def assert_widget_inside(window, widget, label: str) -> None:
+    """Require a mapped widget to remain inside its top-level client area."""
+    window.update_idletasks()
+    if not widget.winfo_ismapped() or widget.winfo_width() <= 1 or widget.winfo_height() <= 1:
+        raise VisualSmokeError(f"{label} is not mapped with usable geometry")
+    window_left, window_top, window_right, window_bottom = _widget_bounds(window)
+    widget_left, widget_top, widget_right, widget_bottom = _widget_bounds(widget)
+    if not (
+        window_left <= widget_left
+        and window_top <= widget_top
+        and widget_right <= window_right
+        and widget_bottom <= window_bottom
+    ):
+        raise VisualSmokeError(
+            f"{label} escapes window: "
+            f"({widget_left - window_left},{widget_top - window_top},"
+            f"{widget.winfo_width()}x{widget.winfo_height()})"
+        )
+
+
+def assert_widgets_do_not_overlap(first, second, label: str, *, gap: int = 0) -> None:
+    """Require two layout regions to have a clear separation."""
+    first_left, first_top, first_right, first_bottom = _widget_bounds(first)
+    second_left, second_top, second_right, second_bottom = _widget_bounds(second)
+    if not (
+        first_right + gap <= second_left
+        or second_right + gap <= first_left
+        or first_bottom + gap <= second_top
+        or second_bottom + gap <= first_top
+    ):
+        raise VisualSmokeError(f"{label} regions overlap")
+
+
+def assert_graph_labels_visible(dialog) -> None:
+    """Require every graph label to fit the scroll region without collisions."""
+    labels = dialog.canvas.find_withtag("node-label")
+    if len(labels) != len(dialog.graph.nodes):
+        raise VisualSmokeError(
+            f"graph label count mismatch: {len(labels)} != {len(dialog.graph.nodes)}"
+        )
+    boxes: list[tuple[int, int, int, int]] = []
+    for item in labels:
+        bbox = dialog.canvas.bbox(item)
+        if not bbox:
+            raise VisualSmokeError("graph label has no measurable bounds")
+        left, top, right, bottom = bbox
+        if left < 4 or top < 4 or right > dialog.graph_width - 4 or bottom > dialog.graph_height - 4:
+            raise VisualSmokeError(f"graph label clips at {bbox}")
+        for other in boxes:
+            if not (
+                right <= other[0]
+                or other[2] <= left
+                or bottom <= other[1]
+                or other[3] <= top
+            ):
+                raise VisualSmokeError(f"graph labels overlap at {bbox} and {other}")
+        boxes.append(bbox)
+
+
+def assert_combobox_uses_theme(combo, theme) -> None:
+    """Fail when a combobox falls back to an unthemed white native field."""
+    from tkinter import ttk
+
+    style = ttk.Style(combo)
+    style_name = combo.cget("style") or "TCombobox"
+    field_color = style.lookup(style_name, "fieldbackground")
+    expected = {
+        str(theme.bg_primary).lower(),
+        str(theme.bg_secondary).lower(),
+        str(theme.bg_card).lower(),
+    }
+    if not field_color or str(field_color).lower() not in expected:
+        raise VisualSmokeError(
+            f"combobox field is not using theme tokens: {field_color!r}"
+        )
+
+
 def _set_scaling(window, baseline: float, multiplier: float) -> None:
     window.tk.call("tk", "scaling", baseline * multiplier)
 
@@ -572,8 +658,80 @@ def verify_graph_viewports(root, theme_manager, bookmarks) -> None:
                 try:
                     _prepare_background_window(dialog)
                     _verify_viewport(dialog, width, height)
+                    assert_graph_labels_visible(dialog)
+                    assert_named_controls_visible(
+                        dialog,
+                        ("Bookmark Graph", "Legend", "Selected", "Arrow keys navigate"),
+                    )
+                    assert_widget_inside(dialog, dialog.status, "graph keyboard help")
                 finally:
                     destroy_window(dialog)
+    finally:
+        _set_scaling(root, baseline, 1.0)
+
+
+def verify_dialog_viewports(root, theme_manager, bookmark) -> None:
+    """Exercise editor and About footer contracts at every supported viewport."""
+    from bookmark_organizer_pro.ui.about import AboutDialog
+    from bookmark_organizer_pro.ui.widget_bookmark_editor import BookmarkEditorDialog
+    from bookmark_organizer_pro.ui.window_geometry import apply_screen_aware_geometry
+    from bookmark_organizer_pro.theme_runtime import get_theme
+
+    baseline = float(root.tk.call("tk", "scaling"))
+    try:
+        for width, height, scaling in DESKTOP_VIEWPORTS:
+            for theme_name in ("github_dark", "github_light"):
+                _set_scaling(root, baseline, scaling)
+                theme_manager.set_theme(theme_name)
+                editor = BookmarkEditorDialog(
+                    root,
+                    bookmark=bookmark,
+                    categories=["Development", "Research"],
+                )
+                try:
+                    apply_screen_aware_geometry(
+                        editor,
+                        640,
+                        760,
+                        screen_width=width,
+                        screen_height=height,
+                    )
+                    _prepare_background_window(editor)
+                    editor.update()
+                    assert_actionable_controls_inside(editor)
+                    assert_named_controls_visible(
+                        editor,
+                        ("Edit bookmark", "Save bookmark", "Cancel"),
+                    )
+                    assert_widget_inside(editor, editor.btn_frame, "bookmark editor footer")
+                    assert_widgets_do_not_overlap(
+                        editor.content_canvas,
+                        editor.btn_frame,
+                        "bookmark editor body/footer",
+                    )
+                    assert_combobox_uses_theme(editor.category_combo, get_theme())
+                finally:
+                    destroy_window(editor)
+
+                about = AboutDialog(root)
+                try:
+                    apply_screen_aware_geometry(
+                        about,
+                        700,
+                        640,
+                        screen_width=width,
+                        screen_height=height,
+                    )
+                    _prepare_background_window(about)
+                    about.update()
+                    assert_actionable_controls_inside(about)
+                    assert_named_controls_visible(
+                        about,
+                        ("Open Logs", "Copy Diagnostics", "Preview Support Bundle", "Close"),
+                    )
+                    assert_widget_inside(about, about.footer, "about footer")
+                finally:
+                    destroy_window(about)
     finally:
         _set_scaling(root, baseline, 1.0)
 
@@ -594,7 +752,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
     )
     from bookmark_organizer_pro.services.reader_annotations import ReaderAnnotationStore
     from bookmark_organizer_pro.services.snapshot import SnapshotBackendAttempt, SnapshotFailureStore
-    from bookmark_organizer_pro.theme_runtime import get_theme_manager
+    from bookmark_organizer_pro.theme_runtime import get_theme, get_theme_manager
     from bookmark_organizer_pro.ui.graph_view import GraphViewDialog
     from bookmark_organizer_pro.ui.import_center import ImportCenterDialog, build_import_sources
     from bookmark_organizer_pro.ui.about import AboutDialog
@@ -662,7 +820,16 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
             editor, 640, 760, screen_width=1280, screen_height=720,
         )
         editor.update()
+        _prepare_background_window(editor)
         assert_actionable_controls_inside(editor)
+        assert_named_controls_visible(editor, ("Edit bookmark", "Save bookmark", "Cancel"))
+        assert_widget_inside(editor, editor.btn_frame, "bookmark editor footer")
+        assert_widgets_do_not_overlap(
+            editor.content_canvas,
+            editor.btn_frame,
+            "bookmark editor body/footer",
+        )
+        assert_combobox_uses_theme(editor.category_combo, get_theme())
         results.append(
             capture_tk_window(
                 editor,
@@ -678,7 +845,13 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
             about, 700, 640, screen_width=1280, screen_height=720,
         )
         about.update()
+        _prepare_background_window(about)
         assert_actionable_controls_inside(about)
+        assert_named_controls_visible(
+            about,
+            ("Open Logs", "Copy Diagnostics", "Preview Support Bundle", "Close"),
+        )
+        assert_widget_inside(about, about.footer, "about footer")
         results.append(
             capture_tk_window(
                 about,
@@ -773,6 +946,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
                 created_at="2026-07-11T09:00:00",
             ),
         ]
+        verify_dialog_viewports(root, theme_manager, sample_bookmarks[0])
         for bookmark in sample_bookmarks:
             app.bookmark_manager.add_bookmark(bookmark, save=False)
         app.bookmark_manager.save_bookmarks()
@@ -1165,6 +1339,13 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
         verify_graph_viewports(root, theme_manager, sample_bookmarks)
         theme_manager.set_theme("github_dark")
         graph_dialog = GraphViewDialog(root, sample_bookmarks)
+        _prepare_background_window(graph_dialog)
+        assert_graph_labels_visible(graph_dialog)
+        assert_named_controls_visible(
+            graph_dialog,
+            ("Bookmark Graph", "Legend", "Selected", "Arrow keys navigate"),
+        )
+        assert_widget_inside(graph_dialog, graph_dialog.status, "graph keyboard help")
         results.append(
             capture_tk_window(
                 graph_dialog,
@@ -1294,6 +1475,26 @@ def check_browser_layout(page, surface: ExtensionSurface) -> None:
         raise VisualSmokeError(
             f"{surface.name} has horizontal overflow: {overflow['scrollWidth']} > {overflow['clientWidth']}"
         )
+    if surface.html_file == "popup.html":
+        hint = page.locator(".field-hint").first
+        metrics = hint.evaluate(
+            """(node) => {
+                const style = getComputedStyle(node);
+                return {
+                    text: node.textContent || '',
+                    clientHeight: node.clientHeight,
+                    scrollHeight: node.scrollHeight,
+                    overflow: style.overflow,
+                    textOverflow: style.textOverflow,
+                    lineClamp: style.webkitLineClamp,
+                };
+            }"""
+        )
+        if metrics["scrollHeight"] > metrics["clientHeight"] + 1:
+            raise VisualSmokeError(f"{surface.name} helper text is vertically clipped")
+        if metrics["overflow"] == "hidden" or metrics["textOverflow"] == "ellipsis" or metrics["lineClamp"] not in {"none", "normal"}:
+            raise VisualSmokeError(f"{surface.name} helper text is still truncated")
+        require_text(surface.name, metrics["text"], ("sanitized", "cookies"))
 
 
 def run_extension_smoke(output_dir: Path) -> list[CaptureResult]:

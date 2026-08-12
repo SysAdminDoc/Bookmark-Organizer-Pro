@@ -62,10 +62,32 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
             text=_("Keep the URL, category, tags, and notes clear enough to find later."),
             bg=theme.bg_dark, fg=theme.text_secondary, font=FONTS.small()
         ).pack(anchor="w", padx=DesignTokens.PANEL_PAD, pady=(0, 9))
+
+        # Pack the fixed footer before the expanding body so Tk reserves its
+        # height instead of letting the scrollable canvas paint underneath it.
+        self.btn_frame = tk.Frame(self, bg=theme.bg_primary)
+        self.btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=28, pady=(0, 12))
+
+        self.cancel_button = ModernButton(
+            self.btn_frame, text=_("Cancel"), command=self.destroy
+        )
+        self.cancel_button.pack(side=tk.RIGHT, padx=(10, 0))
+
+        self.save_button = ModernButton(
+            self.btn_frame, text=_("Save bookmark"), command=self._save,
+            style="primary"
+        )
+        self.save_button.pack(side=tk.RIGHT)
+
+        if bookmark:
+            self.open_button = ModernButton(
+                self.btn_frame, text=_("Open in browser"), command=self._open_url,
+            )
+            self.open_button.pack(side=tk.LEFT)
         
         # Scrollable content keeps the footer reachable on 1280x720 displays.
         body = tk.Frame(self, bg=theme.bg_primary)
-        body.pack(fill=tk.BOTH, expand=True, padx=(28, 14), pady=20)
+        body.pack(fill=tk.BOTH, expand=True, padx=(28, 14), pady=(12, 8))
         self.content_canvas = tk.Canvas(
             body, bg=theme.bg_primary, highlightthickness=0, bd=0,
         )
@@ -259,24 +281,6 @@ class BookmarkEditorDialog(tk.Toplevel, ThemedWidget):
         
         content.columnconfigure(0, weight=1)
         content.columnconfigure(1, weight=1)
-        
-        # Buttons
-        btn_frame = tk.Frame(self, bg=theme.bg_primary)
-        btn_frame.pack(fill=tk.X, padx=28, pady=(0, 20))
-        
-        ModernButton(
-            btn_frame, text=_("Cancel"), command=self.destroy
-        ).pack(side=tk.RIGHT, padx=(10, 0))
-
-        ModernButton(
-            btn_frame, text=_("Save bookmark"), command=self._save,
-            style="primary"
-        ).pack(side=tk.RIGHT)
-        
-        if bookmark:
-            ModernButton(
-                btn_frame, text=_("Open in browser"), command=self._open_url,
-            ).pack(side=tk.LEFT)
         
         self.bind("<Escape>", lambda e: self.destroy())
         self.bind("<Control-Return>", lambda e: self._save())

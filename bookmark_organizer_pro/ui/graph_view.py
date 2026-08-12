@@ -23,6 +23,12 @@ from .window_geometry import apply_screen_aware_geometry
 from .widgets import apply_window_chrome, get_theme
 
 
+_GRAPH_FALLBACK_WIDTH = 980
+_GRAPH_FALLBACK_HEIGHT = 640
+_GRAPH_LABEL_MAX_CHARS = 30
+_GRAPH_LABEL_OFFSETS = (0, -24, 24, -48, 48, -72, 72, -96, 96)
+
+
 _DIRECTION_VECTORS = {
     "Left": (-1, 0),
     "Right": (1, 0),
@@ -72,6 +78,34 @@ def _node_colors():
     }
 
 
+def _graph_label_text(label: str) -> str:
+    """Keep canvas labels compact enough to remain legible at narrow widths."""
+    text = " ".join(str(label or "").split())
+    if len(text) <= _GRAPH_LABEL_MAX_CHARS:
+        return text
+    return text[: _GRAPH_LABEL_MAX_CHARS - 1].rstrip() + "…"
+
+
+def _bbox_inside_graph(bbox: tuple[int, int, int, int], width: int, height: int) -> bool:
+    left, top, right, bottom = bbox
+    return left >= 4 and top >= 4 and right <= width - 4 and bottom <= height - 4
+
+
+def _bboxes_overlap(
+    first: tuple[int, int, int, int],
+    second: tuple[int, int, int, int],
+    gap: int = 4,
+) -> bool:
+    first_left, first_top, first_right, first_bottom = first
+    second_left, second_top, second_right, second_bottom = second
+    return not (
+        first_right + gap <= second_left
+        or second_right + gap <= first_left
+        or first_bottom + gap <= second_top
+        or second_bottom + gap <= first_top
+    )
+
+
 class GraphViewDialog(tk.Toplevel):
     """Render bookmark relationships on a Tk canvas."""
 
@@ -88,14 +122,15 @@ class GraphViewDialog(tk.Toplevel):
         self.bookmarks_by_node = {f"bookmark:{bm.id}": bm for bm in self.bookmarks}
         self.on_open_bookmark = on_open_bookmark
         self.max_bookmarks = max_bookmarks
-        self.graph: BookmarkGraph = apply_force_layout(
-            build_bookmark_graph(self.bookmarks, max_bookmarks=max_bookmarks),
-            width=980,
-            height=640,
-            iterations=60,
+        self.graph: BookmarkGraph = build_bookmark_graph(
+            self.bookmarks,
+            max_bookmarks=max_bookmarks,
         )
+        self.graph_width = _GRAPH_FALLBACK_WIDTH
+        self.graph_height = _GRAPH_FALLBACK_HEIGHT
         self.node_lookup: Dict[str, GraphNode] = {node.id: node for node in self.graph.nodes}
         self.selected_node_id: str | None = None
+        self._layout_job = None
 
         self.title(_("Bookmark Graph"))
         self.minsize(820, 560)
@@ -105,6 +140,8 @@ class GraphViewDialog(tk.Toplevel):
         apply_window_chrome(self)
 
         self._build()
+        self.update_idletasks()
+        self._layout_graph()
         self._draw_graph()
         self.bind("<Escape>", lambda _event: self.destroy())
 
@@ -148,7 +185,7 @@ class GraphViewDialog(tk.Toplevel):
             highlightthickness=1,
             highlightbackground=theme.border_muted,
             highlightcolor=theme.accent_primary,
-            scrollregion=(0, 0, 1040, 700),
+            scrollregion=(0, 0, self.graph_width, self.graph_height),
         )
         xbar = tk.Scrollbar(canvas_frame, orient=tk.HORIZONTAL, command=self.canvas.xview)
         ybar = tk.Scrollbar(canvas_frame, orient=tk.VERTICAL, command=self.canvas.yview)
@@ -182,7 +219,7 @@ class GraphViewDialog(tk.Toplevel):
         self.detail_title.pack(fill=tk.X, pady=(16, 6))
         self.detail_text = tk.Text(
             side,
-            height=12,
+            height=8,
             wrap=tk.WORD,
             bg=theme.bg_primary,
             fg=theme.text_primary,
@@ -191,7 +228,7 @@ class GraphViewDialog(tk.Toplevel):
             pady=8,
             font=FONTS.small(),
         )
-        self.detail_text.pack(fill=tk.BOTH, expand=True)
+        self.detail_text.pack(fill=tk.X, expand=False)
         self.detail_text.insert("1.0", _("Select a node to inspect its relationship details."))
         self.detail_text.configure(state=tk.DISABLED)
 
@@ -213,13 +250,14 @@ class GraphViewDialog(tk.Toplevel):
 
         self.status = tk.Label(
             side,
-            text=_("Select a node. Use Tab or arrow keys to navigate; Enter opens bookmarks."),
+            text=_("Arrow keys navigate; Enter opens bookmarks."),
             bg=theme.bg_secondary,
             fg=theme.text_muted,
             font=FONTS.small(),
             anchor="w",
             justify=tk.LEFT,
-            wraplength=240,
+            height=2,
+            wraplength=300,
         )
         self.status.pack(fill=tk.X, pady=(10, 0))
 
@@ -236,6 +274,49 @@ class GraphViewDialog(tk.Toplevel):
             self.canvas.bind(key, self._on_arrow_navigation)
         self.canvas.bind("<Return>", self._on_keyboard_activate)
         self.canvas.bind("<space>", self._on_keyboard_activate)
+        self.canvas.bind("<Configure>", self._on_canvas_configure, add="+")
+
+    def _on_canvas_configure(self, _event=None) -> None:
+        """Relayout after the PanedWindow has assigned the real canvas size."""
+        if self._layout_job is not None:
+            try:
+                self.after_cancel(self._layout_job)
+            except tk.TclError:
+                pass
+        self._layout_job = self.after_idle(self._fit_graph_to_viewport)
+
+    def _fit_graph_to_viewport(self) -> None:
+        self._layout_job = None
+        available_width = self.canvas.winfo_width() - 24
+        available_height = self.canvas.winfo_height() - 24
+        if available_width <= 1 or available_height <= 1:
+            return
+        width = max(480, int(available_width))
+        height = max(420, int(available_height))
+        if (width, height) == (self.graph_width, self.graph_height):
+            return
+        self._layout_graph()
+        self._draw_graph()
+
+    def _layout_graph(self) -> None:
+        """Fit the initial graph to the visible canvas viewport."""
+        available_width = self.canvas.winfo_width() - 24
+        available_height = self.canvas.winfo_height() - 24
+        if available_width <= 1:
+            available_width = _GRAPH_FALLBACK_WIDTH
+        if available_height <= 1:
+            available_height = _GRAPH_FALLBACK_HEIGHT
+        self.graph_width = max(480, int(available_width))
+        self.graph_height = max(420, int(available_height))
+        apply_force_layout(
+            self.graph,
+            width=self.graph_width,
+            height=self.graph_height,
+            iterations=60,
+        )
+        self.canvas.configure(
+            scrollregion=(0, 0, self.graph_width, self.graph_height)
+        )
 
     def _draw_graph(self) -> None:
         theme = get_theme()
@@ -268,10 +349,15 @@ class GraphViewDialog(tk.Toplevel):
                 width=max(1, min(4, edge.weight)),
                 tags=("graph", "edge"),
             )
+        occupied_labels: list[tuple[int, int, int, int]] = []
         for node in self.graph.nodes:
-            self._draw_node(node)
+            self._draw_node(node, occupied_labels)
 
-    def _draw_node(self, node: GraphNode) -> None:
+    def _draw_node(
+        self,
+        node: GraphNode,
+        occupied_labels: list[tuple[int, int, int, int]],
+    ) -> None:
         theme = get_theme()
         color = _node_colors().get(node.type, theme.accent_primary)
         size = 8 + min(10, node.weight)
@@ -286,15 +372,47 @@ class GraphViewDialog(tk.Toplevel):
             width=2,
             tags=("graph", "node", "node-shape", f"node-shape:{node.id}", tag),
         )
-        self.canvas.create_text(
-            node.x + size + 5,
-            node.y,
-            text=node.label[:36],
-            anchor="w",
+        label = _graph_label_text(node.label)
+        anchors = ("e", "w") if node.x >= self.graph_width * 0.62 else ("w", "e")
+        x_positions = {
+            "w": node.x + size + 5,
+            "e": node.x - size - 5,
+        }
+        for anchor in anchors:
+            for offset in _GRAPH_LABEL_OFFSETS:
+                item = self.canvas.create_text(
+                    x_positions[anchor],
+                    node.y + offset,
+                    text=label,
+                    anchor=anchor,
+                    fill=theme.text_primary,
+                    font=FONTS.small(),
+                    tags=("graph", "node-label", tag),
+                )
+                bbox = self.canvas.bbox(item)
+                if (
+                    bbox
+                    and _bbox_inside_graph(bbox, self.graph_width, self.graph_height)
+                    and not any(_bboxes_overlap(bbox, other) for other in occupied_labels)
+                ):
+                    occupied_labels.append(bbox)
+                    return
+                self.canvas.delete(item)
+
+        # A dense graph can exhaust all preferred slots. Keep the label visible
+        # inside the scroll region rather than allowing it to clip at an edge.
+        item = self.canvas.create_text(
+            max(8, min(self.graph_width - 8, x_positions[anchors[0]])),
+            max(8, min(self.graph_height - 8, node.y)),
+            text=label,
+            anchor=anchors[0],
             fill=theme.text_primary,
             font=FONTS.small(),
             tags=("graph", "node-label", tag),
         )
+        bbox = self.canvas.bbox(item)
+        if bbox:
+            occupied_labels.append(bbox)
 
     def _node_id_from_event(self, event) -> str | None:
         current = self.canvas.find_withtag("current")

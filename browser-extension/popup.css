@@ -768,11 +768,9 @@ button:disabled {
 }
 
 .popup-body .field-hint {
-  display: -webkit-box;
   margin-top: 0;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  overflow: visible;
+  white-space: normal;
 }
 
 .popup-body .actions {

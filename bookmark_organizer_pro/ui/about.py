@@ -118,32 +118,27 @@ class AboutDialog(tk.Toplevel):
             font=FONTS.small(), bg=theme.bg_secondary, fg=theme.text_muted
         ).pack(pady=(4, 0))
         
-        # Tab notebook
-        notebook = ttk.Notebook(self)
-        notebook.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
+        # Pack the fixed footer before the expanding notebook so the action
+        # row always receives its requested height on short displays.
+        self.footer = tk.Frame(self, bg=theme.bg_secondary)
+        self.footer.pack(fill=tk.X, side=tk.BOTTOM)
         
-        # Create tabs
-        self._create_about_tab(notebook, theme)
-        self._create_features_tab(notebook, theme)
-        self._create_system_tab(notebook, theme)
-        self._create_credits_tab(notebook, theme)
-        
-        # Footer
-        footer = tk.Frame(self, bg=theme.bg_secondary)
-        footer.pack(fill=tk.X, side=tk.BOTTOM)
-        
-        footer_content = tk.Frame(footer, bg=theme.bg_secondary)
+        footer_content = tk.Frame(self.footer, bg=theme.bg_secondary)
         footer_content.pack(pady=12, padx=15, fill=tk.X)
-        
-        actions = tk.Frame(footer_content, bg=theme.bg_secondary)
-        actions.pack(fill=tk.X)
+        self._about_footer_content = footer_content
 
+        actions = tk.Frame(footer_content, bg=theme.bg_secondary)
+        actions.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self._about_actions = actions
+
+        self.about_action_buttons = {}
         logs_btn = ModernButton(
             actions, text=_("Open Logs"),
             font=FONTS.small(), command=self._open_logs,
             padx=12, pady=6
         )
         logs_btn.pack(side=layout_side(tk.LEFT), padx=(0, 8))
+        self.about_action_buttons["logs"] = logs_btn
 
         copy_btn = ModernButton(
             actions, text=_("Copy Diagnostics"),
@@ -151,6 +146,7 @@ class AboutDialog(tk.Toplevel):
             padx=12, pady=6
         )
         copy_btn.pack(side=layout_side(tk.LEFT), padx=(0, 8))
+        self.about_action_buttons["copy"] = copy_btn
 
         bundle_btn = ModernButton(
             actions, text=_("Preview Support Bundle"),
@@ -158,19 +154,73 @@ class AboutDialog(tk.Toplevel):
             padx=12, pady=6
         )
         bundle_btn.pack(side=layout_side(tk.LEFT))
+        self.about_action_buttons["bundle"] = bundle_btn
 
         close_btn = ModernButton(
-            actions, text=_("Close"), style="primary",
+            footer_content, text=_("Close"), style="primary",
             font=FONTS.body(), command=self.destroy,
             padx=20, pady=6
         )
         close_btn.pack(side=layout_side(tk.RIGHT))
+        self.about_action_buttons["close"] = close_btn
+        self._about_close_button = close_btn
 
         tk.Label(
             footer_content, textvariable=self.status_var, bg=theme.bg_secondary,
             fg=theme.text_secondary, font=FONTS.small(), anchor=layout_anchor("w"),
             wraplength=650, justify=tk.LEFT
         ).pack(fill=tk.X, pady=(8, 0))
+
+        self._about_footer_wrapped = False
+        self.after_idle(self._fit_footer_actions)
+        self.bind("<Configure>", lambda _event: self.after_idle(self._fit_footer_actions), add="+")
+
+        # Tab notebook
+        notebook = ttk.Notebook(self)
+        notebook.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
+
+        # Create tabs
+        self._create_about_tab(notebook, theme)
+        self._create_features_tab(notebook, theme)
+        self._create_system_tab(notebook, theme)
+        self._create_credits_tab(notebook, theme)
+
+    def _fit_footer_actions(self) -> None:
+        """Reflow the Close action when DPI-scaled utility buttons need room."""
+        if not self.winfo_exists() or not hasattr(self, "_about_close_button"):
+            return
+        self._about_footer_content.update_idletasks()
+        available_width = self._about_footer_content.winfo_width()
+        primary_width = 0
+        for button in self.about_action_buttons.values():
+            if button is self._about_close_button:
+                continue
+            pack_info = button.pack_info()
+            try:
+                horizontal_pad = int(pack_info.get("padx", 0)) * 2
+            except (TypeError, ValueError):
+                horizontal_pad = 0
+            primary_width += max(button.winfo_width(), button.winfo_reqwidth()) + horizontal_pad
+        required_width = (
+            primary_width
+            + max(
+                self._about_close_button.winfo_width(),
+                self._about_close_button.winfo_reqwidth(),
+            )
+            + 8
+        )
+        should_wrap = required_width > available_width
+        if should_wrap == self._about_footer_wrapped:
+            return
+        self._about_actions.pack_forget()
+        self._about_close_button.pack_forget()
+        if should_wrap:
+            self._about_actions.pack(side=tk.TOP, fill=tk.X, expand=False)
+            self._about_close_button.pack(side=tk.TOP, anchor="e", pady=(8, 0))
+        else:
+            self._about_actions.pack(side=tk.LEFT, fill=tk.X, expand=True)
+            self._about_close_button.pack(side=layout_side(tk.RIGHT))
+        self._about_footer_wrapped = should_wrap
     
     def _create_about_tab(self, notebook, theme):
         """Create About tab"""

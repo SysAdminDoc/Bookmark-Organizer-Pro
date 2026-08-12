@@ -234,23 +234,37 @@ class _BoundedThreadingHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
     def __init__(self, server_address, handler_class, *, max_workers: int):
         self.max_workers = max(1, int(max_workers))
         self._worker_slots = threading.BoundedSemaphore(self.max_workers)
+        self._worker_lock = threading.Lock()
+        self._active_workers: set[int] = set()
         super().__init__(server_address, handler_class)
 
     def process_request(self, request, client_address):
         if not self._worker_slots.acquire(blocking=False):
             self._reject_busy(request)
             return
+        request_key = id(request)
+        with self._worker_lock:
+            self._active_workers.add(request_key)
         try:
             super().process_request(request, client_address)
         except BaseException:
-            self._worker_slots.release()
+            self.release_worker(request)
             raise
 
     def process_request_thread(self, request, client_address):
         try:
             super().process_request_thread(request, client_address)
         finally:
-            self._worker_slots.release()
+            self.release_worker(request)
+
+    def release_worker(self, request) -> None:
+        """Release a request lease exactly once, including deadline aborts."""
+        request_key = id(request)
+        with self._worker_lock:
+            if request_key not in self._active_workers:
+                return
+            self._active_workers.remove(request_key)
+        self._worker_slots.release()
 
     @property
     def at_capacity(self) -> bool:
@@ -376,6 +390,17 @@ class BookmarkAPI:
         class APIHandler(BaseHTTPRequestHandler):
             def setup(self) -> None:
                 super().setup()
+                # BaseHTTPRequestHandler uses a buffered reader by default.
+                # On Windows a timer-driven socket close can leave that
+                # buffer blocked in read(), retaining the bounded worker slot.
+                # Keep header parsing semantics but make body reads observe
+                # the deadline close directly.
+                buffered_rfile = self.rfile
+                try:
+                    buffered_rfile.close()
+                except OSError:
+                    pass
+                self.rfile = self.connection.makefile("rb", buffering=0)
                 self._deadline_lock = threading.Lock()
                 self._deadline_generation = 0
                 self._deadline_timer: threading.Timer | None = None
@@ -425,6 +450,16 @@ class BookmarkAPI:
                     self.connection.shutdown(socket.SHUT_RDWR)
                 except OSError:
                     pass
+                finally:
+                    self.server.release_worker(self.connection)
+                    # A shutdown alone does not reliably interrupt a buffered
+                    # rfile.read() on Windows. Closing the timed-out socket is
+                    # safe because the request has already exceeded its hard
+                    # deadline and guarantees the admission slot is released.
+                    try:
+                        self.connection.close()
+                    except OSError:
+                        pass
 
             def _read_request_body(self, maximum: int, *, label: str) -> bytes | None:
                 if self.headers.get("Transfer-Encoding"):

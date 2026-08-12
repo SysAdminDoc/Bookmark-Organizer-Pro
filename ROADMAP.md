@@ -4,13 +4,6 @@ Actionable work only. Historical and completed roadmap material is archived in C
 
 ## Actionable Items
 
-- [ ] P1 — R-90: Turn visual captures into defect-detecting assertions
-  Why: The 22-case matrix completes while graph, editor, popup-helper, About-footer, and theme defects remain visible in its own captures.
-  Evidence: `tests/test_visual_regression_smoke.py`, `bookmark_organizer_pro/ui/graph_view.py`, `bookmark_organizer_pro/ui/widget_bookmark_editor.py`, `bookmark_organizer_pro/ui/about.py`, `browser-extension/popup.css`, and 2026-07-29 dark/light/DPI captures.
-  Touches: affected UI components, layout/theme tokens, visual test assertions/baselines, screenshot documentation.
-  Acceptance: Graph label/help clipping, bookmark-editor/footer overlap, dark-combobox mismatch, popup-helper truncation, and missing About footer actions are fixed at 1280×720, 1540×980 at 125%, and 1920×1080 in light/dark themes; tests assert critical geometry, contrast/token use, and visible labels before any baseline comparison. R-89 owns virtual-table correctness; R-96 owns extension category/search states.
-  Complexity: M
-
 - [ ] P1 — R-91: Make documented scripts hermetic and observable
   Why: Direct clean-shell invocations of package and extension scripts fail on package imports, and long end-to-end runs lack bounded phase feedback.
   Evidence: `scripts/package_contract_audit.py`, `scripts/build_extension.py`, extension E2E scripts, README/release commands.
