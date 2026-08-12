@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from bookmark_organizer_pro.ui import shell_widgets, treeview, widget_controls
 from bookmark_organizer_pro.ui.foundation import DesignTokens, FONTS
 from bookmark_organizer_pro.ui.style_manager import StyleManager
@@ -286,6 +288,67 @@ def test_virtual_and_native_tables_share_inspectable_semantic_contract():
     assert {action["keys"] for action in expected["actions"]} == {
         "Enter", "Space", "Shift+F10",
     }
+
+
+def test_bookmark_table_contract_rejects_phantom_rows_and_falls_back_to_column_names():
+    with pytest.raises(ValueError, match="duplicate item ID"):
+        treeview.build_table_semantic_snapshot(
+            columns=("#0", "title"),
+            header_labels={"#0": "Site", "title": "Title"},
+            item_ids=("1", "1"),
+            cells_by_id={"1": ("example.com", "Example")},
+            selected_ids=(),
+            sort_column=None,
+            sort_reverse=False,
+            state="ready",
+            message="",
+        )
+
+    with pytest.raises(ValueError, match="expected 2"):
+        treeview.build_table_semantic_snapshot(
+            columns=("#0", "title"),
+            header_labels={},
+            item_ids=("1",),
+            cells_by_id={"1": ("example.com",)},
+            selected_ids=(),
+            sort_column=None,
+            sort_reverse=False,
+            state="ready",
+            message="",
+        )
+
+    snapshot = treeview.build_table_semantic_snapshot(
+        columns=("#0", "title"),
+        header_labels={"#0": ""},
+        item_ids=("1",),
+        cells_by_id={"1": ("example.com", None)},
+        selected_ids=(),
+        sort_column=None,
+        sort_reverse=False,
+        state="ready",
+        message="1 bookmark",
+        focused_id="1",
+    )
+    assert [header["label"] for header in snapshot["headers"]] == ["#0", "title"]
+    assert snapshot["rows"][0]["focused"] is True
+    assert snapshot["rows"][0]["cells"][1]["value"] == ""
+    assert snapshot["focused_id"] == "1"
+    assert snapshot["row_count"] == 1
+    assert snapshot["column_count"] == 2
+
+
+def test_bookmark_table_row_normalization_removes_none_display_sentinels():
+    rows = treeview._normalize_table_rows(
+        [{"iid": 7, "text": None, "values": ("Title", None), "tags": ["oddrow"]}],
+        ("#0", "title", "saved"),
+    )
+    assert rows == [{
+        "iid": "7",
+        "text": "",
+        "values": ("Title", ""),
+        "tags": ("oddrow",),
+        "sort_values": {},
+    }]
 
 
 def test_contextual_inspector_formats_type_time_and_offline_state(tmp_path):

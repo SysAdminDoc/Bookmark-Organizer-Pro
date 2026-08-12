@@ -19,6 +19,10 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   unexplained initial/star cells with named Site/Pinned columns, added
   inspectable row/selection/sort/state/action semantics, and provided Enter,
   Space, and Shift+F10 keyboard parity.
+- Hardened the shared bookmark-table contract against duplicate IDs, phantom
+  cells, blank headers, and stale focus state; live accessibility and visual
+  smokes now inspect native Treeview headings and Site cells as well as the
+  virtual adapter.
 - Versioned semantic indexes and collection-answer caches by embedder/model
   revision, vector dimension, chunker contract, normalized source digest, AI
   configuration, and generation; incompatible, legacy, or source-stale rows

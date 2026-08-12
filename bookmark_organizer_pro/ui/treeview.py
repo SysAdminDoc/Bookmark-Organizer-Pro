@@ -95,6 +95,51 @@ def sort_table_item_ids(
     return [*present, *missing]
 
 
+def _display_cell_value(value: object) -> str:
+    """Render an optional cell value without leaking Python sentinels to users."""
+    return "" if value is None else str(value)
+
+
+def _normalize_table_columns(columns: Sequence[str]) -> tuple[str, ...]:
+    """Return one validated logical column sequence for both table adapters."""
+    normalized = tuple(str(column) for column in columns)
+    if not normalized or any(not column for column in normalized):
+        raise ValueError("Bookmark table requires non-empty column identifiers")
+    if len(set(normalized)) != len(normalized):
+        raise ValueError("Bookmark table column identifiers must be unique")
+    return normalized
+
+
+def _normalize_table_rows(rows: Sequence[dict], columns: Sequence[str]) -> list[dict]:
+    """Validate and copy row specs before either renderer mutates its state."""
+    expected_values = len(columns) - 1
+    normalized: list[dict] = []
+    seen_ids: set[str] = set()
+    for index, row in enumerate(rows):
+        if not isinstance(row, Mapping):
+            raise ValueError(f"Bookmark table row {index + 1} is not an object")
+        item_id = str(row.get("iid", ""))
+        if not item_id:
+            raise ValueError(f"Bookmark table row {index + 1} has no item ID")
+        if item_id in seen_ids:
+            raise ValueError(f"Bookmark table contains duplicate item ID {item_id!r}")
+        seen_ids.add(item_id)
+        values = tuple(row.get("values", ()))
+        if len(values) != expected_values:
+            raise ValueError(
+                f"Bookmark table row {item_id!r} has {len(values)} value cells; "
+                f"expected {expected_values}"
+            )
+        normalized.append({
+            "iid": item_id,
+            "text": _display_cell_value(row.get("text", "")),
+            "values": tuple(_display_cell_value(value) for value in values),
+            "tags": tuple(str(tag) for tag in row.get("tags", ())),
+            "sort_values": dict(row.get("sort_values", {})),
+        })
+    return normalized
+
+
 def build_table_semantic_snapshot(
     *,
     columns: Sequence[str],
@@ -106,36 +151,49 @@ def build_table_semantic_snapshot(
     sort_reverse: bool,
     state: str,
     message: str,
+    focused_id: str | None = None,
 ) -> dict:
     """Build the adapter-neutral semantic table contract."""
     if state not in SEMANTIC_TABLE_STATES:
         raise ValueError(f"Unknown bookmark table state: {state}")
+    normalized_columns = _normalize_table_columns(columns)
     ordered_ids = [str(item_id) for item_id in item_ids]
+    if len(set(ordered_ids)) != len(ordered_ids):
+        raise ValueError("Bookmark table contains duplicate item ID values")
     selected = {str(item_id) for item_id in selected_ids}
+    focused = str(focused_id) if focused_id is not None else None
+    if focused is not None and focused not in ordered_ids:
+        focused = None
     headers = [
         {
             "id": column,
-            "label": str(header_labels.get(column, "")),
+            "label": str(header_labels.get(column, "")) or column,
             "sort": (
                 "descending" if sort_reverse else "ascending"
             ) if column == sort_column else "none",
         }
-        for column in columns
+        for column in normalized_columns
     ]
     rows = []
     for position, item_id in enumerate(ordered_ids, start=1):
         values = tuple(cells_by_id.get(item_id, ()))
+        if len(values) != len(normalized_columns):
+            raise ValueError(
+                f"Bookmark table semantic row {item_id!r} has {len(values)} cells; "
+                f"expected {len(normalized_columns)}"
+            )
         rows.append({
             "id": item_id,
             "position": position,
             "set_size": len(ordered_ids),
             "selected": item_id in selected,
+            "focused": item_id == focused,
             "cells": [
                 {
                     "column": column,
-                    "value": str(values[index]) if index < len(values) else "",
+                    "value": _display_cell_value(values[index]),
                 }
-                for index, column in enumerate(columns)
+                for index, column in enumerate(normalized_columns)
             ],
         })
     return {
@@ -144,6 +202,9 @@ def build_table_semantic_snapshot(
         "message": str(message),
         "headers": headers,
         "rows": rows,
+        "focused_id": focused,
+        "row_count": len(rows),
+        "column_count": len(normalized_columns),
         "actions": [dict(action) for action in BOOKMARK_TABLE_ACTIONS],
     }
 
@@ -174,6 +235,9 @@ class SortableTreeview(ttk.Treeview):
     """
     
     def __init__(self, parent, columns, **kwargs):
+        columns = _normalize_table_columns(columns)
+        if "#0" in columns:
+            raise ValueError("Bookmark table data columns must not include the tree column #0")
         super().__init__(parent, columns=columns, **kwargs)
         
         self._sort_column = None
@@ -187,6 +251,7 @@ class SortableTreeview(ttk.Treeview):
         self._placeholder_images: Dict[str, tk.PhotoImage] = {}
         self._semantic_state = "loading"
         self._semantic_message = ""
+        self._focused_id = ""
         
         # Setup column headers for sorting
         for col in columns:
@@ -207,7 +272,9 @@ class SortableTreeview(ttk.Treeview):
 
     def set_bookmark_rows(self, rows: Sequence[dict]):
         """Replace native rows while preserving selection and active sorting."""
+        rows = _normalize_table_rows(rows, ("#0", *tuple(self["columns"])))
         selected = set(str(item) for item in self.selection())
+        focused = self._focused_id or str(super().focus())
         existing = self.get_children("")
         if existing:
             super().delete(*existing)
@@ -231,6 +298,11 @@ class SortableTreeview(ttk.Treeview):
         ]
         if restored:
             self.selection_set(restored)
+        if focused and focused in self.get_children(""):
+            super().focus(focused)
+            self._focused_id = focused
+        else:
+            self._focused_id = ""
 
     def delete(self, *items):
         for item in items:
@@ -281,6 +353,14 @@ class SortableTreeview(ttk.Treeview):
         self._sort_by_column(column)
         return "break"
 
+    def focus(self, item=None):
+        """Track the row with keyboard focus for the semantic projection."""
+        if item is None:
+            return super().focus()
+        result = super().focus(item)
+        self._focused_id = str(item) if item else ""
+        return result
+
     def sort_state(self) -> tuple[str | None, bool]:
         """Return the active column and reverse flag for shell reconstruction."""
         return self._sort_column, self._sort_reverse
@@ -325,8 +405,8 @@ class SortableTreeview(ttk.Treeview):
         cells_by_id = {}
         for item_id in item_ids:
             values = tuple(self.item(item_id, "values"))
-            cells = [str(self.item(item_id, "text"))]
-            cells.extend(str(value) for value in values)
+            cells = [_display_cell_value(self.item(item_id, "text"))]
+            cells.extend(_display_cell_value(value) for value in values)
             cells_by_id[item_id] = cells
         return build_table_semantic_snapshot(
             columns=columns,
@@ -338,6 +418,7 @@ class SortableTreeview(ttk.Treeview):
             sort_reverse=self._sort_reverse,
             state=self._semantic_state,
             message=self._semantic_message,
+            focused_id=self._focused_id or str(super().focus()) or None,
         )
 
     def column_at_event(self, event) -> str:
@@ -441,6 +522,10 @@ class VirtualBookmarkSheet(tk.Frame):
         if Sheet is None:
             raise RuntimeError("tksheet is not available")
 
+        columns = _normalize_table_columns(columns)
+        if "#0" in columns:
+            raise ValueError("Bookmark table data columns must not include the tree column #0")
+
         from .widget_runtime import get_theme
         theme = get_theme()
 
@@ -463,6 +548,7 @@ class VirtualBookmarkSheet(tk.Frame):
         self._suppress_selection_events = False
         self._semantic_state = "loading"
         self._semantic_message = ""
+        self._focused_id = ""
 
         self._sheet = Sheet(
             self,
@@ -560,7 +646,9 @@ class VirtualBookmarkSheet(tk.Frame):
 
     def set_bookmark_rows(self, rows: Sequence[dict]):
         """Replace all visible rows in one tksheet data update."""
+        rows = _normalize_table_rows(rows, self._columns)
         previous_selection = set(self._selected_ids)
+        previous_focus = self._focused_id
         self._row_to_id = [str(row["iid"]) for row in rows]
         self._id_to_row = {item_id: index for index, item_id in enumerate(self._row_to_id)}
         self._item_values = {str(row["iid"]): tuple(row.get("values", ())) for row in rows}
@@ -612,6 +700,7 @@ class VirtualBookmarkSheet(tk.Frame):
             else:
                 self._selected_ids = []
                 self._sheet.deselect("all", redraw=False)
+            self._focused_id = previous_focus if previous_focus in self._id_to_row else ""
             self._sheet.redraw()
         finally:
             self._suppress_selection_events = False
@@ -676,6 +765,7 @@ class VirtualBookmarkSheet(tk.Frame):
                     run_binding_func=False,
                 )
             self._selected_ids = item_ids
+            self._focused_id = item_ids[0] if item_ids else ""
         finally:
             self._suppress_selection_events = prior_suppression
         self._sheet.redraw()
@@ -687,6 +777,7 @@ class VirtualBookmarkSheet(tk.Frame):
         self._suppress_selection_events = True
         try:
             self._selected_ids = []
+            self._focused_id = ""
             self._sheet.deselect("all", redraw=True)
         finally:
             self._suppress_selection_events = prior_suppression
@@ -746,8 +837,9 @@ class VirtualBookmarkSheet(tk.Frame):
 
     def focus(self, item: str | None = None):
         if item is not None and str(item) in self._id_to_row:
+            self._focused_id = str(item)
             self.see(str(item))
-        return self._selected_ids[0] if self._selected_ids else ""
+        return self._focused_id or (self._selected_ids[0] if self._selected_ids else "")
 
     def focus_set(self):
         self._sheet.focus_set()
@@ -791,6 +883,7 @@ class VirtualBookmarkSheet(tk.Frame):
             sort_reverse=self._sort_reverse,
             state=self._semantic_state,
             message=self._semantic_message,
+            focused_id=getattr(self, "_focused_id", "") or None,
         )
 
     def yview(self, *args):
@@ -910,6 +1003,8 @@ class VirtualBookmarkSheet(tk.Frame):
             for row in sorted(rows)
             if 0 <= row < len(self._row_to_id)
         ]
+        if selected:
+            self._focused_id = selected[0]
         if selected != self._selected_ids:
             self._selected_ids = selected
             self.event_generate("<<TreeviewSelect>>")

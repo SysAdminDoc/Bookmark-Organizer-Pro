@@ -332,6 +332,11 @@ class BookmarkViewMixin:
         self._update_selection_bar()
         if hasattr(self, "_update_right_rail_selection"):
             self._update_right_rail_selection()
+        # Refresh after the row model and restored selection are committed so
+        # assistive status text describes the current table, not the previous
+        # render that was still present during the loading transition.
+        if hasattr(self, "_refresh_table_semantic_status"):
+            self._refresh_table_semantic_status()
 
     def _refresh_table_semantic_status(self, _event=None):
         """Publish visible row, selection, state, sort, and action context."""

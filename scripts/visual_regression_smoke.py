@@ -323,7 +323,15 @@ def collect_tk_text(widget) -> str:
 
         try:
             if current.winfo_class() == "Treeview":
+                columns = ("#0", *tuple(current["columns"]))
+                for column in columns:
+                    heading = current.heading(column, "text")
+                    if heading:
+                        parts.append(str(heading))
                 for item in current.get_children(""):
+                    text = current.item(item, "text")
+                    if text:
+                        parts.append(str(text))
                     parts.extend(str(value) for value in current.item(item, "values"))
         except Exception:
             pass

@@ -4,13 +4,6 @@ Actionable work only. Historical and completed roadmap material is archived in C
 
 ## Actionable Items
 
-- [ ] P1 — R-89: Make the bookmark table correct and semantically accessible
-  Why: The default virtual table lacks native-table semantics and currently exposes render/sort defects including a stray glyph and display-string date ordering.
-  Evidence: `bookmark_organizer_pro/ui/treeview.py::VirtualBookmarkSheet`, `bookmark_organizer_pro/ui/treeview.py::SortableTreeview`, bookmark-list presenters; WCAG 2.2; WAI-ARIA table pattern; Windows accessibility testing guidance.
-  Touches: virtual/native table adapters, row model and sort keys, keyboard/focus/status announcements, accessibility and visual tests.
-  Acceptance: Sorts use typed source values with deterministic tie-breakers; no phantom cells/glyphs appear; row/column headers, selection, position, sort state, empty/loading/error state, and available actions are exposed through an inspectable semantic fallback; all table operations work keyboard-only and match native-table results.
-  Complexity: L
-
 - [ ] P1 — R-90: Turn visual captures into defect-detecting assertions
   Why: The 22-case matrix completes while graph, editor, popup-helper, About-footer, and theme defects remain visible in its own captures.
   Evidence: `tests/test_visual_regression_smoke.py`, `bookmark_organizer_pro/ui/graph_view.py`, `bookmark_organizer_pro/ui/widget_bookmark_editor.py`, `bookmark_organizer_pro/ui/about.py`, `browser-extension/popup.css`, and 2026-07-29 dark/light/DPI captures.
