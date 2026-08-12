@@ -8,6 +8,14 @@ from typing import Callable, List, Optional
 
 from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.search import SearchEngine
+from bookmark_organizer_pro.tag_suggestions import (
+    current_tag_query,
+    normalize_tag,
+    parse_tag_input,
+    rank_tag_suggestions,
+    tag_key,
+    unique_tags,
+)
 
 from .foundation import FONTS, DesignTokens, readable_text_on
 from .theme import ThemeColors
@@ -549,7 +557,7 @@ class TagEditor(tk.Frame, ThemedWidget):
 
     Attributes:
         tags: Current list of tag strings.
-        available_tags: Suggestions for autocomplete (not yet wired).
+        available_tags: Vocabulary used for deterministic autocomplete.
         on_change: Callback invoked with the updated tag list on add/remove.
     """
     
@@ -559,10 +567,12 @@ class TagEditor(tk.Frame, ThemedWidget):
         theme = get_theme()
         super().__init__(parent, bg=theme.bg_primary)
         
-        self.tags = list(tags or [])
-        self.available_tags = available_tags or []
+        self.tags = unique_tags(tags)
+        self.available_tags = unique_tags(available_tags)
         self.on_change = on_change
         self.theme = theme
+        self._suggestion_values: List[str] = []
+        self._suggestion_index = -1
         
         # Tags display area
         self.tags_frame = tk.Frame(self, bg=theme.bg_primary)
@@ -585,7 +595,14 @@ class TagEditor(tk.Frame, ThemedWidget):
         self.entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         self.entry.bind("<FocusIn>", self._on_entry_focus_in)
         self.entry.bind("<FocusOut>", self._on_entry_focus_out)
+        self.entry.bind("<KeyRelease>", self._on_entry_changed, add="+")
+        self.entry.bind("<<Paste>>", self._on_paste, add="+")
         self.entry.bind("<Return>", self._add_tag)
+        self.entry.bind("<Down>", self._move_suggestion)
+        self.entry.bind("<Up>", self._move_suggestion)
+        self.entry.bind("<Escape>", self._dismiss_suggestions)
+        self.entry.bind("<Tab>", self._commit_and_traverse)
+        self.entry.bind("<Shift-Tab>", self._commit_and_traverse)
 
         self.add_btn = tk.Label(
             self.entry_frame, text=_("+"), bg=theme.bg_secondary,
@@ -596,8 +613,39 @@ class TagEditor(tk.Frame, ThemedWidget):
         make_keyboard_activatable(self.add_btn, self._add_tag)
         Tooltip(self.add_btn, "Add tag (Enter)")
         
-        # Suggestions dropdown (hidden by default)
-        self.suggestions_list = None
+        # The listbox never takes focus; the entry remains the only keyboard
+        # stop, so autocomplete cannot trap focus in the editor.
+        self.suggestions_frame = tk.Frame(self, bg=theme.bg_primary)
+        self.suggestions_list = tk.Listbox(
+            self.suggestions_frame,
+            height=4,
+            activestyle="none",
+            exportselection=False,
+            selectmode=tk.SINGLE,
+            takefocus=0,
+            bg=theme.bg_secondary,
+            fg=theme.text_primary,
+            selectbackground=theme.selection,
+            selectforeground=theme.text_primary,
+            highlightthickness=1,
+            highlightbackground=theme.border_muted,
+            highlightcolor=theme.border_active,
+            relief=tk.FLAT,
+            font=FONTS.small(),
+        )
+        self.suggestions_list.pack(fill=tk.X)
+        self.suggestions_list.bind("<Button-1>", self._choose_suggestion_with_mouse)
+        self.suggestions_frame.pack_forget()
+        self.suggestion_status = tk.Label(
+            self,
+            text="",
+            anchor="w",
+            bg=theme.bg_primary,
+            fg=theme.text_muted,
+            font=FONTS.tiny(),
+            takefocus=0,
+        )
+        self.suggestion_status.pack(fill=tk.X, pady=(3, 0))
         
         self._refresh_tags()
     
@@ -606,12 +654,104 @@ class TagEditor(tk.Frame, ThemedWidget):
             self.entry.delete(0, tk.END)
             self.entry.configure(fg=self.theme.text_primary)
             self._placeholder_active = False
+        self._on_entry_changed()
 
     def _on_entry_focus_out(self, event=None):
         if not self.entry_var.get().strip():
             self.entry.insert(0, self._placeholder)
             self.entry.configure(fg=self.theme.text_muted)
             self._placeholder_active = True
+        self.after(120, self._hide_suggestions_if_unfocused)
+
+    def _hide_suggestions_if_unfocused(self):
+        try:
+            if self.focus_get() not in (self.entry, self.suggestions_list):
+                self._hide_suggestions()
+        except tk.TclError:
+            return
+
+    def _on_paste(self, _event=None):
+        self.after_idle(self._on_entry_changed)
+
+    def _on_entry_changed(self, _event=None):
+        if self._placeholder_active:
+            self._hide_suggestions()
+            return
+        query = current_tag_query(self.entry_var.get())
+        self._suggestion_values = rank_tag_suggestions(
+            query,
+            self.available_tags,
+            self.tags,
+        )
+        self._suggestion_index = 0 if self._suggestion_values and query else -1
+        self._render_suggestions(query)
+
+    def _render_suggestions(self, query: str = ""):
+        self.suggestions_list.delete(0, tk.END)
+        for value in self._suggestion_values:
+            self.suggestions_list.insert(tk.END, value)
+        if self._suggestion_values:
+            self.suggestions_frame.pack(fill=tk.X, pady=(0, 1), before=self.suggestion_status)
+            self.suggestions_list.selection_clear(0, tk.END)
+            if self._suggestion_index >= 0:
+                self.suggestions_list.selection_set(self._suggestion_index)
+                self.suggestions_list.activate(self._suggestion_index)
+                self.suggestions_list.see(self._suggestion_index)
+            self.suggestion_status.configure(
+                text=format_message(
+                    "{value_0} tag suggestions. Use Up/Down to choose.",
+                    value_0=len(self._suggestion_values),
+                )
+            )
+        else:
+            self.suggestions_frame.pack_forget()
+            self.suggestion_status.configure(
+                text=_("No matching tags. Press Enter to add a new tag.") if query else ""
+            )
+
+    def _hide_suggestions(self):
+        self._suggestion_index = -1
+        self._suggestion_values = []
+        self.suggestions_frame.pack_forget()
+
+    def _dismiss_suggestions(self, _event=None):
+        self._hide_suggestions()
+        self.suggestion_status.configure(text="")
+        return "break"
+
+    def _move_suggestion(self, event):
+        if not self._suggestion_values:
+            return None
+        delta = 1 if event.keysym == "Down" else -1
+        if self._suggestion_index < 0:
+            next_index = 0 if delta > 0 else len(self._suggestion_values) - 1
+        else:
+            next_index = (self._suggestion_index + delta) % len(self._suggestion_values)
+        self._suggestion_index = next_index
+        self.suggestions_list.selection_clear(0, tk.END)
+        self.suggestions_list.selection_set(next_index)
+        self.suggestions_list.activate(next_index)
+        self.suggestions_list.see(next_index)
+        self.suggestion_status.configure(
+            text=format_message(
+                "{value_0} tag suggestions; selected {value_1}.",
+                value_0=len(self._suggestion_values),
+                value_1=self._suggestion_values[next_index],
+            )
+        )
+        return "break"
+
+    def _commit_and_traverse(self, event=None):
+        self._add_tag(event)
+        return None
+
+    def _choose_suggestion_with_mouse(self, event):
+        index = self.suggestions_list.nearest(event.y)
+        if 0 <= index < len(self._suggestion_values):
+            self._suggestion_index = index
+            self._add_tag(event)
+            self.entry.focus_set()
+        return "break"
 
     def _refresh_tags(self):
         """Refresh the tags display"""
@@ -628,19 +768,60 @@ class TagEditor(tk.Frame, ThemedWidget):
     def _add_tag(self, e=None):
         """Add a new tag"""
         if self._placeholder_active:
-            return
-        tag = self.entry_var.get().strip().lower()
-        if tag and tag not in self.tags:
-            self.tags.append(tag)
-            self.entry_var.set("")
+            return "break"
+        raw = self.entry_var.get()
+        values = parse_tag_input(raw)
+        if self._suggestion_index >= 0 and self._suggestion_index < len(self._suggestion_values):
+            selected = self._suggestion_values[self._suggestion_index]
+            if raw.rstrip().endswith((",", "\n")):
+                values.append(selected)
+            elif values:
+                values[-1] = selected
+            else:
+                values = [selected]
+        values = unique_tags(values)
+        added: list[str] = []
+        duplicates = 0
+        existing = {tag_key(tag) for tag in self.tags}
+        for value in values:
+            tag = normalize_tag(value)
+            if not tag:
+                continue
+            if tag_key(tag) in existing:
+                duplicates += 1
+                continue
+            existing.add(tag_key(tag))
+            added.append(tag)
+        if added:
+            self.tags.extend(added)
             self._refresh_tags()
             if self.on_change:
                 self.on_change(self.tags)
+        self.entry_var.set("")
+        self.entry.configure(fg=self.theme.text_primary)
+        self._placeholder_active = False
+        self._hide_suggestions()
+        if added and duplicates:
+            message = format_message(
+                "Added {value_0} tag(s); {value_1} duplicate(s) skipped.",
+                value_0=len(added),
+                value_1=duplicates,
+            )
+        elif added:
+            message = format_message("Added {value_0} tag(s).", value_0=len(added))
+        elif duplicates:
+            message = format_message("{value_0} duplicate tag(s) skipped.", value_0=duplicates)
+        else:
+            message = _("Enter a tag to add.")
+        self.suggestion_status.configure(text=message)
+        return "break"
     
     def _remove_tag(self, tag: str):
         """Remove a tag"""
-        if tag in self.tags:
-            self.tags.remove(tag)
+        key = tag_key(tag)
+        remaining = [value for value in self.tags if tag_key(value) != key]
+        if len(remaining) != len(self.tags):
+            self.tags = remaining
             self._refresh_tags()
             if self.on_change:
                 self.on_change(self.tags)
@@ -651,14 +832,22 @@ class TagEditor(tk.Frame, ThemedWidget):
     
     def set_tags(self, tags: List[str]):
         """Set tags"""
-        self.tags = list(tags)
+        self.tags = unique_tags(tags)
         self._refresh_tags()
     
     def add_tag(self, tag: str):
         """Add a single tag (public method)"""
-        tag = tag.strip().lower()
-        if tag and tag not in self.tags:
-            self.tags.append(tag)
+        values = unique_tags(parse_tag_input(tag))
+        existing = {tag_key(value) for value in self.tags}
+        added = [value for value in values if tag_key(value) not in existing]
+        if added:
+            self.tags.extend(added)
             self._refresh_tags()
             if self.on_change:
                 self.on_change(self.tags)
+
+    def set_available_tags(self, tags: List[str]):
+        """Replace the vocabulary used by autocomplete."""
+        self.available_tags = unique_tags(tags)
+        if not self._placeholder_active:
+            self._on_entry_changed()

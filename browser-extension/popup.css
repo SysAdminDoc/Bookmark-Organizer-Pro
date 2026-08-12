@@ -306,6 +306,36 @@ button:focus-visible,
   line-height: 1.45;
 }
 
+.tag-suggestions {
+  max-height: 156px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-top: 0;
+  background: var(--surface);
+}
+
+.tag-suggestion-option {
+  padding: 7px 10px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.tag-suggestion-option:hover,
+.tag-suggestion-option[aria-selected="true"] {
+  background: var(--selected);
+  color: var(--text);
+}
+
+.tag-suggestion-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.tag-suggestion-status {
+  min-height: 0;
+}
+
 .category-hint {
   margin-inline-start: 0;
 }

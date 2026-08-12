@@ -81,7 +81,10 @@
         </label>
         <label>
           <span data-i18n="tags">Tags</span>
-          <input id="addTags" type="text" placeholder="design, research, reading" data-i18n-placeholder="tagsPlaceholder" autocomplete="off">
+          <input id="addTags" type="text" placeholder="design, research, reading" data-i18n-placeholder="tagsPlaceholder" autocomplete="off" aria-describedby="addTagHint" aria-controls="addTagSuggestions" aria-expanded="false">
+          <div id="addTagSuggestions" class="tag-suggestions" role="listbox" aria-label="Tag suggestions" data-i18n-aria-label="tagSuggestions" hidden></div>
+          <span id="addTagHint" class="field-hint" data-i18n="tagsHint">Choose a suggestion or keep typing a new tag. Separate tags with commas.</span>
+          <span id="addTagSuggestionStatus" class="field-hint tag-suggestion-status" role="status" aria-live="polite" aria-atomic="true"></span>
         </label>
         <label>
           <span data-i18n="notes">Notes</span>

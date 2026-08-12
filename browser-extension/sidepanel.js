@@ -1,7 +1,8 @@
 /* global DEFAULTS, api, storageGet, queryTabs, executeScript, getConfig,
           baseUrl, authHeaders, isSaveableUrl, loadCategories, saveBookmarkPayload, captureSanitizedPage,
           getPendingSaves, retryPendingSaves, clearPendingSaves, getClearedPendingSaves,
-          restoreClearedPendingSaves, renderPendingSaves, exportPendingSaves */
+          restoreClearedPendingSaves, renderPendingSaves, exportPendingSaves, loadTagsForInput,
+          normalizeTagInput */
 
 const RECENT_PAGE_SIZE = 30;
 let recentOffset = 0;
@@ -357,6 +358,10 @@ async function loadAddTab() {
     titleEl.textContent = extensionMessage("openWebPage", [], "Open an HTTP/HTTPS page to save.");
     titleEl.dataset.url = "";
   }
+  await loadTagsForInput("addTags", config, {
+    listId: "addTagSuggestions",
+    statusId: "addTagSuggestionStatus",
+  });
 }
 
 async function saveBookmark() {
@@ -377,7 +382,7 @@ async function saveBookmark() {
     url,
     title: titleEl.dataset.tabTitle || url,
     category: document.getElementById("addCategory").value.trim() || config.defaultCategory,
-    tags: document.getElementById("addTags").value,
+    tags: normalizeTagInput(document.getElementById("addTags").value),
     notes: document.getElementById("addNotes").value,
     read_later: document.getElementById("addReadLater").checked
   };

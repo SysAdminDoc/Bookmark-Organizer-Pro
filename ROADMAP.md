@@ -4,13 +4,6 @@ Actionable work only. Historical and completed roadmap material is archived in C
 
 ## Actionable Items
 
-- [ ] P2 — R-101: Complete accessible tag autocomplete
-  Why: `TagEditor.available_tags` is documented as not wired, forcing exact free-text entry despite an existing tag vocabulary.
-  Evidence: `bookmark_organizer_pro/ui/widget_controls.py::TagEditor`, bookmark/bulk editor call sites, extension tag input.
-  Touches: shared tag suggestion model, desktop TagEditor, bulk/bookmark editors, extension popup, keyboard/accessibility tests.
-  Acceptance: Suggestions are case-insensitive, ranked deterministically, exclude selected tags, preserve arbitrary new tags, and announce count/selection; arrow, Enter, Escape, Tab, mouse, paste, non-ASCII, and duplicate handling work consistently in desktop and extension without trapping focus.
-  Complexity: M
-
 - [ ] P2 — R-102: Add a per-bookmark local processing timeline
   Why: capture, metadata, snapshot, transcript, embedding, and retry state is spread across stores, making failures hard to diagnose or reverse.
   Evidence: `bookmark_organizer_pro/services/job_ledger.py`, snapshot history/failure stores, local diagnostics; ArchiveBox extractor status; linkding issue #797.

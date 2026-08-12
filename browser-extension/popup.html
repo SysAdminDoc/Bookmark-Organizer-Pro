@@ -38,7 +38,10 @@
 
       <label>
         <span data-i18n="tags">Tags</span>
-        <input id="tags" type="text" placeholder="design, research, reading" data-i18n-placeholder="tagsPlaceholder" autocomplete="off">
+        <input id="tags" type="text" placeholder="design, research, reading" data-i18n-placeholder="tagsPlaceholder" autocomplete="off" aria-describedby="tagHint" aria-controls="tagSuggestions" aria-expanded="false">
+        <div id="tagSuggestions" class="tag-suggestions" role="listbox" aria-label="Tag suggestions" data-i18n-aria-label="tagSuggestions" hidden></div>
+        <span id="tagHint" class="field-hint" data-i18n="tagsHint">Choose a suggestion or keep typing a new tag. Separate tags with commas.</span>
+        <span id="tagSuggestionStatus" class="field-hint tag-suggestion-status" role="status" aria-live="polite" aria-atomic="true"></span>
       </label>
 
       <label>

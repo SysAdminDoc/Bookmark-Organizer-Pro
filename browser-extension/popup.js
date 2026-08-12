@@ -1,7 +1,7 @@
 /* global DEFAULTS, api, storageGet, queryTabs, executeScript, getConfig,
           isSaveableUrl, loadCategories, saveBookmarkPayload, captureSanitizedPage, getPendingSaves,
           retryPendingSaves, clearPendingSaves, getClearedPendingSaves, restoreClearedPendingSaves,
-          renderPendingSaves, exportPendingSaves */
+          renderPendingSaves, exportPendingSaves, loadTagsForInput, normalizeTagInput */
 
 let activeTab = null;
 
@@ -71,6 +71,10 @@ async function loadPopup() {
   }
 
   await loadCategories("categoryList");
+  await loadTagsForInput("tags", values, {
+    listId: "tagSuggestions",
+    statusId: "tagSuggestionStatus",
+  });
 }
 
 async function refreshPendingPanel() {
@@ -143,7 +147,7 @@ async function saveBookmark() {
     url: activeTab.url,
     title: activeTab.title || activeTab.url,
     category: document.getElementById("category").value.trim() || values.defaultCategory,
-    tags: document.getElementById("tags").value,
+    tags: normalizeTagInput(document.getElementById("tags").value),
     notes: document.getElementById("notes").value,
     read_later: document.getElementById("readLater").checked
   };

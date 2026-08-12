@@ -28,6 +28,10 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   Unread/In progress/Finished states, reset, optimistic stale-write protection,
   restart hydration, sidebar/search/smart-collection filters, and a compact
   accessible reader control are now available.
+- Added deterministic, case-insensitive tag autocomplete to desktop bookmark and
+  bulk editors plus the browser extension popup and side panel, with ranked
+  suggestions, duplicate-safe arbitrary input, keyboard/mouse/paste support,
+  non-ASCII handling, and live selection announcements.
 - Replaced the monolithic performance gate with deterministic bulk fixtures,
   named cold/warm and core-operation cases at 100/1,000/5,000 bookmarks,
   per-case worker watchdogs, a 60-second total budget, and JSON reports.

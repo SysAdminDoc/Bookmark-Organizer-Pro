@@ -30,7 +30,7 @@ msgstr ""
 msgid " Existing Categories "
 msgstr ""
 
-#: bookmark_organizer_pro/ui/widget_controls.py:528
+#: bookmark_organizer_pro/ui/widget_controls.py:536
 #: bookmark_organizer_pro/ui/workflow_bulk_tags.py:110
 msgid "#{value_0}"
 msgstr ""
@@ -44,7 +44,7 @@ msgid "(no backups yet — they appear after the first save/import)"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:408
-#: bookmark_organizer_pro/ui/widget_controls.py:591
+#: bookmark_organizer_pro/ui/widget_controls.py:608
 msgid "+"
 msgstr ""
 
@@ -123,7 +123,7 @@ msgid ":"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/management_dialogs.py:492
-#: bookmark_organizer_pro/ui/widget_controls.py:428
+#: bookmark_organizer_pro/ui/widget_controls.py:436
 msgid "?"
 msgstr ""
 
@@ -328,6 +328,14 @@ msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/categories.py:193
 msgid "Added category: {name}"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/widget_controls.py:811
+msgid "Added {value_0} tag(s)."
+msgstr ""
+
+#: bookmark_organizer_pro/ui/widget_controls.py:805
+msgid "Added {value_0} tag(s); {value_1} duplicate(s) skipped."
 msgstr ""
 
 #: bookmark_organizer_pro/ui/about.py:274
@@ -864,7 +872,7 @@ msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:223
 #: bookmark_organizer_pro/ui/widget_chat_panel.py:45
-#: bookmark_organizer_pro/ui/widget_controls.py:438
+#: bookmark_organizer_pro/ui/widget_controls.py:446
 #: bookmark_organizer_pro/ui/workflow_smart_filters.py:53
 msgid "Clear"
 msgstr ""
@@ -1388,6 +1396,10 @@ msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/selection.py:258
 msgid "Enter a subtitle language."
+msgstr ""
+
+#: bookmark_organizer_pro/ui/widget_controls.py:815
+msgid "Enter a tag to add."
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/tools.py:304
@@ -2518,6 +2530,10 @@ msgstr ""
 msgid "No maintenance safepoint is available yet"
 msgstr ""
 
+#: bookmark_organizer_pro/ui/widget_controls.py:709
+msgid "No matching tags. Press Enter to add a new tag."
+msgstr ""
+
 #: bookmark_organizer_pro/ui/workflow_detail_panel.py:196
 msgid "No notes yet. Edit this bookmark to add context for your future self."
 msgstr ""
@@ -3506,14 +3522,14 @@ msgid "Scrollbar"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/about.py:274
-#: bookmark_organizer_pro/ui/widget_controls.py:411
+#: bookmark_organizer_pro/ui/widget_controls.py:419
 #: bookmark_organizer_pro/ui/workflow_emoji_picker.py:74
 msgid "Search"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:83
 #: bookmark_organizer_pro/app_mixins/app_shell.py:95
-#: bookmark_organizer_pro/ui/widget_controls.py:486
+#: bookmark_organizer_pro/ui/widget_controls.py:494
 msgid "Search Syntax"
 msgstr ""
 
@@ -4684,6 +4700,10 @@ msgstr ""
 msgid "{value_0} credentials · {value_1} recent events"
 msgstr ""
 
+#: bookmark_organizer_pro/ui/widget_controls.py:813
+msgid "{value_0} duplicate tag(s) skipped."
+msgstr ""
+
 #: bookmark_organizer_pro/ui/cleanup_review.py:86
 msgid "{value_0} match for #{value_1}"
 msgstr ""
@@ -4691,6 +4711,14 @@ msgstr ""
 #: bookmark_organizer_pro/app_mixins/dashboard.py:220
 #: bookmark_organizer_pro/app_mixins/lifecycle.py:122
 msgid "{value_0} selected"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/widget_controls.py:701
+msgid "{value_0} tag suggestions. Use Up/Down to choose."
+msgstr ""
+
+#: bookmark_organizer_pro/ui/widget_controls.py:736
+msgid "{value_0} tag suggestions; selected {value_1}."
 msgstr ""
 
 #: bookmark_organizer_pro/ui/management_dialogs.py:215
@@ -4724,7 +4752,7 @@ msgid "{visible} of {total} bookmarks"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:719
-#: bookmark_organizer_pro/ui/widget_controls.py:536
+#: bookmark_organizer_pro/ui/widget_controls.py:544
 msgid "×"
 msgstr ""
 

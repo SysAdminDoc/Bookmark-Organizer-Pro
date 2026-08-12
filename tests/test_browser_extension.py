@@ -651,12 +651,15 @@ vm.runInContext(`(async () => {
 
     def test_popup_save_payload_contract_maps_form_fields(self):
         popup_js = (EXT_DIR / "popup.js").read_text(encoding="utf-8")
+        shared_js = (EXT_DIR / "shared.js").read_text(encoding="utf-8")
         payload = extract_js_object_literal(popup_js, "const payload =")
 
         self.assertIn("url: activeTab.url", payload)
         self.assertIn("title: activeTab.title || activeTab.url", payload)
         self.assertIn('category: document.getElementById("category").value.trim() || values.defaultCategory', payload)
-        self.assertIn('tags: document.getElementById("tags").value', payload)
+        self.assertIn('tags: normalizeTagInput(document.getElementById("tags").value)', payload)
+        self.assertIn('loadTagsForInput("tags"', popup_js)
+        self.assertIn("rankTagSuggestions", shared_js)
         self.assertIn('notes: document.getElementById("notes").value', payload)
         self.assertIn('read_later: document.getElementById("readLater").checked', payload)
 
@@ -667,9 +670,35 @@ vm.runInContext(`(async () => {
         self.assertIn("url,", payload)
         self.assertIn("title: titleEl.dataset.tabTitle || url", payload)
         self.assertIn('category: document.getElementById("addCategory").value.trim() || config.defaultCategory', payload)
-        self.assertIn('tags: document.getElementById("addTags").value', payload)
+        self.assertIn('tags: normalizeTagInput(document.getElementById("addTags").value)', payload)
+        self.assertIn('loadTagsForInput("addTags"', sidepanel_js)
         self.assertIn('notes: document.getElementById("addNotes").value', payload)
         self.assertIn('read_later: document.getElementById("addReadLater").checked', payload)
+
+    def test_tag_autocomplete_contract_covers_keyboard_mouse_and_live_region(self):
+        shared_js = (EXT_DIR / "shared.js").read_text(encoding="utf-8")
+        popup_html = (EXT_DIR / "popup.html").read_text(encoding="utf-8")
+        sidepanel_html = (EXT_DIR / "sidepanel.html").read_text(encoding="utf-8")
+
+        for source in (popup_html, sidepanel_html):
+            self.assertIn('role="listbox"', source)
+            self.assertIn('aria-expanded="false"', source)
+            self.assertIn('role="status" aria-live="polite"', source)
+            self.assertIn('data-i18n="tagsHint"', source)
+        for marker in (
+            "normalizeTagInput",
+            "uniqueTagValues",
+            "tagInputQuery",
+            "rankTagSuggestions",
+            'event.key === "ArrowDown"',
+            'event.key === "ArrowUp"',
+            'event.key === "Enter"',
+            'event.key === "Escape"',
+            'event.key === "Tab"',
+            "mousedown",
+            "NFKC",
+        ):
+            self.assertIn(marker, shared_js)
 
     def test_reading_list_import_payload_contract_maps_read_state(self):
         sidepanel_js = (EXT_DIR / "sidepanel.js").read_text(encoding="utf-8")

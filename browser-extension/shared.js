@@ -423,6 +423,219 @@ async function loadCategories(datalistId) {
   } catch { /* bundled file missing */ }
 }
 
+function normalizeTagText(value) {
+  const text = String(value ?? "").trim();
+  return text.normalize ? text.normalize("NFKC") : text;
+}
+
+function tagKey(value) {
+  const text = normalizeTagText(value);
+  try { return text.toLocaleLowerCase("und"); } catch { return text.toLowerCase(); }
+}
+
+function splitTagInput(value) {
+  return String(value ?? "").split(/[,\n]/).map(normalizeTagText).filter(Boolean);
+}
+
+function uniqueTagValues(values) {
+  const source = typeof values === "string" ? splitTagInput(values) : (Array.isArray(values) ? values : [values]);
+  const result = [];
+  const seen = new Set();
+  for (const value of source) {
+    const tag = normalizeTagText(value);
+    const key = tagKey(tag);
+    if (tag && !seen.has(key)) {
+      seen.add(key);
+      result.push(tag);
+    }
+  }
+  return result;
+}
+
+function normalizeTagInput(value) {
+  return uniqueTagValues(splitTagInput(value)).join(", ");
+}
+
+function tagInputQuery(value) {
+  const chunks = String(value ?? "").split(/[,\n]/);
+  return normalizeTagText(chunks[chunks.length - 1] || "");
+}
+
+function rankTagSuggestions(query, availableTags, selectedTags = [], limit = 8) {
+  const selected = new Set(uniqueTagValues(selectedTags).map(tagKey));
+  const queryKey = tagKey(query);
+  const ranked = [];
+  for (const value of uniqueTagValues(availableTags)) {
+    const key = tagKey(value);
+    if (selected.has(key)) continue;
+    let rank = 3;
+    if (queryKey) {
+      if (key === queryKey) rank = 0;
+      else if (key.startsWith(queryKey)) rank = 1;
+      else if (key.split(/\s+/).some(token => token.startsWith(queryKey))) rank = 2;
+      else if (!key.includes(queryKey)) continue;
+    }
+    ranked.push({ value, key, rank });
+  }
+  const safeLimit = Math.max(1, Math.min(50, Number.parseInt(limit, 10) || 8));
+  ranked.sort((left, right) => (
+    left.rank - right.rank
+    || (queryKey ? left.key.length - right.key.length : 0)
+    || (left.key < right.key ? -1 : left.key > right.key ? 1 : 0)
+    || (left.value < right.value ? -1 : left.value > right.value ? 1 : 0)
+  ));
+  return ranked.slice(0, safeLimit).map(item => item.value);
+}
+
+function replaceCurrentTagInput(value, replacement) {
+  const raw = String(value ?? "");
+  const match = /^(.*[,\n])[^,\n]*$/.exec(raw);
+  return match ? `${match[1]} ${replacement}` : replacement;
+}
+
+async function loadTagVocabulary(config) {
+  if (!config || !config.apiToken) return [];
+  try {
+    const response = await fetch(`${baseUrl(config)}/tags`, {
+      headers: authHeaders(config)
+    });
+    if (!response.ok) return [];
+    const body = await response.json();
+    return uniqueTagValues((body.tags || []).map(item => typeof item === "string" ? item : item.name));
+  } catch {
+    return [];
+  }
+}
+
+function attachTagAutocomplete(inputId, availableTags, { listId, statusId } = {}) {
+  const input = document.getElementById(inputId);
+  const list = document.getElementById(listId);
+  const status = document.getElementById(statusId);
+  if (!input || !list || !status) return null;
+
+  const state = { availableTags: uniqueTagValues(availableTags), suggestions: [], activeIndex: -1 };
+  input.setAttribute("aria-controls", list.id);
+  input.setAttribute("aria-expanded", "false");
+  input.setAttribute("autocomplete", "off");
+
+  function announce(key, substitutions, fallback) {
+    status.textContent = typeof extensionMessage === "function"
+      ? extensionMessage(key, substitutions, fallback)
+      : fallback;
+  }
+
+  function hide() {
+    list.hidden = true;
+    input.setAttribute("aria-expanded", "false");
+    state.activeIndex = -1;
+  }
+
+  function render({ announceCount = true } = {}) {
+    state.suggestions = rankTagSuggestions(
+      tagInputQuery(input.value),
+      state.availableTags,
+      splitTagInput(input.value),
+    );
+    list.replaceChildren();
+    state.suggestions.forEach((value, index) => {
+      const option = document.createElement("div");
+      option.className = "tag-suggestion-option";
+      option.setAttribute("role", "option");
+      option.setAttribute("aria-selected", String(index === state.activeIndex));
+      option.tabIndex = -1;
+      option.textContent = value;
+      option.addEventListener("mousedown", event => {
+        event.preventDefault();
+        choose(index);
+      });
+      list.appendChild(option);
+    });
+    if (!state.suggestions.length) {
+      hide();
+      if (announceCount && tagInputQuery(input.value)) {
+        announce("tagNoMatches", [], "No matching tags. Press Enter to keep a new tag.");
+      }
+      return;
+    }
+    list.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+    if (state.activeIndex >= 0 && state.activeIndex < state.suggestions.length) {
+      const selected = list.children[state.activeIndex];
+      selected.setAttribute("aria-selected", "true");
+      announce(
+        "tagSuggestionSelected",
+        [state.suggestions[state.activeIndex]],
+        `Selected tag ${state.suggestions[state.activeIndex]}.`,
+      );
+    } else if (announceCount) {
+      announce(
+        "tagSuggestionsCount",
+        [String(state.suggestions.length)],
+        `${state.suggestions.length} tag suggestions. Use Arrow Down to choose.`,
+      );
+    }
+  }
+
+  function choose(index) {
+    if (index < 0 || index >= state.suggestions.length) return;
+    const value = state.suggestions[index];
+    input.value = replaceCurrentTagInput(input.value, value);
+    hide();
+    announce("tagSuggestionChosen", [value], `Tag ${value} selected.`);
+    input.focus();
+  }
+
+  input.addEventListener("input", () => {
+    state.activeIndex = -1;
+    render();
+  });
+  input.addEventListener("focus", () => render());
+  input.addEventListener("blur", () => setTimeout(() => {
+    if (document.activeElement !== input) hide();
+  }, 120));
+  input.addEventListener("keydown", event => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      if (!state.suggestions.length) return;
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      state.activeIndex = state.activeIndex < 0
+        ? (direction > 0 ? 0 : state.suggestions.length - 1)
+        : (state.activeIndex + direction + state.suggestions.length) % state.suggestions.length;
+      render({ announceCount: false });
+      event.preventDefault();
+      return;
+    }
+    if (event.key === "Enter") {
+      if (state.activeIndex >= 0) choose(state.activeIndex);
+      else {
+        input.value = normalizeTagInput(input.value);
+        hide();
+        announce("tagsReadyToSave", [], "Tags are ready to save.");
+      }
+      event.preventDefault();
+      return;
+    }
+    if (event.key === "Escape") {
+      hide();
+      announce("tagSuggestionsDismissed", [], "Tag suggestions dismissed.");
+      event.preventDefault();
+      return;
+    }
+    if (event.key === "Tab") {
+      if (state.activeIndex >= 0) choose(state.activeIndex);
+      else input.value = normalizeTagInput(input.value);
+      hide();
+      // Do not preventDefault: Tab must continue to the next control.
+    }
+  });
+  render({ announceCount: false });
+  return state;
+}
+
+async function loadTagsForInput(inputId, config, ids) {
+  const vocabulary = await loadTagVocabulary(config);
+  return attachTagAutocomplete(inputId, vocabulary, ids);
+}
+
 function renderDefaultCategoryAffordance(inputId, defaultId, hintId, category) {
   if (typeof document === "undefined") return;
   const effective = normalizeDefaultCategory(category);

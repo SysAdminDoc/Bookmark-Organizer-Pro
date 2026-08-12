@@ -25,6 +25,10 @@ from bookmark_organizer_pro.app_mixins.bookmarks import (
     _status_sort_value,
 )
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.tag_suggestions import (
+    parse_tag_input,
+    rank_tag_suggestions,
+)
 from datetime import datetime
 
 
@@ -56,6 +60,22 @@ def test_desktop_scale_matches_dense_library_workspace():
     assert DesignTokens.RIGHT_SIDEBAR_WIDTH == 336
     assert FONTS.size_display < 28
     assert DesignTokens.BUTTON_PAD_Y == DesignTokens.CONTROL_GAP
+
+
+def test_tag_suggestions_are_ranked_deterministically_and_dedupe_non_ascii():
+    vocabulary = ["Research", "research notes", "Résumé", "résumé", "Café", "new tag"]
+
+    assert rank_tag_suggestions("rés", vocabulary) == ["Résumé"]
+    assert rank_tag_suggestions("re", vocabulary, selected_tags=["RESEARCH"]) == [
+        "research notes",
+    ]
+    assert parse_tag_input("Résumé, résumé, 新しいタグ") == ["Résumé", "新しいタグ"]
+
+
+def test_tag_suggestions_exclude_selected_tags_but_keep_arbitrary_input():
+    assert rank_tag_suggestions("", ["alpha", "beta"], selected_tags=["ALPHA"]) == ["beta"]
+    assert parse_tag_input("brand-new,  ") == ["brand-new"]
+    assert rank_tag_suggestions("dev", [SimpleNamespace(full_path="Dev/Python")]) == ["Dev/Python"]
 
 
 def test_ttk_controls_define_complete_interaction_states(monkeypatch):

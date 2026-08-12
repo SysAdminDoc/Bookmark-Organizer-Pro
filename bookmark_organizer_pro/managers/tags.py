@@ -10,6 +10,7 @@ from typing import Dict, List, Optional
 from bookmark_organizer_pro.constants import TAGS_FILE
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Tag
+from bookmark_organizer_pro.tag_suggestions import rank_tag_suggestions
 from bookmark_organizer_pro.utils.runtime import atomic_json_write as _atomic_json_write
 
 
@@ -166,11 +167,8 @@ class TagManager:
     
     def get_tag_suggestions(self, partial: str, limit: int = 10) -> List[str]:
         """Get tag suggestions for autocomplete"""
-        partial = str(partial or "").lower()
-        try:
-            limit = max(1, min(100, int(limit)))
-        except (TypeError, ValueError):
-            limit = 10
-        matches = [t.full_path for t in self.tags.values() 
-                   if partial in t.name.lower()]
-        return sorted(matches)[:limit]
+        return rank_tag_suggestions(
+            partial,
+            [tag.full_path for tag in self.tags.values()],
+            limit=limit,
+        )
