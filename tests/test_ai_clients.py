@@ -72,6 +72,93 @@ class TestRetryHelpers(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 ai._retry(always_busy, attempts=3, base_delay=0.01)
 
+    def test_operation_cancellation_stops_retry_and_is_recorded(self):
+        from bookmark_organizer_pro import ai
+        from bookmark_organizer_pro.services.ai_operation import (
+            AICancellationToken,
+            AIOperation,
+            AIOperationCancelled,
+        )
+        from bookmark_organizer_pro.services.job_ledger import JobLedger
+
+        token = AICancellationToken()
+        token.cancel("stop from test")
+        calls = {"count": 0}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = JobLedger(Path(tmp) / "jobs.json")
+            operation = AIOperation(
+                "retry_cancel",
+                token=token,
+                job_ledger=ledger,
+            )
+            with self.assertRaises(AIOperationCancelled):
+                with operation:
+                    ai._retry(
+                        lambda: calls.__setitem__("count", calls["count"] + 1),
+                        operation=operation,
+                    )
+
+            self.assertEqual(calls["count"], 0)
+            records = ledger.list_records(job_type="ai_retry_cancel")
+            self.assertEqual(len(records), 1)
+            self.assertEqual(records[0].outcome, "cancelled")
+            self.assertEqual(records[0].retryable, False)
+
+    def test_stream_closes_and_records_output_budget_failure(self):
+        from bookmark_organizer_pro.ai import OpenAIClient
+        from bookmark_organizer_pro.services.ai_operation import (
+            AIBudget,
+            AIBudgetExceeded,
+            AIOperation,
+        )
+        from bookmark_organizer_pro.services.job_ledger import JobLedger
+
+        class Stream:
+            def __init__(self):
+                self.closed = False
+
+            def __iter__(self):
+                for text in ("abcd", "e"):
+                    yield SimpleNamespace(
+                        choices=[SimpleNamespace(
+                            delta=SimpleNamespace(content=text),
+                        )]
+                    )
+
+            def close(self):
+                self.closed = True
+
+        stream = Stream()
+
+        class Completions:
+            def create(self, **_kwargs):
+                return stream
+
+        client = OpenAIClient("key", "gpt-4o-mini")
+        client._client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = JobLedger(Path(tmp) / "jobs.json")
+            operation = AIOperation(
+                "stream_budget",
+                budget=AIBudget(
+                    max_output_chars=4,
+                    max_output_tokens=100,
+                ),
+                job_ledger=ledger,
+            )
+            with self.assertRaises(AIBudgetExceeded):
+                with operation:
+                    list(client.stream_complete("hello", operation=operation))
+
+            self.assertTrue(stream.closed)
+            record = ledger.list_records(job_type="ai_stream_budget")[0]
+            self.assertEqual(record.outcome, "failure")
+            self.assertEqual(record.retryable, False)
+            self.assertEqual(record.limit_reason, "output characters")
+            self.assertEqual(record.output_chars, 4)
+
     def test_friendly_model_error_points_to_settings(self):
         from bookmark_organizer_pro.ai import _friendly_model_error
 

@@ -20,6 +20,15 @@ from bookmark_organizer_pro.services.ai_context import (
     enforce_citation_policy,
     normalize_prompt_text,
 )
+from bookmark_organizer_pro.services.ai_operation import (
+    AIBudget,
+    AIBudgetExceeded,
+    AICancellationToken,
+    AIOperation,
+    AIOperationCancelled,
+    call_ai,
+    operation_scope,
+)
 from bookmark_organizer_pro.services.vector_store import VectorStore
 
 
@@ -483,9 +492,43 @@ class CollectionChat:
 
         return turn
 
-    def ask(self, question: str,
-            restrict_ids: Optional[Iterable[int]] = None,
-            use_cache: bool = True) -> ChatTurn:
+    def ask(
+        self,
+        question: str,
+        restrict_ids: Optional[Iterable[int]] = None,
+        use_cache: bool = True,
+        *,
+        operation: AIOperation | None = None,
+        cancel_token: AICancellationToken | None = None,
+        budget: AIBudget | None = None,
+        job_ledger=None,
+    ) -> ChatTurn:
+        provider = getattr(self.ai_config, "get_provider", lambda: "")
+        backend = provider() if callable(provider) else ""
+        with operation_scope(
+            "chat",
+            operation=operation,
+            token=cancel_token,
+            budget=budget,
+            job_ledger=job_ledger,
+            backend=str(backend or ""),
+        ) as owned_operation:
+            return self._ask_with_operation(
+                question,
+                restrict_ids=restrict_ids,
+                use_cache=use_cache,
+                operation=owned_operation,
+            )
+
+    def _ask_with_operation(
+        self,
+        question: str,
+        *,
+        restrict_ids: Optional[Iterable[int]],
+        use_cache: bool,
+        operation: AIOperation,
+    ) -> ChatTurn:
+        operation.check()
         if not question.strip():
             return ChatTurn(answer="")
         restrict_ids = list(restrict_ids) if restrict_ids is not None else None
@@ -507,13 +550,19 @@ class CollectionChat:
 
         try:
             client = create_ai_client(self.ai_config)
-            answer = client.complete(
+            answer = call_ai(
+                client.complete,
                 system=SYSTEM_PROMPT,
                 prompt=prompt,
                 max_tokens=CHAT_MAX_TOKENS,
                 temperature=CHAT_TEMPERATURE,
+                operation=operation,
             )
+            operation.check()
+        except (AIOperationCancelled, AIBudgetExceeded):
+            raise
         except Exception as exc:
+            operation.fail(exc)
             log.warning(f"RAG chat failed: {exc}")
             return ChatTurn(answer=f"AI request failed: {exc}", sources=retrieved)
 
@@ -523,11 +572,49 @@ class CollectionChat:
             restrict_ids, context_identity, use_cache,
         )
 
-    def stream_answer(self, question: str,
-                      restrict_ids: Optional[Iterable[int]] = None,
-                      chunk_chars: int = 160,
-                      use_cache: bool = True,
-                      on_event: Optional[Callable[[ChatStreamEvent], None]] = None) -> ChatStreamResult:
+    def stream_answer(
+        self,
+        question: str,
+        restrict_ids: Optional[Iterable[int]] = None,
+        chunk_chars: int = 160,
+        use_cache: bool = True,
+        on_event: Optional[Callable[[ChatStreamEvent], None]] = None,
+        *,
+        operation: AIOperation | None = None,
+        cancel_token: AICancellationToken | None = None,
+        budget: AIBudget | None = None,
+        job_ledger=None,
+    ) -> ChatStreamResult:
+        provider = getattr(self.ai_config, "get_provider", lambda: "")
+        backend = provider() if callable(provider) else ""
+        with operation_scope(
+            "chat_stream",
+            operation=operation,
+            token=cancel_token,
+            budget=budget,
+            job_ledger=job_ledger,
+            backend=str(backend or ""),
+        ) as owned_operation:
+            return self._stream_answer_with_operation(
+                question,
+                restrict_ids=restrict_ids,
+                chunk_chars=chunk_chars,
+                use_cache=use_cache,
+                on_event=on_event,
+                operation=owned_operation,
+            )
+
+    def _stream_answer_with_operation(
+        self,
+        question: str,
+        *,
+        restrict_ids: Optional[Iterable[int]],
+        chunk_chars: int,
+        use_cache: bool,
+        on_event: Optional[Callable[[ChatStreamEvent], None]],
+        operation: AIOperation,
+    ) -> ChatStreamResult:
+        operation.check()
         if not question.strip():
             turn = ChatTurn(answer="")
             events = build_chat_stream_events(turn, chunk_chars)
@@ -560,19 +647,27 @@ class CollectionChat:
         try:
             client = create_ai_client(self.ai_config)
             raw_chunks = []
-            for chunk in client.stream_complete(
+            stream = call_ai(
+                client.stream_complete,
                 system=SYSTEM_PROMPT,
                 prompt=prompt,
                 max_tokens=CHAT_MAX_TOKENS,
                 temperature=CHAT_TEMPERATURE,
-            ):
+                operation=operation,
+            )
+            for chunk in stream:
+                operation.check()
                 if not chunk:
                     continue
                 text = str(chunk)
                 raw_chunks.append(text)
             raw_answer = "".join(raw_chunks)
+            operation.check()
             answer = self._sanitize_answer(raw_answer, retrieved).text
+        except (AIOperationCancelled, AIBudgetExceeded):
+            raise
         except Exception as exc:
+            operation.fail(exc)
             log.warning(f"RAG chat streaming failed: {exc}")
             turn = ChatTurn(answer=f"AI request failed: {exc}", sources=retrieved)
             return ChatStreamResult(turn, build_chat_stream_events(turn, chunk_chars))

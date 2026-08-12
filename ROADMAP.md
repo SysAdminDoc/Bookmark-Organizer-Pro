@@ -4,13 +4,6 @@ Actionable work only. Historical and completed roadmap material is archived in C
 
 ## Actionable Items
 
-- [ ] P1 — R-94: Add end-to-end assistant cancellation and failure budgets
-  Why: long AI operations have no uniform Stop contract across UI workers, streaming clients, retries, caches, and job history.
-  Evidence: AI UI/client services and `bookmark_organizer_pro/services/job_ledger.py`; Joplin PR #15946 and PR #15944.
-  Touches: provider interfaces, AI workers/dialogs, retry policy, job ledger, partial-output/cache handling, cancellation tests.
-  Acceptance: Every AI operation exposes Stop, propagates one cancellation token through network/stream/retry layers, closes resources within a tested deadline, records `cancelled` separately from failure, never caches partial output, and caps attempts, elapsed time, input tokens/characters, and output size with actionable UI errors.
-  Complexity: L
-
 - [ ] P1 — R-95: Wire scheduled snapshots into lifecycle and recovery
   Why: The former R-24 completion claim is not reachable: `auto_snapshot.py` and its saved interval exist without a verified application lifecycle that restores, runs, pauses, and recovers the scheduler.
   Evidence: `bookmark_organizer_pro/services/auto_snapshot.py`, snapshot settings, lifecycle mixins, snapshot failure/history services, `CHANGELOG.md`.

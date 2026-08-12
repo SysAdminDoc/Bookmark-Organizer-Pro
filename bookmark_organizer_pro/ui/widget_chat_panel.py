@@ -21,11 +21,13 @@ class ChatPanel(tk.Frame, ThemedWidget):
     """
 
     def __init__(self, parent, on_ask: Callable[[str], None] = None,
-                 on_bookmark_click: Callable[[int], None] = None):
+                 on_bookmark_click: Callable[[int], None] = None,
+                 on_cancel: Callable[[], None] = None):
         theme = get_theme()
         super().__init__(parent, bg=theme.bg_dark)
         self._on_ask = on_ask
         self._on_bookmark_click = on_bookmark_click
+        self._on_cancel = on_cancel
         self._history = []
         self._build(theme)
 
@@ -107,10 +109,15 @@ class ChatPanel(tk.Frame, ThemedWidget):
         self._entry.bind("<FocusOut>", self._on_focus_out)
         self._entry.bind("<Return>", self._on_submit)
 
-        ModernButton(
+        self._ask_btn = ModernButton(
             input_row, text=_("Ask"), command=self._on_submit,
             padx=9, pady=7, tooltip=_("Ask the local assistant"),
-        ).pack(side=tk.RIGHT)
+        )
+        self._ask_btn.pack(side=tk.RIGHT)
+        self._stop_btn = ModernButton(
+            input_row, text=_("Stop"), command=self._cancel_ask,
+            style="danger", padx=9, pady=7, tooltip=_("Stop the assistant"),
+        )
 
         suggestions = tk.Frame(input_frame, bg=theme.bg_dark)
         suggestions.pack(fill=tk.X, pady=(8, 0))
@@ -193,9 +200,30 @@ class ChatPanel(tk.Frame, ThemedWidget):
         self._add_message("user", question)
         self._status_label.config(text=_("Searching your library..."), fg=get_theme().accent_primary)
         self._entry.config(state=tk.DISABLED)
+        self._set_request_active(True)
         if self._on_ask:
             self._on_ask(question)
         return "break"
+
+    def _cancel_ask(self):
+        if str(self._entry.cget("state")) != str(tk.DISABLED):
+            return
+        self._status_label.config(text=_("Stopping…"), fg=get_theme().accent_warning)
+        self._stop_btn.set_state("disabled")
+        if self._on_cancel:
+            self._on_cancel()
+
+    def _set_request_active(self, active: bool):
+        if active:
+            self._ask_btn.pack_forget()
+            if not self._stop_btn.winfo_ismapped():
+                self._stop_btn.pack(side=tk.RIGHT)
+            self._stop_btn.set_state("normal")
+        else:
+            self._stop_btn.pack_forget()
+            if not self._ask_btn.winfo_ismapped():
+                self._ask_btn.pack(side=tk.RIGHT)
+            self._ask_btn.set_state("normal")
 
     def _add_message(self, role: str, text: str, sources=None, *, record: bool = True):
         theme = get_theme()
@@ -255,12 +283,19 @@ class ChatPanel(tk.Frame, ThemedWidget):
 
     def show_answer(self, answer: str, sources: list = None):
         self._entry.config(state=tk.NORMAL)
+        self._set_request_active(False)
         self._status_label.config(text="", fg=get_theme().text_muted)
         self._add_message("assistant", answer, sources=sources)
 
     def show_error(self, message: str):
         self._entry.config(state=tk.NORMAL)
+        self._set_request_active(False)
         self._status_label.config(text=message, fg=get_theme().accent_error)
+
+    def show_stopped(self):
+        self._entry.config(state=tk.NORMAL)
+        self._set_request_active(False)
+        self._status_label.config(text=_("Assistant stopped."), fg=get_theme().accent_warning)
 
     def clear_conversation(self):
         for widget in self._messages_inner.winfo_children():

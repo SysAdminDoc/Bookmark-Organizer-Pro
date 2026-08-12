@@ -6,6 +6,17 @@ from .ai_tools import (
     AITagSuggester,
     SemanticDuplicateDetector,
 )
+from .ai_operation import (
+    AIBudget,
+    AIBudgetExceeded,
+    AICancellationToken,
+    AIOperation,
+    AIOperationCancelled,
+    AIOperationError,
+    call_ai,
+    estimate_tokens,
+    operation_scope,
+)
 from .api import BookmarkAPI
 from .ai_context import (
     CitedOutput,
@@ -155,6 +166,9 @@ __all__ = [
     # Existing
     "AIBatchProcessor", "AICostTracker", "AITagSuggester",
     "SemanticDuplicateDetector", "BookmarkAPI",
+    "AIBudget", "AIBudgetExceeded", "AICancellationToken",
+    "AIOperation", "AIOperationCancelled", "AIOperationError",
+    "call_ai", "estimate_tokens", "operation_scope",
     "CitedOutput", "UntrustedEvidenceBundle", "UntrustedEvidenceChunk",
     "build_untrusted_evidence", "enforce_citation_policy",
     "FaviconPrivacyPolicy", "FaviconWrapperGenerator", "HighSpeedFaviconManager",

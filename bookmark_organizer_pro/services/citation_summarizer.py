@@ -20,6 +20,15 @@ from bookmark_organizer_pro.services.ai_context import (
     build_untrusted_evidence,
     enforce_citation_policy,
 )
+from bookmark_organizer_pro.services.ai_operation import (
+    AIBudget,
+    AIBudgetExceeded,
+    AICancellationToken,
+    AIOperation,
+    AIOperationCancelled,
+    call_ai,
+    operation_scope,
+)
 from bookmark_organizer_pro.services.embeddings import EmbeddingService
 
 
@@ -73,10 +82,46 @@ class CitationSummarizer:
         self.embedder = embedder or EmbeddingService()
 
     # ------------------------------------------------------------------
-    def summarize_bookmark(self, bookmark: Bookmark,
-                           extracted_text: Optional[str] = None,
-                           max_chunks: int = 8) -> CitedSummary:
+    def summarize_bookmark(
+        self,
+        bookmark: Bookmark,
+        extracted_text: Optional[str] = None,
+        max_chunks: int = 8,
+        *,
+        operation: AIOperation | None = None,
+        cancel_token: AICancellationToken | None = None,
+        budget: AIBudget | None = None,
+        job_ledger=None,
+    ) -> CitedSummary:
+        provider = getattr(self.ai_config, "get_provider", lambda: "")
+        backend = provider() if callable(provider) else ""
+        with operation_scope(
+            "citation_summary",
+            operation=operation,
+            token=cancel_token,
+            budget=budget,
+            job_ledger=job_ledger,
+            backend=str(backend or ""),
+            bookmark_id=getattr(bookmark, "id", None),
+            url_or_domain=getattr(bookmark, "domain", ""),
+        ) as owned_operation:
+            return self._summarize_with_operation(
+                bookmark,
+                extracted_text=extracted_text,
+                max_chunks=max_chunks,
+                operation=owned_operation,
+            )
+
+    def _summarize_with_operation(
+        self,
+        bookmark: Bookmark,
+        *,
+        extracted_text: Optional[str],
+        max_chunks: int,
+        operation: AIOperation,
+    ) -> CitedSummary:
         """Summarize the given bookmark with inline citations."""
+        operation.check()
         text = extracted_text
         if text is None and bookmark.extracted_text_path:
             try:
@@ -98,13 +143,19 @@ class CitationSummarizer:
         prompt = self._build_prompt(bookmark, chunks)
         try:
             client = create_ai_client(self.ai_config)
-            response = client.complete(
+            response = call_ai(
+                client.complete,
                 system=SYSTEM_PROMPT,
                 prompt=prompt,
                 max_tokens=600,
                 temperature=0.2,
+                operation=operation,
             )
+            operation.check()
+        except (AIOperationCancelled, AIBudgetExceeded):
+            raise
         except Exception as exc:
+            operation.fail(exc)
             log.warning(f"Citation summary failed: {exc}")
             return CitedSummary(summary="", citations=[])
 

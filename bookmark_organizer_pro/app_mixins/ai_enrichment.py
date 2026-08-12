@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import time
 from datetime import datetime
 from typing import List
 
@@ -13,6 +12,12 @@ from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.ai_audit_log import log_summary, log_tag_suggestion
 from bookmark_organizer_pro.services.ai_snapshot import create_snapshot
+from bookmark_organizer_pro.services.ai_operation import (
+    AIBudgetExceeded,
+    AIOperation,
+    AIOperationCancelled,
+    call_ai,
+)
 from bookmark_organizer_pro.ui.live_workflow import LiveWorkflowDialog
 
 _SKIP_URL_PATTERNS = (
@@ -87,10 +92,25 @@ class AiEnrichmentMixin:
         )
 
         def _worker():
+            operation = AIOperation(
+                "tag_suggestions",
+                token=dialog.cancel_token,
+                backend=str(self.ai_config.get_provider() or ""),
+            )
+            try:
+                with operation:
+                    _run_operation(operation)
+            except AIOperationCancelled:
+                dialog.signal_finish("Cancelled — no partial AI output was cached", outcome="warning")
+            except AIBudgetExceeded as exc:
+                dialog.signal_finish(format_message("Stopped — {error}", error=str(exc)), outcome="error")
+
+        def _run_operation(operation: AIOperation):
             try:
                 create_snapshot("ai_tags", bookmarks)
             except Exception as snap_err:
                 log.warning(f"AI snapshot failed (continuing): {snap_err}")
+            operation.check()
             client = create_failover_client(self.ai_config)
             categories = self.category_manager.get_sorted_categories()
             batch_size = self.ai_config.get_batch_size()
@@ -103,8 +123,7 @@ class AiEnrichmentMixin:
             skipped_urls = 0
 
             for start in range(0, len(bookmarks), batch_size):
-                if dialog.cancelled:
-                    break
+                operation.check()
 
                 end = min(start + batch_size, len(bookmarks))
                 batch = bookmarks[start:end]
@@ -136,9 +155,18 @@ class AiEnrichmentMixin:
                 ))
 
                 try:
-                    results = client.categorize_bookmarks(
-                        bm_data, categories, allow_new=False, suggest_tags=True)
+                    results = call_ai(
+                        client.categorize_bookmarks,
+                        bm_data,
+                        categories,
+                        allow_new=False,
+                        suggest_tags=True,
+                        operation=operation,
+                    )
+                    operation.check()
                     result_map = {r.get("url", ""): r for r in results}
+                except (AIOperationCancelled, AIBudgetExceeded):
+                    raise
                 except Exception as exc:
                     log.warning(f"AI tag batch failed: {exc}")
                     for bm in real_batch:
@@ -148,8 +176,7 @@ class AiEnrichmentMixin:
                     continue
 
                 for bm in real_batch:
-                    if dialog.cancelled:
-                        break
+                    operation.check()
 
                     result = result_map.get(bm.url, {})
                     ai_tags_raw = result.get("tags", [])
@@ -189,9 +216,10 @@ class AiEnrichmentMixin:
                 # Save periodically
                 self.bookmark_manager.save_bookmarks()
 
-                if not dialog.cancelled and end < len(bookmarks):
-                    time.sleep(rate_delay)
+                if end < len(bookmarks):
+                    operation.wait(rate_delay)
 
+            operation.check()
             self.bookmark_manager.save_bookmarks()
 
             summary = format_message(
@@ -231,10 +259,25 @@ class AiEnrichmentMixin:
         )
 
         def _worker():
+            operation = AIOperation(
+                "summaries",
+                token=dialog.cancel_token,
+                backend=str(self.ai_config.get_provider() or ""),
+            )
+            try:
+                with operation:
+                    _run_operation(operation)
+            except AIOperationCancelled:
+                dialog.signal_finish("Cancelled — no partial AI output was cached", outcome="warning")
+            except AIBudgetExceeded as exc:
+                dialog.signal_finish(format_message("Stopped — {error}", error=str(exc)), outcome="error")
+
+        def _run_operation(operation: AIOperation):
             client = self._get_ai_client()
             if not client:
                 dialog.set_status("AI client unavailable")
                 dialog.signal_finish("Stopped — AI client unavailable")
+                operation.fail("AI client unavailable", retryable=False)
                 return
 
             provider = self.ai_config.get_provider()
@@ -246,8 +289,7 @@ class AiEnrichmentMixin:
             updated = 0
 
             for start in range(0, len(bookmarks), batch_size):
-                if dialog.cancelled:
-                    break
+                operation.check()
                 end = min(start + batch_size, len(bookmarks))
                 batch = bookmarks[start:end]
 
@@ -264,10 +306,15 @@ class AiEnrichmentMixin:
                 )
 
                 try:
-                    text = client.complete(
-                        prompt, system="You summarize web pages. Respond only with valid JSON.",
-                        max_tokens=2048, temperature=0.3,
+                    text = call_ai(
+                        client.complete,
+                        prompt,
+                        system="You summarize web pages. Respond only with valid JSON.",
+                        max_tokens=2048,
+                        temperature=0.3,
+                        operation=operation,
                     )
+                    operation.check()
                     json_text = self._extract_json_object_text(text)
                     if json_text:
                         data = json.loads(json_text)
@@ -292,6 +339,8 @@ class AiEnrichmentMixin:
                             dialog.add_result(status="skip", title=(bm.title or bm.url),
                                               detail="invalid AI response")
                             processed += 1
+                except (AIOperationCancelled, AIBudgetExceeded):
+                    raise
                 except Exception as exc:
                     log.warning(f"AI summary batch failed: {exc}")
                     for bm in batch:
@@ -300,9 +349,10 @@ class AiEnrichmentMixin:
                         processed += 1
 
                 self.bookmark_manager.save_bookmarks()
-                if not dialog.cancelled and end < len(bookmarks):
-                    time.sleep(rate_delay)
+                if end < len(bookmarks):
+                    operation.wait(rate_delay)
 
+            operation.check()
             self.bookmark_manager.save_bookmarks()
             dialog.signal_finish(format_message(
                 "Done — {count} summaries generated", count=updated,

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from datetime import datetime
 from typing import List
 
@@ -12,6 +11,12 @@ from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.ai_audit_log import log_categorize, log_title_improvement
 from bookmark_organizer_pro.services.ai_snapshot import create_snapshot
+from bookmark_organizer_pro.services.ai_operation import (
+    AIBudgetExceeded,
+    AIOperation,
+    AIOperationCancelled,
+    call_ai,
+)
 from bookmark_organizer_pro.ui.live_workflow import LiveWorkflowDialog
 
 
@@ -46,10 +51,25 @@ class AiCategorizationMixin:
         )
 
         def _worker():
+            operation = AIOperation(
+                "categorization",
+                token=dialog.cancel_token,
+                backend=str(self.ai_config.get_provider() or ""),
+            )
+            try:
+                with operation:
+                    _run_operation(operation)
+            except AIOperationCancelled:
+                dialog.signal_finish("Cancelled — no partial AI output was cached", outcome="warning")
+            except AIBudgetExceeded as exc:
+                dialog.signal_finish(format_message("Stopped — {error}", error=str(exc)), outcome="error")
+
+        def _run_operation(operation: AIOperation):
             try:
                 create_snapshot("ai_categorize", bookmarks)
             except Exception as snap_err:
                 log.warning(f"AI snapshot failed (continuing): {snap_err}")
+            operation.check()
             client = create_failover_client(self.ai_config)
             categories = self.category_manager.get_sorted_categories()
             allow_new = self.ai_config.get_auto_create_categories()
@@ -65,8 +85,7 @@ class AiCategorizationMixin:
             titles_changed = 0
 
             for start in range(0, len(bookmarks), batch_size):
-                if dialog.cancelled:
-                    break
+                operation.check()
 
                 end = min(start + batch_size, len(bookmarks))
                 batch = bookmarks[start:end]
@@ -79,7 +98,17 @@ class AiCategorizationMixin:
                 ))
 
                 try:
-                    results = client.categorize_bookmarks(bm_data, categories, allow_new, suggest_tags)
+                    results = call_ai(
+                        client.categorize_bookmarks,
+                        bm_data,
+                        categories,
+                        allow_new,
+                        suggest_tags,
+                        operation=operation,
+                    )
+                    operation.check()
+                except (AIOperationCancelled, AIBudgetExceeded):
+                    raise
                 except Exception as exc:
                     log.warning(f"AI batch failed: {exc}")
                     err_msg = f"error: {str(exc)[:40]}"
@@ -91,8 +120,7 @@ class AiCategorizationMixin:
                 result_map = {r.get("url", ""): r for r in results}
 
                 for bm in batch:
-                    if dialog.cancelled:
-                        break
+                    operation.check()
 
                     result = result_map.get(bm.url, {})
                     confidence = result.get("confidence", 0)
@@ -206,9 +234,10 @@ class AiCategorizationMixin:
                 # Save periodically
                 self.bookmark_manager.save_bookmarks()
 
-                if not dialog.cancelled and end < len(bookmarks):
-                    time.sleep(rate_delay)
+                if end < len(bookmarks):
+                    operation.wait(rate_delay)
 
+            operation.check()
             # Final save
             self.bookmark_manager.save_bookmarks()
             self.category_manager.save_categories()

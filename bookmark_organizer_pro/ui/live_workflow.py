@@ -32,6 +32,7 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 
 from bookmark_organizer_pro.i18n import _, format_message
+from bookmark_organizer_pro.services.ai_operation import AICancellationToken
 from bookmark_organizer_pro.ui.components import ScrollableFrame
 from bookmark_organizer_pro.ui.foundation import FONTS
 from bookmark_organizer_pro.ui.widgets import ModernButton, apply_window_chrome, get_theme
@@ -106,6 +107,7 @@ class LiveWorkflowDialog:
         self._on_cancel = on_cancel
 
         self.cancelled = False
+        self.cancel_token = AICancellationToken()
         self._revealed = 0
         self._queue: "deque[Callable]" = deque()
         self._worker_events: "deque[_WorkerEvent]" = deque()
@@ -224,6 +226,7 @@ class LiveWorkflowDialog:
         if self.cancelled:
             return
         self.cancelled = True
+        self.cancel_token.cancel()
         try:
             self.cancel_btn.set_state("disabled")
             self.cancel_btn.set_text("Stopping…")

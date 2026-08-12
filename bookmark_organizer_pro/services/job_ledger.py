@@ -81,6 +81,12 @@ class JobRecord:
     retryable: bool = False
     error: str = ""
     attempt: int = 1
+    request_attempts: int = 0
+    input_chars: int = 0
+    input_tokens: int = 0
+    output_chars: int = 0
+    output_tokens: int = 0
+    limit_reason: str = ""
 
     @classmethod
     def from_dict(cls, value: dict) -> "JobRecord | None":
@@ -107,6 +113,12 @@ class JobRecord:
                 retryable=bool(value.get("retryable")),
                 error=redact_job_error(value.get("error")),
                 attempt=max(1, int(value.get("attempt") or 1)),
+                request_attempts=max(0, int(value.get("request_attempts") or 0)),
+                input_chars=max(0, int(value.get("input_chars") or 0)),
+                input_tokens=max(0, int(value.get("input_tokens") or 0)),
+                output_chars=max(0, int(value.get("output_chars") or 0)),
+                output_tokens=max(0, int(value.get("output_tokens") or 0)),
+                limit_reason=str(value.get("limit_reason") or "")[:80],
             )
         except (TypeError, ValueError):
             return None
@@ -135,7 +147,7 @@ class JobRun:
         return self._finish("failure", bytes_processed, retryable, error, backend)
 
     def cancel(self, error: object = "cancelled") -> JobRecord:
-        return self._finish("cancelled", 0, True, error, None)
+        return self._finish("cancelled", 0, False, error, None)
 
     def _finish(
         self,

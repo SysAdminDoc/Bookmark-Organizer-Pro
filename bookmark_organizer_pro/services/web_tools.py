@@ -21,6 +21,15 @@ from bookmark_organizer_pro.services.ai_context import (
     build_untrusted_evidence,
     enforce_citation_policy,
 )
+from bookmark_organizer_pro.services.ai_operation import (
+    AIBudget,
+    AIBudgetExceeded,
+    AICancellationToken,
+    AIOperation,
+    AIOperationCancelled,
+    call_ai,
+    operation_scope,
+)
 from bookmark_organizer_pro.services.egress import public_egress as requests
 from bookmark_organizer_pro.url_utils import URLUtilities
 from bookmark_organizer_pro.utils import sanitize_filename, truncate_string
@@ -517,7 +526,7 @@ class AISummarizer:
         self.ai_config = ai_config
         self._cache: Dict[str, str] = {}
 
-    def _read_summary_html(self, response) -> Optional[str]:
+    def _read_summary_html(self, response, operation: AIOperation | None = None) -> Optional[str]:
         """Read a bounded HTML-ish response for summarization."""
         content_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
         if content_type and content_type not in {"text/html", "application/xhtml+xml"}:
@@ -531,6 +540,8 @@ class AISummarizer:
 
         chunks = bytearray()
         for chunk in response.iter_content(chunk_size=8192):
+            if operation is not None:
+                operation.check()
             if not chunk:
                 continue
             chunks.extend(chunk)
@@ -541,12 +552,46 @@ class AISummarizer:
             errors="replace",
         )
     
-    def summarize_page(self, bookmark: Bookmark, 
-                       max_length: int = 150) -> Optional[str]:
+    def summarize_page(
+        self,
+        bookmark: Bookmark,
+        max_length: int = 150,
+        *,
+        operation: AIOperation | None = None,
+        cancel_token: AICancellationToken | None = None,
+        budget: AIBudget | None = None,
+        job_ledger=None,
+    ) -> Optional[str]:
         """
         Fetch page content and generate a summary.
         Returns summary text or None on failure.
         """
+        provider = getattr(self.ai_config, "get_provider", lambda: "")
+        backend = provider() if callable(provider) else ""
+        with operation_scope(
+            "web_summary",
+            operation=operation,
+            token=cancel_token,
+            budget=budget,
+            job_ledger=job_ledger,
+            backend=str(backend or ""),
+            bookmark_id=getattr(bookmark, "id", None),
+            url_or_domain=getattr(bookmark, "domain", ""),
+        ) as owned_operation:
+            return self._summarize_page_with_operation(
+                bookmark,
+                max_length=max_length,
+                operation=owned_operation,
+            )
+
+    def _summarize_page_with_operation(
+        self,
+        bookmark: Bookmark,
+        *,
+        max_length: int,
+        operation: AIOperation,
+    ) -> Optional[str]:
+        operation.check()
         cache_key = bookmark.url
         if cache_key in self._cache:
             return self._cache[cache_key]
@@ -563,14 +608,14 @@ class AISummarizer:
             response = requests.get(
                 bookmark.url,
                 headers={'User-Agent': 'Mozilla/5.0'},
-                timeout=15,
+                timeout=operation.timeout(15),
                 allow_redirects=False,
                 stream=True
             )
             try:
                 if response.status_code != 200:
                     return None
-                html_text = self._read_summary_html(response)
+                html_text = self._read_summary_html(response, operation)
                 if not html_text:
                     return None
             finally:
@@ -613,13 +658,19 @@ class AISummarizer:
             # method, so every call raised and silently fell through to the
             # naive paragraph extract below — AI summaries never used the model.)
             try:
-                summary = client.complete(
+                summary = call_ai(
+                    client.complete,
                     prompt,
                     system=self.SYSTEM_PROMPT,
                     max_tokens=160,
                     temperature=0.3,
+                    operation=operation,
                 )
+                operation.check()
+            except (AIOperationCancelled, AIBudgetExceeded):
+                raise
             except Exception as exc:
+                operation.fail(exc)
                 log.warning(f"AI summary failed; using paragraph extract: {exc}")
                 summary = None
 
@@ -652,7 +703,10 @@ class AISummarizer:
                 self._cache[cache_key] = summary
                 return summary
             
-        except Exception:
+        except (AIOperationCancelled, AIBudgetExceeded):
+            raise
+        except Exception as exc:
+            operation.fail(exc)
             pass
         
         return None

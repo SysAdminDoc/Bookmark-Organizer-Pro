@@ -4,6 +4,7 @@ Supports OpenAI, Anthropic Claude, Google Gemini, Groq, and Ollama (local).
 """
 
 import importlib
+import inspect
 import json
 import os
 import re
@@ -46,18 +47,51 @@ def _is_retryable(exc: Exception) -> bool:
     return any(hint in msg for hint in _RETRYABLE_HINTS)
 
 
-def _retry(fn: Callable, *, attempts: int = 3, base_delay: float = 1.0, label: str = "") -> Any:
+def _operation_abort(exc: Exception) -> bool:
+    return getattr(exc, "code", "") in {"cancelled", "budget_exceeded"}
+
+
+def _invoke_client(method, *args, operation: Any = None, **kwargs):
+    if operation is None:
+        return method(*args, **kwargs)
+    try:
+        parameters = inspect.signature(method).parameters.values()
+        accepts_operation = any(
+            parameter.name == "operation" or parameter.kind == parameter.VAR_KEYWORD
+            for parameter in parameters
+        )
+    except (TypeError, ValueError):
+        accepts_operation = True
+    if accepts_operation:
+        kwargs["operation"] = operation
+    return method(*args, **kwargs)
+
+
+def _retry(
+    fn: Callable,
+    *,
+    attempts: int = 3,
+    base_delay: float = 1.0,
+    label: str = "",
+    operation: Any = None,
+) -> Any:
     """Call ``fn`` with exponential backoff on transient provider failures.
 
     Non-transient errors (bad request, auth, unknown model) are raised
     immediately so the user sees the real problem without waiting on retries.
     """
     last_exc: Optional[Exception] = None
+    if operation is not None:
+        attempts = min(attempts, operation.budget.max_attempts)
     for attempt in range(attempts):
+        if operation is not None:
+            operation.begin_attempt()
         try:
             return fn()
         except Exception as exc:  # noqa: BLE001 - re-raised below
             last_exc = exc
+            if _operation_abort(exc):
+                raise
             if attempt == attempts - 1 or not _is_retryable(exc):
                 raise
             delay = base_delay * (2 ** attempt)
@@ -65,7 +99,10 @@ def _retry(fn: Callable, *, attempts: int = 3, base_delay: float = 1.0, label: s
                 f"Retrying {label or 'AI request'} after transient error "
                 f"({attempt + 1}/{attempts}): {str(exc)[:120]} — waiting {delay:.1f}s"
             )
-            time.sleep(delay)
+            if operation is not None:
+                operation.wait(delay)
+            else:
+                time.sleep(delay)
     if last_exc:  # pragma: no cover - defensive
         raise last_exc
 
@@ -452,24 +489,51 @@ class AIClient:
     supports_native_streaming = False
 
     def categorize_bookmarks(self, bookmarks: List[Dict], categories: List[str],
-                            allow_new: bool = True, suggest_tags: bool = True) -> List[Dict]:
+                            allow_new: bool = True, suggest_tags: bool = True,
+                            operation: Any = None) -> List[Dict]:
         raise NotImplementedError
 
     def test_connection(self) -> Tuple[bool, str]:
         raise NotImplementedError
 
     def complete(self, prompt: str, system: str = "",
-                 max_tokens: int = 800, temperature: float = 0.2) -> str:
+                 max_tokens: int = 800, temperature: float = 0.2,
+                 operation: Any = None) -> str:
         """Single-turn text completion. Must be overridden by subclasses
         that support free-form generation."""
         raise NotImplementedError
 
     def stream_complete(self, prompt: str, system: str = "",
                         max_tokens: int = 800,
-                        temperature: float = 0.2) -> Iterator[str]:
-        text = self.complete(prompt, system, max_tokens, temperature)
+                        temperature: float = 0.2,
+                        operation: Any = None) -> Iterator[str]:
+        text = _invoke_client(
+            self.complete,
+            prompt,
+            system,
+            max_tokens,
+            temperature,
+            operation=operation,
+        )
         if text:
             yield text
+
+    @staticmethod
+    def _prepare_operation(operation: Any, prompt: str, system: str = "") -> int:
+        if operation is None:
+            return 0
+        operation.add_input(f"{system}\n\n{prompt}" if system else prompt)
+        return operation.output_tokens(800)
+
+    @staticmethod
+    def _record_output(operation: Any, text: object) -> None:
+        if operation is not None and text:
+            operation.add_output(text)
+
+    @staticmethod
+    def _check_operation(operation: Any) -> None:
+        if operation is not None:
+            operation.check()
 
     @staticmethod
     def _safe_confidence(value, default: float = 0.5) -> float:
@@ -631,14 +695,18 @@ Respond with ONLY valid JSON in this exact format (no markdown, no explanation):
 {{"results": [{{"url": "https://example.com", "category": "Category Name", "confidence": 0.9, "new_category": false, "tags": ["tag1", "tag2"], "suggested_title": "Better Title Here or null if current is fine"}}]}}"""
 
 
-def _iter_openai_chat_stream(stream) -> Iterator[str]:
+def _iter_openai_chat_stream(stream, *, operation: Any = None) -> Iterator[str]:
     for chunk in stream:
+        if operation is not None:
+            operation.check()
         choices = getattr(chunk, "choices", None) or []
         if not choices:
             continue
         delta = getattr(choices[0], "delta", None)
         content = getattr(delta, "content", None)
         if content:
+            if operation is not None:
+                operation.add_output(content)
             yield content
 
 
@@ -677,10 +745,15 @@ class OpenAICompatibleClient(AIClient):
         return self._client
 
     def categorize_bookmarks(self, bookmarks: List[Dict], categories: List[str],
-                            allow_new: bool = True, suggest_tags: bool = True) -> List[Dict]:
+                            allow_new: bool = True, suggest_tags: bool = True,
+                            operation: Any = None) -> List[Dict]:
         prompt = self._build_prompt(bookmarks, categories, allow_new, suggest_tags)
+        self._check_operation(operation)
+        if operation is not None:
+            operation.add_input(prompt)
 
         def _call():
+            self._check_operation(operation)
             kwargs = dict(
                 model=self.model,
                 messages=[
@@ -689,12 +762,17 @@ class OpenAICompatibleClient(AIClient):
                 ],
                 temperature=0.3,
             )
+            if operation is not None:
+                kwargs["max_tokens"] = operation.output_tokens(4_096)
+                kwargs["timeout"] = operation.timeout(REQUEST_TIMEOUT)
             if self.json_mode:
                 kwargs["response_format"] = {"type": "json_object"}
             return self.client.chat.completions.create(**kwargs)
 
-        response = _retry(_call, label=f"{self.provider_label} categorize")
-        return self._parse_response((response.choices[0].message.content if response.choices else ''), bookmarks)
+        response = _retry(_call, label=f"{self.provider_label} categorize", operation=operation)
+        content = response.choices[0].message.content if response.choices else ""
+        self._record_output(operation, content)
+        return self._parse_response(content, bookmarks)
 
     def test_connection(self) -> Tuple[bool, str]:
         try:
@@ -710,38 +788,61 @@ class OpenAICompatibleClient(AIClient):
             return False, _friendly_model_error(e, self.provider_label, self.model)
 
     def complete(self, prompt: str, system: str = "",
-                 max_tokens: int = 800, temperature: float = 0.2) -> str:
+                 max_tokens: int = 800, temperature: float = 0.2,
+                 operation: Any = None) -> str:
+        self._check_operation(operation)
+        if operation is not None:
+            operation.add_input(f"{system}\n\n{prompt}" if system else prompt)
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
 
         def _call():
-            return self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-            )
+            self._check_operation(operation)
+            kwargs = {
+                "model": self.model,
+                "messages": messages,
+                "max_tokens": operation.output_tokens(max_tokens) if operation else max_tokens,
+                "temperature": temperature,
+            }
+            if operation is not None:
+                kwargs["timeout"] = operation.timeout(REQUEST_TIMEOUT)
+            return self.client.chat.completions.create(**kwargs)
 
-        response = _retry(_call, label=f"{self.provider_label} complete")
-        return response.choices[0].message.content if response.choices else ""
+        response = _retry(_call, label=f"{self.provider_label} complete", operation=operation)
+        content = response.choices[0].message.content if response.choices else ""
+        self._record_output(operation, content)
+        return content
 
     def stream_complete(self, prompt: str, system: str = "",
                         max_tokens: int = 800,
-                        temperature: float = 0.2) -> Iterator[str]:
+                        temperature: float = 0.2,
+                        operation: Any = None) -> Iterator[str]:
+        self._check_operation(operation)
+        if operation is not None:
+            operation.add_input(f"{system}\n\n{prompt}" if system else prompt)
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
-        stream = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            stream=True,
-        )
-        yield from _iter_openai_chat_stream(stream)
+        if operation is not None:
+            operation.begin_attempt()
+        stream = None
+        try:
+            stream = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                max_tokens=operation.output_tokens(max_tokens) if operation else max_tokens,
+                temperature=temperature,
+                stream=True,
+                timeout=operation.timeout(REQUEST_TIMEOUT) if operation else REQUEST_TIMEOUT,
+            )
+            yield from _iter_openai_chat_stream(stream, operation=operation)
+        finally:
+            close = getattr(stream, "close", None)
+            if callable(close):
+                close()
 
 
 class OpenAIClient(OpenAICompatibleClient):
@@ -778,14 +879,21 @@ class AnthropicClient(AIClient):
         return self._client
 
     def categorize_bookmarks(self, bookmarks: List[Dict], categories: List[str],
-                            allow_new: bool = True, suggest_tags: bool = True) -> List[Dict]:
+                            allow_new: bool = True, suggest_tags: bool = True,
+                            operation: Any = None) -> List[Dict]:
         prompt = self._build_prompt(bookmarks, categories, allow_new, suggest_tags)
+        self._check_operation(operation)
+        if operation is not None:
+            operation.add_input(prompt)
         response = _retry(lambda: self.client.messages.create(
             model=self.model,
-            max_tokens=4096,
+            max_tokens=operation.output_tokens(4096) if operation else 4096,
             messages=[{"role": "user", "content": prompt}],
-        ), label="Anthropic categorize")
-        return self._parse_response((response.content[0].text if response.content else ''), bookmarks)
+            timeout=operation.timeout(REQUEST_TIMEOUT) if operation else REQUEST_TIMEOUT,
+        ), label="Anthropic categorize", operation=operation)
+        content = response.content[0].text if response.content else ""
+        self._record_output(operation, content)
+        return self._parse_response(content, bookmarks)
 
     def test_connection(self) -> Tuple[bool, str]:
         try:
@@ -801,31 +909,53 @@ class AnthropicClient(AIClient):
             return False, _friendly_model_error(e, "Anthropic", self.model)
 
     def complete(self, prompt: str, system: str = "",
-                 max_tokens: int = 800, temperature: float = 0.2) -> str:
+                 max_tokens: int = 800, temperature: float = 0.2,
+                 operation: Any = None) -> str:
+        self._check_operation(operation)
+        if operation is not None:
+            operation.add_input(f"{system}\n\n{prompt}" if system else prompt)
         kwargs = {
             "model": self.model,
-            "max_tokens": max_tokens,
+            "max_tokens": operation.output_tokens(max_tokens) if operation else max_tokens,
             "temperature": temperature,
             "messages": [{"role": "user", "content": prompt}],
         }
         if system:
             kwargs["system"] = system
-        response = _retry(lambda: self.client.messages.create(**kwargs), label="Anthropic complete")
-        return response.content[0].text if response.content else ""
+        if operation is not None:
+            kwargs["timeout"] = operation.timeout(REQUEST_TIMEOUT)
+        response = _retry(
+            lambda: self.client.messages.create(**kwargs),
+            label="Anthropic complete",
+            operation=operation,
+        )
+        content = response.content[0].text if response.content else ""
+        self._record_output(operation, content)
+        return content
 
     def stream_complete(self, prompt: str, system: str = "",
                         max_tokens: int = 800,
-                        temperature: float = 0.2) -> Iterator[str]:
+                        temperature: float = 0.2,
+                        operation: Any = None) -> Iterator[str]:
+        self._check_operation(operation)
+        if operation is not None:
+            operation.add_input(f"{system}\n\n{prompt}" if system else prompt)
         kwargs = {
             "model": self.model,
-            "max_tokens": max_tokens,
+            "max_tokens": operation.output_tokens(max_tokens) if operation else max_tokens,
             "temperature": temperature,
             "messages": [{"role": "user", "content": prompt}],
         }
         if system:
             kwargs["system"] = system
+        if operation is not None:
+            kwargs["timeout"] = operation.timeout(REQUEST_TIMEOUT)
+            operation.begin_attempt()
         with self.client.messages.stream(**kwargs) as stream:
             for text in stream.text_stream:
+                if operation is not None:
+                    operation.check()
+                    operation.add_output(text)
                 if text:
                     yield text
 
@@ -851,23 +981,40 @@ class GoogleClient(AIClient):
             self._client = self._genai.GenerativeModel(self.model)
         return self._client
 
-    def _generate(self, content, **gen_kwargs):
+    def _generate(self, content, *, operation: Any = None, **gen_kwargs):
         """Call generate_content with a request timeout when the SDK supports it.
 
         Older ``google-generativeai`` builds don't accept ``request_options``;
         fall back gracefully rather than crashing on a TypeError.
         """
+        timeout = operation.timeout(REQUEST_TIMEOUT) if operation else REQUEST_TIMEOUT
         try:
             return self.client.generate_content(
-                content, request_options={"timeout": REQUEST_TIMEOUT}, **gen_kwargs)
+                content, request_options={"timeout": timeout}, **gen_kwargs)
         except TypeError:
             return self.client.generate_content(content, **gen_kwargs)
 
     def categorize_bookmarks(self, bookmarks: List[Dict], categories: List[str],
-                            allow_new: bool = True, suggest_tags: bool = True) -> List[Dict]:
+                            allow_new: bool = True, suggest_tags: bool = True,
+                            operation: Any = None) -> List[Dict]:
         prompt = self._build_prompt(bookmarks, categories, allow_new, suggest_tags)
-        response = _retry(lambda: self._generate(prompt), label="Google categorize")
-        return self._parse_response(response.text, bookmarks)
+        self._check_operation(operation)
+        if operation is not None:
+            operation.add_input(prompt)
+        response = _retry(
+            lambda: self._generate(
+                prompt,
+                operation=operation,
+                generation_config={
+                    "max_output_tokens": operation.output_tokens(4096) if operation else 4096,
+                },
+            ),
+            label="Google categorize",
+            operation=operation,
+        )
+        content = getattr(response, "text", "") or ""
+        self._record_output(operation, content)
+        return self._parse_response(content, bookmarks)
 
     def test_connection(self) -> Tuple[bool, str]:
         try:
@@ -879,41 +1026,64 @@ class GoogleClient(AIClient):
             return False, _friendly_model_error(e, "Google Gemini", self.model)
 
     def complete(self, prompt: str, system: str = "",
-                 max_tokens: int = 800, temperature: float = 0.2) -> str:
+                 max_tokens: int = 800, temperature: float = 0.2,
+                 operation: Any = None) -> str:
+        self._check_operation(operation)
         full = f"{system}\n\n{prompt}" if system else prompt
+        if operation is not None:
+            operation.add_input(full)
         response = _retry(lambda: self._generate(
             full,
+            operation=operation,
             generation_config={
-                "max_output_tokens": max_tokens,
+                "max_output_tokens": operation.output_tokens(max_tokens) if operation else max_tokens,
                 "temperature": temperature,
             },
-        ), label="Google complete")
-        return getattr(response, "text", "") or ""
+        ), label="Google complete", operation=operation)
+        content = getattr(response, "text", "") or ""
+        self._record_output(operation, content)
+        return content
 
-    def _generate_stream(self, content, **gen_kwargs):
+    def _generate_stream(self, content, *, operation: Any = None, **gen_kwargs):
         """Call generate_content with stream=True and a request timeout."""
+        timeout = operation.timeout(REQUEST_TIMEOUT) if operation else REQUEST_TIMEOUT
         try:
             return self.client.generate_content(
                 content, stream=True,
-                request_options={"timeout": REQUEST_TIMEOUT}, **gen_kwargs)
+                request_options={"timeout": timeout}, **gen_kwargs)
         except TypeError:
             return self.client.generate_content(content, stream=True, **gen_kwargs)
 
     def stream_complete(self, prompt: str, system: str = "",
                         max_tokens: int = 800,
-                        temperature: float = 0.2) -> Iterator[str]:
+                        temperature: float = 0.2,
+                        operation: Any = None) -> Iterator[str]:
+        self._check_operation(operation)
         full = f"{system}\n\n{prompt}" if system else prompt
+        if operation is not None:
+            operation.add_input(full)
+            operation.begin_attempt()
         response = self._generate_stream(
             full,
+            operation=operation,
             generation_config={
-                "max_output_tokens": max_tokens,
+                "max_output_tokens": operation.output_tokens(max_tokens) if operation else max_tokens,
                 "temperature": temperature,
             },
         )
-        for chunk in response:
-            text = getattr(chunk, "text", None)
-            if text:
-                yield text
+        try:
+            for chunk in response:
+                if operation is not None:
+                    operation.check()
+                text = getattr(chunk, "text", None)
+                if text:
+                    if operation is not None:
+                        operation.add_output(text)
+                    yield text
+        finally:
+            close = getattr(response, "close", None)
+            if callable(close):
+                close()
 
 
 class GroqClient(OpenAICompatibleClient):
@@ -955,9 +1125,13 @@ class OllamaClient(AIClient):
         self.model = model
 
     def categorize_bookmarks(self, bookmarks: List[Dict], categories: List[str],
-                            allow_new: bool = True, suggest_tags: bool = True) -> List[Dict]:
+                            allow_new: bool = True, suggest_tags: bool = True,
+                            operation: Any = None) -> List[Dict]:
         requests = importlib.import_module('requests')
         prompt = self._build_prompt(bookmarks, categories, allow_new, suggest_tags)
+        self._check_operation(operation)
+        if operation is not None:
+            operation.add_input(prompt)
 
         response = requests.post(
             f"{self.base_url}/api/generate",
@@ -967,10 +1141,17 @@ class OllamaClient(AIClient):
                 "stream": False,
                 "options": {"temperature": 0.3}
             },
-            timeout=120
+            timeout=operation.timeout(120) if operation else 120,
         )
-        response.raise_for_status()
-        return self._parse_response(response.json()["response"], bookmarks)
+        try:
+            response.raise_for_status()
+            content = response.json()["response"]
+            self._record_output(operation, content)
+            return self._parse_response(content, bookmarks)
+        finally:
+            close = getattr(response, "close", None)
+            if callable(close):
+                close()
 
     def test_connection(self) -> Tuple[bool, str]:
         try:
@@ -986,9 +1167,13 @@ class OllamaClient(AIClient):
             return False, f"Error: {str(e)[:150]}"
 
     def complete(self, prompt: str, system: str = "",
-                 max_tokens: int = 800, temperature: float = 0.2) -> str:
+                 max_tokens: int = 800, temperature: float = 0.2,
+                 operation: Any = None) -> str:
         requests = importlib.import_module('requests')
+        self._check_operation(operation)
         full = f"{system}\n\n{prompt}" if system else prompt
+        if operation is not None:
+            operation.add_input(full)
         response = requests.post(
             f"{self.base_url}/api/generate",
             json={
@@ -997,19 +1182,31 @@ class OllamaClient(AIClient):
                 "stream": False,
                 "options": {
                     "temperature": temperature,
-                    "num_predict": max_tokens,
+                    "num_predict": operation.output_tokens(max_tokens) if operation else max_tokens,
                 },
             },
-            timeout=180,
+            timeout=operation.timeout(180) if operation else 180,
         )
-        response.raise_for_status()
-        return response.json().get("response", "")
+        try:
+            response.raise_for_status()
+            content = response.json().get("response", "")
+            self._record_output(operation, content)
+            return content
+        finally:
+            close = getattr(response, "close", None)
+            if callable(close):
+                close()
 
     def stream_complete(self, prompt: str, system: str = "",
                         max_tokens: int = 800,
-                        temperature: float = 0.2) -> Iterator[str]:
+                        temperature: float = 0.2,
+                        operation: Any = None) -> Iterator[str]:
         requests = importlib.import_module('requests')
+        self._check_operation(operation)
         full = f"{system}\n\n{prompt}" if system else prompt
+        if operation is not None:
+            operation.add_input(full)
+            operation.begin_attempt()
         response = requests.post(
             f"{self.base_url}/api/generate",
             json={
@@ -1018,23 +1215,32 @@ class OllamaClient(AIClient):
                 "stream": True,
                 "options": {
                     "temperature": temperature,
-                    "num_predict": max_tokens,
+                    "num_predict": operation.output_tokens(max_tokens) if operation else max_tokens,
                 },
             },
-            timeout=180,
+            timeout=operation.timeout(180) if operation else 180,
             stream=True,
         )
-        response.raise_for_status()
-        for line in response.iter_lines(decode_unicode=True):
-            if not line:
-                continue
-            try:
-                payload = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            text = payload.get("response", "")
-            if text:
-                yield text
+        try:
+            response.raise_for_status()
+            for line in response.iter_lines(decode_unicode=True):
+                if operation is not None:
+                    operation.check()
+                if not line:
+                    continue
+                try:
+                    payload = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                text = payload.get("response", "")
+                if text:
+                    if operation is not None:
+                        operation.add_output(text)
+                    yield text
+        finally:
+            close = getattr(response, "close", None)
+            if callable(close):
+                close()
 
 
 def _create_client_for(config: AIConfigManager, provider: str, model: str) -> AIClient:
@@ -1094,8 +1300,12 @@ class FailoverAIClient:
         return self._failover_count
 
     def categorize_bookmarks(self, bookmarks: List[Dict], categories: List[str],
-                             allow_new: bool = True, suggest_tags: bool = True) -> List[Dict]:
-        results = self.primary.categorize_bookmarks(bookmarks, categories, allow_new, suggest_tags)
+                             allow_new: bool = True, suggest_tags: bool = True,
+                             operation: Any = None) -> List[Dict]:
+        results = _invoke_client(
+            self.primary.categorize_bookmarks,
+            bookmarks, categories, allow_new, suggest_tags, operation=operation,
+        )
         self.last_provider = self.config.get_provider()
         self.last_model = self.config.get_model()
 
@@ -1111,8 +1321,9 @@ class FailoverAIClient:
         if low_confidence:
             retry_bms = [bookmarks[i] for i in low_confidence]
             try:
-                retry_results = self.secondary.categorize_bookmarks(
-                    retry_bms, categories, allow_new, suggest_tags,
+                retry_results = _invoke_client(
+                    self.secondary.categorize_bookmarks,
+                    retry_bms, categories, allow_new, suggest_tags, operation=operation,
                 )
                 for j, idx in enumerate(low_confidence):
                     if j < len(retry_results):
@@ -1129,25 +1340,62 @@ class FailoverAIClient:
                                 f"{self.config.get_failover_provider()})"
                             )
             except Exception as exc:
+                if _operation_abort(exc):
+                    raise
                 log.warning(f"Failover provider failed: {exc}")
 
         return results
 
     def complete(self, prompt: str, system: str = "",
-                 max_tokens: int = 800, temperature: float = 0.2) -> str:
+                 max_tokens: int = 800, temperature: float = 0.2,
+                 operation: Any = None) -> str:
         try:
-            result = self.primary.complete(prompt, system, max_tokens, temperature)
+            result = _invoke_client(
+                self.primary.complete,
+                prompt, system, max_tokens, temperature, operation=operation,
+            )
             self.last_provider = self.config.get_provider()
             self.last_model = self.config.get_model()
             return result
         except Exception as exc:
+            if _operation_abort(exc):
+                raise
             if self.secondary:
                 log.info(f"Primary AI failed, falling back: {exc}")
                 self.last_provider = self.config.get_failover_provider()
                 self.last_model = self.config.get_failover_model()
                 self._failover_count += 1
-                return self.secondary.complete(prompt, system, max_tokens, temperature)
+                return _invoke_client(
+                    self.secondary.complete,
+                    prompt, system, max_tokens, temperature, operation=operation,
+                )
             raise
+
+    def stream_complete(self, prompt: str, system: str = "",
+                        max_tokens: int = 800, temperature: float = 0.2,
+                        operation: Any = None) -> Iterator[str]:
+        emitted = False
+        try:
+            stream = _invoke_client(
+                self.primary.stream_complete,
+                prompt, system, max_tokens, temperature, operation=operation,
+            )
+            for chunk in stream:
+                emitted = True
+                yield chunk
+            self.last_provider = self.config.get_provider()
+            self.last_model = self.config.get_model()
+        except Exception as exc:
+            if _operation_abort(exc) or emitted or not self.secondary:
+                raise
+            log.info(f"Primary AI stream failed, falling back: {exc}")
+            self.last_provider = self.config.get_failover_provider()
+            self.last_model = self.config.get_failover_model()
+            self._failover_count += 1
+            yield from _invoke_client(
+                self.secondary.stream_complete,
+                prompt, system, max_tokens, temperature, operation=operation,
+            )
 
     def test_connection(self) -> Tuple[bool, str]:
         return self.primary.test_connection()

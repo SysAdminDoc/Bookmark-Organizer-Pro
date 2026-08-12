@@ -541,6 +541,43 @@ class TestChatStreamEvents(_IsolatedTestBase):
         self.assertEqual(result.events[-1].type, "complete")
         self.assertEqual(result.events[-1].sources[0]["bookmark_id"], 7)
 
+    def test_cancelled_chat_does_not_call_provider_or_store_partial_turn(self):
+        from types import SimpleNamespace
+        from bookmark_organizer_pro.services.ai_operation import (
+            AICancellationToken,
+            AIOperationCancelled,
+        )
+        from bookmark_organizer_pro.services.job_ledger import JobLedger
+        from bookmark_organizer_pro.services.rag_chat import CollectionChat
+
+        class FakeVectorStore:
+            embedder = SimpleNamespace(available=True)
+
+            def search(self, question, k=6, restrict_ids=None):
+                return [{"bookmark_id": 7, "text": "Source text"}]
+
+        class FakeClient:
+            def complete(self, *args, **kwargs):
+                raise AssertionError("a cancelled request must not reach the provider")
+
+        token = AICancellationToken()
+        token.cancel("user pressed Stop")
+        chat = CollectionChat(object(), FakeVectorStore())
+        with patch(
+            "bookmark_organizer_pro.services.rag_chat.create_ai_client",
+            return_value=FakeClient(),
+        ), tempfile.TemporaryDirectory() as tmp:
+            ledger = JobLedger(Path(tmp) / "jobs.json")
+            with pytest.raises(AIOperationCancelled):
+                chat.ask("What is saved?", cancel_token=token, job_ledger=ledger)
+
+            record = ledger.list_records(job_type="ai_chat")[0]
+            self.assertEqual(record.outcome, "cancelled")
+            self.assertFalse(record.retryable)
+
+        self.assertEqual(chat.history, [])
+        self.assertEqual(chat._cache, {})
+
     def test_chat_cache_tracks_index_evidence_and_ai_configuration(self):
         from types import SimpleNamespace
         from bookmark_organizer_pro.services.rag_chat import (

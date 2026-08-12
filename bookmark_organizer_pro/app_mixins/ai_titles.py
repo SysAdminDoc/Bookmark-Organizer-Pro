@@ -18,7 +18,14 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.ai_audit_log import log_title_improvement
+from bookmark_organizer_pro.services.ai_operation import (
+    AIBudgetExceeded,
+    AIOperation,
+    AIOperationCancelled,
+    call_ai,
+)
 from bookmark_organizer_pro.ui.foundation import FONTS
+from bookmark_organizer_pro.ui.live_workflow import LiveWorkflowDialog
 from bookmark_organizer_pro.ui.widgets import ModernButton, apply_window_chrome, get_theme
 
 
@@ -41,8 +48,6 @@ class AiTitleImprovementMixin:
             self._show_toast("Title suggestions started; you will preview changes before applying", "info")
         
         self._set_status("Improving bookmark titles with AI…")
-
-        import threading
 
         client = self._get_ai_client()
         if not client:
@@ -68,16 +73,46 @@ Bookmarks:
 Respond with ONLY valid JSON in this exact format:
 {{"titles": [{{"url": "https://example.com", "new_title": "Improved Title Here"}}]}}"""
 
+        live_dialog = LiveWorkflowDialog(
+            self.root,
+            title=_("AI Title Suggestions"),
+            total=1,
+            width=680,
+            height=360,
+        )
+
         def _worker():
+            operation = AIOperation(
+                "title_improvement",
+                token=live_dialog.cancel_token,
+                backend=str(self.ai_config.get_provider() or ""),
+            )
             try:
-                text = client.complete(prompt, system="You improve bookmark titles to be more descriptive and useful. Respond only with valid JSON.", max_tokens=2048, temperature=0.3)
+                with operation:
+                    operation.check()
+                    text = call_ai(
+                        client.complete,
+                        prompt,
+                        system="You improve bookmark titles to be more descriptive and useful. Respond only with valid JSON.",
+                        max_tokens=2048,
+                        temperature=0.3,
+                        operation=operation,
+                    )
+                    operation.check()
                 self._post_to_ui(lambda: _on_done(text, None))
+            except AIOperationCancelled:
+                self._post_to_ui(lambda: _on_done(None, AIOperationCancelled("cancelled")))
+            except AIBudgetExceeded as exc:
+                self._post_to_ui(lambda error=exc: _on_done(None, error))
             except Exception as exc:
-                err = exc
-                self._post_to_ui(lambda: _on_done(None, err))
+                self._post_to_ui(lambda error=exc: _on_done(None, error))
 
         def _on_done(text, error):
+            live_dialog.close()
             if error:
+                if isinstance(error, AIOperationCancelled):
+                    self._set_status(_("Title suggestions stopped; no changes were applied"))
+                    return
                 log.warning("AI title improvement failed", exc_info=True)
                 messagebox.showerror(_("Title Improvement Failed"), format_message('AI title suggestions could not be completed.\n\n{value_0}', value_0=str(error)[:240]), parent=self.root)
                 self._set_status("Title improvement failed")
@@ -91,7 +126,7 @@ Respond with ONLY valid JSON in this exact format:
                 messagebox.showerror(_("AI Response Not Applied"), _("The AI response was not valid JSON, so no bookmark titles were changed."), parent=self.root)
                 self._set_status("Title suggestions could not be applied")
 
-        threading.Thread(target=_worker, daemon=True).start()
+        live_dialog.run(_worker)
     
     def _show_title_preview(self, bookmarks: List[Bookmark], titles: List[Dict]):
         """Show preview of title changes before applying"""

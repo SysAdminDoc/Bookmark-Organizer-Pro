@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 import json
 import threading
-import time
 import urllib.parse
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Callable
@@ -19,6 +18,15 @@ from bookmark_organizer_pro.utils import safe_float
 from bookmark_organizer_pro.utils.safe import sanitize_for_prompt
 from bookmark_organizer_pro.utils.runtime import atomic_json_write as _atomic_json_write
 from bookmark_organizer_pro.services.ai_audit_log import log_batch_result
+from bookmark_organizer_pro.services.ai_operation import (
+    AIBudget,
+    AIBudgetExceeded,
+    AICancellationToken,
+    AIOperation,
+    AIOperationCancelled,
+    call_ai,
+    operation_scope,
+)
 
 
 class AIBatchProcessor:
@@ -39,6 +47,8 @@ class AIBatchProcessor:
         self._results: Dict[int, Dict] = {}  # bookmark_id -> result
         self._errors: List[Tuple[int, str]] = []  # (bookmark_id, error_message)
         self._lock = threading.RLock()
+        self.cancel_token = AICancellationToken()
+        self._operation: Optional[AIOperation] = None
     
     def add_to_queue(self, bookmarks: List[Bookmark]):
         """Add bookmarks to processing queue"""
@@ -61,12 +71,16 @@ class AIBatchProcessor:
             self._processed = 0
             self._results.clear()
             self._errors.clear()
+            self.cancel_token = AICancellationToken()
+            self._operation = AIOperation("batch_processor", token=self.cancel_token)
         
         # Create AI client
         try:
             self._client = create_ai_client(self.ai_config)
         except Exception as e:
             self._running = False
+            if self._operation is not None:
+                self._operation.fail(e, retryable=False)
             if self.on_complete:
                 try:
                     self.on_complete(False, str(e))
@@ -80,102 +94,122 @@ class AIBatchProcessor:
     
     def stop(self):
         """Stop processing"""
+        self.cancel_token.cancel()
         self._running = False
     
     def _worker(self):
         """Worker thread for processing bookmarks"""
-        batch_size = self.ai_config.get_batch_size()
-        rate_limit_delay = max(0.1, 60.0 / max(1, self.ai_config.get_rate_limit()))
-        
-        with self._lock:
-            total = len(self._queue)
-        
-        while self._running:
-            # Process in batches
-            with self._lock:
-                if not self._queue:
-                    break
-                batch = self._queue[:batch_size]
-                del self._queue[:batch_size]
-            
-            for bookmark in batch:
-                if not self._running:
-                    break
-                
-                try:
-                    old_category = bookmark.category
-                    old_tags = list(bookmark.tags)
-                    old_title = bookmark.title
+        operation = self._operation
+        try:
+            with operation if operation is not None else operation_scope("batch_processor") as active_operation:
+                batch_size = self.ai_config.get_batch_size()
+                rate_limit_delay = max(0.1, 60.0 / max(1, self.ai_config.get_rate_limit()))
 
-                    # Get AI categorization and tags
-                    result = self._process_bookmark(bookmark)
-                    with self._lock:
-                        self._results[bookmark.id] = result
-
-                    applied = False
-                    # Apply results
-                    if result.get("category"):
-                        bookmark.category = result["category"]
-                        bookmark.ai_categorized = True
-                        bookmark.ai_confidence = result.get("confidence", 0.0)
-                        applied = True
-
-                    if result.get("tags"):
-                        existing = {str(tag).lower() for tag in bookmark.tags}
-                        for tag in result["tags"]:
-                            tag_text = str(tag or "").strip()
-                            if tag_text and tag_text.lower() not in existing:
-                                bookmark.tags.append(tag_text)
-                                existing.add(tag_text.lower())
-                        applied = True
-
-                    if result.get("summary"):
-                        if not bookmark.notes:
-                            bookmark.notes = result["summary"]
-                            applied = True
-
-                    # Audit log
-                    try:
-                        provider = self.ai_config.get_provider()
-                        model = self.ai_config.get_model()
-                        log_batch_result(
-                            provider=provider, model=model,
-                            bookmark_id=bookmark.id, url=bookmark.url,
-                            old_category=old_category, old_tags=old_tags,
-                            old_title=old_title, result=result,
-                            applied=applied,
-                        )
-                    except Exception:
-                        pass
-
-                except Exception as e:
-                    with self._lock:
-                        self._errors.append((bookmark.id, str(e)))
-                
                 with self._lock:
-                    self._processed += 1
-                    processed = self._processed
-                
-                if self.on_progress:
-                    try:
-                        self.on_progress(processed, total, bookmark)
-                    except Exception as callback_exc:
-                        log.warning(f"AI batch progress callback failed: {callback_exc}")
-                
-                # Rate limiting
-                if rate_limit_delay:
-                    time.sleep(rate_limit_delay)
-        
-        self._running = False
-        if self.on_complete:
-            try:
-                with self._lock:
-                    processed = self._processed
-                self.on_complete(True, f"Processed {processed} bookmarks")
-            except Exception as callback_exc:
-                log.warning(f"AI batch completion callback failed: {callback_exc}")
-    
-    def _process_bookmark(self, bookmark: Bookmark) -> Dict:
+                    total = len(self._queue)
+
+                while self._running:
+                    active_operation.check()
+                    # Process in batches
+                    with self._lock:
+                        if not self._queue:
+                            break
+                        batch = self._queue[:batch_size]
+                        del self._queue[:batch_size]
+
+                    for bookmark in batch:
+                        active_operation.check()
+                        if not self._running:
+                            raise AIOperationCancelled()
+
+                        try:
+                            old_category = bookmark.category
+                            old_tags = list(bookmark.tags)
+                            old_title = bookmark.title
+
+                            # Get AI categorization and tags
+                            result = self._process_bookmark(bookmark, active_operation)
+                            active_operation.check()
+                            with self._lock:
+                                self._results[bookmark.id] = result
+
+                            applied = False
+                            # Apply results
+                            if result.get("category"):
+                                bookmark.category = result["category"]
+                                bookmark.ai_categorized = True
+                                bookmark.ai_confidence = result.get("confidence", 0.0)
+                                applied = True
+
+                            if result.get("tags"):
+                                existing = {str(tag).lower() for tag in bookmark.tags}
+                                for tag in result["tags"]:
+                                    tag_text = str(tag or "").strip()
+                                    if tag_text and tag_text.lower() not in existing:
+                                        bookmark.tags.append(tag_text)
+                                        existing.add(tag_text.lower())
+                                applied = True
+
+                            if result.get("summary"):
+                                if not bookmark.notes:
+                                    bookmark.notes = result["summary"]
+                                    applied = True
+
+                            # Audit log
+                            try:
+                                provider = self.ai_config.get_provider()
+                                model = self.ai_config.get_model()
+                                log_batch_result(
+                                    provider=provider, model=model,
+                                    bookmark_id=bookmark.id, url=bookmark.url,
+                                    old_category=old_category, old_tags=old_tags,
+                                    old_title=old_title, result=result,
+                                    applied=applied,
+                                )
+                            except Exception:
+                                pass
+
+                        except (AIOperationCancelled, AIBudgetExceeded):
+                            raise
+                        except Exception as e:
+                            with self._lock:
+                                self._errors.append((bookmark.id, str(e)))
+
+                        with self._lock:
+                            self._processed += 1
+                            processed = self._processed
+
+                        if self.on_progress:
+                            try:
+                                self.on_progress(processed, total, bookmark)
+                            except Exception as callback_exc:
+                                log.warning(f"AI batch progress callback failed: {callback_exc}")
+
+                        if rate_limit_delay:
+                            active_operation.wait(rate_limit_delay)
+
+                active_operation.check()
+                self._running = False
+                if self.on_complete:
+                    with self._lock:
+                        processed = self._processed
+                    self.on_complete(True, f"Processed {processed} bookmarks")
+        except AIOperationCancelled:
+            self._running = False
+            if self.on_complete:
+                self.on_complete(False, "Cancelled; no partial AI result was cached")
+        except AIBudgetExceeded as exc:
+            self._running = False
+            if self.on_complete:
+                self.on_complete(False, str(exc))
+        except Exception as exc:
+            self._running = False
+            if operation is not None and operation.status == "running":
+                operation.fail(exc)
+            if self.on_complete:
+                self.on_complete(False, str(exc))
+
+    def _process_bookmark(self, bookmark: Bookmark, operation: AIOperation | None = None) -> Dict:
         """Process a single bookmark with AI"""
         result = {}
         
@@ -198,7 +232,14 @@ Respond in JSON format:
 {{"category": "...", "tags": ["...", "..."], "summary": "...", "confidence": 0.0-1.0}}"""
         
         try:
-            response_text = self._client.complete(prompt, system="You are a bookmark analysis assistant. Respond only with valid JSON.", max_tokens=400, temperature=0.3)
+            response_text = call_ai(
+                self._client.complete,
+                prompt,
+                system="You are a bookmark analysis assistant. Respond only with valid JSON.",
+                max_tokens=400,
+                temperature=0.3,
+                operation=operation,
+            )
 
             if response_text:
                 import re as _re
@@ -218,6 +259,8 @@ Respond in JSON format:
                         if str(tag).strip()
                     ][:10]
                     result["summary"] = str(parsed.get("summary") or "")[:1000]
+        except (AIOperationCancelled, AIBudgetExceeded):
+            raise
         except Exception as e:
             log.warning(f"AI processing failed for {bookmark.url}: {e}")
         
@@ -252,17 +295,38 @@ class AITagSuggester:
         self.ai_config = ai_config
         self._cache: Dict[str, List[str]] = {}
 
-    def suggest_tags(self, bookmark: Bookmark, existing_tags: List[str] = None) -> List[str]:
+    def suggest_tags(
+        self,
+        bookmark: Bookmark,
+        existing_tags: List[str] = None,
+        *,
+        operation: AIOperation | None = None,
+        cancel_token: AICancellationToken | None = None,
+        budget: AIBudget | None = None,
+        job_ledger=None,
+    ) -> List[str]:
         """Get AI-suggested tags for a bookmark"""
-        cache_key = f"{bookmark.url}:{bookmark.title}"
+        provider = getattr(self.ai_config, "get_provider", lambda: "")
+        backend = provider() if callable(provider) else ""
+        with operation_scope(
+            "tag_suggestion",
+            operation=operation,
+            token=cancel_token,
+            budget=budget,
+            job_ledger=job_ledger,
+            backend=str(backend or ""),
+            bookmark_id=getattr(bookmark, "id", None),
+            url_or_domain=getattr(bookmark, "domain", ""),
+        ) as owned_operation:
+            owned_operation.check()
+            cache_key = f"{bookmark.url}:{bookmark.title}"
 
-        if cache_key in self._cache:
-            return self._cache[cache_key]
-        
-        try:
-            client = create_ai_client(self.ai_config)
-            
-            prompt = f"""Suggest 5-7 relevant tags for this bookmark.
+            if cache_key in self._cache:
+                return self._cache[cache_key]
+
+            try:
+                client = create_ai_client(self.ai_config)
+                prompt = f"""Suggest 5-7 relevant tags for this bookmark.
 Tags should be:
 - Single words or short phrases
 - Lowercase
@@ -275,29 +339,38 @@ Domain: {sanitize_for_prompt(bookmark.domain, 100)}
 Notes: {sanitize_for_prompt(bookmark.notes[:200] if bookmark.notes else 'None', 200)}
 
 Return only a JSON array of tag strings: ["tag1", "tag2", ...]"""
-            
-            response_text = client.complete(prompt, system="You are a tag suggestion assistant. Respond only with a JSON array of strings.", max_tokens=200, temperature=0.3)
+                response_text = call_ai(
+                    client.complete,
+                    prompt,
+                    system="You are a tag suggestion assistant. Respond only with a JSON array of strings.",
+                    max_tokens=200,
+                    temperature=0.3,
+                    operation=owned_operation,
+                )
+                owned_operation.check()
+                if response_text:
+                    import re as _re
+                    arr_match = _re.search(r'\[[\s\S]*?\]', response_text)
+                    if arr_match:
+                        import json as _json
+                        tags = _json.loads(arr_match.group())
+                        if isinstance(tags, list):
+                            cleaned = [str(t).strip().lower() for t in tags if str(t).strip()][:7]
+                            if len(self._cache) >= self._MAX_CACHE:
+                                try:
+                                    self._cache.pop(next(iter(self._cache)))
+                                except StopIteration:
+                                    pass
+                            self._cache[cache_key] = cleaned
+                            return cleaned
+            except (AIOperationCancelled, AIBudgetExceeded):
+                raise
+            except Exception as e:
+                owned_operation.fail(e)
+                log.warning(f"AI tag suggestion failed for {bookmark.url}: {e}")
 
-            if response_text:
-                import re as _re
-                arr_match = _re.search(r'\[[\s\S]*?\]', response_text)
-                if arr_match:
-                    import json as _json
-                    tags = _json.loads(arr_match.group())
-                    if isinstance(tags, list):
-                        cleaned = [str(t).strip().lower() for t in tags if str(t).strip()][:7]
-                        if len(self._cache) >= self._MAX_CACHE:
-                            try:
-                                self._cache.pop(next(iter(self._cache)))
-                            except StopIteration:
-                                pass
-                        self._cache[cache_key] = cleaned
-                        return cleaned
-        except Exception as e:
-            log.warning(f"AI tag suggestion failed for {bookmark.url}: {e}")
-        
-        # Fallback: generate from content
-        return self._generate_fallback_tags(bookmark)
+            # Fallback: generate from content
+            return self._generate_fallback_tags(bookmark)
     
     def _generate_fallback_tags(self, bookmark: Bookmark) -> List[str]:
         """Generate tags without AI"""

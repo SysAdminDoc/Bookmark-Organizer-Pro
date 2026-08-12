@@ -6,11 +6,11 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: bookmark_organizer_pro/ui/widget_chat_panel.py:240
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:268
 msgid "  [{value_0}]"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:1038
+#: bookmark_organizer_pro/app_mixins/app_shell.py:1058
 msgid "  {value_0}"
 msgstr ""
 
@@ -35,7 +35,7 @@ msgstr ""
 msgid "#{value_0}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:885
+#: bookmark_organizer_pro/app_mixins/app_shell.py:891
 msgid "#{value_0}  ·  {value_1}"
 msgstr ""
 
@@ -43,7 +43,7 @@ msgstr ""
 msgid "(no backups yet — they appear after the first save/import)"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:401
+#: bookmark_organizer_pro/app_mixins/app_shell.py:406
 #: bookmark_organizer_pro/ui/widget_controls.py:591
 msgid "+"
 msgstr ""
@@ -52,11 +52,11 @@ msgstr ""
 msgid "+ Add"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:202
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:230
 msgid ", {count} login/auth pages skipped"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_categorization.py:221
+#: bookmark_organizer_pro/app_mixins/ai_categorization.py:250
 msgid ", {count} via failover"
 msgstr ""
 
@@ -70,14 +70,14 @@ msgstr ""
 msgid "..."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:359
-#: bookmark_organizer_pro/app_mixins/app_shell.py:424
-#: bookmark_organizer_pro/app_mixins/app_shell.py:453
+#: bookmark_organizer_pro/app_mixins/app_shell.py:364
+#: bookmark_organizer_pro/app_mixins/app_shell.py:429
+#: bookmark_organizer_pro/app_mixins/app_shell.py:458
 #: bookmark_organizer_pro/app_mixins/dashboard.py:100
 msgid "0"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/live_workflow.py:157
+#: bookmark_organizer_pro/ui/live_workflow.py:159
 msgid "0 / {value_0}"
 msgstr ""
 
@@ -135,12 +135,12 @@ msgstr ""
 msgid "A short note will make this save easier to rediscover."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:234
+#: bookmark_organizer_pro/app_mixins/app_shell.py:239
 #: bookmark_organizer_pro/app_mixins/filters.py:119
 msgid "AI"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_categorization.py:44
+#: bookmark_organizer_pro/app_mixins/ai_categorization.py:49
 msgid "AI Categorization"
 msgstr ""
 
@@ -156,15 +156,15 @@ msgstr ""
 msgid "AI Features"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:91
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:126
 msgid "AI Response Not Applied"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:229
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:257
 msgid "AI Summaries"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:85
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:90
 msgid "AI Tag Suggestions"
 msgstr ""
 
@@ -172,11 +172,15 @@ msgstr ""
 msgid "AI Tags:"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:236
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:78
+msgid "AI Title Suggestions"
+msgstr ""
+
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:278
 msgid "AI client unavailable"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:113
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:148
 msgid "AI did not suggest any title improvements for the selected bookmarks."
 msgstr ""
 
@@ -188,7 +192,7 @@ msgstr ""
 msgid "AI suggestions"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:82
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:117
 msgid "AI title suggestions could not be completed.\n\n{value_0}"
 msgstr ""
 
@@ -200,7 +204,7 @@ msgstr ""
 msgid "API key"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:81
+#: bookmark_organizer_pro/app_mixins/app_shell.py:86
 #: bookmark_organizer_pro/app_mixins/command_palette.py:49
 #: bookmark_organizer_pro/ui/about.py:228
 msgid "About"
@@ -268,7 +272,7 @@ msgstr ""
 msgid "Add a note"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:257
+#: bookmark_organizer_pro/app_mixins/app_shell.py:262
 #: bookmark_organizer_pro/ui/feedback.py:336
 #: bookmark_organizer_pro/ui/widget_bookmark_editor.py:55
 #: bookmark_organizer_pro/ui/workflow_quick_add.py:80
@@ -306,7 +310,7 @@ msgstr ""
 msgid "Add highlight"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:259
+#: bookmark_organizer_pro/app_mixins/app_shell.py:264
 msgid "Add one bookmark manually"
 msgstr ""
 
@@ -338,7 +342,7 @@ msgstr ""
 msgid "All bookmarks are already uncategorized"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:855
+#: bookmark_organizer_pro/app_mixins/app_shell.py:861
 #: bookmark_organizer_pro/app_mixins/dashboard.py:65
 msgid "All collections"
 msgstr ""
@@ -347,12 +351,12 @@ msgstr ""
 msgid "All files"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:876
+#: bookmark_organizer_pro/app_mixins/app_shell.py:882
 #: bookmark_organizer_pro/app_mixins/dashboard.py:71
 msgid "All tags"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:900
+#: bookmark_organizer_pro/app_mixins/app_shell.py:906
 #: bookmark_organizer_pro/app_mixins/dashboard.py:77
 msgid "All types"
 msgstr ""
@@ -362,11 +366,11 @@ msgstr ""
 msgid "Analytics"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/widget_chat_panel.py:152
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:159
 msgid "Answers cite matching bookmarks when the local search index is available."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:742
+#: bookmark_organizer_pro/app_mixins/app_shell.py:747
 msgid "Answers grounded in your saved sources"
 msgstr ""
 
@@ -383,7 +387,7 @@ msgstr ""
 msgid "Apply Migration"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:236
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:271
 #: bookmark_organizer_pro/ui/cleanup_review.py:218
 msgid "Apply selected"
 msgstr ""
@@ -400,22 +404,22 @@ msgstr ""
 msgid "Arrow keys navigate; Enter opens bookmarks."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/widget_chat_panel.py:111
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:113
 msgid "Ask"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/widget_chat_panel.py:145
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:152
 msgid "Ask about saved links, themes, projects, or old research."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/widget_chat_panel.py:112
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:114
 msgid "Ask the local assistant"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:679
-#: bookmark_organizer_pro/app_mixins/app_shell.py:740
-#: bookmark_organizer_pro/app_mixins/app_shell.py:841
-#: bookmark_organizer_pro/ui/widget_chat_panel.py:38
+#: bookmark_organizer_pro/app_mixins/app_shell.py:684
+#: bookmark_organizer_pro/app_mixins/app_shell.py:745
+#: bookmark_organizer_pro/app_mixins/app_shell.py:847
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:40
 msgid "Ask your library"
 msgstr ""
 
@@ -444,7 +448,7 @@ msgstr ""
 msgid "Assistant Tools"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_categorization.py:37
+#: bookmark_organizer_pro/app_mixins/ai_categorization.py:42
 msgid "Assistant categorization started"
 msgstr ""
 
@@ -460,7 +464,11 @@ msgstr ""
 msgid "Assistant settings saved"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:680
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:298
+msgid "Assistant stopped."
+msgstr ""
+
+#: bookmark_organizer_pro/app_mixins/app_shell.py:685
 msgid "Assistant tools…"
 msgstr ""
 
@@ -493,7 +501,7 @@ msgstr ""
 msgid "Available ({size})"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:163
+#: bookmark_organizer_pro/app_mixins/app_shell.py:168
 #: bookmark_organizer_pro/ui/about.py:97
 msgid "B"
 msgstr ""
@@ -502,7 +510,7 @@ msgstr ""
 msgid "BOOKMARK DETAILS"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/widget_chat_panel.py:224
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:252
 msgid "BOP"
 msgstr ""
 
@@ -599,7 +607,7 @@ msgstr ""
 msgid "Button"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:397
+#: bookmark_organizer_pro/app_mixins/app_shell.py:402
 msgid "COLLECTIONS"
 msgstr ""
 
@@ -608,7 +616,7 @@ msgid "CSV"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:625
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:237
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:272
 #: bookmark_organizer_pro/app_mixins/categories.py:208
 #: bookmark_organizer_pro/app_mixins/import_export.py:213
 #: bookmark_organizer_pro/app_mixins/import_export.py:489
@@ -689,7 +697,7 @@ msgstr ""
 msgid "Categorized {count} bookmarks; {unchanged} unchanged"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_categorization.py:32
+#: bookmark_organizer_pro/app_mixins/ai_categorization.py:37
 msgid "Categorizing {count} bookmarks with {provider}"
 msgstr ""
 
@@ -849,8 +857,8 @@ msgstr ""
 msgid "Cleaned {count} URLs; safepoint ready"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:218
-#: bookmark_organizer_pro/ui/widget_chat_panel.py:43
+#: bookmark_organizer_pro/app_mixins/app_shell.py:223
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:45
 #: bookmark_organizer_pro/ui/widget_controls.py:438
 #: bookmark_organizer_pro/ui/workflow_smart_filters.py:53
 msgid "Clear"
@@ -879,7 +887,7 @@ msgstr ""
 msgid "Clear Tags"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:230
+#: bookmark_organizer_pro/app_mixins/app_shell.py:235
 msgid "Clear search and filters"
 msgstr ""
 
@@ -920,8 +928,8 @@ msgstr ""
 msgid "Close Import Center"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:720
-#: bookmark_organizer_pro/app_mixins/app_shell.py:722
+#: bookmark_organizer_pro/app_mixins/app_shell.py:725
+#: bookmark_organizer_pro/app_mixins/app_shell.py:727
 msgid "Close focus rail"
 msgstr ""
 
@@ -929,7 +937,7 @@ msgstr ""
 msgid "Collection"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:539
+#: bookmark_organizer_pro/app_mixins/app_shell.py:544
 #: bookmark_organizer_pro/app_mixins/selection.py:136
 msgid "Collection / Tags"
 msgstr ""
@@ -958,7 +966,7 @@ msgstr ""
 msgid "Collections"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:72
+#: bookmark_organizer_pro/app_mixins/app_shell.py:77
 #: bookmark_organizer_pro/ui/shell_widgets.py:73
 msgid "Command Palette"
 msgstr ""
@@ -1096,7 +1104,7 @@ msgstr ""
 msgid "Create Theme"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:407
+#: bookmark_organizer_pro/app_mixins/app_shell.py:412
 msgid "Create a collection"
 msgstr ""
 
@@ -1156,7 +1164,7 @@ msgstr ""
 msgid "Credits"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:243
+#: bookmark_organizer_pro/app_mixins/app_shell.py:248
 msgid "Ctrl+K"
 msgstr ""
 
@@ -1164,7 +1172,7 @@ msgstr ""
 msgid "Current:"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:182
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:217
 msgid "Current: {value_0}"
 msgstr ""
 
@@ -1250,8 +1258,8 @@ msgstr ""
 msgid "Description:"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:707
-#: bookmark_organizer_pro/app_mixins/app_shell.py:744
+#: bookmark_organizer_pro/app_mixins/app_shell.py:712
+#: bookmark_organizer_pro/app_mixins/app_shell.py:749
 msgid "Details and next action"
 msgstr ""
 
@@ -1259,20 +1267,20 @@ msgstr ""
 msgid "Diagnostics copied to clipboard."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/live_workflow.py:194
+#: bookmark_organizer_pro/ui/live_workflow.py:196
 #: bookmark_organizer_pro/ui/management_dialogs.py:1167
 msgid "Done"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:307
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:357
 msgid "Done — {count} summaries generated"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_categorization.py:216
+#: bookmark_organizer_pro/app_mixins/ai_categorization.py:245
 msgid "Done — {processed} processed, {categorized} categorized, {titles} titles improved"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:197
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:225
 msgid "Done — {tagged} tagged, {unchanged} unchanged"
 msgstr ""
 
@@ -1301,7 +1309,7 @@ msgstr ""
 msgid "Duplicate scan failed: {error}"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/widget_chat_panel.py:118
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:125
 #: bookmark_organizer_pro/ui/widget_dashboard_panel.py:79
 msgid "Duplicates"
 msgstr ""
@@ -1314,7 +1322,7 @@ msgstr ""
 msgid "Each session keeps its row checkpoints and original rollback safepoint."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:60
+#: bookmark_organizer_pro/app_mixins/app_shell.py:65
 #: bookmark_organizer_pro/app_mixins/dashboard.py:189
 #: bookmark_organizer_pro/ui/workflow_detail_panel.py:173
 msgid "Edit"
@@ -1371,7 +1379,7 @@ msgstr ""
 msgid "Enter an API key for {provider} before testing."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:582
+#: bookmark_organizer_pro/app_mixins/app_shell.py:587
 msgid "Enter opens. Space toggles Pinned. Shift+F10 opens actions and sorting."
 msgstr ""
 
@@ -1383,7 +1391,7 @@ msgstr ""
 msgid "Every bookmark already has a cached favicon"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:51
+#: bookmark_organizer_pro/app_mixins/app_shell.py:56
 msgid "Exit"
 msgstr ""
 
@@ -1437,7 +1445,7 @@ msgstr ""
 msgid "Export Reader Highlights"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:678
+#: bookmark_organizer_pro/app_mixins/app_shell.py:683
 msgid "Export bookmarks…"
 msgstr ""
 
@@ -1457,7 +1465,7 @@ msgstr ""
 msgid "Export highlights"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:278
+#: bookmark_organizer_pro/app_mixins/app_shell.py:283
 msgid "Export, assistant, tools, and settings"
 msgstr ""
 
@@ -1474,7 +1482,7 @@ msgstr ""
 msgid "Exported {name}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:47
+#: bookmark_organizer_pro/app_mixins/app_shell.py:52
 msgid "Export…"
 msgstr ""
 
@@ -1537,7 +1545,7 @@ msgstr ""
 msgid "Features"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:52
+#: bookmark_organizer_pro/app_mixins/app_shell.py:57
 msgid "File"
 msgstr ""
 
@@ -1558,7 +1566,7 @@ msgstr ""
 msgid "Filter by tag"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:383
+#: bookmark_organizer_pro/app_mixins/app_shell.py:388
 msgid "Filter library: {name}"
 msgstr ""
 
@@ -1597,8 +1605,8 @@ msgstr ""
 msgid "Flattened {count} bookmarks out of folders; restore available from Tools"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:702
-#: bookmark_organizer_pro/app_mixins/app_shell.py:740
+#: bookmark_organizer_pro/app_mixins/app_shell.py:707
+#: bookmark_organizer_pro/app_mixins/app_shell.py:745
 msgid "Focus"
 msgstr ""
 
@@ -1606,11 +1614,11 @@ msgstr ""
 msgid "Focus Search"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:249
+#: bookmark_organizer_pro/app_mixins/app_shell.py:254
 msgid "Focus library search"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:67
+#: bookmark_organizer_pro/app_mixins/app_shell.py:72
 msgid "Focus rail"
 msgstr ""
 
@@ -1673,7 +1681,7 @@ msgstr ""
 msgid "Healthy"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:82
+#: bookmark_organizer_pro/app_mixins/app_shell.py:87
 msgid "Help"
 msgstr ""
 
@@ -1681,7 +1689,7 @@ msgstr ""
 msgid "Hide"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:840
+#: bookmark_organizer_pro/app_mixins/app_shell.py:846
 msgid "Hide focus rail"
 msgstr ""
 
@@ -1729,7 +1737,7 @@ msgstr ""
 msgid "Icons {completed}/{total}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:266
+#: bookmark_organizer_pro/app_mixins/app_shell.py:271
 #: bookmark_organizer_pro/ui/components.py:330
 #: bookmark_organizer_pro/ui/components.py:357
 msgid "Import"
@@ -1888,7 +1896,7 @@ msgstr ""
 msgid "Importing…"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:46
+#: bookmark_organizer_pro/app_mixins/app_shell.py:51
 msgid "Import…"
 msgstr ""
 
@@ -1898,7 +1906,7 @@ msgstr ""
 msgid "Improve Titles"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:43
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:50
 msgid "Improving bookmark titles with AI…"
 msgstr ""
 
@@ -1971,7 +1979,7 @@ msgstr ""
 msgid "Installing…"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:240
+#: bookmark_organizer_pro/app_mixins/app_shell.py:245
 msgid "Interpret the query as natural language"
 msgstr ""
 
@@ -2015,8 +2023,8 @@ msgstr ""
 msgid "Keep your collection structure clean and predictable."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:79
-#: bookmark_organizer_pro/app_mixins/app_shell.py:121
+#: bookmark_organizer_pro/app_mixins/app_shell.py:84
+#: bookmark_organizer_pro/app_mixins/app_shell.py:126
 #: bookmark_organizer_pro/app_mixins/command_palette.py:48
 msgid "Keyboard Shortcuts"
 msgstr ""
@@ -2025,11 +2033,11 @@ msgstr ""
 msgid "Keyboard-friendly navigation and command actions"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:575
+#: bookmark_organizer_pro/app_mixins/app_shell.py:580
 msgid "Keyboard: Enter · Space · Shift+F10"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:319
+#: bookmark_organizer_pro/app_mixins/app_shell.py:324
 msgid "LIBRARY"
 msgstr ""
 
@@ -2045,7 +2053,7 @@ msgstr ""
 msgid "Legend"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:500
+#: bookmark_organizer_pro/app_mixins/app_shell.py:505
 #: bookmark_organizer_pro/app_mixins/bookmarks.py:140
 #: bookmark_organizer_pro/app_mixins/dashboard.py:125
 msgid "Library"
@@ -2055,7 +2063,7 @@ msgstr ""
 msgid "Library ready"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:681
+#: bookmark_organizer_pro/app_mixins/app_shell.py:686
 msgid "Library tools"
 msgstr ""
 
@@ -2063,7 +2071,7 @@ msgstr ""
 msgid "Library writes are blocked. Use Tools > Restore from Backup, or salvage recoverable records there."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:476
+#: bookmark_organizer_pro/app_mixins/app_shell.py:481
 msgid "Library.db"
 msgstr ""
 
@@ -2099,11 +2107,11 @@ msgstr ""
 msgid "Linting tags..."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:64
+#: bookmark_organizer_pro/app_mixins/app_shell.py:69
 msgid "List View"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/live_workflow.py:151
+#: bookmark_organizer_pro/ui/live_workflow.py:153
 msgid "Live progress • you can stop safely at any time"
 msgstr ""
 
@@ -2221,7 +2229,7 @@ msgstr ""
 msgid "Model:"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:276
+#: bookmark_organizer_pro/app_mixins/app_shell.py:281
 #: bookmark_organizer_pro/ui/workflow_detail_panel.py:177
 msgid "More"
 msgstr ""
@@ -2274,7 +2282,7 @@ msgstr ""
 msgid "Navigation"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:901
+#: bookmark_organizer_pro/app_mixins/app_shell.py:907
 #: bookmark_organizer_pro/app_mixins/dashboard.py:311
 #: bookmark_organizer_pro/ui/workflow_detail_panel.py:262
 msgid "Needs review"
@@ -2297,7 +2305,7 @@ msgstr ""
 msgid "New Access Credential"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:44
+#: bookmark_organizer_pro/app_mixins/app_shell.py:49
 msgid "New Bookmark"
 msgstr ""
 
@@ -2357,7 +2365,7 @@ msgstr ""
 msgid "No Supported Bookmark Files"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:112
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:147
 msgid "No Title Changes"
 msgstr ""
 
@@ -2373,7 +2381,7 @@ msgstr ""
 msgid "No active categories yet."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:1081
+#: bookmark_organizer_pro/app_mixins/app_shell.py:1101
 msgid "No active workflows"
 msgstr ""
 
@@ -2541,8 +2549,8 @@ msgstr ""
 msgid "Nothing needs review\nYour library is already clean for this check."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:439
-#: bookmark_organizer_pro/app_mixins/app_shell.py:1029
+#: bookmark_organizer_pro/app_mixins/app_shell.py:444
+#: bookmark_organizer_pro/app_mixins/app_shell.py:1049
 msgid "Nothing queued"
 msgstr ""
 
@@ -2591,12 +2599,12 @@ msgstr ""
 msgid "Open Offline Copy"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:1046
+#: bookmark_organizer_pro/app_mixins/app_shell.py:1066
 msgid "Open Read Later bookmark: {title}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:422
-#: bookmark_organizer_pro/app_mixins/app_shell.py:434
+#: bookmark_organizer_pro/app_mixins/app_shell.py:427
+#: bookmark_organizer_pro/app_mixins/app_shell.py:439
 msgid "Open Read Later queue"
 msgstr ""
 
@@ -2620,11 +2628,11 @@ msgstr ""
 msgid "Open category, age, domain, and issue analytics"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/widget_chat_panel.py:250
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:278
 msgid "Open cited bookmark: {title}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:268
+#: bookmark_organizer_pro/app_mixins/app_shell.py:273
 msgid "Open guided import paths for browsers, services, and files"
 msgstr ""
 
@@ -2648,7 +2656,7 @@ msgstr ""
 msgid "Open selected bookmarks in browser"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:485
+#: bookmark_organizer_pro/app_mixins/app_shell.py:490
 msgid "Open settings"
 msgstr ""
 
@@ -2751,8 +2759,8 @@ msgstr ""
 msgid "Pin or unpin selected bookmarks"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:548
-#: bookmark_organizer_pro/app_mixins/app_shell.py:900
+#: bookmark_organizer_pro/app_mixins/app_shell.py:553
+#: bookmark_organizer_pro/app_mixins/app_shell.py:906
 #: bookmark_organizer_pro/app_mixins/selection.py:139
 #: bookmark_organizer_pro/ui/widget_bookmark_editor.py:266
 #: bookmark_organizer_pro/ui/widget_dashboard_panel.py:77
@@ -2771,7 +2779,7 @@ msgstr ""
 msgid "Preflight {source} Migration"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/live_workflow.py:174
+#: bookmark_organizer_pro/ui/live_workflow.py:176
 msgid "Preparing the first result…"
 msgstr ""
 
@@ -2783,7 +2791,7 @@ msgstr ""
 msgid "Preview Support Bundle"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:120
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:155
 msgid "Preview Title Changes"
 msgstr ""
 
@@ -2791,7 +2799,7 @@ msgstr ""
 msgid "Preview of your theme colors"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:138
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:173
 msgid "Preview title changes"
 msgstr ""
 
@@ -2827,12 +2835,12 @@ msgstr ""
 msgid "Processing selected files"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:133
-#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:254
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:152
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:296
 msgid "Processing {start}–{end} of {total}…"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_categorization.py:75
+#: bookmark_organizer_pro/app_mixins/ai_categorization.py:94
 msgid "Processing {start}–{end} of {total}… ({provider}/{model})"
 msgstr ""
 
@@ -2860,7 +2868,7 @@ msgstr ""
 msgid "Quick start"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:417
+#: bookmark_organizer_pro/app_mixins/app_shell.py:422
 msgid "READ LATER"
 msgstr ""
 
@@ -2934,7 +2942,7 @@ msgstr ""
 msgid "Ready for your first save"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:505
+#: bookmark_organizer_pro/app_mixins/app_shell.py:510
 msgid "Ready for your next save"
 msgstr ""
 
@@ -2942,7 +2950,7 @@ msgstr ""
 msgid "Reason"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:901
+#: bookmark_organizer_pro/app_mixins/app_shell.py:907
 msgid "Recent"
 msgstr ""
 
@@ -2966,11 +2974,11 @@ msgstr ""
 msgid "Recovery stopped unexpectedly; the source was left in place."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/widget_chat_panel.py:120
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:127
 msgid "Rediscover"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:57
+#: bookmark_organizer_pro/app_mixins/app_shell.py:62
 msgid "Redo"
 msgstr ""
 
@@ -2995,7 +3003,7 @@ msgid "Redownloading missing favicons..."
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:212
-#: bookmark_organizer_pro/app_mixins/app_shell.py:74
+#: bookmark_organizer_pro/app_mixins/app_shell.py:79
 #: bookmark_organizer_pro/app_mixins/command_palette.py:20
 msgid "Refresh"
 msgstr ""
@@ -3004,7 +3012,7 @@ msgstr ""
 msgid "Refresh collection pulse"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:838
+#: bookmark_organizer_pro/app_mixins/app_shell.py:844
 msgid "Refresh library"
 msgstr ""
 
@@ -3074,7 +3082,7 @@ msgstr ""
 msgid "Required: {value_0}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:1085
+#: bookmark_organizer_pro/app_mixins/app_shell.py:1105
 msgid "Research trails appear here when you start one."
 msgstr ""
 
@@ -3099,7 +3107,7 @@ msgstr ""
 msgid "Restore from Backup"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:49
+#: bookmark_organizer_pro/app_mixins/app_shell.py:54
 msgid "Restore from Backup…"
 msgstr ""
 
@@ -3233,7 +3241,7 @@ msgstr ""
 msgid "Review {value_0} retryable failure(s)"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:143
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:178
 msgid "Review {value_0} suggested title update(s) before applying them."
 msgstr ""
 
@@ -3329,7 +3337,7 @@ msgstr ""
 msgid "Save one bookmark manually"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:542
+#: bookmark_organizer_pro/app_mixins/app_shell.py:547
 #: bookmark_organizer_pro/app_mixins/selection.py:137
 #: bookmark_organizer_pro/ui/workflow_detail_panel.py:198
 msgid "Saved"
@@ -3353,8 +3361,8 @@ msgstr ""
 msgid "Search"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:78
-#: bookmark_organizer_pro/app_mixins/app_shell.py:90
+#: bookmark_organizer_pro/app_mixins/app_shell.py:83
+#: bookmark_organizer_pro/app_mixins/app_shell.py:95
 #: bookmark_organizer_pro/ui/widget_controls.py:486
 msgid "Search Syntax"
 msgstr ""
@@ -3375,11 +3383,11 @@ msgstr ""
 msgid "Search query has errors; no results are shown."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:209
+#: bookmark_organizer_pro/app_mixins/app_shell.py:214
 msgid "Search your library"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/widget_chat_panel.py:194
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:201
 msgid "Searching your library..."
 msgstr ""
 
@@ -3395,7 +3403,7 @@ msgstr ""
 msgid "Select"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:59
+#: bookmark_organizer_pro/app_mixins/app_shell.py:64
 #: bookmark_organizer_pro/ui/workflow_selective_export.py:153
 msgid "Select All"
 msgstr ""
@@ -3435,11 +3443,11 @@ msgstr ""
 msgid "Select a passage in the reader before adding a highlight."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:786
+#: bookmark_organizer_pro/app_mixins/app_shell.py:792
 msgid "Select a single bookmark to inspect its details"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:234
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:269
 msgid "Select all"
 msgstr ""
 
@@ -3455,7 +3463,7 @@ msgstr ""
 msgid "Select bookmarks first"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:235
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:270
 msgid "Select none"
 msgstr ""
 
@@ -3471,7 +3479,7 @@ msgstr ""
 msgid "Select one bookmark to customize its favicon"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:784
+#: bookmark_organizer_pro/app_mixins/app_shell.py:790
 msgid "Select one bookmark to inspect"
 msgstr ""
 
@@ -3544,7 +3552,7 @@ msgstr ""
 msgid "Set Custom Favicon…"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:683
+#: bookmark_organizer_pro/app_mixins/app_shell.py:688
 msgid "Settings"
 msgstr ""
 
@@ -3561,7 +3569,7 @@ msgstr ""
 msgid "Show"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:329
+#: bookmark_organizer_pro/app_mixins/app_shell.py:334
 msgid "Show all bookmarks"
 msgstr ""
 
@@ -3569,15 +3577,15 @@ msgstr ""
 msgid "Show and fetch site icons"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:331
+#: bookmark_organizer_pro/app_mixins/app_shell.py:336
 msgid "Show bookmarks added in the last 7 days"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:332
+#: bookmark_organizer_pro/app_mixins/app_shell.py:337
 msgid "Show bookmarks with broken links"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:333
+#: bookmark_organizer_pro/app_mixins/app_shell.py:338
 msgid "Show bookmarks without any tags"
 msgstr ""
 
@@ -3585,11 +3593,11 @@ msgstr ""
 msgid "Show category: {category}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:839
+#: bookmark_organizer_pro/app_mixins/app_shell.py:845
 msgid "Show focus rail"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:330
+#: bookmark_organizer_pro/app_mixins/app_shell.py:335
 msgid "Show only pinned bookmarks"
 msgstr ""
 
@@ -3599,7 +3607,7 @@ msgstr ""
 msgid "Showing all bookmarks"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:569
+#: bookmark_organizer_pro/app_mixins/app_shell.py:574
 msgid "Showing bookmarks in this view"
 msgstr ""
 
@@ -3611,7 +3619,7 @@ msgstr ""
 msgid "Sidebar"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:533
+#: bookmark_organizer_pro/app_mixins/app_shell.py:538
 #: bookmark_organizer_pro/app_mixins/selection.py:134
 #: bookmark_organizer_pro/ui/management_dialogs.py:476
 msgid "Site"
@@ -3704,7 +3712,7 @@ msgid "Starting installation…"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:369
-#: bookmark_organizer_pro/ui/live_workflow.py:187
+#: bookmark_organizer_pro/ui/live_workflow.py:189
 msgid "Starting…"
 msgstr ""
 
@@ -3712,17 +3720,29 @@ msgstr ""
 msgid "Statistics are temporarily unavailable. Showing safe defaults."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:545
+#: bookmark_organizer_pro/app_mixins/app_shell.py:550
 #: bookmark_organizer_pro/app_mixins/selection.py:138
 #: bookmark_organizer_pro/ui/management_dialogs.py:728
 msgid "Status"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/live_workflow.py:192
+#: bookmark_organizer_pro/ui/live_workflow.py:194
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:118
 msgid "Stop"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/live_workflow.py:229
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:119
+msgid "Stop the assistant"
+msgstr ""
+
+#: bookmark_organizer_pro/app_mixins/ai_categorization.py:65
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:106
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:273
+msgid "Stopped — {error}"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/live_workflow.py:232
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:211
 msgid "Stopping…"
 msgstr ""
 
@@ -3744,7 +3764,7 @@ msgstr ""
 msgid "Suggested tags were added to user tags.\n\nBookmarks updated: {value_0}\nTags added: {value_1}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:189
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:224
 msgid "Suggested: {value_0}"
 msgstr ""
 
@@ -3756,7 +3776,7 @@ msgstr ""
 msgid "Summarize Selected"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:222
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:250
 msgid "Summary generation started; larger selections can take longer"
 msgstr ""
 
@@ -3831,7 +3851,7 @@ msgstr ""
 msgid "That highlight no longer exists."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:91
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:126
 msgid "The AI response was not valid JSON, so no bookmark titles were changed."
 msgstr ""
 
@@ -3905,7 +3925,7 @@ msgstr ""
 msgid "Theme Settings"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:843
+#: bookmark_organizer_pro/app_mixins/app_shell.py:849
 msgid "Theme and display settings"
 msgstr ""
 
@@ -3950,7 +3970,7 @@ msgstr ""
 msgid "This bookmark has a verified image offline copy. Open the offline copy to view it; highlights require separately extracted text."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:791
+#: bookmark_organizer_pro/app_mixins/app_shell.py:797
 msgid "This bookmark is no longer available"
 msgstr ""
 
@@ -3970,30 +3990,34 @@ msgstr ""
 msgid "Time"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:536
+#: bookmark_organizer_pro/app_mixins/app_shell.py:541
 #: bookmark_organizer_pro/app_mixins/selection.py:135
 #: bookmark_organizer_pro/ui/widget_bookmark_editor.py:147
 #: bookmark_organizer_pro/ui/workflow_quick_add.py:124
 msgid "Title"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:82
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:117
 msgid "Title Improvement Failed"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:83
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:118
 msgid "Title improvement failed"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:92
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:127
 msgid "Title suggestions could not be applied"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:41
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:48
 msgid "Title suggestions started; you will preview changes before applying"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:220
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:114
+msgid "Title suggestions stopped; no changes were applied"
+msgstr ""
+
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:255
 msgid "Titles Updated"
 msgstr ""
 
@@ -4041,8 +4065,8 @@ msgstr ""
 msgid "Type to filter actions. Use ↑/↓ and Enter."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/widget_chat_panel.py:103
-#: bookmark_organizer_pro/ui/widget_chat_panel.py:175
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:105
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:182
 msgid "Type your question..."
 msgstr ""
 
@@ -4076,7 +4100,7 @@ msgstr ""
 msgid "Undid assistant {operation} — {count} bookmarks restored"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:56
+#: bookmark_organizer_pro/app_mixins/app_shell.py:61
 #: bookmark_organizer_pro/ui/reader_view.py:267
 msgid "Undo"
 msgstr ""
@@ -4101,8 +4125,8 @@ msgstr ""
 msgid "Unread"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:902
-#: bookmark_organizer_pro/ui/widget_chat_panel.py:119
+#: bookmark_organizer_pro/app_mixins/app_shell.py:908
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:126
 msgid "Untagged"
 msgstr ""
 
@@ -4110,7 +4134,7 @@ msgstr ""
 msgid "Untitled bookmark"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:513
+#: bookmark_organizer_pro/app_mixins/app_shell.py:518
 #: bookmark_organizer_pro/app_mixins/dashboard.py:137
 msgid "Updated just now"
 msgstr ""
@@ -4119,11 +4143,11 @@ msgstr ""
 msgid "Updated pin state for {bookmarks}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:224
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:259
 msgid "Updated {count} titles"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_titles.py:221
+#: bookmark_organizer_pro/app_mixins/ai_titles.py:256
 msgid "Updated {value_0} bookmark title(s)."
 msgstr ""
 
@@ -4163,7 +4187,7 @@ msgstr ""
 msgid "Video"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:75
+#: bookmark_organizer_pro/app_mixins/app_shell.py:80
 #: bookmark_organizer_pro/app_mixins/dashboard.py:83
 msgid "View"
 msgstr ""
@@ -4176,7 +4200,7 @@ msgstr ""
 msgid "View detailed analytics"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:449
+#: bookmark_organizer_pro/app_mixins/app_shell.py:454
 msgid "WORKFLOWS"
 msgstr ""
 
@@ -4196,15 +4220,15 @@ msgstr ""
 msgid "Weight: {weight}"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/widget_chat_panel.py:120
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:127
 msgid "What useful bookmark should I revisit?"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/widget_chat_panel.py:118
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:125
 msgid "Which bookmarks look like duplicates?"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/widget_chat_panel.py:119
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:126
 msgid "Which bookmarks still need tags?"
 msgstr ""
 
@@ -4225,7 +4249,7 @@ msgstr ""
 msgid "Yes"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/widget_chat_panel.py:224
+#: bookmark_organizer_pro/ui/widget_chat_panel.py:252
 msgid "You"
 msgstr ""
 
@@ -4237,7 +4261,7 @@ msgstr ""
 msgid "Your imports, edits, and searches will appear here."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:172
+#: bookmark_organizer_pro/app_mixins/app_shell.py:177
 msgid "Your library stays on this device"
 msgstr ""
 
@@ -4413,7 +4437,7 @@ msgstr ""
 msgid "{value_0:.0%}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:862
+#: bookmark_organizer_pro/app_mixins/app_shell.py:868
 msgid "{value_0}  ·  {value_1}"
 msgstr ""
 
@@ -4429,8 +4453,8 @@ msgstr ""
 msgid "{value_0} - Setup Check"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/live_workflow.py:386
-#: bookmark_organizer_pro/ui/live_workflow.py:415
+#: bookmark_organizer_pro/ui/live_workflow.py:389
+#: bookmark_organizer_pro/ui/live_workflow.py:418
 msgid "{value_0} / {value_1}"
 msgstr ""
 
@@ -4463,7 +4487,7 @@ msgstr ""
 msgid "{value_0} {value_1}"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/live_workflow.py:123
+#: bookmark_organizer_pro/ui/live_workflow.py:125
 msgid "{value_0} — Live"
 msgstr ""
 
@@ -4485,7 +4509,7 @@ msgstr ""
 msgid "{visible} of {total} bookmarks"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:712
+#: bookmark_organizer_pro/app_mixins/app_shell.py:717
 #: bookmark_organizer_pro/ui/widget_controls.py:536
 msgid "×"
 msgstr ""
@@ -4508,11 +4532,11 @@ msgstr ""
 msgid "↻"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:337
+#: bookmark_organizer_pro/app_mixins/app_shell.py:342
 msgid "⌂  My Library"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:187
+#: bookmark_organizer_pro/app_mixins/app_shell.py:192
 #: bookmark_organizer_pro/app_mixins/dashboard.py:40
 msgid "⌕"
 msgstr ""
@@ -4525,7 +4549,7 @@ msgstr ""
 msgid "■"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:339
+#: bookmark_organizer_pro/app_mixins/app_shell.py:344
 msgid "▱  Inbox"
 msgstr ""
 
@@ -4538,11 +4562,11 @@ msgstr ""
 msgid "◀"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:338
+#: bookmark_organizer_pro/app_mixins/app_shell.py:343
 msgid "◆  Pinned"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:341
+#: bookmark_organizer_pro/app_mixins/app_shell.py:346
 msgid "◇  Untagged"
 msgstr ""
 
@@ -4555,15 +4579,15 @@ msgstr ""
 msgid "●"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:471
+#: bookmark_organizer_pro/app_mixins/app_shell.py:476
 msgid "●  Saved locally"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:340
+#: bookmark_organizer_pro/app_mixins/app_shell.py:345
 msgid "⚑  Needs Review"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:480
+#: bookmark_organizer_pro/app_mixins/app_shell.py:485
 msgid "⚙"
 msgstr ""
 
@@ -4584,7 +4608,7 @@ msgstr ""
 msgid "✕ Cancel"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:696
+#: bookmark_organizer_pro/app_mixins/app_shell.py:701
 msgid "✦"
 msgstr ""
 
@@ -4592,7 +4616,7 @@ msgstr ""
 msgid "🌐"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/app_shell.py:429
+#: bookmark_organizer_pro/app_mixins/app_shell.py:434
 msgctxt "read-later"
 msgid "Open"
 msgstr ""

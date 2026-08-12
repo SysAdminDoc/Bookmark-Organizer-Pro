@@ -7,6 +7,11 @@ from tkinter import ttk
 
 from bookmark_organizer_pro.constants import APP_NAME
 from bookmark_organizer_pro.i18n import _, format_message, pgettext
+from bookmark_organizer_pro.services.ai_operation import (
+    AIBudgetExceeded,
+    AICancellationToken,
+    AIOperationCancelled,
+)
 from bookmark_organizer_pro.ui.components import DragDropImportArea, ScrollableFrame
 from bookmark_organizer_pro.ui.feedback import EmptyState, FilteredEmptyState
 from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, readable_text_on
@@ -756,6 +761,7 @@ class AppShellMixin:
             self._right_rail_assistant,
             on_ask=self._on_chat_ask,
             on_bookmark_click=self._on_chat_bookmark_click,
+            on_cancel=self._on_chat_cancel,
         )
         panel.pack(fill=tk.X, pady=(DesignTokens.SPACE_SM, DesignTokens.SPACE_MD))
         self.chat_panel = panel
@@ -974,6 +980,10 @@ class AppShellMixin:
 
     def _on_chat_ask(self, question: str):
         import threading
+        token = AICancellationToken()
+        self._chat_cancel_token = token
+        panel = self.chat_panel
+
         def _do_ask():
             try:
                 from bookmark_organizer_pro.services.embeddings import EmbeddingService
@@ -994,17 +1004,27 @@ class AppShellMixin:
                     )
                     self._chat_service = CollectionChat(self.ai_config, vs)
 
-                turn = self._chat_service.ask(question)
-                self._post_to_ui(lambda: self.chat_panel.show_answer(
+                turn = self._chat_service.ask(question, cancel_token=token)
+                self._post_to_ui(lambda: panel.show_answer(
                     turn.answer, sources=turn.sources,
                 ))
+            except AIOperationCancelled:
+                self._post_to_ui(panel.show_stopped)
+            except AIBudgetExceeded as exc:
+                err_text = f"Stopped: {str(exc)[:160]}"
+                self._post_to_ui(lambda: panel.show_error(err_text))
             except Exception as exc:
                 # Bind the message now: Python unbinds `exc` when the except
                 # block exits, but this callback runs later on the UI thread.
                 err_text = f"Error: {str(exc)[:100]}"
-                self._post_to_ui(lambda: self.chat_panel.show_error(err_text))
+                self._post_to_ui(lambda: panel.show_error(err_text))
 
         threading.Thread(target=_do_ask, daemon=True).start()
+
+    def _on_chat_cancel(self):
+        token = getattr(self, "_chat_cancel_token", None)
+        if token is not None:
+            token.cancel()
 
     def _on_chat_bookmark_click(self, bookmark_id: int):
         bm = self.bookmark_manager.get_bookmark(bookmark_id)

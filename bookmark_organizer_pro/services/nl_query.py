@@ -16,6 +16,15 @@ from typing import List, Optional, Sequence
 from bookmark_organizer_pro.ai import AIConfigManager, create_ai_client
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.ai_operation import (
+    AIBudget,
+    AIBudgetExceeded,
+    AICancellationToken,
+    AIOperation,
+    AIOperationCancelled,
+    call_ai,
+    operation_scope,
+)
 
 
 SYSTEM_PROMPT = (
@@ -65,22 +74,47 @@ class NLQueryTranslator:
     def __init__(self, ai_config: AIConfigManager):
         self.ai_config = ai_config
 
-    def translate(self, nl: str) -> StructuredQuery:
+    def translate(
+        self,
+        nl: str,
+        *,
+        operation: AIOperation | None = None,
+        cancel_token: AICancellationToken | None = None,
+        budget: AIBudget | None = None,
+        job_ledger=None,
+    ) -> StructuredQuery:
         nl = nl.strip()
         if not nl:
             return StructuredQuery()
-        try:
-            client = create_ai_client(self.ai_config)
-            resp = client.complete(
-                system=SYSTEM_PROMPT,
-                prompt=f"USER QUERY: {nl}\n\nRespond with JSON only.",
-                max_tokens=500,
-                temperature=0.0,
-            )
-        except Exception as exc:
-            log.warning(f"NL query translate failed: {exc}")
-            return self._heuristic(nl)
-        return self._parse(resp) or self._heuristic(nl)
+        provider = getattr(self.ai_config, "get_provider", lambda: "")
+        backend = provider() if callable(provider) else ""
+        with operation_scope(
+            "natural_language_query",
+            operation=operation,
+            token=cancel_token,
+            budget=budget,
+            job_ledger=job_ledger,
+            backend=str(backend or ""),
+        ) as owned_operation:
+            owned_operation.check()
+            try:
+                client = create_ai_client(self.ai_config)
+                resp = call_ai(
+                    client.complete,
+                    system=SYSTEM_PROMPT,
+                    prompt=f"USER QUERY: {nl}\n\nRespond with JSON only.",
+                    max_tokens=500,
+                    temperature=0.0,
+                    operation=owned_operation,
+                )
+                owned_operation.check()
+            except (AIOperationCancelled, AIBudgetExceeded):
+                raise
+            except Exception as exc:
+                owned_operation.fail(exc)
+                log.warning(f"NL query translate failed: {exc}")
+                return self._heuristic(nl)
+            return self._parse(resp) or self._heuristic(nl)
 
     def heuristic_parse(self, nl: str) -> dict:
         """Compatibility wrapper returning the fallback parse as a dict."""
