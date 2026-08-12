@@ -183,12 +183,79 @@ class SnapshotHistoryStore:
 
     def list_versions(self, bookmark_id: int | None) -> list[SnapshotVersion]:
         document = self._store.load()
+        try:
+            target_id = int(bookmark_id) if bookmark_id is not None else None
+        except (TypeError, ValueError):
+            target_id = None
         versions = [
             SnapshotVersion.from_dict(item)
             for item in document.get("versions", [])
-            if item.get("bookmark_id") == bookmark_id
+            if target_id is not None
+            and item.get("bookmark_id") is not None
+            and str(item.get("bookmark_id")) == str(target_id)
         ]
         return sorted(versions, key=lambda item: item.captured_at, reverse=True)
+
+    def clear_bookmark(self, bookmark_id: int | None) -> int:
+        """Remove retained history artifacts for one bookmark only."""
+        if bookmark_id is None:
+            return 0
+        try:
+            target_id = int(bookmark_id)
+        except (TypeError, ValueError):
+            return 0
+        removed: list[Path] = []
+
+        def mutate(document):
+            versions = []
+            for item in document.get("versions", []):
+                if str(item.get("bookmark_id")) == str(target_id):
+                    path = Path(str(item.get("path") or ""))
+                    try:
+                        if path.resolve(strict=False).is_relative_to(self.snapshots_dir.resolve()):
+                            removed.append(path)
+                    except (OSError, RuntimeError, ValueError):
+                        pass
+                    continue
+                versions.append(item)
+            document["versions"] = versions
+
+        self._store.update(mutate)
+        for path in removed:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                continue
+        return len(removed)
+
+    def remove_version(self, version_id: str) -> bool:
+        """Remove one retained snapshot version and its local artifact."""
+        target = str(version_id or "").strip()
+        if not target:
+            return False
+        removed: list[Path] = []
+
+        def mutate(document):
+            kept = []
+            for item in document.get("versions", []):
+                if str(item.get("version_id") or "") != target:
+                    kept.append(item)
+                    continue
+                path = Path(str(item.get("path") or ""))
+                try:
+                    if path.resolve(strict=False).is_relative_to(self.snapshots_dir.resolve()):
+                        removed.append(path)
+                except (OSError, RuntimeError, ValueError):
+                    pass
+            document["versions"] = kept
+
+        self._store.update(mutate)
+        for path in removed:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                continue
+        return bool(removed)
 
     def list_all_versions(self, *, limit: int | None = None) -> list[SnapshotVersion]:
         document = self._store.load()

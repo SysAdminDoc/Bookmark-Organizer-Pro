@@ -4,13 +4,6 @@ Actionable work only. Historical and completed roadmap material is archived in C
 
 ## Actionable Items
 
-- [ ] P2 — R-102: Add a per-bookmark local processing timeline
-  Why: capture, metadata, snapshot, transcript, embedding, and retry state is spread across stores, making failures hard to diagnose or reverse.
-  Evidence: `bookmark_organizer_pro/services/job_ledger.py`, snapshot history/failure stores, local diagnostics; ArchiveBox extractor status; linkding issue #797.
-  Touches: read-only timeline projection, bookmark details UI, retry/remove actions, diagnostics, job/history migration tests.
-  Acceptance: Bookmark details show chronological local events with operation, backend, state, timestamp, artifact size/digest, and sanitized error; users can retry eligible steps or remove derived artifacts without deleting the bookmark; projection tolerates missing/legacy records and never exposes credentials/content in diagnostics.
-  Complexity: L
-
 - [ ] P2 — R-103: Add a global highlights workspace
   Why: annotation CRUD and review scheduling exist per bookmark, but users cannot search, filter, export, or repair highlights across the collection.
   Evidence: `bookmark_organizer_pro/services/reader_annotations.py`, reader UI; Zotero 8; Readwise Reader.

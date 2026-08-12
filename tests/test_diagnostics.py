@@ -201,6 +201,7 @@ class TestDiagnosticsSupportBundle(unittest.TestCase):
                 "data_files",
                 "recent_errors",
                 "job_health",
+                "processing_health",
                 "credential_health",
                 "privacy",
             },

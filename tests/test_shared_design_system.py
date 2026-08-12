@@ -15,6 +15,10 @@ from bookmark_organizer_pro.ui.workflow_detail_panel import (
     _bookmark_type,
     _format_date,
     _next_action,
+    _timeline_artifact_label,
+    _timeline_operation_label,
+    _timeline_state_label,
+    _timeline_time_label,
 )
 from bookmark_organizer_pro.app_mixins.app_shell import AppShellMixin
 from bookmark_organizer_pro.app_mixins.bookmarks import (
@@ -400,6 +404,28 @@ def test_contextual_inspector_recommends_one_state_aware_next_action():
     assert _next_action(bookmark)[2:] == ("Add a note", "edit")
     bookmark.is_valid = False
     assert _next_action(bookmark)[2:] == ("Review details", "edit")
+
+
+def test_contextual_inspector_processing_timeline_labels_are_bounded():
+    from bookmark_organizer_pro.services.processing_timeline import ProcessingTimelineEvent
+
+    event = ProcessingTimelineEvent(
+        event_id="job:1",
+        operation="embedding",
+        backend="memory/fake",
+        state="failure",
+        timestamp="2026-07-14T08:05:00+00:00",
+        artifact_size=2048,
+        artifact_digest="a" * 64,
+        error="safe diagnostic",
+        retryable=True,
+    )
+
+    assert _timeline_operation_label(event.operation) == "Search index"
+    assert _timeline_state_label(event.state) == "Failed"
+    assert _timeline_time_label(event.timestamp).startswith("Jul 14, 2026")
+    assert "2,048 bytes" in _timeline_artifact_label(event)
+    assert "aaaaaaaaaaaa" in _timeline_artifact_label(event)
 
 
 def test_single_selection_opens_contextual_focus_inspector():

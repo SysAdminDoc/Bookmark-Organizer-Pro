@@ -8,11 +8,15 @@ from pathlib import Path
 from typing import Callable, Optional
 from urllib.parse import urlparse
 
-from bookmark_organizer_pro.i18n import _
+from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.extraction_templates import (
     format_structured_value,
     structured_metadata_fields,
+)
+from bookmark_organizer_pro.services.processing_timeline import (
+    ProcessingTimelineEvent,
+    ProcessingTimelineService,
 )
 
 from .foundation import FONTS, DesignTokens, display_or_fallback
@@ -81,6 +85,47 @@ def _next_action(bookmark: Bookmark) -> tuple[str, str, str, str]:
     )
 
 
+_TIMELINE_OPERATION_LABELS = {
+    "capture": _("Bookmark saved"),
+    "metadata": _("Metadata"),
+    "link_check": _("Link check"),
+    "ingest": _("Content extraction"),
+    "extraction": _("Extracted text"),
+    "snapshot": _("Offline snapshot"),
+    "youtube_transcript": _("YouTube transcript"),
+    "youtube_transcript_remove": _("Transcript removal"),
+    "embedding": _("Search index"),
+}
+_TIMELINE_STATE_LABELS = {
+    "running": _("Running"),
+    "success": _("Complete"),
+    "failure": _("Failed"),
+    "cancelled": _("Cancelled"),
+    "missing": _("Missing artifact"),
+}
+
+
+def _timeline_operation_label(operation: str) -> str:
+    return _TIMELINE_OPERATION_LABELS.get(str(operation or ""), _("Local processing"))
+
+
+def _timeline_state_label(state: str) -> str:
+    return _TIMELINE_STATE_LABELS.get(str(state or ""), _("Unknown state"))
+
+
+def _timeline_time_label(timestamp: str) -> str:
+    return _format_date(timestamp) if str(timestamp or "").strip() else _("Time unavailable")
+
+
+def _timeline_artifact_label(event: ProcessingTimelineEvent) -> str:
+    details = []
+    if event.artifact_size:
+        details.append(format_message("{size} bytes", size=f"{event.artifact_size:,}"))
+    if event.artifact_digest:
+        details.append(format_message("SHA-256 {digest}", digest=event.artifact_digest[:12]))
+    return " · ".join(details) or _("No artifact details")
+
+
 class BookmarkDetailPanel(tk.Frame, ThemedWidget):
     """Selected-bookmark inspector with actions, metadata, and one next step."""
 
@@ -92,6 +137,9 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
         on_open_offline: Callable[[Bookmark], None] | None = None,
         on_delete: Callable[[Bookmark], None] | None = None,
         on_close: Callable[[], None] | None = None,
+        on_retry_processing: Callable[[Bookmark, ProcessingTimelineEvent], None] | None = None,
+        on_remove_processing: Callable[[Bookmark, ProcessingTimelineEvent], None] | None = None,
+        timeline_service: ProcessingTimelineService | None = None,
     ):
         theme = get_theme()
         super().__init__(parent, bg=theme.bg_dark, width=DesignTokens.RIGHT_SIDEBAR_WIDTH)
@@ -100,6 +148,9 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
         self.on_open_offline = on_open_offline
         self.on_delete = on_delete
         self.on_close = on_close
+        self.on_retry_processing = on_retry_processing
+        self.on_remove_processing = on_remove_processing
+        self.timeline_service = timeline_service or ProcessingTimelineService()
         self.current_bookmark: Optional[Bookmark] = None
         self.content = tk.Frame(self, bg=theme.bg_dark)
         self.content.pack(fill=tk.BOTH, expand=True, padx=DesignTokens.PANEL_PAD)
@@ -224,6 +275,89 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
             for key, value in sorted(structured_fields.items())[:6]:
                 label = key.replace("_", " ").title()
                 self._detail(label, format_structured_value(value))
+
+        self._render_processing_timeline(bookmark)
+
+    def _render_processing_timeline(self, bookmark: Bookmark):
+        """Show bounded local processing state without source content."""
+        self._separator()
+        self._section_label(_("Processing timeline"))
+        try:
+            events = self.timeline_service.list_events(bookmark)
+        except Exception:
+            events = []
+        if not events:
+            tk.Label(
+                self.content,
+                text=_("No local processing events yet."),
+                bg=get_theme().bg_dark, fg=get_theme().text_muted,
+                font=FONTS.small(), anchor="w", justify=tk.LEFT,
+            ).pack(fill=tk.X, pady=(0, 12))
+            return
+
+        for event in events[-20:]:
+            self._render_processing_event(bookmark, event)
+
+    def _render_processing_event(self, bookmark: Bookmark, event: ProcessingTimelineEvent):
+        theme = get_theme()
+        row = tk.Frame(
+            self.content, bg=theme.bg_card,
+            highlightbackground=theme.card_border, highlightthickness=1,
+        )
+        row.pack(fill=tk.X, pady=(0, 7))
+        heading = tk.Frame(row, bg=theme.bg_card)
+        heading.pack(fill=tk.X, padx=11, pady=(9, 3))
+        tk.Label(
+            heading,
+            text=_timeline_operation_label(event.operation),
+            bg=theme.bg_card, fg=theme.text_primary,
+            font=FONTS.small(bold=True), anchor="w",
+        ).pack(side=tk.LEFT, fill=tk.X, expand=True)
+        tk.Label(
+            heading, text=_timeline_state_label(event.state),
+            bg=theme.bg_card, fg=theme.text_secondary,
+            font=FONTS.tiny(), anchor="e",
+        ).pack(side=tk.RIGHT)
+        tk.Label(
+            row,
+            text=format_message(
+                "{backend} · {time}",
+                backend=event.backend or _("local"),
+                time=_timeline_time_label(event.timestamp),
+            ),
+            bg=theme.bg_card, fg=theme.text_muted,
+            font=FONTS.tiny(), anchor="w",
+        ).pack(fill=tk.X, padx=11, pady=(0, 2))
+        tk.Label(
+            row, text=_timeline_artifact_label(event),
+            bg=theme.bg_card, fg=theme.text_secondary,
+            font=FONTS.tiny(), anchor="w",
+        ).pack(fill=tk.X, padx=11, pady=(0, 2))
+        if event.error:
+            tk.Label(
+                row,
+                text=_("Error: {error}").format(error=event.error),
+                bg=theme.bg_card, fg=theme.accent_warning,
+                font=FONTS.tiny(), anchor="w", justify=tk.LEFT,
+                wraplength=285,
+            ).pack(fill=tk.X, padx=11, pady=(0, 3))
+        if event.retryable or event.removable:
+            actions = tk.Frame(row, bg=theme.bg_card)
+            actions.pack(fill=tk.X, padx=11, pady=(3, 9))
+            if event.retryable and self.on_retry_processing:
+                ModernButton(
+                    actions, text=_("Retry"), icon="↻",
+                    command=lambda bm=bookmark, item=event: self.on_retry_processing(bm, item),
+                    tooltip=_("Retry this local processing step"),
+                    padx=8, pady=5,
+                ).pack(side=tk.LEFT, padx=(0, 5))
+            if event.removable and event.state in {"success", "missing"} and self.on_remove_processing:
+                ModernButton(
+                    actions, text=_("Remove"), icon="×",
+                    command=lambda bm=bookmark, item=event: self.on_remove_processing(bm, item),
+                    tooltip=_("Remove this derived artifact"),
+                    padx=8, pady=5,
+                ).pack(side=tk.LEFT)
 
     def _render_next_action(self, bookmark: Bookmark):
         """Render one calm, state-aware recommendation instead of analytics."""

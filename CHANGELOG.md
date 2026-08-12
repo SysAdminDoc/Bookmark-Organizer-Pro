@@ -40,6 +40,10 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Added deterministic Chromium ZIP and Firefox XPI extension builds with shared-manifest parity checks, Firefox `sidebar_action`/background-page support, web-ext lint, and a clean-profile temporary-install smoke.
 - Added one deduplicated extension save journal for popup, side-panel, selection, context-menu, and Reading List captures, with failure details, JSON export, confirmed clearing, and one-step clear recovery.
 - Added an Access Credentials workspace for named MCP, REST, and browser-extension credentials with purpose presets, optional expiry, one-time secret display, truncated fingerprints, per-client rotation/revocation, and a bounded success/denial audit.
+- Added a redacted per-bookmark processing timeline that joins capture jobs,
+  snapshot history/failures, extracted artifacts, transcripts, and embeddings;
+  the Focus inspector now exposes bounded retry/remove actions, while support
+  diagnostics report aggregate processing health without bookmark content.
 
 ### Changed
 

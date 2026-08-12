@@ -12,6 +12,11 @@ from bookmark_organizer_pro.services.ai_operation import (
     AICancellationToken,
     AIOperationCancelled,
 )
+from bookmark_organizer_pro.services.processing_timeline import (
+    ProcessingTimelineEvent,
+    ProcessingTimelineService,
+    sanitize_processing_error,
+)
 from bookmark_organizer_pro.ui.components import DragDropImportArea, ScrollableFrame
 from bookmark_organizer_pro.ui.feedback import EmptyState, FilteredEmptyState
 from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, readable_text_on
@@ -666,6 +671,8 @@ class AppShellMixin:
             on_open_offline=self._open_offline_copy,
             on_delete=lambda _bookmark: self._delete_selected(),
             on_close=lambda: self._set_right_rail_user_visibility(False),
+            on_retry_processing=self._retry_processing_event,
+            on_remove_processing=self._remove_processing_event,
         )
         self.bookmark_inspector.pack(fill=tk.BOTH, expand=True)
         self._set_right_rail_mode("focus")
@@ -805,6 +812,170 @@ class AppShellMixin:
             and not getattr(self, "_right_rail_user_hidden", False)
         ):
             self._apply_right_rail_visibility(True)
+
+    def _retry_processing_event(
+        self,
+        bookmark,
+        event: ProcessingTimelineEvent,
+    ) -> None:
+        """Retry one bounded local processing step from the focus rail."""
+        current = self.bookmark_manager.get_bookmark(getattr(bookmark, "id", None))
+        if current is None:
+            return
+        operation = str(event.operation or "local processing").replace("_", " ")
+        self._set_status(format_message("Retrying {operation}…", operation=operation))
+
+        import threading
+
+        def worker() -> None:
+            try:
+                succeeded, detail = self._perform_processing_retry(current, event)
+            except Exception as exc:
+                succeeded = False
+                detail = sanitize_processing_error(exc)
+            self._post_to_ui(
+                lambda: self._finish_processing_action(
+                    current, succeeded, detail, retry=True,
+                )
+            )
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _remove_processing_event(
+        self,
+        bookmark,
+        event: ProcessingTimelineEvent,
+    ) -> None:
+        """Remove one derived artifact while retaining its bookmark row."""
+        current = self.bookmark_manager.get_bookmark(getattr(bookmark, "id", None))
+        if current is None:
+            return
+        self._set_status(format_message(
+            "Removing {operation}…",
+            operation=str(event.operation or "derived artifact").replace("_", " "),
+        ))
+
+        import threading
+
+        def worker() -> None:
+            vector_store = None
+            try:
+                if event.operation == "embedding":
+                    from bookmark_organizer_pro.services.embeddings import EmbeddingService
+                    from bookmark_organizer_pro.services.vector_store import VectorStore
+
+                    embedder = EmbeddingService(model_name=current.embedding_model or None)
+                    vector_store = VectorStore(
+                        embedder,
+                        source_digest_resolver=lambda bookmark_id: self._bookmark_source_digest(bookmark_id),
+                    )
+                succeeded, detail = ProcessingTimelineService().remove_derived_artifact(
+                    current, event, vector_store=vector_store,
+                )
+            except Exception as exc:
+                succeeded = False
+                detail = sanitize_processing_error(exc)
+            self._post_to_ui(
+                lambda: self._finish_processing_action(
+                    current, succeeded, detail, retry=False,
+                )
+            )
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _perform_processing_retry(self, bookmark, event: ProcessingTimelineEvent) -> tuple[bool, str]:
+        """Dispatch retry actions without exposing source data in the result."""
+        operation = str(event.operation or "").strip().lower()
+        if operation == "snapshot":
+            from bookmark_organizer_pro.services.snapshot import SnapshotArchiver
+
+            succeeded, _detail = SnapshotArchiver().snapshot(bookmark)
+            return succeeded, _("Offline snapshot captured") if succeeded else _("Offline snapshot failed")
+        if operation in {"ingest", "extraction"}:
+            from bookmark_organizer_pro.services.ingest import ContentIngestor
+
+            result = ContentIngestor().ingest_bookmark(bookmark)
+            if result.success:
+                result.apply_to(bookmark)
+                return True, _("Content extraction completed")
+            return False, sanitize_processing_error(result.error or "Content extraction failed")
+        if operation == "metadata":
+            from bookmark_organizer_pro.utils.metadata import fetch_page_metadata
+
+            metadata = fetch_page_metadata(bookmark.url)
+            changed = False
+            for field in ("title", "description", "favicon_url"):
+                value = str(metadata.get(field) or "").strip()
+                if value and getattr(bookmark, field, "") != value:
+                    setattr(bookmark, field, value)
+                    changed = True
+            return changed, _("Metadata refreshed") if changed else _("Metadata was unavailable")
+        if operation == "link_check":
+            from bookmark_organizer_pro.link_checker import LinkChecker
+
+            valid, status = LinkChecker(max_workers=1)._check_url(bookmark)
+            bookmark.is_valid = valid
+            bookmark.http_status = status
+            return True, format_message("Link check completed ({status})", status=status or 0)
+        if operation == "youtube_transcript":
+            from bookmark_organizer_pro.services.youtube_transcript import YouTubeTranscriptService
+
+            result = YouTubeTranscriptService().capture(
+                bookmark, language=event.language or "en",
+            )
+            if result.success:
+                YouTubeTranscriptService().apply(bookmark, result)
+                return True, _("YouTube transcript captured")
+            return False, sanitize_processing_error(result.error or "Transcript capture failed")
+        if operation == "embedding":
+            from bookmark_organizer_pro.services.embeddings import EmbeddingService
+            from bookmark_organizer_pro.services.vector_store import VectorStore
+
+            embedder = EmbeddingService(model_name=bookmark.embedding_model or None)
+            vector_store = VectorStore(
+                embedder,
+                source_digest_resolver=lambda bookmark_id: self._bookmark_source_digest(bookmark_id),
+            )
+            source = EmbeddingService.bookmark_source_text(bookmark)
+            chunks = embedder.chunk_text(source)
+            rows = vector_store.upsert_bookmark(int(bookmark.id), chunks)
+            if rows:
+                bookmark.embedding_model = embedder.resolved_model_name
+                bookmark.embedding_dim = embedder.dim
+                return True, _("Search index updated")
+            return False, _("Search index could not be updated")
+        return False, _("This processing step cannot be retried")
+
+    def _finish_processing_action(
+        self,
+        bookmark,
+        succeeded: bool,
+        detail: str,
+        *,
+        retry: bool,
+    ) -> None:
+        """Persist a completed action and refresh the selected-bookmark rail."""
+        if succeeded:
+            try:
+                self.bookmark_manager.update_bookmark(bookmark)
+            except Exception as exc:
+                succeeded = False
+                detail = sanitize_processing_error(exc)
+        self._refresh_all()
+        self._update_right_rail_selection()
+        verb = _("Retry complete") if retry else _("Artifact removal complete")
+        if succeeded:
+            self._set_status(format_message("{verb}: {detail}", verb=verb, detail=detail))
+            self._show_toast(detail, "success")
+        else:
+            self._set_status(format_message("Processing action failed: {detail}", detail=detail))
+            self._show_toast(detail, "error")
+
+    def _bookmark_source_digest(self, bookmark_id: int):
+        from bookmark_organizer_pro.services.embeddings import EmbeddingService
+
+        bookmark = self.bookmark_manager.get_bookmark(bookmark_id)
+        return EmbeddingService.bookmark_source_digest(bookmark) if bookmark else None
 
     def _on_library_table_release(self, event):
         """Make the trailing star a direct, discoverable pin control."""

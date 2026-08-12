@@ -359,6 +359,14 @@ def build_diagnostics_snapshot(
         job_health = {"available": False}
 
     try:
+        from bookmark_organizer_pro.services.processing_timeline import ProcessingTimelineService
+
+        processing_health = ProcessingTimelineService().diagnostics()
+    except Exception:
+        log.debug("Could not summarize processing timeline", exc_info=True)
+        processing_health = {"available": False}
+
+    try:
         from bookmark_organizer_pro.services.mcp_auth import MCPTokenManager
         credential_health = MCPTokenManager().diagnostics()
     except Exception:
@@ -384,6 +392,7 @@ def build_diagnostics_snapshot(
         },
         "recent_errors": recent_errors,
         "job_health": job_health,
+        "processing_health": processing_health,
         "credential_health": credential_health,
         "privacy": {
             "bookmark_contents_included": False,
@@ -429,6 +438,16 @@ def format_diagnostics(snapshot: Dict[str, Any] | None = None) -> str:
             f"- Failures: {jobs['failures']} ({jobs['failure_rate']:.1%})",
             f"- Retryable: {jobs['retryable_failures']}",
             f"- Processed storage (7d): {jobs['storage_growth_7d_bytes']} bytes",
+        ])
+    processing = snapshot.get("processing_health", {})
+    if processing.get("available"):
+        lines.extend([
+            "",
+            "Processing Timeline:",
+            f"- Job events: {processing.get('job_events', 0)}",
+            f"- Snapshot failures: {processing.get('snapshot_failures', 0)}",
+            f"- Snapshot versions: {processing.get('snapshot_versions', 0)}",
+            f"- Retryable failures: {processing.get('retryable_failures', 0)}",
         ])
     credentials = snapshot.get("credential_health", {})
     if credentials.get("credential_count") is not None:

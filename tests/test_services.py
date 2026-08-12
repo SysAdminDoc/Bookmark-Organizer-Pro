@@ -3577,5 +3577,194 @@ class TestReaderProgressStore:
         assert restored.reader_progress_source_sha256 == saved.progress.source_sha256
 
 
+def test_processing_timeline_projects_legacy_sources_without_content_or_urls(tmp_path):
+    from bookmark_organizer_pro.services.job_ledger import JobLedger
+    from bookmark_organizer_pro.services.processing_timeline import ProcessingTimelineService
+    from bookmark_organizer_pro.services.snapshot import (
+        SnapshotBackendAttempt,
+        SnapshotFailureStore,
+    )
+    from bookmark_organizer_pro.services.snapshot_history import SnapshotHistoryStore
+
+    bookmark = _make_bookmark(
+        id=41,
+        url="https://private.example/article?token=secret",
+        title="Private Article Title",
+        created_at="2020-08-12T09:00:00+00:00",
+    )
+    extracted = tmp_path / "extracted" / "41.txt"
+    extracted.parent.mkdir()
+    extracted.write_text("private page content", encoding="utf-8")
+    bookmark.extracted_text_path = str(extracted)
+
+    snapshots = tmp_path / "snapshots"
+    snapshots.mkdir()
+    current = snapshots / "41.html"
+    current.write_text("<main>private snapshot content</main>", encoding="utf-8")
+    history = SnapshotHistoryStore(snapshots)
+    version = history.record(
+        41,
+        current,
+        source_url=bookmark.url,
+        backend="python",
+        captured_at="2020-08-12T09:02:00+00:00",
+    )
+
+    ledger = JobLedger(tmp_path / "job_ledger.json")
+    ingest = ledger.start("ingest", bookmark_id=41, backend="content-extractor")
+    ingest.succeed(bytes_processed=20)
+    failed = ledger.start("embedding", bookmark_id=41, backend="memory/fake")
+    failed.fail(
+        "POST https://api.example/v1?token=secret response body=private page content",
+        retryable=True,
+    )
+    failures = SnapshotFailureStore(tmp_path / "snapshot_failures.json")
+    failures.record_failure(
+        bookmark,
+        "GET https://private.example/article?token=secret",
+        (SnapshotBackendAttempt("python", False, "C:\\Users\\owner\\private.html"),),
+        retry_eligible=True,
+    )
+
+    service = ProcessingTimelineService(
+        data_dir=tmp_path,
+        job_ledger=ledger,
+        failure_store=failures,
+        history_store=history,
+    )
+    timeline = service.project(bookmark)
+    operations = [event.operation for event in timeline.events]
+    serialized = json.dumps(timeline.to_dict(), ensure_ascii=False)
+
+    assert operations[0] == "capture"
+    assert "snapshot" in operations
+    assert "ingest" in operations
+    snapshot = next(event for event in timeline.events if event.event_id == f"snapshot:{version.version_id}")
+    assert snapshot.state == "success"
+    assert snapshot.artifact_size == len(current.read_bytes())
+    assert snapshot.artifact_digest == version.sha256
+    assert any(event.retryable and event.operation == "embedding" for event in timeline.events)
+    assert any(event.retryable and event.operation == "snapshot" for event in timeline.events)
+    assert "private.example" not in serialized
+    assert "secret" not in serialized
+    assert "private page content" not in serialized
+    assert "Private Article Title" not in serialized
+    assert "private.html" not in serialized
+
+
+def test_processing_timeline_tolerates_corrupt_sidecars_and_removes_derived_artifacts(tmp_path):
+    from bookmark_organizer_pro.services.job_ledger import JobLedger
+    from bookmark_organizer_pro.services.processing_timeline import (
+        ProcessingTimelineEvent,
+        ProcessingTimelineService,
+    )
+    from bookmark_organizer_pro.services.snapshot import SnapshotFailureStore
+    from bookmark_organizer_pro.services.snapshot_history import SnapshotHistoryStore
+
+    failures_path = tmp_path / "snapshot_failures.json"
+    failures_path.write_text("{broken", encoding="utf-8")
+    snapshots = tmp_path / "snapshots"
+    snapshots.mkdir()
+    current = snapshots / "52.html"
+    current.write_text("<main>derived</main>", encoding="utf-8")
+    history = SnapshotHistoryStore(snapshots)
+    history.record(52, current, source_url="https://example.com", backend="python")
+    extracted = tmp_path / "extracted" / "52.txt"
+    extracted.parent.mkdir()
+    extracted.write_text("derived text", encoding="utf-8")
+    bookmark = _make_bookmark(
+        id=52,
+        snapshot_path=str(current),
+        snapshot_sha256="a" * 64,
+        extracted_text_path=str(extracted),
+    )
+    service = ProcessingTimelineService(
+        data_dir=tmp_path,
+        job_ledger=JobLedger(tmp_path / "job_ledger.json"),
+        failure_store=SnapshotFailureStore(failures_path),
+        history_store=history,
+    )
+
+    assert service.project(bookmark).events
+    extracted_event = ProcessingTimelineEvent(
+        event_id="extraction:52",
+        operation="extraction",
+        backend="content-extractor",
+        state="success",
+        timestamp="",
+        removable=True,
+        artifact_id="extracted-text",
+    )
+    removed, detail = service.remove_derived_artifact(bookmark, extracted_event)
+    assert removed is True
+    assert "removed" in detail.lower()
+    assert not extracted.exists()
+    assert bookmark.extracted_text_path == ""
+
+    snapshot_event = ProcessingTimelineEvent(
+        event_id="snapshot:current",
+        operation="snapshot",
+        backend="python",
+        state="success",
+        timestamp="",
+        removable=True,
+        artifact_id="current",
+    )
+    removed, _detail = service.remove_derived_artifact(bookmark, snapshot_event)
+    assert removed is True
+    assert bookmark.snapshot_path == ""
+    assert history.list_versions(52) == []
+
+
+def test_snapshot_timeline_removes_one_history_version_without_deleting_current(tmp_path):
+    from bookmark_organizer_pro.services.job_ledger import JobLedger
+    from bookmark_organizer_pro.services.processing_timeline import (
+        ProcessingTimelineEvent,
+        ProcessingTimelineService,
+    )
+    from bookmark_organizer_pro.services.snapshot import SnapshotFailureStore
+    from bookmark_organizer_pro.services.snapshot_history import SnapshotHistoryStore
+
+    snapshots = tmp_path / "snapshots"
+    snapshots.mkdir()
+    source = tmp_path / "source.html"
+    source.write_text("history", encoding="utf-8")
+    history = SnapshotHistoryStore(snapshots)
+    version = history.record(
+        61,
+        source,
+        source_url="https://example.com/history",
+        backend="python",
+        captured_at="2020-01-01T00:00:00+00:00",
+    )
+    current = snapshots / "61.html"
+    current.write_text("current", encoding="utf-8")
+    bookmark = _make_bookmark(id=61, snapshot_path=str(current))
+    service = ProcessingTimelineService(
+        data_dir=tmp_path,
+        job_ledger=JobLedger(tmp_path / "jobs.json"),
+        failure_store=SnapshotFailureStore(tmp_path / "failures.json"),
+        history_store=history,
+    )
+
+    removed, detail = service.remove_derived_artifact(
+        bookmark,
+        ProcessingTimelineEvent(
+            event_id=f"snapshot:{version.version_id}",
+            operation="snapshot",
+            backend="python",
+            state="success",
+            timestamp=version.captured_at,
+            removable=True,
+            artifact_id=version.version_id,
+        ),
+    )
+
+    assert removed is True
+    assert "version" in detail.lower()
+    assert history.list_versions(61) == []
+    assert current.exists()
+
+
 if __name__ == "__main__":
     unittest.main()

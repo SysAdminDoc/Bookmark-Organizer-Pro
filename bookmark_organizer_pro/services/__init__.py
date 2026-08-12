@@ -125,6 +125,12 @@ from .reader_progress import (
     ReaderProgressWrite,
     source_text_sha256 as reader_progress_source_sha256,
 )
+from .processing_timeline import (
+    ProcessingTimeline,
+    ProcessingTimelineEvent,
+    ProcessingTimelineService,
+    sanitize_processing_error,
+)
 from .recovery_bundle import (
     BundleReport,
     RestoreResult,
@@ -227,6 +233,8 @@ __all__ = [
     "read_extracted_text", "render_highlights_markdown",
     "DEFAULT_PROGRESS_STATE", "PROGRESS_STATES", "ReaderProgress",
     "ReaderProgressStore", "ReaderProgressWrite", "reader_progress_source_sha256",
+    "ProcessingTimeline", "ProcessingTimelineEvent", "ProcessingTimelineService",
+    "sanitize_processing_error",
     "TranscriptResult", "YouTubeTranscriptService", "classify_transcript_error",
     "fetch_transcript", "is_youtube_url", "normalize_language",
     "normalize_timeout", "save_transcript",
