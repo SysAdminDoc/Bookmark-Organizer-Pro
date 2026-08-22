@@ -18,16 +18,6 @@ Audit-only pass against `d51beb7` (v6.14.0). Baseline before any finding was log
   Confidence: Verified
   Effort: M
 
-- [ ] P3 — R-144: Backfill the 360 em dashes in historical CHANGELOG entries
-  Category: docs
-  Where: `CHANGELOG.md`, every section below the newest one.
-  Problem: The project's writing rule bans em and en dashes in public prose. README is clean and the newest section is now guarded by `tests/test_packaging.py::test_shipping_docs_avoid_em_and_en_dashes`, but 360 remain in entries for already-shipped releases, including structural ones like `### Changed — UX/UI polish`.
-  Evidence: `grep -v -E '^## \[' CHANGELOG.md | grep -c -E '—|–'` returns 360 on 2026-08-22; the newest section and README return 0.
-  Fix: Rewrite by hand, section by section, oldest first. Do NOT script it: a blind replace of "—" with a period or comma produces broken sentences, which is exactly how the R-129 plural sweep went wrong. The `### Changed — UX/UI polish` style headings can be handled as a separate mechanical pass (drop the suffix or use a colon) because they are structural rather than prose. Extend the guard test to the whole file once a section is clean.
-  Acceptance: `grep -c -E '—|–' CHANGELOG.md` returns 0, and the guard test covers the whole file instead of only the newest section.
-  Confidence: Verified
-  Effort: M
-
 - [ ] P3 — R-137: Unaudited in this pass, needs its own look
   Category: maintainability
   Where: `bookmark_organizer_pro/services/snapshot.py` (1,410 lines; only `import_browser_snapshot` sanitization entry points were spot-checked), `services/mcp_auth.py`, `services/encryption.py`, `services/updates.py`, `services/ollama_manager.py`, `services/rag_chat.py` / `citation_summarizer.py` prompt isolation, `core/sqlite_storage.py`, the ten non-GitHub themes as rendered (only palette math was checked, see R-122), desktop keyboard traversal beyond the a11y contract smoke, and the Firefox build of the extension at runtime (the smoke runs Chromium only).

@@ -225,7 +225,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Fixed the first import into a library that has never been saved. The rollback
   safepoint could not be created because no library file existed yet, so the
   durable import session refused every import with "a rollback safepoint could
-  not be created" — exactly the first-run migration case. The session now
+  not be created", which is exactly the first-run migration case. The session now
   persists the empty library first so the safepoint is a real restore target,
   and still refuses the import when a populated library cannot be snapshotted.
 
@@ -604,7 +604,7 @@ Trust and metadata repair pass.
 
 Secondary premium-polish pass for dialogs and assistant workflows.
 
-### Changed — UX/UI polish
+### Changed: UX/UI polish
 
 - Refined Assistant Settings with clearer product language, stronger section hierarchy, and consistent provider/save/test actions.
 - Brought reader highlights, graph view, dependency setup, export, assistant activity, category/context menus, and live workflow feedback closer to the shared desktop component language.
@@ -616,7 +616,7 @@ Secondary premium-polish pass for dialogs and assistant workflows.
 
 Premium-polish pass for the desktop workspace and browser extension.
 
-### Changed — UX/UI polish
+### Changed: UX/UI polish
 
 - Reworked the default Studio Dark palette so OS dark-mode auto-detection opens a true dark workspace with neutral surfaces, crisp contrast, and mint action accents.
 - Tightened shared ttk and custom control states: stronger focus rings, clearer disabled states, calmer hover/selection behavior, and more consistent button/input treatment.
@@ -628,7 +628,7 @@ Premium-polish pass for the desktop workspace and browser extension.
 
 Default-category expansion, AI-learning loop, and a robustness/security hardening pass.
 
-### Added — Categories & defaults
+### Added: Categories & defaults
 
 - **5 new built-in categories** with curated, de-duplicated domain sets and icons:
   Music & Audio, Communication, Cryptocurrency, Maps & Navigation, and
@@ -646,7 +646,7 @@ Default-category expansion, AI-learning loop, and a robustness/security hardenin
   News->Technology, `gab.com` Forums->Social Media, `themeforest.net`
   Media Production->Design).
 
-### Added — Reliability & UX
+### Added: Reliability & UX
 
 - Reusable `LiveWorkflowDialog` with a bounded, drip-revealed activity feed for
   AI categorize/tag/summary runs (memory-safe on very large jobs).
@@ -654,7 +654,7 @@ Default-category expansion, AI-learning loop, and a robustness/security hardenin
   share one implementation; clearer "model not found" guidance.
 - New CI workflow (tests on 3.10-3.13 + ruff) and a focused lint config.
 
-### Fixed — Robustness & security
+### Fixed: Robustness & security
 
 - Thread-safety in the bookmark store (snapshot-under-lock reads, locked
   merge/empty-trash + dedup), `CategoryManager` lock, SQLite skip-and-log on a
@@ -670,7 +670,7 @@ Default-category expansion, AI-learning loop, and a robustness/security hardenin
 
 AI-in-build and bookmark-list interaction release.
 
-### Fixed — AI
+### Fixed: AI
 
 - **DeepSeek / OpenAI-compatible providers work in the packaged executable.**
   The `openai` SDK is lazy-imported at runtime via `ensure_package`, which
@@ -680,7 +680,7 @@ AI-in-build and bookmark-list interaction release.
   PyInstaller hidden imports so the bundled `.exe` can categorize, tag, and
   summarize with DeepSeek out of the box.
 
-### Fixed — Bookmark list (tksheet backend)
+### Fixed: Bookmark list (tksheet backend)
 
 - **Row selection is actionable again.** A single click creates a tksheet
   *cell* selection, but `_sync_selection_from_sheet` only read fully-selected
@@ -695,7 +695,7 @@ AI-in-build and bookmark-list interaction release.
   zebra tags are excluded from per-row highlighting so the selection color is
   visible.
 
-### Changed — Packaging / privacy
+### Changed: Packaging / privacy
 
 - Verified the release executable contains no API keys and none of the user's
   bookmark data (all user data lives in `~/.bookmark_organizer/`, outside the
@@ -706,11 +706,11 @@ AI-in-build and bookmark-list interaction release.
 
 MCP HTTP compatibility release.
 
-### Changed — MCP (R-15/R-58 hardening)
+### Changed: MCP (R-15/R-58 hardening)
 
-- **Optional mirrored headers** — Streamable HTTP requests no longer require
+- **Optional mirrored headers**: Streamable HTTP requests no longer require
   `Mcp-Method` and `Mcp-Name` headers, matching standard MCP clients.
-- **Validation preserved** — when mirrored headers are present, they still must
+- **Validation preserved**: when mirrored headers are present, they still must
   match the JSON-RPC method and tool/resource/prompt name.
 
 ### Tests
@@ -722,11 +722,11 @@ MCP HTTP compatibility release.
 
 MCP stdio contract smoke release.
 
-### Added — MCP (R-15 partial)
+### Added: MCP (R-15 partial)
 
-- **Subprocess stdio smoke** — added a real MCP stdio client test that launches
+- **Subprocess stdio smoke**: added a real MCP stdio client test that launches
   the server with `python -m bookmark_organizer_pro.mcp_server`.
-- **Contract validation** — the stdio smoke initializes `ClientSession`, lists
+- **Contract validation**: the stdio smoke initializes `ClientSession`, lists
   tools, and verifies `chat_with_collection_stream` stream contract metadata.
 
 ### Tests
@@ -738,13 +738,13 @@ MCP stdio contract smoke release.
 
 MCP stream contract release.
 
-### Added — MCP (R-15 partial)
+### Added: MCP (R-15 partial)
 
-- **Stream contract marker** — added `CHAT_STREAM_CONTRACT_VERSION` and
+- **Stream contract marker**: added `CHAT_STREAM_CONTRACT_VERSION` and
   `CHAT_STREAM_EVENT_TYPES` for the `chat_with_collection_stream` payload.
-- **Tool metadata** — raw MCP and FastMCP tool catalogs now expose the stream
+- **Tool metadata**: raw MCP and FastMCP tool catalogs now expose the stream
   contract version and event types under Bookmark Organizer metadata keys.
-- **Client validation** — FastMCP client smoke coverage now verifies the final
+- **Client validation**: FastMCP client smoke coverage now verifies the final
   stream payload carries the same contract marker.
 
 ### Tests
@@ -756,13 +756,13 @@ MCP stream contract release.
 
 Updater apply plan release.
 
-### Added — Distribution (R-41 partial)
+### Added: Distribution (R-41 partial)
 
-- **Apply plan model** — added `UpdateManager.build_apply_plan()` and
+- **Apply plan model**: added `UpdateManager.build_apply_plan()` and
   `UpdateApplyPlan` for non-mutating install/rollback planning.
-- **CLI plan output** — added `updates plan` to print install directory,
+- **CLI plan output**: added `updates plan` to print install directory,
   rollback directory, staged paths, planned actions, and blockers.
-- **Rollback design surface** — the plan records a deterministic rollback
+- **Rollback design surface**: the plan records a deterministic rollback
   directory without creating, extracting, or replacing files.
 
 ### Tests
@@ -774,13 +774,13 @@ Updater apply plan release.
 
 Updater staged cleanup release.
 
-### Added — Distribution (R-41 partial)
+### Added: Distribution (R-41 partial)
 
-- **Staged cleanup** — added `UpdateManager.clear_staged_update()` to remove
+- **Staged cleanup**: added `UpdateManager.clear_staged_update()` to remove
   the staged manifest and cached staged target files only.
-- **CLI cleanup** — added `updates clean-staged` for removing staged updater
+- **CLI cleanup**: added `updates clean-staged` for removing staged updater
   artifacts without touching trusted metadata or app files.
-- **Cleanup reporting** — cleanup now reports whether the manifest was removed,
+- **Cleanup reporting**: cleanup now reports whether the manifest was removed,
   which staged targets were deleted, and any errors.
 
 ### Tests
@@ -792,13 +792,13 @@ Updater staged cleanup release.
 
 Updater apply preflight release.
 
-### Added — Distribution (R-41 partial)
+### Added: Distribution (R-41 partial)
 
-- **Apply preflight** — added `UpdateManager.apply_preflight()` to report staged
+- **Apply preflight**: added `UpdateManager.apply_preflight()` to report staged
   update readiness and blockers without mutating files.
-- **CLI dry run** — `updates apply --dry-run` and `updates apply --preflight`
+- **CLI dry run**: `updates apply --dry-run` and `updates apply --preflight`
   now print target details, staged paths, and explicit blockers.
-- **Persistent apply gate** — real `updates apply` remains blocked while the
+- **Persistent apply gate**: real `updates apply` remains blocked while the
   dry-run path makes missing staged updates and disabled application visible.
 
 ### Tests
@@ -810,14 +810,14 @@ Updater apply preflight release.
 
 Updater staging manifest release.
 
-### Added — Distribution (R-41 partial)
+### Added: Distribution (R-41 partial)
 
-- **Staged update manifest** — successful `download_update()` calls now write
+- **Staged update manifest**: successful `download_update()` calls now write
   `updates/staged_update.json` with current version, latest version, target
   metadata, channel, staged paths, and timestamp.
-- **Readback status** — added `UpdateManager.staged_update()` to validate the
+- **Readback status**: added `UpdateManager.staged_update()` to validate the
   manifest and confirm staged target files still exist inside the update cache.
-- **CLI readback** — added `updates staged` to report no staged update,
+- **CLI readback**: added `updates staged` to report no staged update,
   incomplete staged files, or present staged targets without applying them.
 
 ### Notes
@@ -834,15 +834,15 @@ Updater staging manifest release.
 
 Updater download staging release.
 
-### Added — Distribution (R-41 partial)
+### Added: Distribution (R-41 partial)
 
-- **Trusted target staging** — `UpdateManager.download_update()` now runs the
+- **Trusted target staging**: `UpdateManager.download_update()` now runs the
   same tufup trusted metadata check as `updates check`, then stages the selected
   target files in the update cache with `Client.download_target()`.
-- **CLI staging path** — `updates download` now reports staged target paths
+- **CLI staging path**: `updates download` now reports staged target paths
   when readiness gates pass, while preserving disabled/not-ready output for
   default installs.
-- **Cache boundary guard** — staged target paths are validated to stay under
+- **Cache boundary guard**: staged target paths are validated to stay under
   the update target cache before they are reported.
 
 ### Notes
@@ -859,15 +859,15 @@ Updater download staging release.
 
 Desktop graph view release.
 
-### Added — Graph (R-22)
+### Added: Graph (R-22)
 
-- **Graph canvas** — added a Tk-native graph dialog that renders bookmarks,
+- **Graph canvas**: added a Tk-native graph dialog that renders bookmarks,
   tags, categories, and domains from the graph service.
-- **Navigation** — added canvas pan/zoom, node selection details, and
+- **Navigation**: added canvas pan/zoom, node selection details, and
   double-click opening for bookmark nodes.
-- **App entry points** — added Graph View to the Tools menu and command
+- **App entry points**: added Graph View to the Tools menu and command
   palette.
-- **GUI export** — graph JSON export is available from the desktop graph
+- **GUI export**: graph JSON export is available from the desktop graph
   dialog.
 
 ### Tests
@@ -879,13 +879,13 @@ Desktop graph view release.
 
 Graph foundation release.
 
-### Added — Graph (R-22 partial)
+### Added: Graph (R-22 partial)
 
-- **Graph model** — added bookmark graph nodes and edges linking bookmarks to
+- **Graph model**: added bookmark graph nodes and edges linking bookmarks to
   tags, categories, and domains.
-- **Force layout** — added deterministic force-directed layout coordinates for
+- **Force layout**: added deterministic force-directed layout coordinates for
   graph exports.
-- **Graph export** — added `graph-export` CLI command for JSON graph export
+- **Graph export**: added `graph-export` CLI command for JSON graph export
   with output path and bookmark limit controls.
 
 ### Notes
@@ -901,16 +901,16 @@ Graph foundation release.
 
 Desktop reader pane release.
 
-### Added — Reader (R-21)
+### Added: Reader (R-21)
 
-- **Reader dialog** — added a Tk-native reader view for selected bookmarks with
+- **Reader dialog**: added a Tk-native reader view for selected bookmarks with
   extracted text, saved highlight rendering, highlight list, and note editor.
-- **Selection highlights** — users can select text, choose one of four
+- **Selection highlights**: users can select text, choose one of four
   highlight colors, and persist the highlight through the reader annotation
   store.
-- **GUI export** — reader highlights can now be exported to Markdown from the
+- **GUI export**: reader highlights can now be exported to Markdown from the
   desktop dialog.
-- **App entry points** — added reader access through the Tools menu, bookmark
+- **App entry points**: added reader access through the Tools menu, bookmark
   context menu, and command palette.
 
 ### Tests
@@ -922,14 +922,14 @@ Desktop reader pane release.
 
 Reader annotation foundation release.
 
-### Added — Reader (R-21 partial)
+### Added: Reader (R-21 partial)
 
-- **Reader highlight storage** — added durable JSON-backed reader highlights
+- **Reader highlight storage**: added durable JSON-backed reader highlights
   with bookmark ID, selected text range, selected text, note, timestamps, and
   four supported colors.
-- **Markdown export** — reader highlights can be exported per bookmark as
+- **Markdown export**: reader highlights can be exported per bookmark as
   Markdown with source URL, ranges, quotes, colors, and notes.
-- **CLI workflow** — added `reader list`, `reader add`, `reader note`,
+- **CLI workflow**: added `reader list`, `reader add`, `reader note`,
   `reader delete`, and `reader export` commands against existing extracted
   text.
 
@@ -947,15 +947,15 @@ Reader annotation foundation release.
 
 Sun Valley ttk theme release.
 
-### Added — UI (R-18)
+### Added: UI (R-18)
 
-- **Optional Sun Valley base theme** — the desktop style manager now uses
+- **Optional Sun Valley base theme**: the desktop style manager now uses
   `sv-ttk` when installed, selecting light or dark mode from the active theme
   background before applying BOP's theme color overrides.
-- **Installer extra** — added the `sunvalley` optional dependency group for
+- **Installer extra**: added the `sunvalley` optional dependency group for
   users who want the Windows 11-style ttk base without making it a hard
   dependency.
-- **Theme diagnostics** — the style manager now exposes the active native base
+- **Theme diagnostics**: the style manager now exposes the active native base
   theme and fallback/error status for troubleshooting.
 
 ### Compatibility
@@ -974,14 +974,14 @@ Sun Valley ttk theme release.
 
 Live MCP progress bridge release.
 
-### Added — MCP (R-15 partial)
+### Added: MCP (R-15 partial)
 
-- **Live progress bridge** — `CollectionChat.stream_answer()` now accepts a
+- **Live progress bridge**: `CollectionChat.stream_answer()` now accepts a
   chunk event callback, and the FastMCP tool wrapper bridges those callbacks to
   progress notifications while `chat_with_collection_stream` is running.
-- **Threaded FastMCP runner** — chat stream tool execution can run in a worker
+- **Threaded FastMCP runner**: chat stream tool execution can run in a worker
   thread while the async FastMCP wrapper forwards chunk progress to the client.
-- **Client smoke** — added an in-process FastMCP client test that calls
+- **Client smoke**: added an in-process FastMCP client test that calls
   `chat_with_collection_stream` with a progress handler and verifies progress
   notifications plus the final result.
 
@@ -1000,14 +1000,14 @@ Live MCP progress bridge release.
 
 MCP progress notification release.
 
-### Added — MCP (R-15 partial)
+### Added: MCP (R-15 partial)
 
-- **FastMCP progress notifications** — `chat_with_collection_stream` now accepts
+- **FastMCP progress notifications**: `chat_with_collection_stream` now accepts
   FastMCP's injected context and reports progress for each ordered chunk event
   when the client provides a progress token.
-- **Progress replay helper** — added a tested helper that maps stream events to
+- **Progress replay helper**: added a tested helper that maps stream events to
   bounded progress messages and a final `complete` notification.
-- **Schema guard** — FastMCP catalog coverage now verifies the injected context
+- **Schema guard**: FastMCP catalog coverage now verifies the injected context
   is not exposed as a user-provided tool argument.
 
 ### Notes
@@ -1025,15 +1025,15 @@ MCP progress notification release.
 
 Provider streaming release.
 
-### Added — MCP (R-15 partial)
+### Added: MCP (R-15 partial)
 
-- **Provider streaming adapters** — `AIClient` now exposes `stream_complete()`
+- **Provider streaming adapters**: `AIClient` now exposes `stream_complete()`
   while preserving the existing `complete()` contract.
-- **OpenAI-compatible streaming** — OpenAI, Groq, and DeepSeek clients now yield
+- **OpenAI-compatible streaming**: OpenAI, Groq, and DeepSeek clients now yield
   chat completion deltas from native streaming responses.
-- **Ollama streaming** — local Ollama completions now read line-delimited
+- **Ollama streaming**: local Ollama completions now read line-delimited
   streamed `/api/generate` responses.
-- **RAG stream propagation** — `CollectionChat.stream_answer()` now builds MCP
+- **RAG stream propagation**: `CollectionChat.stream_answer()` now builds MCP
   response events from provider deltas when the selected provider supports
   native streaming.
 
@@ -1052,14 +1052,14 @@ Provider streaming release.
 
 MCP chat response event release.
 
-### Added — MCP (R-15 partial)
+### Added: MCP (R-15 partial)
 
-- **Stream-shaped chat tool** — added `chat_with_collection_stream` for RAG
+- **Stream-shaped chat tool**: added `chat_with_collection_stream` for RAG
   answers returned as ordered `chunk` events followed by a `complete` metadata
   event.
-- **Shared chat scoping** — streamed and non-streamed chat tools now share the
+- **Shared chat scoping**: streamed and non-streamed chat tools now share the
   same bookmark ID, tag, and category scope resolution.
-- **Service event helpers** — RAG chat now exposes bounded chunk sizing and
+- **Service event helpers**: RAG chat now exposes bounded chunk sizing and
   answer-to-event conversion helpers for future transport-level streaming.
 
 ### Notes
@@ -1077,13 +1077,13 @@ MCP chat response event release.
 
 OPDS serving release.
 
-### Added — Export (R-26)
+### Added: Export (R-26)
 
-- **Loopback OPDS route** — the local API now serves `GET /opds` as an OPDS
+- **Loopback OPDS route**: the local API now serves `GET /opds` as an OPDS
   1.2 acquisition feed.
-- **Catalog filters** — `/opds` supports `tag`, `category`, `title`, and
+- **Catalog filters**: `/opds` supports `tag`, `category`, `title`, and
   bounded `limit` query parameters.
-- **Shared renderer** — OPDS file export and HTTP serving now use the same
+- **Shared renderer**: OPDS file export and HTTP serving now use the same
   `render_opds()` output path.
 
 ### Tests
@@ -1095,13 +1095,13 @@ OPDS serving release.
 
 OPDS export foundation release.
 
-### Added — Export (R-26 partial)
+### Added: Export (R-26 partial)
 
-- **OPDS 1.2 acquisition feed export** — added `export_opds()` to generate
+- **OPDS 1.2 acquisition feed export**: added `export_opds()` to generate
   Atom-based OPDS XML with open-access acquisition links to bookmark URLs.
-- **CLI export command** — added `opds-export` with `--output`, `--title`,
+- **CLI export command**: added `opds-export` with `--output`, `--title`,
   `--tag`, and `--catalog-url` options.
-- **Media type inference** — OPDS acquisition links infer EPUB, PDF, or HTML
+- **Media type inference**: OPDS acquisition links infer EPUB, PDF, or HTML
   media types from bookmark metadata and URL extensions.
 
 ### Tests
@@ -1113,13 +1113,13 @@ OPDS export foundation release.
 
 Updater bootstrap and safety-gate release.
 
-### Added — Distribution (R-41 partial)
+### Added: Distribution (R-41 partial)
 
-- **Updater bootstrap guide** — added `docs/distribution/updater-bootstrap.md`
+- **Updater bootstrap guide**: added `docs/distribution/updater-bootstrap.md`
   with client policy paths, trusted `root.json` placement, optional dependency
   install, HTTPS repository configuration, target naming, repository owner
   checklist, and safety gates.
-- **Download/apply refusal gates** — `updates download` and `updates apply`
+- **Download/apply refusal gates**: `updates download` and `updates apply`
   now exist as explicit non-mutating commands that refuse to run and point users
   back to `updates check`.
 
@@ -1132,18 +1132,18 @@ Updater bootstrap and safety-gate release.
 
 Updater availability-check release.
 
-### Added — Distribution (R-41 partial)
+### Added: Distribution (R-41 partial)
 
-- **Non-applying tufup adapter** — `UpdateManager.check_for_updates()` now
+- **Non-applying tufup adapter**: `UpdateManager.check_for_updates()` now
   constructs `tufup.client.Client` only when updates are enabled, repositories
   are configured, tufup is importable, and local trusted `root.json` metadata is
   present.
-- **Structured availability result** — update checks return current version,
+- **Structured availability result**: update checks return current version,
   latest version, target name/path, readiness reason, and error details without
   downloading targets or applying updates.
-- **CLI check behavior** — `updates check` now reports update availability,
+- **CLI check behavior**: `updates check` now reports update availability,
   no-update, not-ready, or check-failed status from the adapter.
-- **Trusted root readiness** — `updates status` now shows whether local trusted
+- **Trusted root readiness**: `updates status` now shows whether local trusted
   root metadata is present.
 
 ### Tests
@@ -1155,18 +1155,18 @@ Updater availability-check release.
 
 Updater policy foundation release.
 
-### Added — Distribution (R-41 partial)
+### Added: Distribution (R-41 partial)
 
-- **Optional updater dependency** — added `bookmark-organizer-pro[updates]`
+- **Optional updater dependency**: added `bookmark-organizer-pro[updates]`
   with `tufup>=0.10,<0.11`; live package verification confirmed 0.10.0 is the
   current tufup release.
-- **Disabled-by-default update policy** — added `UpdateManager`,
+- **Disabled-by-default update policy**: added `UpdateManager`,
   `UpdatePolicy`, and `UpdateStatus` to persist update repository settings
   without downloading or applying binaries automatically.
-- **CLI update surface** — added `updates status`, `updates check`, and
+- **CLI update surface**: added `updates status`, `updates check`, and
   `updates configure` commands. The check path reports readiness only; actual
   download/apply remains gated.
-- **HTTPS repository guard** — update metadata and target URLs must use HTTPS
+- **HTTPS repository guard**: update metadata and target URLs must use HTTPS
   before they can be persisted.
 
 ### Tests
@@ -1178,16 +1178,16 @@ Updater policy foundation release.
 
 Nuitka compile-smoke release.
 
-### Added — Distribution (R-40)
+### Added: Distribution (R-40)
 
-- **Smoke compile target** — `packaging/nuitka_build.py` now accepts
+- **Smoke compile target**: `packaging/nuitka_build.py` now accepts
   `--target smoke` to build a small console executable that exercises Nuitka
   metadata, icon, asset, report, output, and job-control flags without pulling
   in the full GUI import graph.
-- **Smoke entrypoint** — added `packaging/nuitka_smoke.py`, a self-contained
+- **Smoke entrypoint**: added `packaging/nuitka_smoke.py`, a self-contained
   version-printing executable entrypoint kept in sync with app metadata by
   tests.
-- **Artifact validation** — the local standalone smoke compile completed with
+- **Artifact validation**: the local standalone smoke compile completed with
   Nuitka 4.1.2/MSVC, emitted `compilation-report.xml`, included icon assets,
   and the generated `BookmarkOrganizerProSmoke.exe --version` reported
   `Bookmark Organizer Pro v6.6.8`.
@@ -1201,14 +1201,14 @@ Nuitka compile-smoke release.
 
 Nuitka build-control release.
 
-### Improved — Distribution (R-40 partial)
+### Improved: Distribution (R-40 partial)
 
-- **Compiler job control** — `packaging/nuitka_build.py` now emits
+- **Compiler job control**: `packaging/nuitka_build.py` now emits
   `--jobs=4` by default and accepts `--jobs N` for bounded local compile
   attempts.
-- **Toolchain verification** — active environment verification confirmed
+- **Toolchain verification**: active environment verification confirmed
   Nuitka 4.1.2 and MSVC `cl 14.3` availability.
-- **Compile-smoke evidence** — an unthrottled full-app standalone compile
+- **Compile-smoke evidence**: an unthrottled full-app standalone compile
   attempt ran past 15 minutes, so the next R-40 pass should use the bounded
   jobs path.
 
@@ -1220,16 +1220,16 @@ Nuitka build-control release.
 
 Nuitka build-path release.
 
-### Added — Distribution (R-40 partial)
+### Added: Distribution (R-40 partial)
 
-- **Nuitka build helper** — added `packaging/nuitka_build.py` with onefile and
+- **Nuitka build helper**: added `packaging/nuitka_build.py` with onefile and
   standalone modes plus dry-run command generation.
-- **Tkinter and asset flags** — the generated command enables the Tkinter
+- **Tkinter and asset flags**: the generated command enables the Tkinter
   plugin, includes package imports, includes app icons, and writes a
   compilation report.
-- **Windows metadata** — the command emits icon, no-console, version,
+- **Windows metadata**: the command emits icon, no-console, version,
   product, company, and file-description flags on Windows.
-- **Optional packaging extra** — added `bookmark-organizer-pro[nuitka]` for
+- **Optional packaging extra**: added `bookmark-organizer-pro[nuitka]` for
   installing Nuitka 4.1+ build tooling.
 
 ### Tests
@@ -1241,14 +1241,14 @@ Nuitka build-path release.
 
 SQLite runtime selection release.
 
-### Improved — Storage (R-31)
+### Improved: Storage (R-31)
 
-- **Opt-in active backend** — `BookmarkManager` can now use SQLite through
+- **Opt-in active backend**: `BookmarkManager` can now use SQLite through
   `storage_backend="sqlite"`, `.sqlite`/`.db` file paths, or
   `BOOKMARK_STORAGE_BACKEND=sqlite`.
-- **JSON remains default** — unknown backend names fall back to JSON and the
+- **JSON remains default**: unknown backend names fall back to JSON and the
   default app path still uses the existing JSON storage manager.
-- **Large ID compatibility** — SQLite stores bookmark IDs as text columns while
+- **Large ID compatibility**: SQLite stores bookmark IDs as text columns while
   preserving integer IDs inside bookmark payloads.
 
 ### Tests
@@ -1260,13 +1260,13 @@ SQLite runtime selection release.
 
 SQLite migration foundation release.
 
-### Added — Storage (R-31 partial)
+### Added: Storage (R-31 partial)
 
-- **SQLite storage backend** — added `SQLiteStorageManager`, a WAL-enabled
+- **SQLite storage backend**: added `SQLiteStorageManager`, a WAL-enabled
   backend with the same `load()`/`save()` shape as the JSON storage manager.
-- **Opt-in migration command** — added `sqlite-migrate [--source JSON]
+- **Opt-in migration command**: added `sqlite-migrate [--source JSON]
   [--dest DB]` to copy the current JSON library into SQLite.
-- **Indexed payload rows** — SQLite rows preserve the full bookmark JSON payload
+- **Indexed payload rows**: SQLite rows preserve the full bookmark JSON payload
   while indexing URL, category, created-at, and modified-at fields.
 
 ### Tests
@@ -1278,13 +1278,13 @@ SQLite migration foundation release.
 
 MCP Streamable HTTP release.
 
-### Added — MCP (R-58)
+### Added: MCP (R-58)
 
-- **Streamable HTTP server** — added `mcp-http-server` with `--host`,
+- **Streamable HTTP server**: added `mcp-http-server` with `--host`,
   `--port`, and `--path` options. It binds to loopback by default.
-- **Stateless HTTP** — the FastMCP HTTP runner starts with stateless HTTP
+- **Stateless HTTP**: the FastMCP HTTP runner starts with stateless HTTP
   enabled.
-- **Mirrored header validation** — POST requests are rejected when
+- **Mirrored header validation**: POST requests are rejected when
   `Mcp-Method` or `Mcp-Name` headers do not match the JSON-RPC body.
 
 ### Tests
@@ -1296,15 +1296,15 @@ MCP Streamable HTTP release.
 
 MCP stateless-readiness release.
 
-### Improved — MCP (R-58 partial)
+### Improved: MCP (R-58 partial)
 
-- **Stateless stdio mode** — raw SDK and FastMCP transports now run with the
+- **Stateless stdio mode**: raw SDK and FastMCP transports now run with the
   SDK stateless flag enabled.
-- **Cacheable tool catalog** — `tools/list` results now expose `ttlMs` and
+- **Cacheable tool catalog**: `tools/list` results now expose `ttlMs` and
   `cacheScope` hints in both raw SDK and FastMCP paths.
-- **Tool behavior metadata** — raw SDK and FastMCP tool catalogs now expose
+- **Tool behavior metadata**: raw SDK and FastMCP tool catalogs now expose
   read-only, destructive, idempotent, open-world, and stateless metadata.
-- **Client-neutral server docs** — MCP server module docs no longer name
+- **Client-neutral server docs**: MCP server module docs no longer name
   specific clients.
 
 ### Tests
@@ -1316,14 +1316,14 @@ MCP stateless-readiness release.
 
 MCP dependency compatibility release.
 
-### Improved — MCP (R-59)
+### Improved: MCP (R-59)
 
-- **FastMCP 3.4 floor** — optional MCP dependencies now require
+- **FastMCP 3.4 floor**: optional MCP dependencies now require
   `fastmcp>=3.4,<4` and `mcp>=1.24,<2`, aligning BOP with the current stable
   FastMCP 3.x line.
-- **FastMCP packaging** — PyInstaller hidden imports include `fastmcp` alongside
+- **FastMCP packaging**: PyInstaller hidden imports include `fastmcp` alongside
   the MCP SDK fallback.
-- **Runtime verification** — `_build_fastmcp_server()` was verified against
+- **Runtime verification**: `_build_fastmcp_server()` was verified against
   FastMCP 3.4.2 and MCP 1.27.2.
 
 ### Tests
@@ -1334,15 +1334,15 @@ MCP dependency compatibility release.
 
 List performance and release metadata sync release.
 
-### Added — Performance (R-16)
+### Added: Performance (R-16)
 
-- **Virtualized bookmark list** — the main desktop list now uses a
+- **Virtualized bookmark list**: the main desktop list now uses a
   `tksheet`-backed table for visible-row rendering instead of fully rebuilding
   a `ttk.Treeview` widget for every refresh.
-- **Treeview-compatible adapter** — selection, context menus, sorting,
+- **Treeview-compatible adapter**: selection, context menus, sorting,
   sidebar/chat bookmark selection, zoom, and row styling continue to use the
   existing app integration surface.
-- **Fallback renderer** — the legacy sortable `ttk.Treeview` remains available
+- **Fallback renderer**: the legacy sortable `ttk.Treeview` remains available
   if `tksheet` cannot be imported.
 
 ### Fixed
@@ -1362,82 +1362,82 @@ List performance and release metadata sync release.
 
 GUI chat, sidebar surfaces, tree view, keyboard accessibility, and i18n scaffolding. 5 roadmap items shipped.
 
-### Added — AI / RAG (R-60)
+### Added: AI / RAG (R-60)
 
-- **GUI chat panel** — `widget_chat_panel.ChatPanel` in right sidebar. Conversation
+- **GUI chat panel**: `widget_chat_panel.ChatPanel` in right sidebar. Conversation
   bubbles (user/assistant), cited source links to bookmarks, threaded async ask
   via `CollectionChat.ask()`, clear conversation, placeholder text, auto-scroll.
 
-### Added — GUI Surfaces (R-67)
+### Added: GUI Surfaces (R-67)
 
-- **Read Later sidebar section** — shows READ LATER header with count badge and
+- **Read Later sidebar section**: shows READ LATER header with count badge and
   up to 8 queued items. Click to select bookmark in tree. Refreshes with all data.
-- **Flows sidebar section** — shows FLOWS header with count badge and up to 8
+- **Flows sidebar section**: shows FLOWS header with count badge and up to 8
   research flows with icons. Refreshes with all data.
 
-### Added — UI (R-17)
+### Added: UI (R-17)
 
-- **Category tree indentation** — categories with "/" separators now render with
+- **Category tree indentation**: categories with "/" separators now render with
   tree-like indentation. Leaf names shown with depth-based padding for visual
-  hierarchy. No collapse/expand yet — flat indented list.
+  hierarchy. No collapse or expand yet, just a flat indented list.
 
-### Added — Accessibility (R-48)
+### Added: Accessibility (R-48)
 
-- **F6 section cycling** — cycles keyboard focus between search, sidebar filters,
+- **F6 section cycling**: cycles keyboard focus between search, sidebar filters,
   bookmark tree, and chat panel. Standard Windows convention.
-- **Theme-aware focus rings** — `make_keyboard_activatable` now uses
+- **Theme-aware focus rings**: `make_keyboard_activatable` now uses
   `get_theme().accent_primary` for focus indicator instead of hardcoded blue.
-- **Tab order** — sidebar filter buttons have `takefocus=1` via
+- **Tab order**: sidebar filter buttons have `takefocus=1` via
   `make_keyboard_activatable`.
 
-### Added — i18n (R-50)
+### Added: i18n (R-50)
 
-- **gettext scaffolding** — `bookmark_organizer_pro/i18n.py` with `_()`,
+- **gettext scaffolding**: `bookmark_organizer_pro/i18n.py` with `_()`,
   `ngettext()`, `setup_locale()`, and `_generate_pot()` for template extraction.
-  `locale/` directory with translator README. No translations yet — infrastructure
+  `locale/` directory with translator README. No translations yet, infrastructure
   only.
 
 ## [v6.5.1] - 2026-06-05
 
 UI polish, importers, test coverage, and developer experience release. 11 roadmap items shipped.
 
-### Added — Import/Export (R-75, R-76, R-68)
+### Added: Import/Export (R-75, R-76, R-68)
 
-- **Wallabag JSON importer** — `WallabagJSONImporter` parses Wallabag exports,
+- **Wallabag JSON importer**: `WallabagJSONImporter` parses Wallabag exports,
   maps `is_starred` to pinned, extracts tag objects. CLI: `import-wallabag`.
-- **Arc Browser importer** — `ArcBrowserImporter` parses `StorableSidebar.json`
+- **Arc Browser importer**: `ArcBrowserImporter` parses `StorableSidebar.json`
   with recursive folder walk. CLI: `import-arc`.
-- **GUI import parity** — 9 service importers (Pocket, Readwise, Pinboard,
+- **GUI import parity**: 9 service importers (Pocket, Readwise, Pinboard,
   Instapaper, Reddit, Matter, Wallabag, Arc, Zotero) now accessible from the
   Import menu with file choosers.
 
-### Added — AI & Embeddings (R-61)
+### Added: AI & Embeddings (R-61)
 
-- **Nomic Embed v2 model support** — `NOMIC_MODEL` constant + `RECOMMENDED_MODELS`
+- **Nomic Embed v2 model support**: `NOMIC_MODEL` constant + `RECOMMENDED_MODELS`
   dict with default/nomic/minilm profiles. CLI: `embed --model=nomic`.
 
-### Added — CLI & DX (R-77)
+### Added: CLI & DX (R-77)
 
-- **Shell completion scripts** — bash, zsh, and fish completions covering all 41
+- **Shell completion scripts**: bash, zsh, and fish completions covering all 41
   subcommands + flow/feed/read-later/embed sub-arguments. In `scripts/completions/`.
 
-### Added — Architecture (R-74)
+### Added: Architecture (R-74)
 
-- **File-change watching** — `BookmarkManager.start_file_watcher()` polls mtime
+- **File-change watching**: `BookmarkManager.start_file_watcher()` polls mtime
   every 5s and reloads on external change. Enables MCP + GUI co-existence.
 
-### Improved — UI (R-69, R-70, R-71, R-72)
+### Improved: UI (R-69, R-70, R-71, R-72)
 
-- **Command palette expanded** from 19 to 35 commands — Toggle Pin, Copy URL,
+- **Command palette expanded** from 19 to 35 commands: Toggle Pin, Copy URL,
   Delete, Zoom, Flatten, Clear Categories/Tags, AI Improve Titles, Organize,
   Search Syntax Help, Keyboard Shortcuts, About.
-- **Bookmark editor** — added read-later checkbox alongside pinned/archived.
-- **DependencyCheckDialog** — all ~40 hardcoded Catppuccin Mocha colors replaced
+- **Bookmark editor**: added read-later checkbox alongside pinned/archived.
+- **DependencyCheckDialog**: all ~40 hardcoded Catppuccin Mocha colors replaced
   with `get_theme()` tokens. Now follows active theme.
 - **Escape-to-close** on 4 remaining dialogs: DependencyCheckDialog,
   ThemeSelectorDialog, BulkTagEditorDialog, EmojiPicker.
 
-### Improved — Testing (R-78)
+### Improved: Testing (R-78)
 
 - 16 new test methods across 8 test classes: HybridSearchFallback, NLQueryHeuristic,
   DeadLinkScanner, WallabagImporter, ArcImporter, BatchSave, SnapshotArchiver,
@@ -1449,55 +1449,55 @@ Security hardening, MCP expansion, browser extension production, and UI polish.
 
 ### Security (R-51, R-52, R-53, R-54, R-55, R-56)
 
-- **Bump `cryptography` to ≥46.0.7** — fixes CVE-2026-39892 (buffer overflow)
+- **Bump `cryptography` to ≥46.0.7**: fixes CVE-2026-39892 (buffer overflow)
   and CVE-2026-34073 (certificate validation bypass).
-- **Wire MCP authentication** — MCPTokenManager now enforced in mcp_server.py.
+- **Wire MCP authentication**: MCPTokenManager now enforced in mcp_server.py.
   Open mode when no tokens configured; read-only/read-write scopes otherwise.
-- **Fix XXE in OPML/XBEL importers** — defusedxml integrated in importers.py
+- **Fix XXE in OPML/XBEL importers**: defusedxml integrated in importers.py
   and xbel.py. Added to core dependencies.
-- **Sanitize LocalArchiver HTML** — strip `<script>` tags and `on*` handlers.
+- **Sanitize LocalArchiver HTML**: strip `<script>` tags and `on*` handlers.
   CSP `script-src 'none'` meta header on all archives.
-- **Windows ACL on API token** — icacls restricts api_token.txt to current user
+- **Windows ACL on API token**: icacls restricts api_token.txt to current user
   on Windows (was world-readable).
-- **REST API GET auth** — all GET endpoints except `/` now require Bearer token.
+- **REST API GET auth**: all GET endpoints except `/` now require Bearer token.
 
-### Added — MCP (R-57)
+### Added: MCP (R-57)
 
 - **6 new MCP write tools** (26 total): `delete_bookmark`, `update_bookmark`,
   `toggle_pin`, `mark_read_later`, `add_tags`, `remove_tags`. Registered in
   both raw MCP and FastMCP server builders.
 
-### Added — Browser Extension (R-01)
+### Added: Browser Extension (R-01)
 
-- **Extension icons** — 16/32/48/128px PNGs generated from app icon.
-- **Context menu** — "Save to BOP" on pages/links, "Save with selection" on
+- **Extension icons**: 16/32/48/128px PNGs generated from app icon.
+- **Context menu**: "Save to BOP" on pages/links, "Save with selection" on
   selected text. Background service worker.
-- **Keyboard shortcut** — Ctrl+Shift+B (configurable) opens popup.
-- **Category autocomplete** — bundled categories.json (39 categories) populates
+- **Keyboard shortcut**: Ctrl+Shift+B (configurable) opens popup.
+- **Category autocomplete**: bundled categories.json (39 categories) populates
   `<datalist>` in popup.
-- **Read-later toggle** — checkbox in popup; sends `read_later` in POST payload.
-- **Test Connection** — button in Options page validates port + token against
+- **Read-later toggle**: checkbox in popup; sends `read_later` in POST payload.
+- **Test Connection**: button in Options page validates port + token against
   live API, shows version or specific error.
-- **Improved error messages** — popup now shows actionable guidance for 401
+- **Improved error messages**: popup now shows actionable guidance for 401
   (invalid token), network errors (start API), etc.
 
-### Added — UI (R-62, R-72)
+### Added: UI (R-62, R-72)
 
-- **Help menu** — Search Syntax (renders all 15+ filter docs), Keyboard
+- **Help menu**: Search Syntax (renders all 15+ filter docs), Keyboard
   Shortcuts reference, and About dialog. All dialogs support Escape-to-close.
 
-### Fixed — UI (R-63, R-64, R-65, R-66)
+### Fixed: UI (R-63, R-64, R-65, R-66)
 
-- **About dialog false claims** — removed System Tray and drag-and-drop from
+- **About dialog false claims**: removed System Tray and drag-and-drop from
   features list. Clarified Undo/Redo scope.
 - **24 hardcoded Segoe UI fonts replaced** across 9 UI files with FONTS system
   calls. macOS/Linux now render correctly.
-- **4 dead UI view classes removed** — secondary_views.py deleted (~670 lines):
+- **4 dead UI view classes removed**: secondary_views.py deleted (~670 lines):
   KanbanView, TimelineView, ReadingListView, TagCloudView.
 
-### Improved — Performance (R-73)
+### Improved: Performance (R-73)
 
-- **Batch save context manager** — `BookmarkManager.batch()` suppresses
+- **Batch save context manager**: `BookmarkManager.batch()` suppresses
   per-mutation saves; single flush on exit. Nestable.
 
 ## [v6.4.2] - 2026-06-06
@@ -1506,11 +1506,11 @@ Browser capture foundation release.
 
 ### Added
 
-- **Browser extension MVP** — `browser-extension/` now contains a Manifest V3
+- **Browser extension MVP**: `browser-extension/` now contains a Manifest V3
   popup/options scaffold for saving the active tab to the local BOP API.
-- **Extension options page** — stores localhost API port, API token, and default
+- **Extension options page**: stores localhost API port, API token, and default
   category in browser extension local storage.
-- **`api-server` CLI command** — runs the existing localhost HTTP API for
+- **`api-server` CLI command**: runs the existing localhost HTTP API for
   bookmarklet and extension workflows.
 
 ### Improved
@@ -1547,16 +1547,16 @@ Usability & bulk operations release.
 
 ### Added
 
-- **Settings gear button** — toolbar button opens quick-access settings menu
+- **Settings gear button**: toolbar button opens quick-access settings menu
   (AI provider, categories, flatten, tags, backup)
-- **Bulk operations** — Flatten All Folders, Clear All Categories, Clear All Tags
+- **Bulk operations**: Flatten All Folders, Clear All Categories, Clear All Tags
   available from Tools menu and Settings menu
-- **Selection bar "Organize" button** — one-click auto-categorize selected
+- **Selection bar "Organize" button**: one-click auto-categorize selected
   bookmarks using the pattern engine
-- **Selection bar "Clear Tags" button** — strip tags from selected bookmarks
-- **Full GUI scaling** — zoom buttons (and Ctrl+Scroll) now scale fonts, button
+- **Selection bar "Clear Tags" button**: strip tags from selected bookmarks
+- **Full GUI scaling**: zoom buttons (and Ctrl+Scroll) now scale fonts, button
   padding, sidebar width, and all layout elements (not just text)
-- **Sidebar scroll fix** — mousewheel events propagate from all child widgets
+- **Sidebar scroll fix**: mousewheel events propagate from all child widgets
   so the left panel scrolls reliably everywhere
 
 ### Changed
@@ -1571,41 +1571,41 @@ Usability & bulk operations release.
 
 Feature release. 12 roadmap items shipped, 255 tests passing.
 
-### Added — Features
+### Added: Features
 
-- **Answer caching** (R-11) — LRU cache (128 entries) for RAG `ask()`.
+- **Answer caching** (R-11): LRU cache (128 entries) for RAG `ask()`.
   `clear_cache()` + `cache_stats`. Skips multi-turn conversations.
-- **YouTube transcript capture** (R-12) — `services/youtube_transcript.py`.
+- **YouTube transcript capture** (R-12): `services/youtube_transcript.py`.
   Detects YouTube URLs, fetches via yt-dlp CLI or library, parses VTT.
-- **Atom + JSON Feed export** (R-29) — `services/feed_export.py`. CLI:
+- **Atom + JSON Feed export** (R-29): `services/feed_export.py`. CLI:
   `atom-export`, `json-feed`. Atom 1.0 (RFC 4287) + JSON Feed 1.1.
-- **Matter CSV importer** (R-28) — `MatterImporter` in `importers_extra.py`.
+- **Matter CSV importer** (R-28): `MatterImporter` in `importers_extra.py`.
   CLI: `import-matter`. Reads Title/URL/Tags/Status/Date Saved.
-- **Zotero RDF import/export** (R-27) — `services/zotero_interop.py`. CLI:
+- **Zotero RDF import/export** (R-27): `services/zotero_interop.py`. CLI:
   `import-zotero`, `zotero-export`. dc:title, dc:subject, dcterms:abstract.
-- **Scheduled auto-snapshot** (R-24) — `services/auto_snapshot.py`.
+- **Scheduled auto-snapshot** (R-24): `services/auto_snapshot.py`.
   Background daemon thread with add/remove/run_once/start/stop.
-- **Cross-encoder re-rank** (R-07) — optional `_try_rerank()` using
+- **Cross-encoder re-rank** (R-07): optional `_try_rerank()` using
   ms-marco-MiniLM after RRF. `rerank=True` param in HybridSearch.
-- **Chunk-level RAG provenance** (R-08) — `ChatTurn.chunk_provenance` with
+- **Chunk-level RAG provenance** (R-08): `ChatTurn.chunk_provenance` with
   citation_id, bookmark_id, char_start, char_end, text_preview.
-- **Collections as retrieval scopes** (R-10) — `restrict_tag` and
+- **Collections as retrieval scopes** (R-10): `restrict_tag` and
   `restrict_category` params on MCP `chat_with_collection`.
-- **MCP auth scopes** (R-14) — `services/mcp_auth.py` with
+- **MCP auth scopes** (R-14): `services/mcp_auth.py` with
   `MCPTokenManager`. Create/revoke tokens, read-only vs read-write scope.
-- **Passphrase rotation** (R-38) — `EncryptedStore.rotate_passphrase()`
+- **Passphrase rotation** (R-38): `EncryptedStore.rotate_passphrase()`
   with audit log.
 
-### Improved — Security
+### Improved: Security
 
-- **API key storage via keyring** (R-35) — `get_api_key` checks OS keyring
+- **API key storage via keyring** (R-35): `get_api_key` checks OS keyring
   first, falls back to JSON. `set_api_key` stores in keyring when available.
-- **SSRF allow-list** (R-37) — `URLUtilities.set_ssrf_allow_list(patterns)`
+- **SSRF allow-list** (R-37): `URLUtilities.set_ssrf_allow_list(patterns)`
   adds regex whitelist for trusted internal domains.
 
-### Improved — Testing
+### Improved: Testing
 
-- **21 CLI smoke tests** (R-45) — dispatch routing, --version, help, list,
+- **21 CLI smoke tests** (R-45): dispatch routing, --version, help, list,
   add, search, categories, tags, stats, exports, imports. 255 total tests.
 
 ## [v6.2.1] - 2026-06-05
@@ -1613,52 +1613,52 @@ Feature release. 12 roadmap items shipped, 255 tests passing.
 Bugfix + hardening release. Fixes 2 crash bugs, 6 data-corruption risks,
 4 security gaps, 4 CLI parity gaps, and adds 34 new tests (222 total).
 
-### Fixed — Critical
+### Fixed: Critical
 
-- **High-contrast theme crash** — `card_shadow` field added to `ThemeColors`
+- **High-contrast theme crash**: `card_shadow` field added to `ThemeColors`
   dataclass. Missing ~11 fields in high-contrast palette filled with dark
   values. (A-01, B-06)
-- **MCP `export_to_obsidian` NameError** — `Path` now imported at module
+- **MCP `export_to_obsidian` NameError**: `Path` now imported at module
   level in `mcp_server.py`. (A-02)
 
-### Fixed — Data Integrity
+### Fixed: Data Integrity
 
-- **YAML frontmatter injection** in Obsidian export — all scalar values now
+- **YAML frontmatter injection** in Obsidian export. All scalar values now
   properly escaped via `_yaml_escape()`. (B-01)
-- **Smart Collections domain filter** — lowercased for case-insensitive
+- **Smart Collections domain filter**: lowercased for case-insensitive
   matching. (B-02)
-- **Smart Collections category filter** — changed from substring `in` to
+- **Smart Collections category filter**: changed from substring `in` to
   exact `==` match. "AI" no longer matches "Email". (B-03)
-- **SingleFile backend MAX_BYTES** — now enforces 25MB limit like all other
+- **SingleFile backend MAX_BYTES**: now enforces 25MB limit like all other
   backends. (B-04)
-- **EPUB mimetype extra field** — cleared after write for epubcheck
+- **EPUB mimetype extra field**: cleared after write for epubcheck
   compliance. (B-05)
 
-### Fixed — Security
+### Fixed: Security
 
-- **SSRF via redirect in snapshot fallback** — now follows redirects manually
+- **SSRF via redirect in snapshot fallback**: now follows redirects manually
   with `_is_safe_url()` check on each hop. (C-01)
-- **Filesystem write sandboxing** — MCP `export_to_obsidian` vault_path must
+- **Filesystem write sandboxing**: MCP `export_to_obsidian` vault_path must
   be under user's home directory. (C-02)
-- **Bookmarklet token warning** — prints sync-risk warning after generating
+- **Bookmarklet token warning**: prints sync-risk warning after generating
   the bookmarklet URL. (C-03)
-- **Path traversal in exported text** — EPUB and Obsidian export now validate
+- **Path traversal in exported text**: EPUB and Obsidian export now validate
   `extracted_text_path` is under the data directory. (C-04)
 
 ### Added
 
-- **4 CLI subcommands** — `smart-collections`, `nl-query`, `obsidian-export`,
+- **4 CLI subcommands**: `smart-collections`, `nl-query`, `obsidian-export`,
   `epub-export`. All v6.2 features now accessible via CLI. (D-01..D-04)
-- **CLI `--version` flag** — `bop --version` / `bop -V`. (E-10)
-- **CLI `list --all`** — shows full list with count message when capped. (E-05)
-- **CLI `check` multi-threading** — 5 concurrent workers instead of
+- **CLI `--version` flag**: `bop --version` / `bop -V`. (E-10)
+- **CLI `list --all`**: shows full list with count message when capped. (E-05)
+- **CLI `check` multi-threading**: 5 concurrent workers instead of
   single-threaded. (E-06)
-- **CLI help filename corrected** — references `main.py` instead of old
+- **CLI help filename corrected**: references `main.py` instead of old
   `bookmark_organizer.py`. (E-01)
 - **34 new tests** for SmartCollections (18), EPUB export (4), and Obsidian
   export (12). Total: 222 tests passing.
 
-### Fixed — Cosmetic
+### Fixed: Cosmetic
 
 - `main.py` docstring version updated to v6.2.0. (E-02)
 - `CategoryColorManager` copy-pasted docstring replaced. (F-08)
@@ -1670,59 +1670,59 @@ Feature release with 22 roadmap items shipped. Consolidated ROADMAP v3 with
 68 sourced references, then implemented all 19 Now-tier items plus 5 Next-tier
 items. Total test suite: 188 methods across 3 files.
 
-### Added — Features
+### Added: Features
 
-- **Smart Collections** (`services/smart_collections.py`) — saved filter
+- **Smart Collections** (`services/smart_collections.py`): saved filter
   rules (tags, domains, dates, content types, keywords) that auto-populate
   dynamically. CRUD + evaluate API. (R-13)
-- **EPUB export** (`services/epub_export.py`) — export bookmark collections
+- **EPUB export** (`services/epub_export.py`): export bookmark collections
   as EPUB 3.0 e-books. Each bookmark = chapter with extracted text. No
-  external deps — manual ZIP construction. (R-25)
-- **Obsidian vault export** (`services/obsidian_export.py`) — Markdown files
+  external deps, just manual ZIP construction. (R-25)
+- **Obsidian vault export** (`services/obsidian_export.py`): Markdown files
   with YAML frontmatter (URL, tags, category, dates). Supports tag/category/
   date filtering. Also available as MCP tool `export_to_obsidian`. (R-30)
-- **4 new MCP tools** — `create_flow`, `append_to_flow`, `export_zip`,
+- **4 new MCP tools**: `create_flow`, `append_to_flow`, `export_zip`,
   `list_snapshots`, `export_to_obsidian` (20 total). (R-06, R-30)
-- **FastMCP migration** — auto-schema from type hints when FastMCP is
+- **FastMCP migration**: auto-schema from type hints when FastMCP is
   installed, raw `mcp` SDK fallback otherwise. (R-05)
-- **Playwright snapshot backend** — headless Chromium for JS-heavy SPAs.
+- **Playwright snapshot backend**: headless Chromium for JS-heavy SPAs.
   4-backend chain: monolith → singlefile → playwright → Python BS4. (R-23)
-- **Bookmarklet generator** — `scripts/generate_bookmarklet.py` creates a JS
+- **Bookmarklet generator**: `scripts/generate_bookmarklet.py` creates a JS
   bookmark with auth token. Sends URL+title+selection to localhost API with
   toast feedback. (R-04)
-- **Time-weighted recall** — exponential decay factor with configurable
+- **Time-weighted recall**: exponential decay factor with configurable
   half-life in hybrid search. (R-09)
-- **High-contrast theme** — WCAG AA accessible: yellow accents on black,
+- **High-contrast theme**: WCAG AA accessible: yellow accents on black,
   maximum contrast. (R-49)
-- **First-run privacy banner** — one-time notice confirming local-first
+- **First-run privacy banner**: one-time notice confirming local-first
   operation. (R-39)
 
-### Fixed — Quality
+### Fixed: Quality
 
-- **Pillow upgraded to ≥12.2.0** — fixes CVE-2026-25990, CVE-2026-40192,
+- **Pillow upgraded to ≥12.2.0**: fixes CVE-2026-25990, CVE-2026-40192,
   CVE-2026-42308. (R-36b)
-- **ReDoS timeout on pattern engine regex** — `signal.alarm` guard on Unix,
+- **ReDoS timeout on pattern engine regex**: `signal.alarm` guard on Unix,
   RecursionError/MemoryError catch on Windows. (R-36)
-- **37 duplicate patterns removed** — 8 within-category + 29 cross-category.
+- **37 duplicate patterns removed**: 8 within-category + 29 cross-category.
   25+ overly broad plain patterns converted to typed. (R-33, R-34)
-- **1,409 lines dead code removed** — GridView, BookmarkListView,
+- **1,409 lines dead code removed**: GridView, BookmarkListView,
   MiniAnalyticsDashboard, SystemTray, BookmarkCard,
   CategoryDragDropManager. 9 UI files cleaned. (R-46)
 - **Copy-pasted model docstrings** fixed in 5 files. (R-47)
-- **Command palette FocusOut** — 150ms delay + child-focus check prevents
+- **Command palette FocusOut**: 150ms delay + child-focus check prevents
   premature close on click. (R-19)
-- **GridView scroll stealing** — `bind_all` replaced with widget-scoped
+- **GridView scroll stealing**: `bind_all` replaced with widget-scoped
   binding. (R-20)
-- **Per-backup SHA-256 integrity hash** — verified on restore. (R-32)
+- **Per-backup SHA-256 integrity hash**: verified on restore. (R-32)
 
-### Improved — Infrastructure
+### Improved: Infrastructure
 
-- **Python version matrix in CI** — tests on 3.10, 3.11, 3.12, 3.13. (R-42)
-- **26 new service layer tests** — embeddings, encryption, tag_linter,
+- **Python version matrix in CI**: tests on 3.10, 3.11, 3.12, 3.13. (R-42)
+- **26 new service layer tests**: embeddings, encryption, tag_linter,
   flows, digest, rss_feeds, zip_export, read_later. (R-43)
-- **20 MCP server integration tests** — all 20 tools, schema validation,
+- **20 MCP server integration tests**: all 20 tools, schema validation,
   flows CRUD, dedup detection. (R-44)
-- **4 broken test expectations fixed** — search-empty, cost tracker month,
+- **4 broken test expectations fixed**: search-empty, cost tracker month,
   API auth, AI batch FakeConfig. 188 total tests green.
 
 ## [v6.1.0] - 2026-06-05
@@ -1730,58 +1730,58 @@ items. Total test suite: 188 methods across 3 files.
 Hardening and reliability release. 35 fixes across 30+ files, informed by an
 multi-pass deep-audit research plan (`docs/research/research-feature-plan-2026-06-05.md`).
 
-### Fixed — Critical (P0)
+### Fixed: Critical (P0)
 
-- **AIBatchProcessor was dead code at runtime** — `.settings` attr and
+- **AIBatchProcessor was dead code at runtime**: `.settings` attr and
   `categorize_bookmark()` method did not exist. Replaced with
   `get_batch_size()`/`get_rate_limit()` and `client.complete()`.
   (`services/ai_tools.py`)
-- **Embedding chunk overlap infinite-loop** — `max(end-overlap, end)` always
+- **Embedding chunk overlap infinite-loop**: `max(end-overlap, end)` always
   returned `end`, producing zero overlap. Fixed to `end - overlap` with an
   end-backward guard. (`services/embeddings.py`)
-- **MCP server had no typed tool schemas** — all 15 tools used
+- **MCP server had no typed tool schemas**: all 15 tools used
   `additionalProperties: true`. Added proper JSON Schema for every tool with
   parameter types, descriptions, and required markers. (`mcp_server.py`)
-- **PyInstaller spec missing all v6.0 hidden imports** — shipped binary
+- **PyInstaller spec missing all v6.0 hidden imports**: shipped binary
   couldn't use any v6 feature. Added 25+ service modules and optional deps.
   (`packaging/bookmark_organizer.spec`)
-- **CI release upload failed** — `gh release upload` ran before the release
+- **CI release upload failed**: `gh release upload` ran before the release
   existed. Added a `create-release` job before the matrix build.
   (`.github/workflows/build.yml`)
 
-### Fixed — Reliability (P1)
+### Fixed: Reliability (P1)
 
-- **AI/link-check blocked the main thread** — moved all AI enrichment, title
+- **AI/link-check blocked the main thread**: moved all AI enrichment, title
   improvement, and link checking to background threads with
   `root.after(0, callback)` UI updates. (`app_mixins/ai_enrichment.py`,
   `ai_titles.py`, `tools.py`)
-- **AI enrichment/titles duplicated provider switch blocks** — replaced with
+- **AI enrichment/titles duplicated provider switch blocks**: replaced with
   `client.complete()` abstraction. (`app_mixins/ai_enrichment.py`, `ai_titles.py`)
-- **LinkChecker had no rate limiting** — added per-domain 1s delay with proper
+- **LinkChecker had no rate limiting**: added per-domain 1s delay with proper
   `BookmarkOrganizerPro/6.0 LinkChecker` User-Agent. (`link_checker.py`)
-- **`batch_refresh_metadata` mutated bookmarks from worker threads** — now
+- **`batch_refresh_metadata` mutated bookmarks from worker threads**: now
   collects results as data, applies under lock. (`managers/bookmarks.py`)
-- **Dead-link scanner mutated bookmarks without lock** — wrapped mutations
+- **Dead-link scanner mutated bookmarks without lock**: wrapped mutations
   in `self._lock`. (`services/dead_link_scanner.py`)
-- **VectorStore and DeadLinkScanner non-atomic writes** — replaced with
+- **VectorStore and DeadLinkScanner non-atomic writes**: replaced with
   tempfile + `os.replace`. (`services/vector_store.py`, `dead_link_scanner.py`)
-- **Log file grew unbounded** — replaced `FileHandler` with
+- **Log file grew unbounded**: replaced `FileHandler` with
   `RotatingFileHandler(5MB, 3 backups)` + stderr fallback.
   (`logging_config.py`)
-- **AICostTracker reported $0 for all models** — updated pricing table to
+- **AICostTracker reported $0 for all models**: updated pricing table to
   mid-2026 models. (`services/ai_tools.py`)
-- **API server had no auth** — added auto-generated bearer token for
+- **API server had no auth**: added auto-generated bearer token for
   POST/DELETE + CORS deny headers. (`services/api.py`)
-- **Analytics panel rebuilt all widgets every 30s** — now skips rebuild when
+- **Analytics panel rebuilt all widgets every 30s**: now skips rebuild when
   stats are unchanged. (`app_mixins/dashboard.py`)
-- **RSS parser vulnerable to XML bomb** — uses `defusedxml` when available.
+- **RSS parser vulnerable to XML bomb**: uses `defusedxml` when available.
   (`services/rss_feeds.py`)
 - **Added `pyproject.toml`** with `[project]` table, optional dependency
   groups (`[ai]`, `[encryption]`, `[mcp]`, `[all]`), and entry points.
 
-### Fixed — Data Safety (P2)
+### Fixed: Data Safety (P2)
 
-- **`save_bookmarks` lock race** — lock now held through `storage.save()`.
+- **`save_bookmarks` lock race**: lock now held through `storage.save()`.
   (`managers/bookmarks.py`)
 - **`remove_tag` was case-sensitive** while `add_tag` was not. Now both are
   case-insensitive. (`models/bookmark.py`)
@@ -1790,34 +1790,34 @@ multi-pass deep-audit research plan (`docs/research/research-feature-plan-2026-0
   (`search.py`)
 - **Date filter included bookmarks with unparseable timestamps**. Now
   excludes them. (`search.py`)
-- **`restore_backup` destroyed current data without safety net** — now
+- **`restore_backup` destroyed current data without safety net**: now
   creates a pre-restore backup. (`core/storage_manager.py`)
-- **`decrypt_file` could overwrite source** — added src≠dst validation.
+- **`decrypt_file` could overwrite source**: added src≠dst validation.
   (`services/encryption.py`)
-- **TagManager had no thread safety** — added `RLock`. (`managers/tags.py`)
-- **Importers allowed intra-file duplicates** — added `_dedup_bookmarks`.
+- **TagManager had no thread safety**: added `RLock`. (`managers/tags.py`)
+- **Importers allowed intra-file duplicates**: added `_dedup_bookmarks`.
   (`importers.py`)
 
-### Fixed — Security
+### Fixed: Security
 
-- **Snapshot banner HTML injection** — URL now escaped with `html.escape()`.
+- **Snapshot banner HTML injection**: URL now escaped with `html.escape()`.
   (`services/snapshot.py`)
-- **Prompt injection via unsanitized bookmark data** — added
+- **Prompt injection via unsanitized bookmark data**: added
   `sanitize_for_prompt()` utility. (`utils/safe.py`, `services/ai_tools.py`)
-- **Ollama URL SSRF** — non-localhost URLs now rejected. (`ai.py`)
-- **Runtime pip install supply chain risk** — `ensure_package` no longer
+- **Ollama URL SSRF**: non-localhost URLs now rejected. (`ai.py`)
+- **Runtime pip install supply chain risk**: `ensure_package` no longer
   auto-installs; shows clear install instruction. (`ai.py`)
-- **thum.io screenshot API privacy** — now opt-in via
+- **thum.io screenshot API privacy**: now opt-in via
   `screenshot_api_enabled` setting. (`services/web_tools.py`)
 
 ### Improved
 
-- **Duplicate-at-save-time detection** — `add_bookmark_clean` and MCP
+- **Duplicate-at-save-time detection**: `add_bookmark_clean` and MCP
   `add_bookmark` now return the existing bookmark with `already_exists: true`
   instead of silently returning None. (`managers/bookmarks.py`, `mcp_server.py`)
-- **RAG citation validation** — hallucinated `[#cN]` tokens referencing
+- **RAG citation validation**: hallucinated `[#cN]` tokens referencing
   non-existent chunks are stripped. (`services/rag_chat.py`)
-- **Constants side-effect cleanup** — directory creation deferred to
+- **Constants side-effect cleanup**: directory creation deferred to
   `ensure_directories()` called from entry points only. (`constants.py`,
   `launcher.py`, `cli.py`, `mcp_server.py`)
 - **Tag linter no-op line removed**. (`services/tag_linter.py`)
@@ -1834,7 +1834,7 @@ capability is gated behind optional dependencies that degrade gracefully
 when missing, so the existing v5.x feature set keeps working with no
 extra installs.
 
-### Added — AI / search
+### Added: AI / search
 
 - **Local semantic search** (`services/embeddings.py`,
   `services/vector_store.py`). Three-backend embedder chain: fastembed →
@@ -1867,7 +1867,7 @@ extra installs.
   embedding cosine ≥ 0.92. Surfaces a review queue with method and
   confidence per group; never auto-merges.
 
-### Added — Content & preservation
+### Added: Content & preservation
 
 - **Trafilatura-based ingest pipeline** (`services/ingest.py`). At save
   time extracts main article text, computes reading time, language
@@ -1889,7 +1889,7 @@ extra installs.
   with PBKDF2-HMAC-SHA256 (480 000 iterations, NIST SP 800-132 floor)
   over arbitrary JSON files. Adds `encrypt`/`decrypt` CLI subcommands.
 
-### Added — Organization
+### Added: Organization
 
 - **Tag normalization linter** (`services/tag_linter.py`). Detects near-
   duplicate tags, casing drift, and singular/plural variants. Knows 14
@@ -1916,7 +1916,7 @@ extra installs.
   and Linkwarden #956 have open. Stdlib-only XML parser; tracks seen
   GUIDs to avoid re-import.
 
-### Added — Reliability
+### Added: Reliability
 
 - **Scheduled dead-link scanner** (`services/dead_link_scanner.py`).
   Background daemon that periodically scans the library and persists
@@ -1927,7 +1927,7 @@ extra installs.
   Reddit Saved JSON. Positions BOP as the universal landing pad after
   Pocket's July 2025 shutdown.
 
-### Added — Integration
+### Added: Integration
 
 - **MCP server** (`mcp_server.py`). Stdio transport. Exposes 15 tools:
   list_bookmarks, get_bookmark, search_bookmarks, semantic_search,
@@ -1935,10 +1935,10 @@ extra installs.
   get_extracted_text, chat_with_collection, summarize_bookmark,
   daily_digest, list_dead_links, list_flows, get_flow. Run with
   `python -m bookmark_organizer_pro.mcp_server`. **No OSS bookmark
-  manager exposes itself as MCP today** — first-mover. Makes BOP a
+  manager exposes itself as MCP today**, so this is a first mover. Makes BOP a
   first-class citizen for MCP-compatible clients.
 
-### Added — CLI
+### Added: CLI
 
 - 20 new subcommands: `ingest`, `snapshot`, `embed`, `semantic`,
   `hybrid`, `summarize`, `chat`, `ask`, `lint-tags`, `dups`, `scan`,
@@ -1946,7 +1946,7 @@ extra installs.
   `import-pinboard`, `import-instapaper`, `import-reddit`, `zip-export`,
   `encrypt`, `decrypt`, `read-later`, `mcp-server`.
 
-### Changed — Bookmark model
+### Changed: Bookmark model
 
 Extended with v6 fields (all default-empty, fully backward-compatible
 with v5.x JSON): `read_later`, `read_later_position`, `snapshot_path`,
@@ -1955,7 +1955,7 @@ with v5.x JSON): `read_later`, `read_later_position`, `snapshot_path`,
 `embedding_dim`. `from_dict` round-trips all new fields with defensive
 coercion.
 
-### Changed — Storage
+### Changed: Storage
 
 New per-feature directories under `~/.bookmark_organizer/`:
 `snapshots/`, `extracted/`, `embeddings/`, `exports/`. New JSON files:
@@ -1964,7 +1964,7 @@ unchanged.
 
 ### Documentation
 
-- `docs/COMPETITIVE_RESEARCH.md` — 2 200-word competitive landscape
+- `docs/COMPETITIVE_RESEARCH.md`: 2 200-word competitive landscape
   analysis covering Karakeep, Linkwarden, Linkding, Shiori, Wallabag,
   Readeck, Buku, Floccus, Tab Stash, Stash, Reor, KaraKeep HomeDash, plus
   AI/RAG state-of-the-art (EmbeddingGemma, model2vec, lancedb, MCP,
@@ -1994,27 +1994,27 @@ unchanged.
 
 ## [v5.2.2] - 2026-04-19
 
-### Changed — Reliability & UX Hardening Pass
+### Changed: Reliability & UX Hardening Pass
 Large audit across backend and UI. 14 files touched, 2,116 insertions, 633
 deletions.
 
-- **Data/config validation** — stricter input validation across AI configs,
+- **Data/config validation**: stricter input validation across AI configs,
   bookmark and category models, and search queries. Defensive `from_dict`
   paths reject malformed payloads without crashing the app.
-- **Atomic persistence** — storage writes hardened against partial writes and
+- **Atomic persistence**: storage writes hardened against partial writes and
   concurrent access; safer path handling.
-- **Network safety** — additional SSRF and open-redirect guards in
+- **Network safety**: additional SSRF and open-redirect guards in
   `url_utils`, `utils/metadata`, and `link_checker`. Timeouts and bounds
   tightened.
-- **Import/export escaping** — importers re-audited for entity handling and
+- **Import/export escaping**: importers re-audited for entity handling and
   field sanitization across all supported formats.
-- **Category repair** — `CategoryManager` now recovers from corrupted or
+- **Category repair**: `CategoryManager` now recovers from corrupted or
   inconsistent category trees instead of failing to load.
-- **Search edge cases** — query parser hardened against malformed tokens and
+- **Search edge cases**: query parser hardened against malformed tokens and
   pathological inputs.
-- **Premium UI feedback paths** — UI reliably surfaces success/error state
+- **Premium UI feedback paths**: UI reliably surfaces success/error state
   through the embedded log/toast paths instead of silent failures.
-- **Regression coverage** — `tests/test_core.py` expanded (+166 lines)
+- **Regression coverage**: `tests/test_core.py` expanded (+166 lines)
   covering the new hardening paths.
 
 ### Build
@@ -2038,7 +2038,7 @@ deletions.
 ## [v5.2.0] - 2026-04-19
 
 ### Fixed
-- **HTML entity decode in imports** — Titles like `Love, Death &amp; Robots` now
+- **HTML entity decode in imports**: Titles like `Love, Death &amp; Robots` now
   display correctly as `Love, Death & Robots`. Applied `html.unescape()` to
   titles, URLs, folder names, and tags in all HTML-parsing importers
   (Netscape, Pocket, Raindrop, OPML).
@@ -2049,7 +2049,7 @@ deletions.
 ## [v5.1.0] - 2026-04-19
 
 ### Added
-- Ollama local LLM support — server URL field + auto-detect models in AI
+- Ollama local LLM support: server URL field + auto-detect models in AI
   settings dialog. Model catalog expanded to include llama3.3, qwen3, phi4,
   gemma3, deepseek-r1, mixtral, codellama, command-r.
 
@@ -2062,7 +2062,7 @@ deletions.
 
 ### Removed
 - **2,558 lines of dead code**: `BookmarkOrganizerApp` (1,566 lines) and
-  `EnhancedBookmarkOrganizerApp` (992 lines) — neither was instantiated.
+  `EnhancedBookmarkOrganizerApp` (992 lines), neither of which was instantiated.
   `FinalBookmarkOrganizerApp` is the sole production class.
 - Main file: 21,127 → 18,569 lines.
 
@@ -2122,7 +2122,7 @@ deletions.
 
 ## [v4.8.0] - 2026-04-18
 
-### Changed — Categorization Coverage Expansion Phase 3
+### Changed: Categorization Coverage Expansion Phase 3
 Expanded DEFAULT_CATEGORIES from 1,583 → **1,963 patterns** (+380, +24%).
 
 **Categories expanded:**
@@ -2137,7 +2137,7 @@ Expanded DEFAULT_CATEGORIES from 1,583 → **1,963 patterns** (+380, +24%).
 | Entertainment | 107 | 130 | Podcasts, anime/manga, streaming keywords |
 | Travel | 37 | 54 | Car rental, cruises, keywords |
 | Reference | 53 | 68 | Calculators, converters, keywords |
-| + 10 more cats | — | — | Keyword fallbacks added |
+| + 10 more cats | n/a | n/a | Keyword fallbacks added |
 
 **Keyword fallback additions (~100):**
 Added `keyword:` patterns to 20+ categories that previously relied only on
@@ -2148,7 +2148,7 @@ record), development (open source, npm package, source code), and more.
 
 ## [v4.7.0] - 2026-04-18
 
-### Changed — Modular Extraction Phase 2
+### Changed: Modular Extraction Phase 2
 Extracted ~2,010 lines from the 22,924-line main file into 5 new package modules:
 
 **New modules:**
@@ -2170,7 +2170,7 @@ bookmark_organizer_pro/
 **Migration impact:**
 - Main file: 22,924 → 20,914 lines (~2,010 lines extracted)
 - Package exports: 57 → 83 public names
-- Zero behavioral changes — all imports resolved via package
+- Zero behavioral changes. All imports resolved via package
 
 ### Fixed
 - README clone URL (was `yourusername`, now `SysAdminDoc`)
@@ -2180,7 +2180,7 @@ bookmark_organizer_pro/
 
 ## [v4.6.0] - 2026-04-18
 
-### Changed — Massive Categorization Coverage Expansion
+### Changed: Massive Categorization Coverage Expansion
 Expanded DEFAULT_CATEGORIES from 892 → **1,583 patterns** (+77%). Measured
 against a real-world export of 5,293 bookmarks:
 
@@ -2226,7 +2226,7 @@ Added ~700 new patterns covering:
 
 ## [v4.5.0] - 2026-04-18
 
-### Changed — Modular Architecture Refactor
+### Changed: Modular Architecture Refactor
 Broke the 25,310-line monolithic file into a proper Python package plus a
 thinner UI + wiring file. Backend infrastructure now lives in `bookmark_organizer_pro/`.
 
@@ -2260,7 +2260,7 @@ bookmark_organizer_pro/
 - Main file now imports from the package; all existing UI code unchanged
 - External consumers can `from bookmark_organizer_pro import Bookmark, normalize_url, ...`
 - 892 categorization patterns preserved
-- Zero behavioral changes — all tests pass, all pattern matches identical
+- Zero behavioral changes. All tests pass, all pattern matches identical
 
 **Kept in main file (intentionally, due to tight UI coupling):**
 - UI classes (BookmarkOrganizerApp, dialogs, views, ~100 classes)
@@ -2271,12 +2271,12 @@ bookmark_organizer_pro/
 ## [v4.4.0] - 2026-04-18
 
 ### Added
-- **Soft Delete / Trash** — `soft_delete_bookmark()`, `restore_from_trash()`, `get_trash()`, `empty_trash()`. Bookmarks go to a recoverable trash instead of permanent deletion. Inspired by LinkAce (1K+ stars)
-- **LinkChecker Redirect Detection** — Detects HTTP redirects during link checking, stores final URL + redirect chain in custom_data. `get_redirected_bookmarks()` lists affected bookmarks, `fix_redirect()` updates URL to final destination. Inspired by bookmarks-organizer (209 stars) and TidyMark (196 stars)
-- **Random Bookmark Rediscovery** — `get_random_bookmark()` returns a random bookmark for rediscovering forgotten saves. Inspired by Buku (7.1K stars)
-- **Batch Metadata Refresh** — `batch_refresh_metadata()` re-fetches titles/descriptions/favicons for all bookmarks using ThreadPoolExecutor (configurable 1-10 workers). Progress callback support. Inspired by Buku's multi-threaded DB refresh
-- **Auto-Clean URL on Add** — `add_bookmark_clean()` strips tracking params, normalizes URL, auto-categorizes, and checks for duplicates in one call. Inspired by Shaarli's transparent UTM stripping
-- **XBEL Import/Export** — `XBELHandler.export()` and `XBELHandler.import_from_xbel()` support XML Bookmark Exchange Language, a standard interchange format. Round-trip preserves titles, URLs, categories, tags, descriptions, and dates. Atomic file writes. Inspired by Buku (supports 7 formats)
+- **Soft Delete / Trash**: `soft_delete_bookmark()`, `restore_from_trash()`, `get_trash()`, `empty_trash()`. Bookmarks go to a recoverable trash instead of permanent deletion. Inspired by LinkAce (1K+ stars)
+- **LinkChecker Redirect Detection**: Detects HTTP redirects during link checking, stores final URL + redirect chain in custom_data. `get_redirected_bookmarks()` lists affected bookmarks, `fix_redirect()` updates URL to final destination. Inspired by bookmarks-organizer (209 stars) and TidyMark (196 stars)
+- **Random Bookmark Rediscovery**: `get_random_bookmark()` returns a random bookmark for rediscovering forgotten saves. Inspired by Buku (7.1K stars)
+- **Batch Metadata Refresh**: `batch_refresh_metadata()` re-fetches titles/descriptions/favicons for all bookmarks using ThreadPoolExecutor (configurable 1-10 workers). Progress callback support. Inspired by Buku's multi-threaded DB refresh
+- **Auto-Clean URL on Add**: `add_bookmark_clean()` strips tracking params, normalizes URL, auto-categorizes, and checks for duplicates in one call. Inspired by Shaarli's transparent UTM stripping
+- **XBEL Import/Export**: `XBELHandler.export()` and `XBELHandler.import_from_xbel()` support XML Bookmark Exchange Language, a standard interchange format. Round-trip preserves titles, URLs, categories, tags, descriptions, and dates. Atomic file writes. Inspired by Buku (supports 7 formats)
 
 ### Changed
 - LinkChecker now tracks redirect chains (stores redirect_url, redirect_count, redirect_chain per bookmark)
@@ -2285,15 +2285,15 @@ bookmark_organizer_pro/
 ## [v4.3.0] - 2026-04-18
 
 ### Added
-- **URL Normalization Engine** — Academic-grade URL canonicalization (RFC 3986 + web heuristics). Strips 60+ tracking parameters, normalizes scheme/host/port/path, removes fragments, sorts query params, strips www prefix, removes default index files. Based on ACM CIKM 2009 research on URL normalization for de-duplication
-- **Page Metadata Fetcher** — `fetch_page_metadata(url)` auto-fetches title, meta description, and favicon URL from live pages. Handles both `name` and `property` meta attributes, resolves relative favicon paths
-- **Wayback Machine Integration** — `wayback_check(url)` queries archive.org API for existing snapshots; `wayback_save(url)` submits pages for archival. Inspired by Linkwarden/Shiori
-- **Bookmark Health Scoring** — `calculate_health_score(bookmark)` returns 0-100 score based on 7 factors: link validity (40pts), title quality (10pts), description/notes (10pts), tags (10pts), recency (10pts), staleness (10pts), categorization (10pts). Inspired by Hoarder's health monitoring
-- **Smart Duplicate Merger** — `merge_duplicate_bookmarks()` combines duplicate entries keeping best title, earliest created date, latest visit, combined tags (union), longest description, summed visit counts, and best favicon. Inspired by BrowserBookmarkChecker and Buku
-- **BookmarkManager.merge_duplicates()** — One-call method to find and merge all duplicates with dry-run support
-- **BookmarkManager.get_health_scores()** — Returns all bookmarks with health scores, sorted worst-first
-- **BookmarkManager.fetch_metadata_for_bookmark()** — Updates a bookmark's title/description/favicon from the live URL
-- **BookmarkManager.check_wayback()** / **save_to_wayback()** — Wayback Machine check and save per bookmark
+- **URL Normalization Engine**: Academic-grade URL canonicalization (RFC 3986 + web heuristics). Strips 60+ tracking parameters, normalizes scheme/host/port/path, removes fragments, sorts query params, strips www prefix, removes default index files. Based on ACM CIKM 2009 research on URL normalization for de-duplication
+- **Page Metadata Fetcher**: `fetch_page_metadata(url)` auto-fetches title, meta description, and favicon URL from live pages. Handles both `name` and `property` meta attributes, resolves relative favicon paths
+- **Wayback Machine Integration**: `wayback_check(url)` queries archive.org API for existing snapshots; `wayback_save(url)` submits pages for archival. Inspired by Linkwarden/Shiori
+- **Bookmark Health Scoring**: `calculate_health_score(bookmark)` returns 0-100 score based on 7 factors: link validity (40pts), title quality (10pts), description/notes (10pts), tags (10pts), recency (10pts), staleness (10pts), categorization (10pts). Inspired by Hoarder's health monitoring
+- **Smart Duplicate Merger**: `merge_duplicate_bookmarks()` combines duplicate entries keeping best title, earliest created date, latest visit, combined tags (union), longest description, summed visit counts, and best favicon. Inspired by BrowserBookmarkChecker and Buku
+- **BookmarkManager.merge_duplicates()**: One-call method to find and merge all duplicates with dry-run support
+- **BookmarkManager.get_health_scores()**: Returns all bookmarks with health scores, sorted worst-first
+- **BookmarkManager.fetch_metadata_for_bookmark()**: Updates a bookmark's title/description/favicon from the live URL
+- **BookmarkManager.check_wayback()** / **save_to_wayback()**: Wayback Machine check and save per bookmark
 
 ### Changed
 - `find_duplicates()` now uses the new `normalize_url()` canonicalization instead of simple path-only stripping. Catches far more duplicates (http vs https, www vs non-www, tracking params, sorted query params)
@@ -2341,144 +2341,144 @@ bookmark_organizer_pro/
 - Favicon caching
 - Automatic backups
 
-## Roadmap archive — 2026-08-10 — ROADMAP.md
+## Roadmap archive: 2026-08-10 (ROADMAP.md)
 
 <details>
 <summary>Original roadmap snapshot</summary>
 
 ```markdown
-# Roadmap — Bookmark Organizer Pro
+# Roadmap: Bookmark Organizer Pro
 
 Date: 2026-07-29
 
 ## Research-Driven Additions
 
-### P1 — Next
+### P1: Next
 
-- [ ] P1 — R-89: Make the bookmark table correct and semantically accessible
+- [ ] R-89 (P1): Make the bookmark table correct and semantically accessible
   Why: The default virtual table lacks native-table semantics and currently exposes render/sort defects including a stray glyph and display-string date ordering.
   Evidence: `bookmark_organizer_pro/ui/treeview.py::VirtualBookmarkSheet`, `bookmark_organizer_pro/ui/treeview.py::SortableTreeview`, bookmark-list presenters; WCAG 2.2; WAI-ARIA table pattern; Windows accessibility testing guidance.
   Touches: virtual/native table adapters, row model and sort keys, keyboard/focus/status announcements, accessibility and visual tests.
   Acceptance: Sorts use typed source values with deterministic tie-breakers; no phantom cells/glyphs appear; row/column headers, selection, position, sort state, empty/loading/error state, and available actions are exposed through an inspectable semantic fallback; all table operations work keyboard-only and match native-table results.
   Complexity: L
 
-- [ ] P1 — R-90: Turn visual captures into defect-detecting assertions
+- [ ] R-90 (P1): Turn visual captures into defect-detecting assertions
   Why: The 22-case matrix completes while graph, editor, popup-helper, About-footer, and theme defects remain visible in its own captures.
   Evidence: `tests/test_visual_regression_smoke.py`, `bookmark_organizer_pro/ui/graph_view.py`, `bookmark_organizer_pro/ui/widget_bookmark_editor.py`, `bookmark_organizer_pro/ui/about.py`, `browser-extension/popup.css`, and 2026-07-29 dark/light/DPI captures.
   Touches: affected UI components, layout/theme tokens, visual test assertions/baselines, screenshot documentation.
   Acceptance: Graph label/help clipping, bookmark-editor/footer overlap, dark-combobox mismatch, popup-helper truncation, and missing About footer actions are fixed at 1280×720, 1540×980 at 125%, and 1920×1080 in light/dark themes; tests assert critical geometry, contrast/token use, and visible labels before any baseline comparison. R-89 owns virtual-table correctness; R-96 owns extension category/search states.
   Complexity: M
 
-- [ ] P1 — R-91: Make documented scripts hermetic and observable
+- [ ] R-91 (P1): Make documented scripts hermetic and observable
   Why: Direct clean-shell invocations of package and extension scripts fail on package imports, and long end-to-end runs lack bounded phase feedback.
   Evidence: `scripts/package_contract_audit.py`, `scripts/build_extension.py`, extension E2E scripts, README/release commands.
   Touches: script entry points/import bootstrap or module wrappers, command documentation, subprocess contract tests, CI timeouts/progress.
   Acceptance: Every documented command succeeds from a clean checkout shell without manual `PYTHONPATH`; subprocess tests execute the literal documentation; long tests print named phases, enforce per-phase and total watchdogs, preserve failure artifacts, and terminate child processes cleanly.
   Complexity: M
 
-- [ ] P1 — R-92: Align runtime, updater, About, and release documentation with shipped behavior
+- [ ] R-92 (P1): Align runtime, updater, About, and release documentation with shipped behavior
   Why: dependency/runtime claims, updater installation text, hard-coded About metadata, screenshots, and signing language do not consistently match the package or governing unsigned-release policy.
   Evidence: `README.md`, `pyproject.toml`, verified requirements lock, updater docs, About UI, release checklist/assets, `Roadmap_Blocked.md`.
   Touches: README/release/update docs, About metadata provider, screenshot generation, packaging/release contract tests.
   Acceptance: One generated metadata source supplies version/build/runtime facts to package, About, and release docs; optional dependency names match install extras; updater docs describe only informational checks while application remains blocked; all signing instructions/gates are removed; after R-90, fresh screenshots pass the visual matrix; a docs test runs every supported command.
   Complexity: M
 
-- [ ] P1 — R-93: Audit all user-visible strings through the localization pipeline
+- [ ] R-93 (P1): Audit all user-visible strings through the localization pipeline
   Why: the current i18n check passes while visible Python and extension JavaScript strings can bypass registered translation sinks.
   Evidence: `bookmark_organizer_pro/i18n.py`, `locale/bop.pot`, `tests/test_i18n.py`, browser-extension sources; Chrome i18n API.
   Touches: i18n extractor/audit, Python UI strings, extension `_locales` and runtime messages, translator guidance, tests.
   Acceptance: Static auditing recognizes every approved desktop and extension translation API and fails on unregistered visible literals; catalogs include context/placeholders/plurals, pseudolocalization runs in both surfaces, layout tests cover expansion, and missing keys fall back visibly without raw identifiers.
   Complexity: L
 
-- [ ] P1 — R-94: Add end-to-end assistant cancellation and failure budgets
+- [ ] R-94 (P1): Add end-to-end assistant cancellation and failure budgets
   Why: long AI operations have no uniform Stop contract across UI workers, streaming clients, retries, caches, and job history.
   Evidence: AI UI/client services and `bookmark_organizer_pro/services/job_ledger.py`; Joplin PR #15946 and PR #15944.
   Touches: provider interfaces, AI workers/dialogs, retry policy, job ledger, partial-output/cache handling, cancellation tests.
   Acceptance: Every AI operation exposes Stop, propagates one cancellation token through network/stream/retry layers, closes resources within a tested deadline, records `cancelled` separately from failure, never caches partial output, and caps attempts, elapsed time, input tokens/characters, and output size with actionable UI errors.
   Complexity: L
 
-- [ ] P1 — R-95: Wire scheduled snapshots into lifecycle and recovery
+- [ ] R-95 (P1): Wire scheduled snapshots into lifecycle and recovery
   Why: The former R-24 completion claim is not reachable: `auto_snapshot.py` and its saved interval exist without a verified application lifecycle that restores, runs, pauses, and recovers the scheduler.
   Evidence: `bookmark_organizer_pro/services/auto_snapshot.py`, snapshot settings, lifecycle mixins, snapshot failure/history services, `CHANGELOG.md`.
   Touches: lifecycle/settings UI, scheduler, job ledger, snapshot history/failure UI, shutdown and clock-control tests.
   Acceptance: Enabling a schedule persists and starts one scheduler; restart restores it; disable/shutdown cancels it; overlapping runs are coalesced; offline/retryable failures use bounded backoff and remain visible; deterministic-clock tests prove due selection, restart, pause, retry, and no duplicate capture.
   Complexity: M
 
-### P2 — Later
+### P2: Later
 
-- [ ] P2 — R-96: Clarify extension category and search states
+- [ ] R-96 (P2): Clarify extension category and search states
   Why: capture can show a blank default-category affordance, while search lacks explicit loading/no-results/error announcements and robust accessible state.
   Evidence: `browser-extension/popup.html`, `browser-extension/popup.js`, `browser-extension/sidepanel.html`, `browser-extension/sidepanel.js`, visual captures; Chrome bookmarks/storage/i18n APIs.
   Touches: extension popup/options/shared scripts and styles, locale catalogs, browser-extension tests.
   Acceptance: The effective default category is always named and distinguishable from “no category”; category changes persist atomically; debounced search exposes loading, result count, no-results, and error states via live regions; controls have names/descriptions/focus order and remain usable at 200% zoom.
   Complexity: M
 
-- [ ] P2 — R-97: Generate shell completions from CLI parser truth
+- [ ] R-97 (P2): Generate shell completions from CLI parser truth
   Why: The former R-77 completion claim has drifted: hand-maintained files omit 15 parser commands and advertise an invalid `flow delete` command.
   Evidence: `bookmark_organizer_pro/cli.py`, `scripts/completions/bop.bash`, `scripts/completions/bop.zsh`, `scripts/completions/bop.fish`, `CHANGELOG.md`.
   Touches: CLI command model, Bash/Zsh/Fish completion generation, docs, generated-file contract tests.
   Acceptance: One parser-derived command/option model generates all supported shells; a contract test compares every parser path and choice to generated completions, rejects nonexistent paths, and verifies quoting for spaces/non-ASCII values.
   Complexity: S
 
-- [ ] P2 — R-98: Replace the benchmark gate with bounded realistic workloads
+- [ ] R-98 (P2): Replace the benchmark gate with bounded realistic workloads
   Why: the documented direct command fails on imports and the repaired 500-add case exceeds two minutes, so it cannot provide timely regression signal.
   Evidence: `benchmarks/bench_core.py --gate` execution on 2026-07-29; bookmark manager/storage APIs.
   Touches: benchmark seeding/fixtures, per-operation timers, thresholds, command docs, optional CI performance job.
   Acceptance: Setup uses bulk deterministic fixtures outside measured regions; startup, load, search, sort, save, dedupe, and incremental add are reported separately at named collection sizes; each case has a watchdog and machine-readable output; a warm/cold baseline completes within an explicitly documented local budget.
   Complexity: M
 
-- [ ] P2 — R-99: Expose YouTube transcript ingestion as an explicit workflow
+- [ ] R-99 (P2): Expose YouTube transcript ingestion as an explicit workflow
   Why: The former R-12 completion claim is not reachable: a transcript service exists but users cannot discover, consent to, diagnose, or retry it as part of bookmark enrichment.
   Evidence: `bookmark_organizer_pro/services/youtube_transcript.py`, ingest/reader/job-ledger services, `CHANGELOG.md`.
   Touches: bookmark actions and settings, transcript service, content provenance/model, job history, CLI/MCP parity, tests.
   Acceptance: Eligible YouTube bookmarks offer an opt-in transcript action with language choice and provenance; fetched text is bounded, stored as a distinct derived representation, searchable/rebuildable, and removable; unavailable/private/captionless/rate-limited cases are distinguished and retryable without corrupting existing content.
   Complexity: M
 
-- [ ] P2 — R-100: Persist reader progress and add an in-progress queue
+- [ ] R-100 (P2): Persist reader progress and add an in-progress queue
   Why: competing readers make resumption a core state, while this reader does not persist a stable location across sessions/content revisions.
   Evidence: `bookmark_organizer_pro/ui/reader_view.py`; Karakeep PR #2302; Readeck and Readwise Reader.
   Touches: reader-state schema/store, reader UI, bookmark filters/smart collections, migration/export tests.
   Acceptance: Using R-83’s selector contract, the app stores per-bookmark progress with representation digest and update time, restores the nearest valid anchored location, marks unread/in-progress/finished explicitly, offers an in-progress filter, and lets users reset progress; updates are throttled and never overwrite newer state.
   Complexity: M
 
-- [ ] P2 — R-101: Complete accessible tag autocomplete
+- [ ] R-101 (P2): Complete accessible tag autocomplete
   Why: `TagEditor.available_tags` is documented as not wired, forcing exact free-text entry despite an existing tag vocabulary.
   Evidence: `bookmark_organizer_pro/ui/widget_controls.py::TagEditor`, bookmark/bulk editor call sites, extension tag input.
   Touches: shared tag suggestion model, desktop TagEditor, bulk/bookmark editors, extension popup, keyboard/accessibility tests.
   Acceptance: Suggestions are case-insensitive, ranked deterministically, exclude selected tags, preserve arbitrary new tags, and announce count/selection; arrow, Enter, Escape, Tab, mouse, paste, non-ASCII, and duplicate handling work consistently in desktop and extension without trapping focus.
   Complexity: M
 
-- [ ] P2 — R-102: Add a per-bookmark local processing timeline
+- [ ] R-102 (P2): Add a per-bookmark local processing timeline
   Why: capture, metadata, snapshot, transcript, embedding, and retry state is spread across stores, making failures hard to diagnose or reverse.
   Evidence: `bookmark_organizer_pro/services/job_ledger.py`, snapshot history/failure stores, local diagnostics; ArchiveBox extractor status; linkding issue #797.
   Touches: read-only timeline projection, bookmark details UI, retry/remove actions, diagnostics, job/history migration tests.
   Acceptance: Bookmark details show chronological local events with operation, backend, state, timestamp, artifact size/digest, and sanitized error; users can retry eligible steps or remove derived artifacts without deleting the bookmark; projection tolerates missing/legacy records and never exposes credentials/content in diagnostics.
   Complexity: L
 
-- [ ] P2 — R-103: Add a global highlights workspace
+- [ ] R-103 (P2): Add a global highlights workspace
   Why: annotation CRUD and review scheduling exist per bookmark, but users cannot search, filter, export, or repair highlights across the collection.
   Evidence: `bookmark_organizer_pro/services/reader_annotations.py`, reader UI; Zotero 8; Readwise Reader.
   Touches: highlight query/projection service, desktop workspace, export/CLI/MCP adapters, orphan/review integration, accessibility tests.
   Acceptance: After R-83, a keyboard-accessible workspace filters highlights by text, note, tag, color, bookmark, review status, and orphan status; opens the anchored source; supports batch export and safe delete/undo; and paginates without loading all page content.
   Complexity: L
 
-- [ ] P2 — R-104: Productize organization rules with preview and undo
+- [ ] R-104 (P2): Productize organization rules with preview and undo
   Why: `SmartTagManager` contains reusable rule logic but is not a discoverable, auditable product workflow.
   Evidence: `bookmark_organizer_pro/services/organization.py::SmartTagManager`, bulk-tag and recovery infrastructure.
   Touches: versioned declarative rule schema, rule evaluator, preview UI, bulk transaction/undo, import/export, tests.
   Acceptance: Users can define enabled rules from allowlisted predicates/actions, preview exact affected bookmarks and conflicts, apply one atomic batch with undo, inspect last-run counts/errors, and export/import versioned rules; evaluation is deterministic, bounded, and never runs arbitrary code.
   Complexity: L
 
-- [ ] P2 — R-105: Add safe declarative extraction repair rules
+- [ ] R-105 (P2): Add safe declarative extraction repair rules
   Why: site-specific extraction failures need a repair path, but arbitrary scripts would undermine the existing egress and content-safety boundaries.
   Evidence: `bookmark_organizer_pro/services/extraction_templates.py`, ingest/snapshot services; ArchiveBox configuration; Readeck extraction workflows.
   Touches: extraction-template schema/evaluator, preview UI, per-domain matching, import/export, safety and regression tests.
   Acceptance: A versioned rule can match a normalized host and use allowlisted CSS selectors/attribute/text transforms with strict size/time limits; preview compares default and repaired output before save; invalid selectors fail closed; rules cannot execute code or trigger new origins; fixtures lock repairs to representative pages.
   Complexity: L
 
-### P3 — Under Consideration
+### P3: Under Consideration
 
-- [ ] P3 — R-106: Prototype the 2026-07-28 MCP specification and MCP Apps
+- [ ] R-106 (P3): Prototype the 2026-07-28 MCP specification and MCP Apps
   Why: `Roadmap_Blocked.md` treats MCP Apps as draft-only, but the final 2026-07-28 specification is published and current FastMCP documentation exposes spec-level UI configuration.
   Evidence: MCP 2026-07-28 specification and security guidance; FastMCP changelog; `pyproject.toml` MCP/FastMCP ranges; `bookmark_organizer_pro/mcp_server.py`.
   Touches: dependency compatibility matrix, MCP server resources/tools, optional AppConfig UI, capability negotiation, fallback and security tests, then the stale blocked entry if validation succeeds.
