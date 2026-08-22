@@ -1,5 +1,6 @@
 """Core tests for pattern engine, URL normalization, search, and bookmark model."""
 
+import contextlib
 import copy
 import json
 import os
@@ -3901,6 +3902,102 @@ class TestNormalizedURLIndex(unittest.TestCase):
 
         self.assertIsNotNone(self.manager.find_by_url("https://reload.test/a"))
         self._assert_matches_scan("https://reload.test/a")
+
+    def test_editing_a_live_bookmark_object_moves_its_index_entry(self):
+        """The editor dialog mutates the object the manager already holds and
+        then calls update_bookmark, so the old URL cannot be recovered from
+        storage at that point."""
+        bookmark = self.manager.add_bookmark_clean(url="https://live.test/a", title="Live")
+        stored = self.manager.get_bookmark(bookmark.id)
+        stored.url = "https://live.test/b"
+        self.manager.update_bookmark(stored)
+
+        self.assertIsNone(
+            self.manager.find_by_url("https://live.test/a"),
+            "the old URL must not keep a phantom index entry",
+        )
+        self.assertEqual(self.manager.find_by_url("https://live.test/b").id, bookmark.id)
+        fresh = self.manager.add_bookmark_clean(url="https://live.test/a", title="Reused")
+        self.assertNotEqual(
+            fresh.id, bookmark.id,
+            "a new bookmark at the freed URL must not resolve to the old row",
+        )
+
+    def test_cleaning_tracking_parameters_keeps_the_index_truthful(self):
+        bookmark = Bookmark(
+            id=None,
+            url="https://track.test/page?utm_source=news&flag&q=1",
+            title="Tracked",
+        )
+        self.manager.add_bookmark(bookmark)
+        self.manager.clean_tracking_params()
+
+        self._assert_matches_scan(bookmark.url, "https://track.test/page?q=1")
+        before = len(self.manager.get_all_bookmarks())
+        self.manager.add_bookmark_clean(url=bookmark.url, title="Duplicate attempt")
+        self.assertEqual(
+            len(self.manager.get_all_bookmarks()), before,
+            "a cleaned bookmark must still be found by the duplicate check",
+        )
+
+    def test_index_matches_a_full_scan_under_random_operations(self):
+        """Differential check: the index must agree with a brute-force scan
+        after every mutation, including which duplicate wins."""
+        import random
+
+        rng = random.Random(20260822)
+        urls = [f"https://rand{i}.test/page" for i in range(12)]
+        seen = set()
+
+        for step in range(400):
+            action = rng.choice([
+                "add", "add_dup", "delete", "update_id", "update_obj",
+                "batch_fail", "merge", "clean", "reload",
+            ])
+            live = self.manager.get_all_bookmarks()
+            if action == "add":
+                url = rng.choice(urls)
+                seen.add(url)
+                self.manager.add_bookmark_clean(url=url, title=f"n{step}")
+            elif action == "add_dup":
+                url = rng.choice(urls)
+                seen.add(url)
+                self.manager.add_bookmark(Bookmark(id=None, url=url, title=f"d{step}"))
+            elif action == "delete" and live:
+                self.manager.delete_bookmark(rng.choice(live).id)
+            elif action == "update_id" and live:
+                url = rng.choice(urls)
+                seen.add(url)
+                self.manager.update_bookmark(rng.choice(live).id, url=url)
+            elif action == "update_obj" and live:
+                target = self.manager.get_bookmark(rng.choice(live).id)
+                if target is not None:
+                    url = rng.choice(urls)
+                    seen.add(url)
+                    target.url = url
+                    self.manager.update_bookmark(target)
+            elif action == "batch_fail":
+                with contextlib.suppress(RuntimeError):
+                    with self.manager.batch():
+                        url = rng.choice(urls)
+                        seen.add(url)
+                        self.manager.add_bookmark_clean(url=url, title="ghost")
+                        raise RuntimeError("rollback")
+            elif action == "merge":
+                self.manager.merge_duplicates()
+            elif action == "clean":
+                self.manager.clean_tracking_params()
+            elif action == "reload":
+                self.manager._load_bookmarks()
+
+            for url in seen:
+                indexed = self.manager.find_by_url(url)
+                scanned = self._scan(url)
+                self.assertEqual(
+                    None if indexed is None else indexed.id,
+                    None if scanned is None else scanned.id,
+                    f"step {step} ({action}): index and scan disagree for {url}",
+                )
 
 
 if __name__ == "__main__":

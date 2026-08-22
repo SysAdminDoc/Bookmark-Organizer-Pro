@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import bisect
 import contextlib
 import copy
 import csv
@@ -102,6 +103,9 @@ class BookmarkManager:
         # duplicate check re-normalizes the whole library, which is ~0.4s per
         # lookup at 50k bookmarks and happens twice on each extension save.
         self._url_index: Dict[str, List[int]] = {}
+        self._url_key: Dict[int, str] = {}
+        self._url_rank: Dict[int, int] = {}
+        self._url_rank_next = 0
         self._url_index_ready = False
         self.search_engine = SearchEngine()
         from bookmark_organizer_pro.services.reader_progress import ReaderProgressStore
@@ -178,39 +182,74 @@ class BookmarkManager:
 
     def _rebuild_url_index(self) -> None:
         index: Dict[str, List[int]] = {}
-        for bookmark_id, bookmark in self.bookmarks.items():
+        keys: Dict[int, str] = {}
+        rank: Dict[int, int] = {}
+        for position, (bookmark_id, bookmark) in enumerate(self.bookmarks.items()):
+            rank[bookmark_id] = position
             key = normalize_url(bookmark.url)
             if key:
                 index.setdefault(key, []).append(bookmark_id)
+                keys[bookmark_id] = key
         self._url_index = index
+        self._url_key = keys
+        self._url_rank = rank
+        self._url_rank_next = len(rank)
         self._url_index_ready = True
 
     def _invalidate_url_index(self) -> None:
         """Force a rebuild; used when the whole mapping is swapped out."""
         self._url_index = {}
+        self._url_key = {}
+        self._url_rank = {}
+        self._url_rank_next = 0
         self._url_index_ready = False
 
     def _index_bookmark(self, bookmark: Bookmark) -> None:
+        """(Re)index one bookmark under its current URL.
+
+        The previous key comes from ``_url_key`` rather than from the stored
+        object, because a caller can hand us the very object already in
+        ``self.bookmarks`` after mutating its URL, in which case the old URL
+        is already gone and re-deriving it would leave a phantom entry.
+        """
         if not self._url_index_ready:
             return
+        bookmark_id = bookmark.id
         key = normalize_url(bookmark.url)
+        previous = self._url_key.get(bookmark_id)
+        if previous == key:
+            return
+        if previous is not None:
+            self._drop_index_entry(bookmark_id, previous)
         if not key:
             return
+        if bookmark_id not in self._url_rank:
+            self._url_rank[bookmark_id] = self._url_rank_next
+            self._url_rank_next += 1
         ids = self._url_index.setdefault(key, [])
-        if bookmark.id not in ids:
-            ids.append(bookmark.id)
+        # Keep each key's ids in library order so a duplicate resolves to the
+        # same row a full scan would have returned.
+        position = bisect.bisect_left(
+            [self._url_rank.get(i, 0) for i in ids], self._url_rank[bookmark_id],
+        )
+        ids.insert(position, bookmark_id)
+        self._url_key[bookmark_id] = key
 
-    def _unindex_bookmark(self, bookmark_id: int, url: str) -> None:
+    def _drop_index_entry(self, bookmark_id: int, key: str) -> None:
+        ids = self._url_index.get(key)
+        if ids and bookmark_id in ids:
+            ids.remove(bookmark_id)
+        if ids is not None and not ids:
+            self._url_index.pop(key, None)
+        self._url_key.pop(bookmark_id, None)
+
+    def _unindex_bookmark(self, bookmark_id: int) -> None:
         if not self._url_index_ready:
             return
-        key = normalize_url(url)
-        ids = self._url_index.get(key)
-        if not ids:
-            return
-        if bookmark_id in ids:
-            ids.remove(bookmark_id)
-        if not ids:
-            self._url_index.pop(key, None)
+        key = self._url_key.get(bookmark_id)
+        if key is not None:
+            self._drop_index_entry(bookmark_id, key)
+        self._url_rank.pop(bookmark_id, None)
 
     def _lookup_by_normalized_url(self, normalized: str) -> Optional[Bookmark]:
         """First live bookmark for a normalized URL, matching scan order."""
@@ -518,9 +557,7 @@ class BookmarkManager:
                 updated = copy.deepcopy(bookmark)
                 updated.id = bookmark_id
                 updated.modified_at = datetime.now().isoformat()
-                previous_url = self.bookmarks[bookmark_id].url
                 self.bookmarks[bookmark_id] = updated
-                self._unindex_bookmark(bookmark_id, previous_url)
                 self._index_bookmark(updated)
                 snapshot = list(self.bookmarks.values())
                 self._save_snapshot(snapshot)
@@ -537,14 +574,11 @@ class BookmarkManager:
                     requested_id = self._coerce_bookmark_id(kwargs["id"])
                     if requested_id != bookmark_id:
                         raise ValueError("bookmark IDs are immutable")
-                previous_url = bm.url
                 for key, value in kwargs.items():
                     if key != "id" and hasattr(bm, key):
                         setattr(bm, key, value)
                 bm.modified_at = datetime.now().isoformat()
-                if bm.url != previous_url:
-                    self._unindex_bookmark(bookmark_id, previous_url)
-                    self._index_bookmark(bm)
+                self._index_bookmark(bm)
                 snapshot = list(self.bookmarks.values())
                 self._save_snapshot(snapshot)
         return bm
@@ -558,9 +592,8 @@ class BookmarkManager:
             return False
         with self._lock:
             if bookmark_id in self.bookmarks:
-                removed_url = self.bookmarks[bookmark_id].url
                 del self.bookmarks[bookmark_id]
-                self._unindex_bookmark(bookmark_id, removed_url)
+                self._unindex_bookmark(bookmark_id)
                 snapshot = list(self.bookmarks.values())
                 self._save_snapshot(snapshot)
                 try:
@@ -951,9 +984,8 @@ class BookmarkManager:
             trash_ids = [bm.id for bm in self.bookmarks.values()
                          if bm.is_archived and '_deleted_at' in bm.custom_data]
             for bid in trash_ids:
-                removed = self.bookmarks.pop(bid, None)
-                if removed is not None:
-                    self._unindex_bookmark(bid, removed.url)
+                self.bookmarks.pop(bid, None)
+                self._unindex_bookmark(bid)
             if trash_ids:
                 snapshot = list(self.bookmarks.values())
                 self._save_snapshot(snapshot)
@@ -1135,6 +1167,11 @@ class BookmarkManager:
                 if clean_url != bm.url:
                     bm.url = clean_url
                     bm.modified_at = datetime.now().isoformat()
+                    # clean_url() and normalize_url() disagree about blank
+                    # query values, so a cleaned URL can land under a different
+                    # index key. Reindex here or the bookmark becomes invisible
+                    # to the duplicate check and can be added again.
+                    self._index_bookmark(bm)
                     cleaned += 1
             if cleaned > 0:
                 snapshot = list(self.bookmarks.values())

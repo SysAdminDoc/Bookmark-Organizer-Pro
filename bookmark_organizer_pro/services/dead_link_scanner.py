@@ -198,7 +198,10 @@ class DeadLinkScanner:
             slot = self._gate.acquire(host, self._sleep, cancelled)
             try:
                 if cancelled():
-                    return False, status_code, True
+                    # Never contacted. `None` marks "no attempt" so the caller
+                    # can leave the bookmark untouched rather than stamping a
+                    # last_checked that would make a later scan skip it.
+                    return None, 0, True
                 is_valid, status_code = self.checker._check_url(bm)
             finally:
                 slot.release()
@@ -286,6 +289,12 @@ class DeadLinkScanner:
                 except Exception as exc:
                     is_valid, status_code = False, 0
                     log.debug(f"check failed for {bm.url}: {exc}")
+                if is_valid is None:
+                    # Cancelled before this bookmark was ever contacted; leave
+                    # it exactly as it was so the next scan still picks it up.
+                    cancelled = True
+                    ex.shutdown(wait=False, cancel_futures=True)
+                    break
                 with self._lock:
                     recorded = apply_check_verdict(
                         bm, is_valid, status_code,

@@ -72,10 +72,12 @@ class LinkChecker:
                     bookmark = futures[future]
                     with self._lock:
                         try:
+                            from .services.dead_link_scanner import apply_check_verdict
+
                             is_valid, status_code = future.result()
-                            bookmark.is_valid = is_valid
-                            bookmark.http_status = status_code
-                            bookmark.last_checked = datetime.now().isoformat()
+                            # A 429/503 means the host asked us to slow down,
+                            # not that the link is dead.
+                            apply_check_verdict(bookmark, is_valid, status_code)
                         except Exception:
                             bookmark.is_valid = False
                             bookmark.http_status = 0

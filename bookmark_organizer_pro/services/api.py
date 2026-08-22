@@ -7,6 +7,7 @@ Token is auto-generated on first start and stored in the data directory.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 import secrets
@@ -1024,9 +1025,23 @@ class BookmarkAPI:
                                 bookmark_manager.save_bookmarks()
                             except (ValueError, RuntimeError, OSError, sqlite3.Error) as exc:
                                 if archiver is not None:
-                                    archiver.delete_snapshot(bookmark)
-                                bookmark_manager.delete_bookmark(bookmark.id)
-                                if isinstance(exc, ValueError):
+                                    with contextlib.suppress(Exception):
+                                        archiver.delete_snapshot(bookmark)
+                                # When the failure IS the library write, the
+                                # rollback write fails too. Letting it raise
+                                # skipped the 503 below and left a half-created
+                                # bookmark persisted, so the extension's retry
+                                # then hit 409 and dropped the capture.
+                                rolled_back = True
+                                try:
+                                    bookmark_manager.delete_bookmark(bookmark.id)
+                                except Exception as rollback_error:
+                                    rolled_back = False
+                                    log.error(
+                                        "Could not roll back the partial snapshot bookmark "
+                                        f"{bookmark.id}: {rollback_error}"
+                                    )
+                                if isinstance(exc, ValueError) and rolled_back:
                                     # The capture itself is unusable, so
                                     # retrying it would fail the same way.
                                     self._send_json({"error": str(exc)}, 422)
@@ -1047,9 +1062,6 @@ class BookmarkAPI:
                     
                     except json.JSONDecodeError:
                         self._send_json({"error": "Invalid JSON"}, 400)
-                    # Storage errors are matched before ValueError because the
-                    # JSON storage layer raises ValueError for a corrupt
-                    # library, which is a server-side fault, not a bad request.
                     except (OSError, RuntimeError, sqlite3.Error) as exc:
                         # The request was fine and the library could not be
                         # written. Answering 400 would tell the extension the

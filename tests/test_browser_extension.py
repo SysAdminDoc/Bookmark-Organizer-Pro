@@ -1292,6 +1292,69 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
             finally:
                 api.stop()
 
+    def test_a_snapshot_storage_failure_after_the_row_is_saved_still_answers_503(self):
+        """The failing write can be the SECOND one, after add_bookmark_clean has
+        already persisted the row. The rollback then fails too, and letting that
+        exception escape used to skip the 503 entirely."""
+        import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            origins_file = Path(tmp) / "approved_extension_origins.json"
+            api = main.BookmarkAPI(manager, port=0, extension_origins_file=origins_file)
+            try:
+                api.start()
+                token = self._api_token()
+                base_url = f"http://127.0.0.1:{api.port}"
+                origin = f"chrome-extension://{'d' * 32}"
+                self._pair_extension(base_url, token, origin)
+
+                real_save = manager.storage.save
+                calls = {"count": 0}
+
+                def fail_after_first(*args, **kwargs):
+                    calls["count"] += 1
+                    if calls["count"] == 1:
+                        return real_save(*args, **kwargs)
+                    raise OSError("disk filled up mid-save")
+
+                payload = {
+                    "url": "https://snapshot-late.example.com/a",
+                    "title": "Late failure",
+                    "browser_snapshot": {
+                        "html": "<html><body><p>Captured body.</p></body></html>",
+                        "source_url": "https://snapshot-late.example.com/a",
+                    },
+                }
+                request = urllib.request.Request(
+                    f"{base_url}/bookmarks",
+                    data=json.dumps(payload).encode("utf-8"),
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {token}",
+                        "Origin": origin,
+                        "X-BOP-Capture-Version": "1",
+                    },
+                    method="POST",
+                )
+                with mock.patch.object(manager.storage, "save", side_effect=fail_after_first):
+                    try:
+                        with urllib.request.urlopen(request, timeout=5) as response:
+                            status, headers = response.status, response.headers
+                            body = json.loads(response.read().decode("utf-8"))
+                    except urllib.error.HTTPError as error:
+                        status, headers = error.code, error.headers
+                        body = json.loads(error.read().decode("utf-8"))
+
+                self.assertEqual(status, 503)
+                self.assertEqual(headers.get("Retry-After"), "5")
+                # The snapshot handler must be the one that answered. Before,
+                # the rollback raised and the generic outer handler replied,
+                # so the failure was reported as a plain library write error.
+                self.assertIn("Snapshot", body["error"])
+            finally:
+                api.stop()
+
     def test_authenticated_browser_snapshot_is_sanitized_and_stored(self):
         import main
 

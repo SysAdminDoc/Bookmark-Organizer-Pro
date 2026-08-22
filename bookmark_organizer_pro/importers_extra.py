@@ -430,6 +430,13 @@ class OmnivoreImporter:
         if path.is_dir():
             for candidate in sorted(path.rglob("metadata_*.json")):
                 try:
+                    size = candidate.stat().st_size
+                    if size > MAX_ARCHIVE_MEMBER_BYTES:
+                        yield candidate.name, _UnreadableMember(
+                            f"member is {size} bytes, over the "
+                            f"{MAX_ARCHIVE_MEMBER_BYTES}-byte limit"
+                        )
+                        continue
                     # utf-8-sig so a BOM-prefixed export member still parses.
                     yield candidate.name, json.loads(candidate.read_text(encoding="utf-8-sig"))
                 except (OSError, json.JSONDecodeError) as exc:
@@ -461,6 +468,13 @@ class OmnivoreImporter:
                 return
             return
         try:
+            size = path.stat().st_size
+            if size > MAX_ARCHIVE_MEMBER_BYTES:
+                yield path.name, _UnreadableMember(
+                    f"member is {size} bytes, over the "
+                    f"{MAX_ARCHIVE_MEMBER_BYTES}-byte limit"
+                )
+                return
             yield path.name, json.loads(path.read_text(encoding="utf-8-sig"))
         except (OSError, json.JSONDecodeError) as exc:
             yield path.name, _UnreadableMember(str(exc))
