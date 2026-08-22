@@ -12,6 +12,7 @@ from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION, MASTER_BOOKM
 from bookmark_organizer_pro.core import CategoryManager, get_category_icon
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.managers import BookmarkManager, TagManager
+from bookmark_organizer_pro.text_format import pluralize
 
 
 def _format_rule_conditions(rule) -> str:
@@ -604,7 +605,7 @@ Commands:
   help                   Show this help message
 
 v6.0.0 commands:
-  ingest [id...]                Extract text + reading time + language for bookmark(s)
+  ingest [id...]                Extract text + reading time + language for bookmarks
   transcript <id>               Opt-in fetch/remove a bounded YouTube transcript
   structured <id>               Show structured metadata extracted from templates
   snapshot <id>                 Capture a verified offline snapshot of a bookmark
@@ -821,7 +822,7 @@ Examples:
                 adopting = suggestions[:room]
                 for suggestion in adopting:
                     service.add_rule(suggestion.to_rule_document())
-                print(f"Saved {len(adopting)} rule(s). Run 'rules preview' before applying.")
+                print(f"Saved {pluralize(len(adopting), 'rule')}. Run 'rules preview' before applying.")
                 if len(adopting) < len(suggestions):
                     print(f"Skipped {len(suggestions) - len(adopting)}: "
                           f"the rule store holds at most {MAX_RULES}.")
@@ -848,10 +849,10 @@ Examples:
             else:
                 print(
                     "Organization preview: "
-                    f"{preview.affected_count} bookmark(s), "
-                    f"{preview.change_count} change(s), "
-                    f"{preview.conflict_count} conflict(s), "
-                    f"{preview.error_count} error(s)"
+                    f"{pluralize(preview.affected_count, 'bookmark')}, "
+                    f"{pluralize(preview.change_count, 'change')}, "
+                    f"{pluralize(preview.conflict_count, 'conflict')}, "
+                    f"{pluralize(preview.error_count, 'error')}"
                 )
                 for conflict in preview.conflicts[:10]:
                     print(f"  conflict: {conflict.message}")
@@ -865,9 +866,9 @@ Examples:
                 print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
             else:
                 print(
-                    f"Organization run {report.status}: {report.affected_count} bookmark(s), "
-                    f"{report.change_count} change(s), {report.conflict_count} conflict(s), "
-                    f"{report.error_count} error(s)"
+                    f"Organization run {report.status}: {pluralize(report.affected_count, 'bookmark')}, "
+                    f"{pluralize(report.change_count, 'change')}, {pluralize(report.conflict_count, 'conflict')}, "
+                    f"{pluralize(report.error_count, 'error')}"
                 )
                 for error in report.errors[:10]:
                     print(f"  error: {error}")
@@ -878,7 +879,7 @@ Examples:
             if ns.as_json:
                 print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
             else:
-                print(f"Organization undo {report.status}: {report.affected_count} bookmark(s)")
+                print(f"Organization undo {report.status}: {pluralize(report.affected_count, 'bookmark')}")
                 for error in report.errors[:10]:
                     print(f"  error: {error}")
             return 1 if report.status in {"failed", "undo_conflict", "no_undo"} else 0
@@ -899,7 +900,7 @@ Examples:
             return self._usage_error(f"usage: bop rules {action} <path>")
         if action == "import":
             count = service.import_rules(ns.target, replace=ns.replace)
-            print(json.dumps({"imported": count}) if ns.as_json else f"Imported {count} organization rule(s).")
+            print(json.dumps({"imported": count}) if ns.as_json else f"Imported {pluralize(count, 'organization rule')}.")
             return 0
         if action == "export":
             path = service.export_rules(ns.target)
@@ -1050,7 +1051,7 @@ Examples:
                       f"(n={r['support']}, share={r.get('share', 0):.0%}, "
                       f"conf={r['avg_confidence']}){flag}")
         if report["summary"].get("suspect_flagged"):
-            print(f"\n  ({report['summary']['suspect_flagged']} candidate(s) flagged suspect "
+            print(f"\n  ({pluralize(report['summary']['suspect_flagged'], 'candidate')} flagged suspect "
                   f"— search-engine/portal or sensitive reclassification)")
         print()
         return 0
@@ -1112,14 +1113,14 @@ Examples:
         plan = importer.plan(directory)
         summary = plan.summary()
 
-        print(f"Scanned {summary['files']} file(s) in {directory}")
-        print(f"  {summary['unique_files']} unique, {summary['duplicate_files']} byte-identical duplicate(s) skipped")
+        print(f"Scanned {pluralize(summary['files'], 'file')} in {directory}")
+        print(f"  {summary['unique_files']} unique, {pluralize(summary['duplicate_files'], 'byte-identical duplicate')} skipped")
         for source in plan.unique_files:
             print(f"    {Path(source.path).name}: {source.format}, {source.entries} entries")
         for source in plan.unreadable_files:
             print(f"    {Path(source.path).name}: skipped ({source.error})")
         print(f"  {summary['parsed_entries']} entries merged to {summary['unique_urls']} unique URLs "
-              f"({summary['merged']} collapsed, {summary['conflicts']} field conflict(s))")
+              f"({summary['merged']} collapsed, {pluralize(summary['conflicts'], 'field conflict')})")
 
         if not plan.bookmarks:
             self._error("Nothing to import: no readable bookmarks were found")
@@ -1314,7 +1315,9 @@ Top Domains:
             self.bookmark_manager.save_bookmarks()
         print(f"Ingested {ok}/{len(ids)} bookmarks; {updated} updated.")
         if missing:
-            return self._failure(f"{missing} requested bookmark(s) were not found")
+            return self._failure(
+                f"{pluralize(missing, 'requested bookmark')} were not found"
+            )
         return 0
 
     def _cmd_transcript(self, ns: argparse.Namespace):
@@ -1424,7 +1427,9 @@ Top Domains:
         print(f"Indexed {total_chunks} chunks across {len(ids)} bookmarks "
               f"({emb.backend}, dim={emb.dim}).")
         if missing:
-            return self._failure(f"{missing} requested bookmark(s) were not found")
+            return self._failure(
+                f"{pluralize(missing, 'requested bookmark')} were not found"
+            )
         return 0
 
     def _cmd_semantic(self, ns: argparse.Namespace):
@@ -1611,7 +1616,7 @@ Top Domains:
                 print(f"  {cfg.name if cfg else fid}: {n} new")
             failures = sum(1 for count in results.values() if count < 0)
             if failures:
-                return self._failure(f"{failures} feed(s) failed to fetch")
+                return self._failure(f"{pluralize(failures, 'feed')} failed to fetch")
             return 0
         return self._usage_error("usage: feed {list|add|remove|fetch} [arguments]")
 
@@ -1669,7 +1674,7 @@ Top Domains:
 
         if ns.action == "clear":
             removed = ledger.clear(job_type=ns.job_type, outcome=ns.outcome or "")
-            print(f"Cleared {removed} local job record(s).")
+            print(f"Cleared {pluralize(removed, 'local job record')}.")
             return
 
         if ns.action == "retry":
@@ -1741,7 +1746,7 @@ Top Domains:
                 bookmark.embedding_model = self._embedder().identity["id"]
                 bookmark.embedding_dim = self._embedder().dim
                 self.bookmark_manager.save_bookmarks()
-            return bool(count), f"indexed {count} chunk(s)"
+            return bool(count), f"indexed {pluralize(count, 'chunk')}"
         if record.job_type == "metadata":
             from bookmark_organizer_pro.utils.metadata import fetch_page_metadata
             metadata = fetch_page_metadata(bookmark.url)
@@ -1771,7 +1776,7 @@ Top Domains:
             if len(matches) != 1:
                 return False, "feed no longer exists or domain is ambiguous"
             count = FeedIngestor(registry, self.bookmark_manager.add_bookmark).fetch_one(matches[0].id)
-            return True, f"added {count} item(s)"
+            return True, f"added {pluralize(count, 'item')}"
         return False, f"retry is unavailable for {record.job_type} jobs"
 
     @staticmethod
@@ -2142,7 +2147,7 @@ Top Domains:
                 print("(no reader highlights)")
                 return 0
             print(
-                f"{page.total} matching highlight(s); showing "
+                f"{pluralize(page.total, 'matching highlight')}; showing "
                 f"{page.offset + 1}-{page.offset + len(page.items)}"
             )
             for item in page.items:
@@ -2216,7 +2221,7 @@ Top Domains:
             if not due:
                 print("No highlights due for review.")
                 return 0
-            print(f"{len(due)} highlight(s) due for review:")
+            print(f"{pluralize(len(due), 'highlight')} due for review:")
             for item in due[:20]:
                 preview = " ".join(item.text.split())[:60]
                 next_r = item.sr_next_review or "new"

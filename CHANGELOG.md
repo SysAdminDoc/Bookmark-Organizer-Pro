@@ -27,9 +27,12 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   and rotating or revoking a credential. Those change something that cannot be
   taken back.
 
-- The rest of the desktop copy now says "1 bookmark" and "5 bookmarks" instead
-  of "1 bookmark(s)". v6.15.0 fixed four dialogs; this covers the Tools menu,
-  bulk selection toasts, the dashboard badges, the tag editor, and Reader View.
+- Everything a person reads now says "1 bookmark" and "5 bookmarks" instead of
+  "1 bookmark(s)". v6.15.0 fixed four dialogs; this covers the Tools menu, bulk
+  selection toasts, the dashboard badges, the tag editor, Reader View, the
+  command line, the undo history, and the recovery workflow. Twenty-eight of
+  those messages now carry both wordings into the translation catalogue rather
+  than pasting finished English into a translatable slot.
 
 ### Fixed
 

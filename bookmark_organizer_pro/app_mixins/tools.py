@@ -7,7 +7,7 @@ import tkinter as tk
 from datetime import datetime
 from tkinter import filedialog, messagebox, ttk
 
-from bookmark_organizer_pro.i18n import format_message
+from bookmark_organizer_pro.i18n import format_message, format_plural
 
 try:
                 from bookmark_organizer_pro.services.egress import public_egress as requests
@@ -281,9 +281,11 @@ class ToolsActionsMixin:
         scheduled_count = len(scheduler.list_scheduled()) if scheduler else 0
         tk.Label(
             body,
-            text=format_message(
-                "{count} currently scheduled. Use Tools to add or remove the selected bookmarks.",
-                count=pluralize(scheduled_count, "bookmark"),
+            text=format_plural(
+                "{count} bookmark currently scheduled. Use Tools to add or remove the selected bookmarks.",
+                "{count} bookmarks currently scheduled. Use Tools to add or remove the selected bookmarks.",
+                scheduled_count,
+                count=scheduled_count,
             ),
             bg=theme.bg_primary, fg=theme.text_secondary, font=FONTS.small(),
             wraplength=560, justify=tk.LEFT, anchor="w",
@@ -352,13 +354,16 @@ class ToolsActionsMixin:
             interval = scheduler.interval_hours
         if not self._set_snapshot_schedule_preferences(True, interval):
             return
-        self._set_status(format_message(
-            "Scheduled {count} for automatic snapshots",
-            count=pluralize(len(bookmark_ids), "bookmark"),
+        self._set_status(format_plural(
+            "Scheduled {count} bookmark for automatic snapshots",
+            "Scheduled {count} bookmarks for automatic snapshots",
+            len(bookmark_ids),
+            count=len(bookmark_ids),
         ))
         self._show_toast(
-            format_message(
-                "Scheduled {count}", count=pluralize(len(bookmark_ids), "bookmark"),
+            format_plural(
+                "Scheduled {count} bookmark", "Scheduled {count} bookmarks",
+                len(bookmark_ids), count=len(bookmark_ids),
             ),
             "success",
         )
@@ -384,12 +389,16 @@ class ToolsActionsMixin:
             scheduler.remove(bookmark_id)
         if not scheduler.list_scheduled():
             scheduler.stop()
-        self._set_status(format_message(
-            "Removed {count}", count=pluralize(removed, "scheduled snapshot"),
+        self._set_status(format_plural(
+            "Removed {count} scheduled snapshot",
+            "Removed {count} scheduled snapshots",
+            removed, count=removed,
         ))
         self._show_toast(
-            format_message(
-                "Removed {count}", count=pluralize(removed, "scheduled snapshot"),
+            format_plural(
+                "Removed {count} scheduled snapshot",
+                "Removed {count} scheduled snapshots",
+                removed, count=removed,
             ),
             "success",
         )
@@ -1088,9 +1097,10 @@ class ToolsActionsMixin:
             self._set_status(format_message(
                 "Smart duplicates: removed {count}; restore available from Tools", count=removed,
             ))
-            self._toast(format_message(
-                "Removed {count}; safepoint ready",
-                count=pluralize(removed, "smart duplicate bookmark"),
+            self._toast(format_plural(
+                "Removed {count} smart duplicate bookmark; safepoint ready",
+                "Removed {count} smart duplicate bookmarks; safepoint ready",
+                removed, count=removed,
             ), "success")
             return (
                 f"Removed {pluralize(removed, 'duplicate bookmark')}. "
@@ -1167,13 +1177,15 @@ class ToolsActionsMixin:
                 if applied:
                     self.bookmark_manager.save_bookmarks()
                     self._refresh_all()
-                self._set_status(format_message(
-                    "Tag lint: applied {count}; restore available from Tools",
-                    count=pluralize(applied, "merge"),
+                self._set_status(format_plural(
+                    "Tag lint: applied {count} merge; restore available from Tools",
+                    "Tag lint: applied {count} merges; restore available from Tools",
+                    applied, count=applied,
                 ))
-                self._toast(format_message(
-                    "Applied {count}; safepoint ready",
-                    count=pluralize(applied, "tag merge"),
+                self._toast(format_plural(
+                    "Applied {count} tag merge; safepoint ready",
+                    "Applied {count} tag merges; safepoint ready",
+                    applied, count=applied,
                 ), "success")
                 return (
                     f"Applied {pluralize(applied, 'tag merge')}. "
@@ -1351,8 +1363,10 @@ class ToolsActionsMixin:
         failed = 0
         skipped = 0
 
-        self._set_status(format_message(
-            "Retrying {count}...", count=pluralize(len(records), "failed snapshot"),
+        self._set_status(format_plural(
+            "Retrying {count} failed snapshot...",
+            "Retrying {count} failed snapshots...",
+            len(records), count=len(records),
         ))
         for record in records:
             bookmark = by_id.get(record.bookmark_id) if record.bookmark_id is not None else None
@@ -1384,14 +1398,13 @@ class ToolsActionsMixin:
         """Clear saved snapshot failure reports."""
         cleared = SnapshotFailureStore().clear_all()
         self._refresh_all()
-        self._set_status(format_message(
-            "Cleared {count}",
-            count=pluralize(cleared, "snapshot failure report"),
-        ))
-        self._toast(format_message(
-            "Cleared {count}",
-            count=pluralize(cleared, "snapshot failure report"),
-        ), "success")
+        cleared_label = format_plural(
+            "Cleared {count} snapshot failure report",
+            "Cleared {count} snapshot failure reports",
+            cleared, count=cleared,
+        )
+        self._set_status(cleared_label)
+        self._toast(cleared_label, "success")
 
     def _clean_urls(self):
         """Clean tracking params"""
@@ -1476,8 +1489,14 @@ class ToolsActionsMixin:
         self._set_status("Redownloading missing favicons...")
         self._toast(format_message(
             "Retrying {missing} and {failed}",
-            missing=pluralize(missing_count, "missing favicon"),
-            failed=pluralize(failed_count, "failed domain"),
+            missing=format_plural(
+                "{count} missing favicon", "{count} missing favicons",
+                missing_count, count=missing_count,
+            ),
+            failed=format_plural(
+                "{count} failed domain", "{count} failed domains",
+                failed_count, count=failed_count,
+            ),
         ), "info")
         self.favicon_manager.redownload_missing_favicons(bookmarks)
 
@@ -1522,8 +1541,10 @@ class ToolsActionsMixin:
             return
 
         self._set_status("Migrating to SQLite...")
-        self._toast(format_message(
-            "Migrating {count} to SQLite", count=pluralize(len(bookmarks), "bookmark"),
+        self._toast(format_plural(
+            "Migrating {count} bookmark to SQLite",
+            "Migrating {count} bookmarks to SQLite",
+            len(bookmarks), count=len(bookmarks),
         ), "info")
 
         def _worker():
@@ -1596,6 +1617,8 @@ class ToolsActionsMixin:
             self._show_toast("No bookmarks to graph", "info")
             return
         GraphViewDialog(self.root, bookmarks, on_open_bookmark=self._open_bookmark)
-        self._set_status(format_message(
-            "Graph opened with {count}", count=pluralize(len(bookmarks), "bookmark"),
+        self._set_status(format_plural(
+            "Graph opened with {count} bookmark",
+            "Graph opened with {count} bookmarks",
+            len(bookmarks), count=len(bookmarks),
         ))

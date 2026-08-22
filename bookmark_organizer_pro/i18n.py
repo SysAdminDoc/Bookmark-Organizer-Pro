@@ -721,7 +721,7 @@ def extension_locale_violations(
             if provided < required:
                 line_number = source.count("\n", 0, match.start()) + 1
                 violations.append(
-                    f"{rel}:{line_number}: {match.group(2)} needs {required} substitution(s), "
+                    f"{rel}:{line_number}: {match.group(2)} needs {required} substitutions, "
                     f"got {provided}"
                 )
         for line_number, line in enumerate(source.splitlines(), 1):

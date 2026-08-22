@@ -8,7 +8,7 @@ import threading
 import webbrowser
 from datetime import datetime
 
-from bookmark_organizer_pro.i18n import _, format_message
+from bookmark_organizer_pro.i18n import _, format_message, format_plural
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.snapshot import open_snapshot_file
 from bookmark_organizer_pro.ui.foundation import pluralize
@@ -259,10 +259,12 @@ class SelectionActionsMixin:
                 return
 
         action = _("Removing") if remove else _("Fetching")
-        self._set_status(format_message(
-            "{action} {count}…",
+        self._set_status(format_plural(
+            "{action} {count} YouTube transcript…",
+            "{action} {count} YouTube transcripts…",
+            len(targets),
             action=action,
-            count=pluralize(len(targets), "YouTube transcript"),
+            count=len(targets),
         ))
 
         def worker() -> None:
@@ -302,10 +304,12 @@ class SelectionActionsMixin:
 
     def _finish_youtube_transcripts(self, succeeded: int, failed: int, remove: bool) -> None:
         verb = _("Removed") if remove else _("Fetched")
-        message = format_message(
-            "{verb} {count}",
+        message = format_plural(
+            "{verb} {count} YouTube transcript",
+            "{verb} {count} YouTube transcripts",
+            succeeded,
             verb=verb,
-            count=pluralize(succeeded, "YouTube transcript"),
+            count=succeeded,
         )
         if failed:
             message += " " + format_message("{count} failed.", count=failed)
@@ -328,9 +332,11 @@ class SelectionActionsMixin:
                 count += 1
         
         self._refresh_all()
-        self._set_status(format_message(
-            "Moved {count} to '{category}'",
-            count=pluralize(count, "bookmark"),
+        self._set_status(format_plural(
+            "Moved {count} bookmark to '{category}'",
+            "Moved {count} bookmarks to '{category}'",
+            count,
+            count=count,
             category=category,
         ))
     
@@ -347,7 +353,9 @@ class SelectionActionsMixin:
                 self.bookmark_manager.update_bookmark(bookmark)
         
         self._refresh_bookmark_list()
-        self._set_status(format_message(
-            "Marked {count} as broken",
-            count=pluralize(len(self.selected_bookmarks), "bookmark"),
+        self._set_status(format_plural(
+            "Marked {count} bookmark as broken",
+            "Marked {count} bookmarks as broken",
+            len(self.selected_bookmarks),
+            count=len(self.selected_bookmarks),
         ))

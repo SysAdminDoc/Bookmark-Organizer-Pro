@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import messagebox
 from typing import Callable, List, Optional
 
-from bookmark_organizer_pro.i18n import _, format_message
+from bookmark_organizer_pro.i18n import _, format_message, format_plural
 from bookmark_organizer_pro.search import SearchEngine
 from bookmark_organizer_pro.tag_suggestions import (
     current_tag_query,
@@ -17,7 +17,7 @@ from bookmark_organizer_pro.tag_suggestions import (
     unique_tags,
 )
 
-from .foundation import FONTS, DesignTokens, pluralize, readable_text_on
+from .foundation import FONTS, DesignTokens, readable_text_on
 from .theme import ThemeColors
 from .tk_interactions import make_keyboard_activatable
 from .widget_runtime import get_theme
@@ -802,19 +802,26 @@ class TagEditor(tk.Frame, ThemedWidget):
         self._placeholder_active = False
         self._hide_suggestions()
         if added and duplicates:
-            message = format_message(
-                "Added {value_0}; {value_1} skipped.",
-                value_0=pluralize(len(added), "tag"),
-                value_1=pluralize(duplicates, "duplicate"),
+            message = format_plural(
+                "Added {count} tag; {duplicates} skipped.",
+                "Added {count} tags; {duplicates} skipped.",
+                len(added),
+                count=len(added),
+                duplicates=format_plural(
+                    "{count} duplicate", "{count} duplicates",
+                    duplicates, count=duplicates,
+                ),
             )
         elif added:
-            message = format_message(
-                "Added {value_0}.", value_0=pluralize(len(added), "tag")
+            message = format_plural(
+                "Added {count} tag.", "Added {count} tags.",
+                len(added), count=len(added),
             )
         elif duplicates:
-            message = format_message(
-                "{value_0} skipped.",
-                value_0=pluralize(duplicates, "duplicate tag"),
+            message = format_plural(
+                "{count} duplicate tag skipped.",
+                "{count} duplicate tags skipped.",
+                duplicates, count=duplicates,
             )
         else:
             message = _("Enter a tag to add.")

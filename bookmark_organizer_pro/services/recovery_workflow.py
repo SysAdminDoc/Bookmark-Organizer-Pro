@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Callable
 
 from bookmark_organizer_pro.logging_config import log
+from bookmark_organizer_pro.text_format import pluralize
 
 
 ProgressCallback = Callable[[str, str, str], None]
@@ -46,9 +47,10 @@ class RecoveryWorkflow:
         expected_count = getattr(status, "count", len(bookmarks)) if status else len(bookmarks)
         if expected_count != len(bookmarks):
             return False, (
-                f"storage reports {expected_count} bookmark(s), but {len(bookmarks)} loaded"
+                f"storage reports {pluralize(expected_count, 'bookmark')}, "
+                f"but {len(bookmarks)} loaded"
             )
-        return True, f"validated {len(bookmarks)} bookmark(s)"
+        return True, f"validated {pluralize(len(bookmarks), 'bookmark')}"
 
     def restore(self, backup_name: str) -> RecoveryResult:
         """Restore one verified backup, rolling back if activation validation fails."""
@@ -126,7 +128,8 @@ class RecoveryWorkflow:
             self._progress("ok", "Validated salvaged library", detail)
             return RecoveryResult(
                 "salvage", True,
-                f"Recovered and validated {count} bookmark(s). Damaged source: {preserved}",
+                f"Recovered and validated {pluralize(count, 'bookmark')}. "
+                f"Damaged source: {preserved}",
                 source,
                 preserved_source=preserved,
                 recovered_count=count,

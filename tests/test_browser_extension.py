@@ -17,6 +17,8 @@ import urllib.request
 from pathlib import Path
 from unittest import mock
 
+from tests import SharedExtensionRegistryGuard
+
 from bookmark_organizer_pro.constants import APP_VERSION
 
 
@@ -834,36 +836,7 @@ process.stdout.write(JSON.stringify(context.result));
         self.assertRegex(version_info, re.compile(rf"ProductVersion'.*{re.escape(file_version)}"))
 
 
-class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
-    def setUp(self):
-        """Fail loudly if a case forgets to isolate the pairing registry.
-
-        `BookmarkAPI` defaults `extension_origins_file` to the real data
-        directory, so a case that omits it pairs a fake extension id into the
-        user's own registry and leaks that state into every later test.
-        """
-        from bookmark_organizer_pro.services.api import _EXTENSION_ORIGINS_FILE
-
-        self._shared_registry = _EXTENSION_ORIGINS_FILE
-        self._registry_before = (
-            _EXTENSION_ORIGINS_FILE.read_bytes()
-            if _EXTENSION_ORIGINS_FILE.exists()
-            else None
-        )
-        self.addCleanup(self._assert_shared_registry_untouched)
-
-    def _assert_shared_registry_untouched(self):
-        after = (
-            self._shared_registry.read_bytes()
-            if self._shared_registry.exists()
-            else None
-        )
-        self.assertEqual(
-            self._registry_before, after,
-            "this test wrote the shared extension-origin registry; pass "
-            "extension_origins_file=... when constructing BookmarkAPI",
-        )
-
+class TestBrowserExtensionApiRoundTrip(SharedExtensionRegistryGuard, unittest.TestCase):
     def _wait_for(self, predicate, timeout=5.0, message=""):
         """Poll until predicate() is true. A fixed sleep assumes the server's
         deadline timer has already run, which is exactly what fails under load."""

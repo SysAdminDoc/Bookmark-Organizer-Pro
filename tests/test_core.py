@@ -19,6 +19,8 @@ from unittest.mock import Mock, patch
 # Ensure package is importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from tests import SharedExtensionRegistryGuard
+
 from bookmark_organizer_pro.models.bookmark import Bookmark
 from bookmark_organizer_pro.models.category import Category
 from bookmark_organizer_pro.ai import AIClient, AIConfigManager
@@ -1565,42 +1567,16 @@ class TestDependencyManager(unittest.TestCase):
         self.assertIn("Installed before cancellation: first", manager.last_install_report.summary())
 
 
-class _LocalAPIServerMixin:
+class _LocalAPIServerMixin(SharedExtensionRegistryGuard):
     """Isolation for cases that boot a real ``BookmarkAPI``.
 
-    ``BookmarkAPI`` defaults ``extension_origins_file`` to the real data
-    directory, so a case that omits it pairs a fake extension id into the
-    user's own registry and leaks that state into every later test. R-140 gave
-    ``tests/test_browser_extension.py`` this treatment; the two classes below
-    were missed and kept flaking under a full-file run.
+    R-140 gave ``tests/test_browser_extension.py`` the registry guard; the two
+    classes below were missed and kept flaking under a full-file run. The
+    guard itself lives in ``tests/__init__.py`` so there is one copy of it.
     """
 
     API_REQUEST_TIMEOUT = 10.0
     API_CONNECT_RETRY_SECONDS = 5.0
-
-    def setUp(self):
-        super().setUp()
-        from bookmark_organizer_pro.services.api import _EXTENSION_ORIGINS_FILE
-
-        self._shared_registry = _EXTENSION_ORIGINS_FILE
-        self._registry_before = (
-            _EXTENSION_ORIGINS_FILE.read_bytes()
-            if _EXTENSION_ORIGINS_FILE.exists()
-            else None
-        )
-        self.addCleanup(self._assert_shared_registry_untouched)
-
-    def _assert_shared_registry_untouched(self):
-        after = (
-            self._shared_registry.read_bytes()
-            if self._shared_registry.exists()
-            else None
-        )
-        self.assertEqual(
-            self._registry_before, after,
-            "this test wrote the shared extension-origin registry; start the "
-            "server with self._start_api(...) instead of BookmarkAPI(...)",
-        )
 
     def _start_api(self, manager, tmp, **kwargs):
         """Boot an API on an ephemeral port with its own origin registry."""

@@ -7,7 +7,7 @@ from tkinter import ttk
 from typing import Dict
 
 from bookmark_organizer_pro.constants import APP_VERSION
-from bookmark_organizer_pro.i18n import _, format_message
+from bookmark_organizer_pro.i18n import _, format_message, format_plural
 from bookmark_organizer_pro.ui.components import EnhancedProgressBar, FaviconStatusDisplay
 from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, format_compact_count, pluralize, truncate_middle
 from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable, route_pointer_to_control
@@ -664,8 +664,11 @@ class DashboardActionsMixin:
             dead_row.pack(fill=tk.X, pady=2)
             dead_lbl = tk.Label(
                 dead_row,
-                text=format_message(
-                    'Review {value_0}', value_0=pluralize(dead_count, 'broken link'),
+                text=format_plural(
+                    'Review {count} broken link',
+                    'Review {count} broken links',
+                    dead_count,
+                    count=dead_count,
                 ),
                 bg=theme.bg_secondary,
                 fg=theme.accent_error, font=FONTS.small(bold=True), cursor="hand2",
@@ -682,9 +685,11 @@ class DashboardActionsMixin:
             snap_row.pack(fill=tk.X, pady=2)
             snap_lbl = tk.Label(
                 snap_row,
-                text=format_message(
-                    'Review {value_0}',
-                    value_0=pluralize(retryable, 'retryable failure'),
+                text=format_plural(
+                    'Review {count} retryable failure',
+                    'Review {count} retryable failures',
+                    retryable,
+                    count=retryable,
                 ),
                 bg=theme.bg_secondary,
                 fg=theme.accent_warning,

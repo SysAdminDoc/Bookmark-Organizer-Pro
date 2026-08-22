@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.text_format import pluralize
 
 
 class Command:
@@ -144,7 +145,7 @@ class MoveBookmarksCommand(Command):
         self.manager.save_bookmarks()
     
     def description(self) -> str:
-        return f"Move {len(self.ids)} bookmark(s) to {self.new_category}"
+        return f"Move {pluralize(len(self.ids), 'bookmark')} to {self.new_category}"
     
     def can_merge(self, other: Command) -> bool:
         return isinstance(other, MoveBookmarksCommand) and other.new_category == self.new_category
@@ -181,7 +182,7 @@ class DeleteBookmarksCommand(Command):
         self.manager.save_bookmarks()
 
     def description(self) -> str:
-        return f"Delete {len(self.ids)} bookmark(s)"
+        return f"Delete {pluralize(len(self.ids), 'bookmark')}"
 
 
 class AddBookmarksCommand(Command):
@@ -206,7 +207,7 @@ class AddBookmarksCommand(Command):
         self.manager.save_bookmarks()
     
     def description(self) -> str:
-        return f"Add {len(self.bookmarks)} bookmark(s)"
+        return f"Add {pluralize(len(self.bookmarks), 'bookmark')}"
 
 
 class BulkCategorizeCommand(Command):
@@ -244,7 +245,7 @@ class BulkCategorizeCommand(Command):
         self.manager.save_bookmarks()
     
     def description(self) -> str:
-        return f"Categorize {len(self.changes)} bookmark(s)"
+        return f"Categorize {pluralize(len(self.changes), 'bookmark')}"
 
 
 class TagBookmarksCommand(Command):
@@ -309,4 +310,4 @@ class TagBookmarksCommand(Command):
         self.manager.save_bookmarks()
     
     def description(self) -> str:
-        return f"Update tags on {len(self.ids)} bookmark(s)"
+        return f"Update tags on {pluralize(len(self.ids), 'bookmark')}"

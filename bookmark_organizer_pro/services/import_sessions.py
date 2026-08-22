@@ -8,6 +8,8 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+
+from bookmark_organizer_pro.text_format import pluralize
 from typing import Any, Callable
 
 from bookmark_organizer_pro.constants import DATA_DIR
@@ -276,7 +278,7 @@ class ImportSessionManager:
                 return self._finalize(session_id, started, manager, on_progress)
             report = self._finalize(session_id, started, manager, on_progress)
             if report.failed:
-                job.fail(f"{report.failed} import row(s) failed", retryable=True,
+                job.fail(f"{pluralize(report.failed, 'import row')} failed", retryable=True,
                          bytes_processed=self._source_size(paths))
             else:
                 job.succeed(bytes_processed=self._source_size(paths))

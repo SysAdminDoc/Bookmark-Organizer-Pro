@@ -170,7 +170,7 @@ class SQLiteStorageManager:
         missing = {"metadata", "bookmarks"} - tables
         if missing:
             raise sqlite3.DatabaseError(
-                f"SQLite schema is missing required table(s): {', '.join(sorted(missing))}"
+                f"SQLite schema is missing required tables: {', '.join(sorted(missing))}"
             )
         metadata = {
             row["key"]: row["value"]
@@ -201,7 +201,7 @@ class SQLiteStorageManager:
         }
         if missing_columns := required - columns:
             raise sqlite3.DatabaseError(
-                "SQLite bookmarks schema is missing column(s): "
+                "SQLite bookmarks schema is missing columns: "
                 + ", ".join(sorted(missing_columns))
             )
         return revision
@@ -382,7 +382,7 @@ class SQLiteStorageManager:
             if metadata_count is not None and int(metadata_count[0]) != len(bookmarks):
                 raise sqlite3.DatabaseError(
                     f"SQLite metadata count {metadata_count[0]} does not match "
-                    f"{len(bookmarks)} bookmark row(s)"
+                    f"{len(bookmarks)} bookmark rows"
                 )
             return bookmarks
 
@@ -560,7 +560,7 @@ class SQLiteStorageManager:
                 if metadata_count is not None and int(metadata_count[0]) != len(bookmarks):
                     raise sqlite3.DatabaseError(
                         f"SQLite metadata count {metadata_count[0]} does not match "
-                        f"{len(bookmarks)} bookmark row(s)"
+                        f"{len(bookmarks)} bookmark rows"
                     )
             self.status = StorageStatus(
                 "valid_empty" if not bookmarks else "valid",

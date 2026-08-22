@@ -8,7 +8,7 @@ from datetime import datetime
 from tkinter import messagebox, ttk
 from typing import Dict, List
 
-from bookmark_organizer_pro.i18n import _, format_message
+from bookmark_organizer_pro.i18n import _, format_message, format_plural
 
 try:
     import requests
@@ -24,7 +24,7 @@ from bookmark_organizer_pro.services.ai_operation import (
     AIOperationCancelled,
     call_ai,
 )
-from bookmark_organizer_pro.ui.foundation import FONTS, pluralize
+from bookmark_organizer_pro.ui.foundation import FONTS
 from bookmark_organizer_pro.ui.live_workflow import LiveWorkflowDialog
 from bookmark_organizer_pro.ui.widgets import ModernButton, apply_window_chrome, get_theme
 
@@ -175,9 +175,11 @@ Respond with ONLY valid JSON in this exact format:
         ).pack(anchor="w")
         tk.Label(
             header,
-            text=format_message(
-                'Review {value_0} before applying them.',
-                value_0=pluralize(len(changes), 'suggested title update'),
+            text=format_plural(
+                'Review {count} suggested title update before applying it.',
+                'Review {count} suggested title updates before applying them.',
+                len(changes),
+                count=len(changes),
             ),
             bg=theme.bg_secondary, fg=theme.text_secondary,
             font=FONTS.small(), wraplength=640, justify=tk.LEFT
@@ -256,9 +258,11 @@ Respond with ONLY valid JSON in this exact format:
             
             messagebox.showinfo(
                 _("Titles Updated"),
-                format_message(
-                    'Updated {value_0}.',
-                    value_0=pluralize(applied, 'bookmark title'),
+                format_plural(
+                    'Updated {count} bookmark title.',
+                    'Updated {count} bookmark titles.',
+                    applied,
+                    count=applied,
                 ),
                 parent=self.root
             )

@@ -1272,7 +1272,11 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
                     action_label="Merge 1 variant",
                 ),
             ],
-            on_apply=lambda keys: f"Applied {len(keys)} selected group(s).",
+            on_apply=lambda keys: (
+                f"Applied {len(keys)} selected group."
+                if len(keys) == 1
+                else f"Applied {len(keys)} selected groups."
+            ),
             on_restore=lambda: True,
         )
         results.append(
