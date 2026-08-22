@@ -12,6 +12,7 @@ from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.ai_audit_log import log_summary, log_tag_suggestion
 from bookmark_organizer_pro.services.ai_snapshot import create_snapshot
+from bookmark_organizer_pro.services.ai_tools import AITagSuggester
 from bookmark_organizer_pro.services.ai_operation import (
     AIBudgetExceeded,
     AIOperation,
@@ -117,6 +118,12 @@ class AiEnrichmentMixin:
             rate_delay = max(0.1, 60.0 / max(1, self.ai_config.get_rate_limit()))
             provider = self.ai_config.get_provider()
             model = self.ai_config.get_model()
+            vocabulary_mode = self.ai_config.get_tag_vocabulary_mode()
+            tag_limit = self.ai_config.get_max_suggested_tags()
+            tag_vocabulary = sorted({
+                str(tag) for bookmark in self.bookmark_manager.get_all_bookmarks()
+                for tag in (bookmark.tags or [])
+            })
 
             processed = 0
             tagged = 0
@@ -128,21 +135,25 @@ class AiEnrichmentMixin:
                 end = min(start + batch_size, len(bookmarks))
                 batch = bookmarks[start:end]
 
-                # Filter out login/account pages
+                # Filter out login/account pages and captured error/consent walls
                 real_batch = []
                 skip_batch = []
                 for bm in batch:
                     if _should_skip_for_ai(bm.url):
-                        skip_batch.append(bm)
+                        skip_batch.append((bm, "login/auth page"))
                     else:
-                        real_batch.append(bm)
+                        wall = AITagSuggester.untaggable_reason(bm.title)
+                        if wall:
+                            skip_batch.append((bm, wall))
+                        else:
+                            real_batch.append(bm)
 
                 # Show skipped entries
-                for bm in skip_batch:
+                for bm, reason in skip_batch:
                     skipped_urls += 1
                     processed += 1
                     dialog.add_result(status="skip", title=(bm.title or bm.url),
-                                      detail="(skipped — login/auth page)")
+                                      detail=f"(skipped: {reason})")
 
                 if not real_batch:
                     continue
@@ -180,7 +191,12 @@ class AiEnrichmentMixin:
 
                     result = result_map.get(bm.url, {})
                     ai_tags_raw = result.get("tags", [])
-                    ai_tags_clean = _clean_tags(ai_tags_raw, bm.domain)
+                    ai_tags_clean = AITagSuggester.constrain(
+                        _clean_tags(ai_tags_raw, bm.domain),
+                        tag_vocabulary,
+                        vocabulary_mode,
+                        tag_limit,
+                    )
 
                     if ai_tags_clean:
                         old_tags = list(bm.tags)

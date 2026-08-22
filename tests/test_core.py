@@ -2567,7 +2567,11 @@ class TestMainAppManagers(unittest.TestCase):
         self.assertFalse(processor.is_running)
         self.assertEqual(events, [(True, "Processed 1 bookmarks")])
         self.assertEqual(bookmark.category, "Research")
-        self.assertEqual(bookmark.tags, ["AI", "Tools"])
+        # AI-proposed tags now pass through the tag linter so casing and
+        # canonical aliases collapse ("AI" -> "artificial-intelligence"), which
+        # is what stops near-duplicate tags accumulating. The pre-existing "AI"
+        # tag on the bookmark is left alone; only suggestions are normalized.
+        self.assertEqual(bookmark.tags, ["AI", "artificial-intelligence", "tools"])
         self.assertEqual(processor.errors, [])
 
 

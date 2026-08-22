@@ -639,17 +639,65 @@ class TestTagVocabularyConstraint(unittest.TestCase):
 
         cases = {
             "404 Page Not Found": "http-error-page",
+            "403 Forbidden": "http-error-page",
+            "Error 500": "http-error-page",
+            "Access Denied": "http-error-page",
             "Sign in to continue": "login-wall",
+            "Authentication required": "login-wall",
             "Just a moment...": "captcha",
+            "Attention Required! | Cloudflare": "captcha",
+            "Are you a robot?": "captcha",
             "We use cookies to improve your experience": "cookie-wall",
         }
         for title, reason in cases.items():
             with self.subTest(title=title):
                 self.assertEqual(AITagSuggester.untaggable_reason(title), reason)
 
-        # Real content is not suppressed, including titles that merely mention a number.
-        self.assertIsNone(AITagSuggester.untaggable_reason("Deep Learning Basics"))
-        self.assertIsNone(AITagSuggester.untaggable_reason("Top 500 albums of all time"))
+        # Articles ABOUT these topics are ordinary bookmarks and must survive.
+        for title in (
+            "Deep Learning Basics",
+            "Top 500 albums of all time",
+            "Fortune 500",
+            "Error 404 explained: what HTTP status codes mean",
+            "The Forbidden City travel guide",
+            "Forbidden Planet comic shop",
+            "Lost city not found by archaeologists",
+            "Access denied: a novel by Jane Doe",
+            "Captcha bypass research paper",
+            "How reCAPTCHA v3 scoring actually works",
+            "Just a moment in history: the Cuban missile crisis",
+            "Cookie policy",
+            "Why login required walls hurt SEO",
+            "Chocolate chip cookies recipe",
+        ):
+            with self.subTest(title=title):
+                self.assertIsNone(AITagSuggester.untaggable_reason(title))
+
+    def test_cookie_banners_in_long_articles_do_not_suppress_tagging(self):
+        from bookmark_organizer_pro.services.ai_tools import AITagSuggester
+
+        article = (
+            "Ten ways to grow tomatoes. " + ("Tomatoes need full sun and steady water. " * 40)
+            + " We use cookies to improve your experience. Accept all cookies."
+        )
+        self.assertGreater(len(article), AITagSuggester._INTERSTITIAL_TEXT_LIMIT)
+        self.assertIsNone(AITagSuggester.untaggable_reason("Ten ways to grow tomatoes", article))
+
+        # A short interstitial body is still caught.
+        self.assertEqual(
+            AITagSuggester.untaggable_reason("Loading", "Please verify you are human"),
+            "captcha",
+        )
+
+    def test_cache_is_not_reused_when_the_tag_vocabulary_changes(self):
+        suggester, _cap, fake = self._suggester('["python", "rust"]', mode="existing-only")
+        first = self._run(suggester, fake, self._bookmark(), ["python", "rust"])
+        self.assertEqual(first, ["python", "rust"])
+
+        # Same bookmark, different library vocabulary: the cached answer names
+        # tags that no longer exist, so it must not be reused.
+        second = self._run(suggester, fake, self._bookmark(), ["cooking"])
+        self.assertEqual(second, [])
 
         suggester, captured, fake = self._suggester('["should", "not", "happen"]')
         tags = self._run(suggester, fake, self._bookmark(title="403 Forbidden"), ["python"])

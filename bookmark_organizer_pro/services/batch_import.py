@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -36,6 +37,8 @@ from bookmark_organizer_pro.utils.url import normalize_url
 SUPPORTED_SUFFIXES = frozenset({".html", ".htm", ".json", ".jsonlz4", ".csv", ".txt", ".opml"})
 
 MAX_SOURCE_BYTES = 250_000_000
+
+_EPOCH = datetime(1970, 1, 1)
 
 
 @dataclass(frozen=True)
@@ -117,14 +120,19 @@ def _parse_firefox_backup(path: str) -> List[Bookmark]:
     return list(FirefoxBookmarkBackupImporter().from_path(path))
 
 
+def _load_json(path: str):
+    """Read JSON tolerating a UTF-8 BOM, which Windows exporters often write."""
+    with open(path, "r", encoding="utf-8-sig") as handle:
+        return json.load(handle)
+
+
 def _parse_json_records(path: str) -> List[Bookmark]:
     """Parse an exported JSON list of bookmark records.
 
     Covers this app's own export shape (``{"data": [...]}``), the common
     ``{"bookmarks": [...]}`` variant, and a bare list.
     """
-    with open(path, "r", encoding="utf-8") as handle:
-        data = json.load(handle)
+    data = _load_json(path)
     if isinstance(data, dict):
         records = data.get("bookmarks", data.get("data", []))
     else:
@@ -178,8 +186,7 @@ def _parse_opml(path: str) -> List[Bookmark]:
 
 def _looks_like_json_records(path: str) -> bool:
     try:
-        with open(path, "r", encoding="utf-8") as handle:
-            data = json.load(handle)
+        data = _load_json(path)
     except Exception:
         return False
     if isinstance(data, list):
@@ -222,8 +229,64 @@ def _parser_for(label: str) -> Callable[[str], List[Bookmark]]:
     raise ValueError(f"No parser registered for {label!r}")
 
 
-def _date_key(value: object) -> str:
-    return str(value or "").strip()
+def _parse_timestamp(value: object) -> Optional[float]:
+    """Return a comparable epoch value for the date shapes exports actually use.
+
+    Netscape files carry epoch seconds, service exports carry ISO 8601, and some
+    carry epoch milliseconds or microseconds. Comparing these as strings would
+    rank "999999999" above "1700000000" and any ISO date above every epoch, so
+    every candidate is converted before comparison and unparseable text is
+    treated as no date at all.
+    """
+    text = str(value or "").strip()
+    if not text:
+        return None
+    if re.fullmatch(r"-?\d{1,19}", text):
+        number = float(text)
+        # Disambiguate seconds / milliseconds / microseconds by magnitude.
+        for divisor in (1.0, 1_000.0, 1_000_000.0):
+            candidate = number / divisor
+            if 0 < candidate < 4_102_444_800:  # through the year 2100
+                return candidate
+        return None
+    normalized = text.replace("Z", "+00:00")
+    for parser in (
+        lambda s: datetime.fromisoformat(s),
+        lambda s: datetime.strptime(s, "%Y-%m-%d"),
+        lambda s: datetime.strptime(s, "%Y/%m/%d"),
+    ):
+        try:
+            parsed = parser(normalized)
+        except (ValueError, TypeError):
+            continue
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        # Subtracting the epoch avoids datetime.timestamp(), which raises
+        # OSError on Windows for values at or before 1970.
+        return (parsed - _EPOCH).total_seconds()
+    return None
+
+
+# Importers that put the source date in ``created_at`` rather than ``add_date``.
+# Every other field is left alone, because ``created_at`` otherwise defaults to
+# the moment the object was built and would outrank every real source date.
+_CREATED_AT_FORMATS = frozenset({"netscape-html", "firefox-backup"})
+
+
+def _normalize_source_dates(bookmarks: Iterable[Bookmark], label: str) -> None:
+    """Move a parser's source date into ``add_date`` so merges can compare it."""
+    if label not in _CREATED_AT_FORMATS:
+        return
+    for bookmark in bookmarks:
+        if not str(getattr(bookmark, "add_date", "") or "").strip():
+            source_date = str(getattr(bookmark, "created_at", "") or "").strip()
+            if source_date and _parse_timestamp(source_date) is not None:
+                bookmark.add_date = source_date
+
+
+def _best_timestamp(bookmark: Bookmark) -> Optional[float]:
+    """Comparable source date for a bookmark, or None when it has none."""
+    return _parse_timestamp(getattr(bookmark, "add_date", ""))
 
 
 class BatchDirectoryImporter:
@@ -312,6 +375,7 @@ class BatchDirectoryImporter:
                 stats.record(f"{label} parse failed")
                 continue
 
+            _normalize_source_dates(parsed, label)
             seen_digests[digest] = str(path)
             files.append(BatchSourceFile(
                 path=str(path), digest=digest, format=label, entries=len(parsed)))
@@ -342,18 +406,30 @@ class BatchDirectoryImporter:
                 merged[key] = bookmark
                 continue
 
-            incoming_date, current_date = _date_key(bookmark.add_date), _date_key(current.add_date)
-            if incoming_date and incoming_date > current_date:
-                if current_date:
-                    conflicts.append(BatchConflict(key, "add_date", incoming_date, current_date))
+            incoming_stamp = _best_timestamp(bookmark)
+            current_stamp = _best_timestamp(current)
+            if incoming_stamp is not None and current_stamp is not None and incoming_stamp != current_stamp:
+                # Record the disagreement whichever side wins, so the preview
+                # count does not depend on the order files were read in.
+                newer_wins = incoming_stamp > current_stamp
+                conflicts.append(BatchConflict(
+                    key, "date",
+                    str((bookmark if newer_wins else current).add_date or ""),
+                    str((current if newer_wins else bookmark).add_date or ""),
+                ))
+            if incoming_stamp is not None and (current_stamp is None or incoming_stamp > current_stamp):
                 current.add_date = bookmark.add_date
                 current.url = bookmark.url
 
             incoming_title = str(bookmark.title or "").strip()
             current_title = str(current.title or "").strip()
+            if current_title and incoming_title and incoming_title != current_title:
+                conflicts.append(BatchConflict(
+                    key, "title",
+                    incoming_title if len(incoming_title) > len(current_title) else current_title,
+                    current_title if len(incoming_title) > len(current_title) else incoming_title,
+                ))
             if len(incoming_title) > len(current_title):
-                if current_title and incoming_title != current_title:
-                    conflicts.append(BatchConflict(key, "title", incoming_title, current_title))
                 current.title = bookmark.title
 
             if not str(current.category or "").strip() and str(bookmark.category or "").strip():

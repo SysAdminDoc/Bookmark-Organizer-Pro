@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import contextlib
 import json
 import urllib.request
 from unittest.mock import patch
@@ -76,17 +77,23 @@ def test_first_import_into_an_unwritten_library_creates_a_real_safepoint(tmp_pat
     """A never-saved library has no file to snapshot; that is the normal
     first-run migration case and must not refuse the import."""
 
+    library = tmp_path / "library" / "master_bookmarks.json"
+
     class _FreshManager(_Manager):
         def __init__(self):
             super().__init__()
+            self.storage.filepath = library
             self.saved = False
 
         def create_safepoint(self, label):
-            if not self.saved:
-                return None  # StorageManager returns None when the file is absent
+            # StorageManager returns None while the library file is absent.
+            if not library.exists():
+                return None
             return super().create_safepoint(label)
 
         def save_bookmarks(self):
+            library.parent.mkdir(parents=True, exist_ok=True)
+            library.write_text("[]", encoding="utf-8")
             self.saved = True
 
     source = tmp_path / "source.json"
@@ -103,13 +110,23 @@ def test_first_import_into_an_unwritten_library_creates_a_real_safepoint(tmp_pat
     assert manager.restore_backup(report.safepoint) is True
 
 
-def test_import_refuses_when_a_populated_library_cannot_be_snapshotted(tmp_path):
+def test_import_refuses_without_writing_when_an_existing_library_cannot_be_snapshotted(tmp_path):
+    """A snapshot failure on a library that DOES exist (unwritable backup dir,
+    full disk) must refuse the import and leave the library untouched."""
+    library = tmp_path / "master_bookmarks.json"
+    library.write_text("[]", encoding="utf-8")
+    saves = []
+
     class _UnsnapshottableManager(_Manager):
+        def __init__(self):
+            super().__init__()
+            self.storage.filepath = library
+
         def create_safepoint(self, label):
-            return None
+            return None  # e.g. shutil.copy2 raised
 
         def save_bookmarks(self):
-            return None
+            saves.append(True)
 
     source = tmp_path / "source.json"
     source.write_text("source-v1", encoding="utf-8")
@@ -120,6 +137,43 @@ def test_import_refuses_when_a_populated_library_cannot_be_snapshotted(tmp_path)
     with pytest.raises(RuntimeError, match="rollback safepoint"):
         sessions.run(manager, importer, source, source="fixture")
     assert manager.bookmarks == {}
+    assert saves == [], "a refused import must not rewrite an existing library"
+
+
+def test_import_writes_the_library_once_for_the_whole_batch(tmp_path):
+    writes = []
+
+    class _CountingManager(_Manager):
+        def __init__(self):
+            super().__init__()
+            self._batch_depth = 0
+
+        @contextlib.contextmanager
+        def batch(self):
+            self._batch_depth += 1
+            try:
+                yield self
+            finally:
+                self._batch_depth -= 1
+                if self._batch_depth == 0:
+                    writes.append(len(self.bookmarks))
+
+        def add_bookmark(self, bookmark):
+            result = super().add_bookmark(bookmark)
+            if self._batch_depth == 0:
+                writes.append(len(self.bookmarks))
+            return result
+
+    source = tmp_path / "source.json"
+    source.write_text("source-v1", encoding="utf-8")
+    importer = _Importer([_bookmark(f"https://row{n}.example") for n in range(5)])
+    manager = _CountingManager()
+    sessions = ImportSessionManager(tmp_path / "sessions.json")
+
+    report = sessions.run(manager, importer, source, source="fixture")
+
+    assert report.added == 5
+    assert writes == [5], f"expected one batched write, got {writes}"
 
 
 def test_cancelled_import_resumes_without_duplicate_rows(tmp_path):

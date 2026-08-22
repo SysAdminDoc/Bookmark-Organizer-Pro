@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import time
 from dataclasses import dataclass, field
@@ -126,6 +127,60 @@ class ImportSessionManager:
             raise ValueError("This importer accepts exactly one source file")
         return list(importer.from_path(str(paths[0])))
 
+    def _apply_rows(
+        self, manager, parsed, row_map, existing, session_id, cancel_requested, on_progress
+    ) -> bool:
+        """Write pending rows in one batch. Returns True if cancelled early.
+
+        The whole loop runs inside ``manager.batch()`` so the library is written
+        once at the end instead of once per row; a 20k-bookmark migration would
+        otherwise rewrite the entire library 20k times.
+        """
+        batch = getattr(manager, "batch", None)
+        scope = batch() if callable(batch) else contextlib.nullcontext()
+        with scope:
+            for key, bookmark in parsed:
+                row = row_map.get(key)
+                if row is None or row.get("state") in {"completed", "duplicate"}:
+                    continue
+                latest = self.get(session_id) or {}
+                if latest.get("cancel_requested") or (cancel_requested and cancel_requested()):
+                    return True
+                canonical = normalize_url(bookmark.url)
+                try:
+                    if canonical in existing:
+                        self._set_row(session_id, key, "duplicate", "canonical URL already exists")
+                    else:
+                        category = str(getattr(bookmark, "category", "") or "")
+                        if category in {"", "Imported", "Uncategorized", "Uncategorized / Needs Review"}:
+                            categorizer = getattr(getattr(manager, "category_manager", None), "categorize_url", None)
+                            if categorizer:
+                                bookmark.category = categorizer(bookmark.url, bookmark.title)
+                        manager.add_bookmark(bookmark)
+                        existing.add(canonical)
+                        self._set_row(session_id, key, "completed", "")
+                except Exception as exc:
+                    self._set_row(session_id, key, "failed", redact_job_error(exc))
+                if on_progress:
+                    on_progress(self._report(self.get(session_id) or {}))
+        return False
+
+    @staticmethod
+    def _library_file_is_absent(manager) -> bool:
+        """True only when the library has never been written to disk.
+
+        A missing file is the one safepoint failure that is safe to recover
+        from, because there is no prior state that a write could destroy.
+        """
+        storage = getattr(manager, "storage", None)
+        filepath = getattr(storage, "filepath", None)
+        if filepath is None:
+            return False
+        try:
+            return not Path(filepath).exists()
+        except (OSError, TypeError, ValueError):
+            return False
+
     def preflight(self, importer, source_path, *, source: str) -> ImportPreflight:
         paths = self._source_paths(source_path)
         digest = self.digest_sources(paths)
@@ -188,11 +243,13 @@ class ImportSessionManager:
         session = self.get(session_id) or session
         if not session.get("safepoint"):
             safepoint = manager.create_safepoint(f"pre-import-{session_id[:8]}") or ""
-            if not safepoint:
+            if not safepoint and self._library_file_is_absent(manager):
                 # A library that has never been written has no file to snapshot,
                 # which is the normal first-run migration case. Persist the
-                # current (empty) state so the safepoint is a real rollback
-                # target instead of refusing the import outright.
+                # empty state so the safepoint is a real rollback target.
+                # Any OTHER safepoint failure (copy error, unwritable backup
+                # directory, full disk) must still refuse the import without
+                # touching the library.
                 try:
                     manager.save_bookmarks()
                 except Exception as exc:
@@ -210,32 +267,13 @@ class ImportSessionManager:
         row_map = {row["key"]: row for row in (self.get(session_id) or {}).get("rows", [])}
         self._update_session(session_id, lambda item: item.update(status="running", cancel_requested=False) or item)
         try:
-            for key, bookmark in parsed:
-                row = row_map.get(key)
-                if row is None or row.get("state") in {"completed", "duplicate"}:
-                    continue
-                latest = self.get(session_id) or {}
-                if latest.get("cancel_requested") or (cancel_requested and cancel_requested()):
-                    self._update_session(session_id, lambda item: item.update(status="cancelled") or item)
-                    job.cancel("import cancelled with remaining rows checkpointed")
-                    return self._finalize(session_id, started, manager, on_progress)
-                canonical = normalize_url(bookmark.url)
-                try:
-                    if canonical in existing:
-                        self._set_row(session_id, key, "duplicate", "canonical URL already exists")
-                    else:
-                        category = str(getattr(bookmark, "category", "") or "")
-                        if category in {"", "Imported", "Uncategorized", "Uncategorized / Needs Review"}:
-                            categorizer = getattr(getattr(manager, "category_manager", None), "categorize_url", None)
-                            if categorizer:
-                                bookmark.category = categorizer(bookmark.url, bookmark.title)
-                        manager.add_bookmark(bookmark)
-                        existing.add(canonical)
-                        self._set_row(session_id, key, "completed", "")
-                except Exception as exc:
-                    self._set_row(session_id, key, "failed", redact_job_error(exc))
-                if on_progress:
-                    on_progress(self._report(self.get(session_id) or {}))
+            cancelled_early = self._apply_rows(
+                manager, parsed, row_map, existing, session_id, cancel_requested, on_progress
+            )
+            if cancelled_early:
+                self._update_session(session_id, lambda item: item.update(status="cancelled") or item)
+                job.cancel("import cancelled with remaining rows checkpointed")
+                return self._finalize(session_id, started, manager, on_progress)
             report = self._finalize(session_id, started, manager, on_progress)
             if report.failed:
                 job.fail(f"{report.failed} import row(s) failed", retryable=True,

@@ -888,6 +888,11 @@ Examples:
         if Path(filepath).is_dir():
             return self._import_directory(filepath, dry_run=getattr(ns, "dry_run", False))
 
+        if getattr(ns, "dry_run", False):
+            return self._usage_error(
+                "--dry-run previews a folder of exports; pass a directory instead of a file"
+            )
+
         lower_path = filepath.lower()
         if lower_path.endswith(".html") or lower_path.endswith(".htm"):
             added, dupes = self.bookmark_manager.import_html_file(filepath)

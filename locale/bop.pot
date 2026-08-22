@@ -56,7 +56,7 @@ msgstr ""
 msgid "+ Add"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:230
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:246
 msgid ", {count} login/auth pages skipped"
 msgstr ""
 
@@ -164,11 +164,11 @@ msgstr ""
 msgid "AI Response Not Applied"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:257
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:273
 msgid "AI Summaries"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:90
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:91
 msgid "AI Tag Suggestions"
 msgstr ""
 
@@ -180,7 +180,7 @@ msgstr ""
 msgid "AI Title Suggestions"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:278
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:294
 msgid "AI client unavailable"
 msgstr ""
 
@@ -1445,7 +1445,7 @@ msgstr ""
 msgid "Done"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:357
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:373
 msgid "Done — {count} summaries generated"
 msgstr ""
 
@@ -1453,7 +1453,7 @@ msgstr ""
 msgid "Done — {processed} processed, {categorized} categorized, {titles} titles improved"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:225
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:241
 msgid "Done — {tagged} tagged, {unchanged} unchanged"
 msgstr ""
 
@@ -3307,8 +3307,8 @@ msgstr ""
 msgid "Processing timeline"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:152
-#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:296
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:163
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:312
 msgid "Processing {start}–{end} of {total}…"
 msgstr ""
 
@@ -4434,8 +4434,8 @@ msgid "Stop the assistant"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_categorization.py:65
-#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:106
-#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:273
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:107
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:289
 msgid "Stopped — {error}"
 msgstr ""
 
@@ -4478,7 +4478,7 @@ msgstr ""
 msgid "Summarize Selected"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:250
+#: bookmark_organizer_pro/app_mixins/ai_enrichment.py:266
 msgid "Summary generation started; larger selections can take longer"
 msgstr ""
 

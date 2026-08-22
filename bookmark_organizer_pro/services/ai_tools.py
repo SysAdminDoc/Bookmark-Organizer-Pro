@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 import json
 import threading
 import urllib.parse
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Callable
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 from bookmark_organizer_pro.ai import AIClient, AIConfigManager, create_ai_client
 from bookmark_organizer_pro.constants import DATA_DIR
@@ -213,11 +214,25 @@ class AIBatchProcessor:
     def _process_bookmark(self, bookmark: Bookmark, operation: AIOperation | None = None) -> Dict:
         """Process a single bookmark with AI"""
         result = {}
-        
+
+        skip_reason = AITagSuggester.untaggable_reason(bookmark.title)
+        if skip_reason:
+            log.info(f"Skipped AI processing for {bookmark.url}: {skip_reason}")
+            if operation is not None:
+                operation.fail(f"tagging skipped: {skip_reason}", retryable=False)
+            return result
+
+        # Legacy config doubles and older integrations may predate these
+        # settings, so read them defensively rather than hard-failing.
+        limit = getattr(self.ai_config, "get_max_suggested_tags", lambda: 3)()
+        vocabulary_mode = getattr(
+            self.ai_config, "get_tag_vocabulary_mode", lambda: "prefer-existing"
+        )()
+
         # Build prompt for categorization + tags + summary
         prompt = f"""Analyze this bookmark and provide:
 1. Best category from common bookmark categories
-2. 3-5 DESCRIPTIVE tags about the content topic (lowercase, hyphens ok)
+2. At most {limit} DESCRIPTIVE tags about the content topic (lowercase, hyphens ok)
    - Tags must describe WHAT the content is about, NOT the website name
    - NEVER use the domain name as a tag (no "reddit", "youtube", "github", "amazon")
    - NEVER use generic words like "blog", "website", "page", "online"
@@ -254,11 +269,9 @@ Respond in JSON format:
                     tags = parsed.get("tags", [])
                     if isinstance(tags, str):
                         tags = tags.split(",")
-                    result["tags"] = [
-                        str(tag).strip()
-                        for tag in (tags or [])
-                        if str(tag).strip()
-                    ][:10]
+                    result["tags"] = AITagSuggester.constrain(
+                        tags or [], getattr(bookmark, "tags", []), vocabulary_mode, limit
+                    )
                     result["summary"] = str(parsed.get("summary") or "")[:1000]
         except (AIOperationCancelled, AIBudgetExceeded):
             raise
@@ -294,31 +307,79 @@ class AITagSuggester:
 
     # Pages that never carry useful topical tags. Tagging them is how a library
     # fills up with "403", "cloudflare", and "accept-cookies" tags.
+    #
+    # An interstitial's title is essentially nothing but the wall itself, while
+    # an article ABOUT one of these topics carries real words around the phrase.
+    # Matching a bare substring cannot tell "403 Forbidden" from "The Forbidden
+    # City travel guide", so a match only suppresses when almost nothing is left
+    # of the title once the matched phrase and site name are removed.
     _UNTAGGABLE_PATTERNS = (
-        (re.compile(r"\b(?:40[13489]|429|50[023])\b(?!\s*[-\w])"), "http-error-page"),
-        (re.compile(r"\berror\s+(?:40[13489]|429|50[023])\b"), "http-error-page"),
-        (re.compile(r"\b(?:page\s+not\s+found|not\s+found|forbidden|access\s+denied)\b"), "http-error-page"),
-        (re.compile(r"\b(?:sign\s*in|log\s*in|login|sign\s*up)\b.*\b(?:to\s+continue|required)\b"), "login-wall"),
+        (re.compile(r"^\s*(?:error\s+)?(?:40[13489]|429|50[023])\b"), "http-error-page"),
+        (re.compile(r"\b(?:http\s+)?error\s+(?:40[13489]|429|50[023])\b"), "http-error-page"),
+        (re.compile(r"\b(?:page\s+not\s+found|404\s+not\s+found)\b"), "http-error-page"),
+        (re.compile(r"\b(?:40[13]\s+forbidden|access\s+denied|access\s+forbidden)\b"), "http-error-page"),
+        (re.compile(r"\b(?:sign\s*in|log\s*in|login)\s+(?:to\s+continue|required)\b"), "login-wall"),
         (re.compile(r"\b(?:please\s+(?:sign|log)\s*in|authentication\s+required)\b"), "login-wall"),
-        (re.compile(r"\b(?:captcha|recaptcha|hcaptcha)\b"), "captcha"),
-        (re.compile(r"\b(?:are\s+you\s+(?:a\s+)?(?:human|robot)|verify\s+you\s+are\s+(?:a\s+)?human)\b"), "captcha"),
-        (re.compile(r"\b(?:just\s+a\s+moment|checking\s+your\s+browser|enable\s+javascript\s+and\s+cookies)\b"), "captcha"),
-        (re.compile(r"\b(?:accept\s+(?:all\s+)?cookies|cookie\s+(?:policy|consent|preferences)|we\s+use\s+cookies)\b"), "cookie-wall"),
+        (re.compile(r"\b(?:just\s+a\s+moment|checking\s+your\s+browser|attention\s+required)\b"), "captcha"),
+        (re.compile(r"\b(?:are\s+you\s+(?:a\s+)?(?:human|robot)\??|verify\s+you\s+are\s+(?:a\s+)?human)\b"), "captcha"),
+        (re.compile(r"\b(?:enable\s+javascript\s+and\s+cookies|please\s+verify\s+you\s+are\s+human)\b"), "captcha"),
+        (re.compile(r"\b(?:accept\s+(?:all\s+)?cookies|(?:we\s+use|this\s+site\s+uses)\s+cookies"
+                    r"(?:\s+to\s+[a-z\s]{0,40})?)"), "cookie-wall"),
     )
+
+    # A title still counts as an interstitial if this little survives the match.
+    _RESIDUE_LIMIT = 12
+
+    # Extracted text longer than this belongs to a real page; cookie banners and
+    # login footers appear on plenty of perfectly taggable articles.
+    _INTERSTITIAL_TEXT_LIMIT = 800
+
+    # Site-name tails such as " - Example News" carry no topical meaning.
+    _SITE_SUFFIX = re.compile(r"\s*[|–—-]\s*[^|–—-]{1,40}$")
 
     def __init__(self, ai_config: AIConfigManager):
         self.ai_config = ai_config
         self._cache: Dict[str, List[str]] = {}
 
     @classmethod
-    def untaggable_reason(cls, *texts: Optional[str]) -> Optional[str]:
-        """Return why a page cannot carry topical tags, or None when it can."""
-        haystack = " ".join(str(t) for t in texts if t).lower()
-        if not haystack.strip():
+    def _wall_reason(cls, text: str, *, require_short_residue: bool = True) -> Optional[str]:
+        """Reason this text is a wall rather than content, or None.
+
+        ``require_short_residue`` distinguishes the two callers. A title has to
+        be almost nothing but the wall phrase, because articles discuss these
+        topics. A page body short enough to be an interstitial needs no such
+        test: there is no article there to protect.
+        """
+        candidate = str(text or "").strip().lower()
+        if not candidate:
             return None
+        stripped = cls._SITE_SUFFIX.sub("", candidate) or candidate
         for pattern, reason in cls._UNTAGGABLE_PATTERNS:
-            if pattern.search(haystack):
+            match = pattern.search(stripped)
+            if not match:
+                continue
+            if not require_short_residue:
                 return reason
+            residue = (stripped[: match.start()] + " " + stripped[match.end():])
+            residue = re.sub(r"[^a-z0-9]+", " ", residue).strip()
+            if len(residue) <= cls._RESIDUE_LIMIT:
+                return reason
+        return None
+
+    @classmethod
+    def untaggable_reason(cls, title: Optional[str] = "", page_text: Optional[str] = None) -> Optional[str]:
+        """Return why a page cannot carry topical tags, or None when it can.
+
+        The title is judged on its own, and extracted text only counts when
+        there is barely any of it: a long article is still taggable even though
+        its footer says "we use cookies" or "sign in to continue".
+        """
+        reason = cls._wall_reason(title)
+        if reason:
+            return reason
+        text = str(page_text or "").strip()
+        if text and len(text) <= cls._INTERSTITIAL_TEXT_LIMIT:
+            return cls._wall_reason(text, require_short_residue=False)
         return None
 
     def _vocabulary(self, existing_tags: Optional[List[str]]) -> List[str]:
@@ -362,8 +423,15 @@ Notes: {sanitize_for_prompt(bookmark.notes[:200] if bookmark.notes else 'None', 
 
 Return only a JSON array of tag strings: ["tag1", "tag2", ...]"""
 
-    def _finalize(self, tags: List[str], vocabulary: List[str], mode: str, limit: int) -> List[str]:
-        allowed = set(vocabulary)
+    @staticmethod
+    def constrain(tags: Iterable[str], vocabulary: Iterable[str], mode: str, limit: int) -> List[str]:
+        """Normalize, filter, and cap model-proposed tags.
+
+        Shared by every tagging path so one setting governs them all: the
+        single-bookmark suggester, the batch processor, and the desktop
+        enrichment run.
+        """
+        allowed = {normalize_tag(str(t)) for t in vocabulary}
         result: List[str] = []
         for raw in tags:
             slug = normalize_tag(str(raw))
@@ -372,7 +440,7 @@ Return only a JSON array of tag strings: ["tag1", "tag2", ...]"""
             if mode == "existing-only" and slug not in allowed:
                 continue
             result.append(slug)
-            if len(result) >= limit:
+            if len(result) >= max(1, int(limit)):
                 break
         return result
 
@@ -411,7 +479,12 @@ Return only a JSON array of tag strings: ["tag1", "tag2", ...]"""
                 log.info(f"Skipped tag suggestion for {bookmark.url}: {suppressed}")
                 return []
 
-            cache_key = f"{mode}:{limit}:{bookmark.url}:{bookmark.title}"
+            # The vocabulary is part of the answer in every mode except "free",
+            # so a library whose tags changed must not be served an older list.
+            vocabulary_fingerprint = hashlib.sha256(
+                "\0".join(sorted(vocabulary)).encode("utf-8")
+            ).hexdigest()[:16] if mode != "free" else "free"
+            cache_key = f"{mode}:{limit}:{vocabulary_fingerprint}:{bookmark.url}:{bookmark.title}"
             if cache_key in self._cache:
                 return self._cache[cache_key]
 
@@ -432,7 +505,7 @@ Return only a JSON array of tag strings: ["tag1", "tag2", ...]"""
                     if arr_match:
                         tags = json.loads(arr_match.group())
                         if isinstance(tags, list):
-                            cleaned = self._finalize(tags, vocabulary, mode, limit)
+                            cleaned = self.constrain(tags, vocabulary, mode, limit)
                             if len(self._cache) >= self._MAX_CACHE:
                                 try:
                                     self._cache.pop(next(iter(self._cache)))
@@ -447,7 +520,7 @@ Return only a JSON array of tag strings: ["tag1", "tag2", ...]"""
                 log.warning(f"AI tag suggestion failed for {bookmark.url}: {e}")
 
             # Fallback: generate from content
-            return self._finalize(
+            return self.constrain(
                 self._generate_fallback_tags(bookmark), vocabulary, mode, limit
             )
     

@@ -167,7 +167,9 @@ class MappedCSVImporter:
     @classmethod
     def headers(cls, path: str) -> List[str]:
         """Read just the header row, for building a column mapping."""
-        with open(path, "r", encoding="utf-8", errors="replace", newline="") as handle:
+        # utf-8-sig strips the BOM that Excel writes; without it the first
+        # header becomes "﻿Title" and every title falls back to the URL.
+        with open(path, "r", encoding="utf-8-sig", errors="replace", newline="") as handle:
             for row in csv.reader(handle):
                 return [str(cell).strip() for cell in row]
         return []
@@ -199,7 +201,7 @@ class MappedCSVImporter:
         if not p.exists():
             return iter(())
         out: List[Bookmark] = []
-        with p.open("r", encoding="utf-8", errors="replace", newline="") as handle:
+        with p.open("r", encoding="utf-8-sig", errors="replace", newline="") as handle:
             reader = csv.DictReader(handle)
             for raw in reader:
                 row = {str(k or "").strip().lower(): (v or "") for k, v in raw.items()}

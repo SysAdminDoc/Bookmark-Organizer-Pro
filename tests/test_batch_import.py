@@ -162,6 +162,85 @@ class TestBatchDirectoryImport(unittest.TestCase):
         self.assertEqual(entry.add_date, "2026-01-02")
 
 
+class TestBatchMergeDates(unittest.TestCase):
+    """Dates arrive as epoch seconds, epoch millis, and ISO strings, and
+    different importers write them to different fields."""
+
+    def _plan_for(self, files: dict) -> object:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name, text in files.items():
+                (root / name).write_text(text, encoding="utf-8")
+            return BatchDirectoryImporter().plan(root)
+
+    def test_netscape_add_date_is_compared_not_ignored(self):
+        older = _netscape([("https://dates.test/x", "Older", "1000000000")])
+        newer = _netscape([("https://dates.test/x", "Newer", "1700000000")])
+
+        for label, files in (
+            ("older first", {"a_old.html": older, "b_new.html": newer}),
+            ("newer first", {"a_new.html": newer, "b_old.html": older}),
+        ):
+            with self.subTest(order=label):
+                plan = self._plan_for(files)
+                self.assertEqual(plan.unique_urls, 1)
+                entry = plan.bookmarks[0]
+                stamp = entry.add_date or entry.created_at
+                self.assertIn("2023", str(stamp), f"kept the older date: {stamp!r}")
+
+    def test_numeric_dates_compare_numerically_not_lexicographically(self):
+        # "999999999" sorts above "1700000000" as text but is 22 years older.
+        older = _json_export([("https://dates.test/y", "Older", "999999999")])
+        newer = _json_export([("https://dates.test/y", "Newer", "1700000000")])
+
+        for label, files in (
+            ("older first", {"a.json": older, "b.json": newer}),
+            ("newer first", {"a.json": newer, "b.json": older}),
+        ):
+            with self.subTest(order=label):
+                plan = self._plan_for(files)
+                self.assertEqual(plan.bookmarks[0].add_date, "1700000000")
+
+    def test_unparseable_dates_never_beat_real_ones(self):
+        junk = _json_export([("https://dates.test/z", "Junk", "unknown")])
+        real = _json_export([("https://dates.test/z", "Real", "1700000000")])
+        plan = self._plan_for({"a.json": junk, "b.json": real})
+        self.assertEqual(plan.bookmarks[0].add_date, "1700000000")
+
+    def test_iso_and_epoch_dates_are_ranked_by_actual_time(self):
+        iso_older = ("Title,URL,Added At\nOld,https://dates.test/w,2001-09-09\n")
+        epoch_newer = _json_export([("https://dates.test/w", "New", "1700000000")])
+        plan = self._plan_for({"a.csv": iso_older, "b.json": epoch_newer})
+        self.assertEqual(plan.bookmarks[0].add_date, "1700000000")
+
+    def test_conflict_count_does_not_depend_on_file_order(self):
+        first = _json_export([("https://dates.test/c", "Short", "1000000000")])
+        second = _json_export([("https://dates.test/c", "A much longer title", "1700000000")])
+        forward = self._plan_for({"a.json": first, "b.json": second})
+        backward = self._plan_for({"a.json": second, "b.json": first})
+        self.assertEqual(len(forward.conflicts), len(backward.conflicts))
+        self.assertGreater(len(forward.conflicts), 0)
+
+
+class TestBatchEncoding(unittest.TestCase):
+    def test_utf8_bom_sources_are_read_correctly(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "bom.csv").write_text(
+                "Title,URL\nCafe review,https://bom.test/cafe\n", encoding="utf-8-sig")
+            (root / "bom.json").write_text(
+                _json_export([("https://bom.test/json", "Bom JSON", "1700000000")]),
+                encoding="utf-8-sig")
+
+            plan = BatchDirectoryImporter().plan(root)
+
+        titles = {b.title for b in plan.bookmarks}
+        self.assertEqual(plan.unique_urls, 2)
+        self.assertIn("Cafe review", titles)
+        self.assertIn("Bom JSON", titles)
+        self.assertEqual(plan.unreadable_files, ())
+
+
 class TestMappedCSVImporter(unittest.TestCase):
     def _write(self, root: Path, name: str, text: str) -> Path:
         path = root / name
