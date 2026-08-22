@@ -22,7 +22,7 @@ from pathlib import Path
 multiprocessing.freeze_support()
 
 BOOTSTRAP_APP_NAME = "Bookmark Organizer Pro"
-BOOTSTRAP_APP_VERSION = "6.14.0"
+BOOTSTRAP_APP_VERSION = "6.15.0"
 
 if __name__ == "__main__" and any(arg in {"--version", "-V"} for arg in sys.argv[1:]):
     stdout = getattr(sys, "stdout", None)
