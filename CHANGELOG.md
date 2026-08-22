@@ -14,6 +14,15 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   README now documents the workflow and the selector rules. The v6.14.0 entry
   described a preview-before-save flow that had no save step; this is it.
 
+### Changed
+
+- Duplicate detection no longer re-reads the whole library on every save. Each
+  lookup used to normalize every stored URL in turn, which on a 50,000 bookmark
+  library took about 0.4 seconds and ran twice per save from the extension or
+  the MCP server; it is now served from an index and is effectively instant.
+  Saving itself is unchanged, so very large libraries are still better off on
+  the SQLite backend, which the README now recommends explicitly.
+
 ### Fixed
 
 - Every built-in theme now meets the WCAG AA 4.5:1 text floor on the surfaces

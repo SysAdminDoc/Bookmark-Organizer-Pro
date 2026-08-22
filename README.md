@@ -687,6 +687,12 @@ value.
 |----------|-------------|
 | `BOOKMARK_DEBUG` | Set to `1` to enable console logging |
 | `BOOKMARK_DATA_DIR` | Override data directory location |
+| `BOOKMARK_STORAGE_BACKEND` | `json` (default) or `sqlite` |
+
+Lookups are indexed and stay fast at any size, but the JSON backend rewrites
+the whole library on every save, which is roughly a second per 25,000 bookmarks.
+Past about 20,000 bookmarks, set `BOOKMARK_STORAGE_BACKEND=sqlite` so saves
+write incrementally instead.
 
 ## Troubleshooting
 

@@ -1,7 +1,9 @@
 """Core tests for pattern engine, URL normalization, search, and bookmark model."""
 
+import copy
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -3737,6 +3739,138 @@ class TestLevenshtein(unittest.TestCase):
     def test_fuzzy_no_match(self):
         matches, score = fuzzy_match("xyz", "abc def ghi")
         self.assertFalse(matches)
+
+
+class TestNormalizedURLIndex(unittest.TestCase):
+    """`find_by_url` is served from an index, which must survive every mutation.
+
+    A stale index either hides an existing bookmark (letting a duplicate in) or
+    points at a deleted one, so each path is compared against a full scan.
+    """
+
+    def setUp(self):
+        import main
+
+        self._tmp = tempfile.mkdtemp(prefix="bop_url_index_")
+        self.addCleanup(shutil.rmtree, self._tmp, ignore_errors=True)
+        root = Path(self._tmp)
+        self.manager = main.BookmarkManager(
+            CategoryManager(filepath=root / "categories.json"),
+            main.TagManager(filepath=root / "tags.json"),
+            filepath=root / "bookmarks.json",
+        )
+
+    def _scan(self, url):
+        """What the pre-index implementation would have returned."""
+        from bookmark_organizer_pro.utils import normalize_url
+
+        target = normalize_url(url)
+        for bookmark in self.manager.get_all_bookmarks():
+            if normalize_url(bookmark.url) == target:
+                return bookmark
+        return None
+
+    def _assert_matches_scan(self, *urls):
+        for url in urls:
+            indexed = self.manager.find_by_url(url)
+            scanned = self._scan(url)
+            self.assertEqual(
+                None if indexed is None else indexed.id,
+                None if scanned is None else scanned.id,
+                f"index and scan disagree for {url}",
+            )
+
+    def test_added_bookmarks_are_found_and_tracking_params_are_ignored(self):
+        added = self.manager.add_bookmark_clean(url="https://example.com/a", title="A")
+        self.assertIsNotNone(added)
+        self.assertEqual(self.manager.find_by_url("https://example.com/a").id, added.id)
+        # The index is keyed on the normalized URL, like the old scan was.
+        self.assertEqual(
+            self.manager.find_by_url("https://example.com/a?utm_source=x").id, added.id,
+        )
+        self.assertTrue(self.manager.url_exists("https://example.com/a"))
+        self.assertIsNone(self.manager.find_by_url("https://example.com/missing"))
+        self._assert_matches_scan("https://example.com/a", "https://example.com/missing")
+
+    def test_a_duplicate_url_falls_back_to_the_survivor_after_a_delete(self):
+        first = Bookmark(id=None, url="https://dupe.test/page", title="First")
+        second = Bookmark(id=None, url="https://dupe.test/page", title="Second")
+        self.manager.add_bookmark(first)
+        self.manager.add_bookmark(second)
+
+        self.assertEqual(self.manager.find_by_url("https://dupe.test/page").id, first.id)
+        self._assert_matches_scan("https://dupe.test/page")
+
+        self.manager.delete_bookmark(first.id)
+        self.assertEqual(
+            self.manager.find_by_url("https://dupe.test/page").id, second.id,
+            "deleting one of two duplicates must not hide the other",
+        )
+        self._assert_matches_scan("https://dupe.test/page")
+
+        self.manager.delete_bookmark(second.id)
+        self.assertIsNone(self.manager.find_by_url("https://dupe.test/page"))
+
+    def test_changing_a_url_moves_its_index_entry(self):
+        bookmark = self.manager.add_bookmark_clean(url="https://old.test/a", title="Movable")
+        self.manager.update_bookmark(bookmark.id, url="https://new.test/b")
+
+        self.assertIsNone(self.manager.find_by_url("https://old.test/a"))
+        self.assertEqual(self.manager.find_by_url("https://new.test/b").id, bookmark.id)
+        self._assert_matches_scan("https://old.test/a", "https://new.test/b")
+
+    def test_replacing_a_bookmark_object_moves_its_index_entry(self):
+        bookmark = self.manager.add_bookmark_clean(url="https://obj.test/a", title="Object")
+        replacement = copy.deepcopy(bookmark)
+        replacement.url = "https://obj.test/b"
+        self.manager.update_bookmark(replacement)
+
+        self.assertIsNone(self.manager.find_by_url("https://obj.test/a"))
+        self.assertEqual(self.manager.find_by_url("https://obj.test/b").id, bookmark.id)
+        self._assert_matches_scan("https://obj.test/a", "https://obj.test/b")
+
+    def test_a_rolled_back_batch_leaves_no_phantom_entries(self):
+        self.manager.add_bookmark_clean(url="https://keep.test/a", title="Keep")
+        with self.assertRaises(RuntimeError):
+            with self.manager.batch():
+                self.manager.add_bookmark_clean(url="https://ghost.test/a", title="Ghost")
+                raise RuntimeError("abort the batch")
+
+        self.assertIsNone(
+            self.manager.find_by_url("https://ghost.test/a"),
+            "a rolled-back add must not stay in the index",
+        )
+        self.assertIsNotNone(self.manager.find_by_url("https://keep.test/a"))
+        self._assert_matches_scan("https://ghost.test/a", "https://keep.test/a")
+
+    def test_merging_duplicates_keeps_the_index_truthful(self):
+        first = Bookmark(id=None, url="https://merge.test/page", title="First")
+        second = Bookmark(id=None, url="https://merge.test/page?utm_source=x", title="Second copy")
+        self.manager.add_bookmark(first)
+        self.manager.add_bookmark(second)
+        self.manager.merge_duplicates()
+
+        self._assert_matches_scan("https://merge.test/page", "https://merge.test/page?utm_source=x")
+        found = self.manager.find_by_url("https://merge.test/page")
+        if found is not None:
+            self.assertIn(found.id, {bm.id for bm in self.manager.get_all_bookmarks()})
+
+    def test_emptying_the_trash_clears_its_index_entries(self):
+        bookmark = self.manager.add_bookmark_clean(url="https://trash.test/a", title="Trash")
+        bookmark.is_archived = True
+        bookmark.custom_data["_deleted_at"] = datetime.now().isoformat()
+        self.manager.save_bookmarks()
+        self.manager.empty_trash()
+
+        self.assertIsNone(self.manager.find_by_url("https://trash.test/a"))
+        self._assert_matches_scan("https://trash.test/a")
+
+    def test_a_reloaded_library_rebuilds_the_index(self):
+        self.manager.add_bookmark_clean(url="https://reload.test/a", title="Reload")
+        self.manager._load_bookmarks()
+
+        self.assertIsNotNone(self.manager.find_by_url("https://reload.test/a"))
+        self._assert_matches_scan("https://reload.test/a")
 
 
 if __name__ == "__main__":

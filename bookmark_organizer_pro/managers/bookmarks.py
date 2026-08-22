@@ -98,6 +98,11 @@ class BookmarkManager:
         self._batch_depth = 0
         self._batch_dirty = False
         self._batch_failed = False
+        # normalized URL -> bookmark ids, in insertion order. Without it every
+        # duplicate check re-normalizes the whole library, which is ~0.4s per
+        # lookup at 50k bookmarks and happens twice on each extension save.
+        self._url_index: Dict[str, List[int]] = {}
+        self._url_index_ready = False
         self.search_engine = SearchEngine()
         from bookmark_organizer_pro.services.reader_progress import ReaderProgressStore
 
@@ -161,10 +166,61 @@ class BookmarkManager:
                 self.bookmarks[bm.id] = bm
             self.reader_progress_store.apply_to_bookmarks(self.bookmarks.values())
             self._committed_bookmarks = copy.deepcopy(self.bookmarks)
+            self._rebuild_url_index()
 
     def _restore_committed_state(self) -> None:
         """Restore the last successfully persisted in-memory representation."""
         self.bookmarks = copy.deepcopy(self._committed_bookmarks)
+        self._invalidate_url_index()
+
+    # ---- normalized URL index ---------------------------------------------
+    # Every method below assumes the caller already holds ``self._lock``.
+
+    def _rebuild_url_index(self) -> None:
+        index: Dict[str, List[int]] = {}
+        for bookmark_id, bookmark in self.bookmarks.items():
+            key = normalize_url(bookmark.url)
+            if key:
+                index.setdefault(key, []).append(bookmark_id)
+        self._url_index = index
+        self._url_index_ready = True
+
+    def _invalidate_url_index(self) -> None:
+        """Force a rebuild; used when the whole mapping is swapped out."""
+        self._url_index = {}
+        self._url_index_ready = False
+
+    def _index_bookmark(self, bookmark: Bookmark) -> None:
+        if not self._url_index_ready:
+            return
+        key = normalize_url(bookmark.url)
+        if not key:
+            return
+        ids = self._url_index.setdefault(key, [])
+        if bookmark.id not in ids:
+            ids.append(bookmark.id)
+
+    def _unindex_bookmark(self, bookmark_id: int, url: str) -> None:
+        if not self._url_index_ready:
+            return
+        key = normalize_url(url)
+        ids = self._url_index.get(key)
+        if not ids:
+            return
+        if bookmark_id in ids:
+            ids.remove(bookmark_id)
+        if not ids:
+            self._url_index.pop(key, None)
+
+    def _lookup_by_normalized_url(self, normalized: str) -> Optional[Bookmark]:
+        """First live bookmark for a normalized URL, matching scan order."""
+        if not self._url_index_ready:
+            self._rebuild_url_index()
+        for bookmark_id in self._url_index.get(normalized, []):
+            bookmark = self.bookmarks.get(bookmark_id)
+            if bookmark is not None:
+                return bookmark
+        return None
 
     def _mapping_from_snapshot(self, snapshot: List[Bookmark]) -> Dict[int, Bookmark]:
         """Validate stable bookmark identity and rebuild an ordered snapshot map."""
@@ -405,6 +461,7 @@ class BookmarkManager:
                     try:
                         if self._batch_failed:
                             self.bookmarks = snapshot_before
+                            self._invalidate_url_index()
                             self._storage_revision = revision_before
                         elif self._batch_dirty:
                             snapshot = list(self.bookmarks.values())
@@ -416,6 +473,7 @@ class BookmarkManager:
                             self._record_committed_state(mapping, revision)
                     except Exception:
                         self.bookmarks = snapshot_before
+                        self._invalidate_url_index()
                         self._storage_revision = revision_before
                         raise
                     finally:
@@ -431,6 +489,7 @@ class BookmarkManager:
         with self._lock:
             self._assign_unique_id(bookmark)
             self.bookmarks[bookmark.id] = bookmark
+            self._index_bookmark(bookmark)
             if save:
                 snapshot = list(self.bookmarks.values())
                 self._save_snapshot(snapshot)
@@ -459,7 +518,10 @@ class BookmarkManager:
                 updated = copy.deepcopy(bookmark)
                 updated.id = bookmark_id
                 updated.modified_at = datetime.now().isoformat()
+                previous_url = self.bookmarks[bookmark_id].url
                 self.bookmarks[bookmark_id] = updated
+                self._unindex_bookmark(bookmark_id, previous_url)
+                self._index_bookmark(updated)
                 snapshot = list(self.bookmarks.values())
                 self._save_snapshot(snapshot)
             return updated
@@ -475,10 +537,14 @@ class BookmarkManager:
                     requested_id = self._coerce_bookmark_id(kwargs["id"])
                     if requested_id != bookmark_id:
                         raise ValueError("bookmark IDs are immutable")
+                previous_url = bm.url
                 for key, value in kwargs.items():
                     if key != "id" and hasattr(bm, key):
                         setattr(bm, key, value)
                 bm.modified_at = datetime.now().isoformat()
+                if bm.url != previous_url:
+                    self._unindex_bookmark(bookmark_id, previous_url)
+                    self._index_bookmark(bm)
                 snapshot = list(self.bookmarks.values())
                 self._save_snapshot(snapshot)
         return bm
@@ -492,7 +558,9 @@ class BookmarkManager:
             return False
         with self._lock:
             if bookmark_id in self.bookmarks:
+                removed_url = self.bookmarks[bookmark_id].url
                 del self.bookmarks[bookmark_id]
+                self._unindex_bookmark(bookmark_id, removed_url)
                 snapshot = list(self.bookmarks.values())
                 self._save_snapshot(snapshot)
                 try:
@@ -769,6 +837,9 @@ class BookmarkManager:
 
                 for bm in bm_list[1:]:
                     self.bookmarks.pop(bm.id, None)
+                # The keeper's URL can change during the merge, so rebuild
+                # rather than trying to patch each entry.
+                self._invalidate_url_index()
 
                 groups_merged += 1
                 bookmarks_removed += len(bm_list) - 1
@@ -880,7 +951,9 @@ class BookmarkManager:
             trash_ids = [bm.id for bm in self.bookmarks.values()
                          if bm.is_archived and '_deleted_at' in bm.custom_data]
             for bid in trash_ids:
-                self.bookmarks.pop(bid, None)
+                removed = self.bookmarks.pop(bid, None)
+                if removed is not None:
+                    self._unindex_bookmark(bid, removed.url)
             if trash_ids:
                 snapshot = list(self.bookmarks.values())
                 self._save_snapshot(snapshot)
@@ -1009,9 +1082,9 @@ class BookmarkManager:
         # duplicate (the scan and add_bookmark were previously separate critical
         # sections — a TOCTOU window). add_bookmark re-enters the reentrant lock.
         with self._lock:
-            for bm in self.bookmarks.values():
-                if normalize_url(bm.url) == canonical:
-                    return bm  # Already exists — return existing rather than creating duplicate
+            existing = self._lookup_by_normalized_url(canonical)
+            if existing is not None:
+                return existing  # Already exists — return it rather than creating a duplicate
 
             bm = Bookmark(
                 id=None, url=clean, title=title or clean,
@@ -1033,13 +1106,11 @@ class BookmarkManager:
 
         # Normalize URL for comparison
         normalized = normalize_url(url)
+        if not normalized:
+            return None
 
-        for bm in self._iter_snapshot():
-            bm_url = normalize_url(bm.url)
-            if bm_url == normalized:
-                return bm
-
-        return None
+        with self._lock:
+            return self._lookup_by_normalized_url(normalized)
     
     def url_exists(self, url: str) -> bool:
         """Check if a URL already exists in bookmarks"""
