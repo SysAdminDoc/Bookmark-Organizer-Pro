@@ -15,6 +15,19 @@ from bookmark_organizer_pro.managers import BookmarkManager, TagManager
 from bookmark_organizer_pro.url_utils import URLUtilities
 
 
+def _format_rule_conditions(rule) -> str:
+    return " AND ".join(
+        f"{condition['field']} {condition['operator']} {condition.get('value') or ''}".strip()
+        for condition in rule.conditions
+    )
+
+
+def _format_rule_actions(rule) -> str:
+    return ", ".join(
+        f"{action['action']}={action.get('value')}" for action in rule.actions
+    )
+
+
 # =============================================================================
 # CLI Tool
 # =============================================================================
@@ -484,6 +497,17 @@ class BookmarkCLI:
         )
         p.set_defaults(func=self._cmd_smart_collections)
 
+        p = sub.add_parser("rules", help="Preview and apply declarative organization rules")
+        p.add_argument(
+            "action", nargs="?", default="list",
+            choices=["list", "preview", "apply", "undo", "import", "export", "enable", "disable"],
+            help="Action (default: list)",
+        )
+        p.add_argument("target", nargs="?", help="Rule ID/name or JSON path for import/export")
+        p.add_argument("--replace", action="store_true", help="Replace existing rules during import")
+        p.add_argument("--json", action="store_true", dest="as_json", help="Print machine-readable output")
+        p.set_defaults(func=self._cmd_organization_rules)
+
         p = sub.add_parser("nl-query", help="Natural language query")
         p.add_argument("query", nargs="*", help="Natural language query")
         p.set_defaults(func=self._cmd_nl_query)
@@ -581,6 +605,8 @@ v6.0.0 commands:
     export <id|all> [--format markdown|csv|json] [--template FILE] [--changed-since ISO]
   smart-collections {{list|eval|create|update}}
                                 Manage validated saved collection filters.
+  rules {{list|preview|apply|undo|import|export|enable|disable}}
+                                Preview, apply, undo, and transfer organization rules.
   api-server [--port N]          Run the local HTTP API for extensions/bookmarklet
   mcp-server                    Run the MCP server (stdio) for compatible clients.
   mcp-http-server [--host H] [--port N] [--path /mcp]
@@ -605,6 +631,92 @@ Examples:
     # ──────────────────────────────────────────────────────────────────
     # Core command handlers
     # ──────────────────────────────────────────────────────────────────
+    def _cmd_organization_rules(self, ns: argparse.Namespace):
+        """Inspect and run the bounded declarative organization-rules workflow."""
+        from bookmark_organizer_pro.services.organization_rules import OrganizationRulesService
+
+        service = OrganizationRulesService(self.bookmark_manager)
+        action = ns.action
+        if action == "list":
+            rules = service.list_rules()
+            if ns.as_json:
+                print(json.dumps([rule.to_dict() for rule in rules], indent=2, ensure_ascii=False))
+            else:
+                if not rules:
+                    print("No organization rules configured.")
+                for rule in rules:
+                    state = "enabled" if rule.enabled else "disabled"
+                    print(f"[{rule.rule_id}] {rule.name} ({state})")
+                    print(f"  when: {_format_rule_conditions(rule)}")
+                    print(f"  do:   {_format_rule_actions(rule)}")
+            return 0
+
+        if action == "preview":
+            preview = service.preview()
+            if ns.as_json:
+                print(json.dumps(preview.to_dict(), indent=2, ensure_ascii=False))
+            else:
+                print(
+                    "Organization preview: "
+                    f"{preview.affected_count} bookmark(s), "
+                    f"{preview.change_count} change(s), "
+                    f"{preview.conflict_count} conflict(s), "
+                    f"{preview.error_count} error(s)"
+                )
+                for conflict in preview.conflicts[:10]:
+                    print(f"  conflict: {conflict.message}")
+                for error in preview.errors[:10]:
+                    print(f"  error: {error}")
+            return 0
+
+        if action == "apply":
+            report = service.apply()
+            if ns.as_json:
+                print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
+            else:
+                print(
+                    f"Organization run {report.status}: {report.affected_count} bookmark(s), "
+                    f"{report.change_count} change(s), {report.conflict_count} conflict(s), "
+                    f"{report.error_count} error(s)"
+                )
+                for error in report.errors[:10]:
+                    print(f"  error: {error}")
+            return 1 if report.status in {"failed", "stale"} else 0
+
+        if action == "undo":
+            report = service.undo_last()
+            if ns.as_json:
+                print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
+            else:
+                print(f"Organization undo {report.status}: {report.affected_count} bookmark(s)")
+                for error in report.errors[:10]:
+                    print(f"  error: {error}")
+            return 1 if report.status in {"failed", "undo_conflict", "no_undo"} else 0
+
+        if action in {"enable", "disable"}:
+            if not ns.target:
+                return self._usage_error("usage: bop rules <enable|disable> <rule-id-or-name>")
+            rule = service.set_enabled(ns.target, action == "enable")
+            if rule is None:
+                return self._failure(f"Organization rule not found: {ns.target}")
+            if ns.as_json:
+                print(json.dumps(rule.to_dict(), indent=2, ensure_ascii=False))
+            else:
+                print(f"Organization rule {rule.name}: {'enabled' if rule.enabled else 'disabled'}")
+            return 0
+
+        if not ns.target:
+            return self._usage_error(f"usage: bop rules {action} <path>")
+        if action == "import":
+            count = service.import_rules(ns.target, replace=ns.replace)
+            print(json.dumps({"imported": count}) if ns.as_json else f"Imported {count} organization rule(s).")
+            return 0
+        if action == "export":
+            path = service.export_rules(ns.target)
+            print(json.dumps({"exported": str(path)}) if ns.as_json else f"Exported organization rules: {path}")
+            return 0
+        return self._usage_error(f"Unsupported organization-rules action: {action}")
+
     def _cmd_help(self, ns: argparse.Namespace):
         """Show help."""
         self._print_help()

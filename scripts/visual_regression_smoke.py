@@ -64,6 +64,7 @@ DESKTOP_SURFACES = (
     "desktop-export-dialog",
     "desktop-reader-view",
     "desktop-highlights-workspace",
+    "desktop-organization-rules",
     "desktop-reader-highlight-deleted",
     "desktop-reader-orphaned-highlight",
     "desktop-graph-view",
@@ -782,6 +783,8 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
     from bookmark_organizer_pro.ui.read_later_queue import ReadLaterQueueDialog
     from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog
     from bookmark_organizer_pro.ui.highlights_workspace import HighlightsWorkspaceDialog
+    from bookmark_organizer_pro.ui.organization_rules import OrganizationRulesDialog
+    from bookmark_organizer_pro.services.organization_rules import OrganizationRule, OrganizationRulesService
     from bookmark_organizer_pro.ui.treeview import (
         SortableTreeview,
         save_accessible_list_mode,
@@ -1370,6 +1373,37 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
             )
         )
         destroy_window(highlights_workspace)
+
+        organization_rules = OrganizationRulesService(app.bookmark_manager)
+        organization_rules.add_rule(
+            OrganizationRule(
+                name="Visual smoke tagging",
+                conditions=({"field": "domain", "operator": "contains", "value": "example.com"},),
+                actions=({"action": "add_tag", "value": "visual-qa"},),
+            )
+        )
+        organization_rules_dialog = OrganizationRulesDialog(root, app.bookmark_manager)
+        _prepare_background_window(organization_rules_dialog)
+        assert_actionable_controls_inside(organization_rules_dialog)
+        assert_named_controls_visible(
+            organization_rules_dialog,
+            ("Organization rules", "New", "Preview", "Apply preview", "Import", "Export"),
+        )
+        results.append(
+            capture_tk_window(
+                organization_rules_dialog,
+                output_dir,
+                "desktop-organization-rules",
+                (
+                    "Organization rules",
+                    "Preview deterministic",
+                    "Conditions",
+                    "Actions",
+                    "Apply preview",
+                ),
+            )
+        )
+        destroy_window(organization_rules_dialog)
 
         changed_article_text = (
             "The source was re-extracted with a replacement introduction. "

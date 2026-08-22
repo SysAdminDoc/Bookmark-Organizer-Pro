@@ -97,6 +97,15 @@ from .organization import (
     SmartTagManager,
     SmartTagRule,
 )
+from .organization_rules import (
+    OrganizationPreview,
+    OrganizationRule,
+    OrganizationRuleChange,
+    OrganizationRuleConflict,
+    OrganizationRules,
+    OrganizationRulesService,
+    OrganizationRunReport,
+)
 from .rag_chat import (
     ChatMessage,
     ChatStreamEvent,
@@ -213,6 +222,9 @@ __all__ = [
     "Collection", "CollectionManager", "FrequentlyUsedManager",
     "SettingsProfile", "SettingsProfileManager",
     "SmartTagManager", "SmartTagRule",
+    "OrganizationPreview", "OrganizationRule", "OrganizationRuleChange",
+    "OrganizationRuleConflict", "OrganizationRules", "OrganizationRulesService",
+    "OrganizationRunReport",
     "AISummarizer", "LocalArchiver", "PDFExporter",
     "ScreenshotCapture", "WaybackMachine",
     # v6.0.0 additions

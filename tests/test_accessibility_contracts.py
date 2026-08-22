@@ -249,3 +249,19 @@ def test_highlights_workspace_exposes_keyboard_actions_and_bounded_source_loadin
     assert 'selectmode="extended"' in workspace_source
     assert "highlight_id=item.id" in workspace_source
     assert "read_extracted_text" not in workspace_source
+
+
+def test_organization_rules_workspace_exposes_preview_and_keyboard_actions():
+    workspace_source = (
+        ROOT / "bookmark_organizer_pro/ui/organization_rules.py"
+    ).read_text(encoding="utf-8")
+    for sequence in (
+        'self.bind("<Escape>"',
+        'self.bind("<Return>"',
+        'self.bind("<Delete>"',
+        'text=_("Preview")',
+        'text=_("Apply preview")',
+    ):
+        assert sequence in workspace_source
+    assert "OrganizationRulesService" in workspace_source
+    assert "OrganizationRuleEditorDialog" in workspace_source

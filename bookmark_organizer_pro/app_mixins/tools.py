@@ -38,6 +38,7 @@ from bookmark_organizer_pro.ui.cleanup_review import (
 from bookmark_organizer_pro.ui.foundation import FONTS, readable_text_on
 from bookmark_organizer_pro.ui.graph_view import GraphViewDialog
 from bookmark_organizer_pro.ui.highlights_workspace import HighlightsWorkspaceDialog
+from bookmark_organizer_pro.ui.organization_rules import OrganizationRulesDialog
 from bookmark_organizer_pro.ui.management_dialogs import (
     CategoryManagementDialog,
     CredentialSecurityDialog,
@@ -424,6 +425,7 @@ class ToolsActionsMixin:
         menu.add_command(label=_("Read Later Queue"), command=self._show_read_later_queue)
         menu.add_command(label=_("Reader View"), command=self._open_reader_view)
         menu.add_command(label=_("Highlights workspace"), command=self._open_highlights_workspace)
+        menu.add_command(label=_("Organization rules"), command=self._open_organization_rules)
         menu.add_command(label=_("Fetch YouTube Transcript…"), command=self._fetch_youtube_transcripts)
         menu.add_command(label=_("Graph View"), command=self._open_graph_view)
         menu.add_command(label=_("Full Analytics"), command=self._show_analytics)
@@ -1555,6 +1557,10 @@ class ToolsActionsMixin:
     def _open_highlights_workspace(self):
         """Open collection-wide highlight search without loading source pages."""
         HighlightsWorkspaceDialog(self.root, self.bookmark_manager)
+
+    def _open_organization_rules(self):
+        """Open the previewable organization-rules workspace."""
+        OrganizationRulesDialog(self.root, self.bookmark_manager)
 
     def _open_graph_view(self):
         """Open the bookmark relationship graph."""

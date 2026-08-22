@@ -67,6 +67,7 @@ _bop() {
         'recovery-bundle:Create or restore a full-library backup'
         'updates:Manage update policy'
         'smart-collections:Manage smart collections'
+        'rules:Preview and apply declarative organization rules'
         'nl-query:Natural language query'
         '-h:show this help message and exit'
         '--help:show this help message and exit'
@@ -865,6 +866,36 @@ _bop() {
                 '--has-snapshot[]' \
                 '--no-has-snapshot[]' \
                 '--reader-state[Filter by persisted reader state]:reader_state:(unread in_progress finished)'
+            return
+            ;;
+        rules)
+            if [[ "$words[CURRENT]" != -* ]]; then
+                case $CURRENT in
+                    2)
+                        local -a values=(
+                            list
+                            preview
+                            apply
+                            undo
+                            import
+                            export
+                            enable
+                            disable
+                        )
+                        _describe 'argument' values
+                        return
+                        ;;
+                    3)
+                        _files
+                        return
+                        ;;
+                esac
+            fi
+            _arguments -s \
+                '-h[show this help message and exit]' \
+                '--help[show this help message and exit]' \
+                '--replace[Replace existing rules during import]' \
+                '--json[Print machine-readable output]'
             return
             ;;
         nl-query)

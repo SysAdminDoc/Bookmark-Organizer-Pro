@@ -17,7 +17,7 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   states with live loading, result-count, no-match, and error announcements;
   capture payloads now normalize blank categories at the shared boundary.
 - Added parser-derived Bash, Zsh, and Fish completion generation with a
-  deterministic `--check` drift gate covering all 63 CLI commands, options,
+  deterministic `--check` drift gate covering all 64 CLI commands, options,
   choices, and path-valued arguments.
 - Added an explicit, opt-in YouTube transcript workflow across the desktop
   bookmark actions, CLI, and MCP: language selection, bounded and atomic
@@ -47,6 +47,9 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Added a collection-wide highlights workspace with metadata-only filtering and
   pagination, bookmark/review/anchor facets, batch export, safe delete/undo,
   anchored Reader View opening, and shared CLI/MCP query adapters.
+- Added versioned, allowlisted organization rules with deterministic previews,
+  conflict reporting, atomic batch apply, exact undo, desktop/CLI workflows,
+  SmartTagManager migration, and portable import/export.
 
 ### Changed
 

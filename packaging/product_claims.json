@@ -1,9 +1,9 @@
 {
-  "cli_subcommands": 63,
+  "cli_subcommands": 64,
   "mcp_tools": 34,
   "ai_providers": 6,
   "extension_surfaces": 3,
-  "service_modules": 55,
-  "ui_modules": 43,
-  "test_files": 43
+  "service_modules": 56,
+  "ui_modules": 44,
+  "test_files": 44
 }

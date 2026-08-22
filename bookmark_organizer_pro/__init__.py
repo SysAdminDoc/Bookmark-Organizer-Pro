@@ -60,6 +60,9 @@ from .services import (
     LocalArchiver, PDFExporter, ScreenshotCapture,
     SemanticDuplicateDetector, WaybackMachine,
     SettingsProfile, SettingsProfileManager, SmartTagManager, SmartTagRule,
+    OrganizationPreview, OrganizationRule, OrganizationRuleChange,
+    OrganizationRuleConflict, OrganizationRules, OrganizationRulesService,
+    OrganizationRunReport,
     VersionHistory,
     # v6.0.0 additions
     CitedOutput, UntrustedEvidenceBundle, UntrustedEvidenceChunk,
@@ -168,6 +171,9 @@ __all__ = [
     "IconLibrary", "LocalArchiver", "PDFExporter", "ScreenshotCapture",
     "SemanticDuplicateDetector", "WaybackMachine",
     "SettingsProfile", "SettingsProfileManager", "SmartTagManager", "SmartTagRule",
+    "OrganizationPreview", "OrganizationRule", "OrganizationRuleChange",
+    "OrganizationRuleConflict", "OrganizationRules", "OrganizationRulesService",
+    "OrganizationRunReport",
     "VersionHistory",
     # v6.0.0 additions
     "CitedOutput", "UntrustedEvidenceBundle", "UntrustedEvidenceChunk",

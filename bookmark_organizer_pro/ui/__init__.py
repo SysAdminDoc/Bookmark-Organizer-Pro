@@ -62,6 +62,7 @@ from .quick_add import (
 from .read_later_queue import ReadLaterQueueDialog, ReadLaterQueueRow, build_read_later_rows
 from .graph_view import GraphViewDialog
 from .highlights_workspace import HighlightsWorkspaceDialog
+from .organization_rules import OrganizationRuleEditorDialog, OrganizationRulesDialog
 from .reader_view import ReaderViewDialog, text_index_offset
 from .reports import ReportGenerator
 from .shell_widgets import (
@@ -162,6 +163,8 @@ __all__ = [
     "build_read_later_rows",
     "GraphViewDialog",
     "HighlightsWorkspaceDialog",
+    "OrganizationRuleEditorDialog",
+    "OrganizationRulesDialog",
     "ReaderViewDialog",
     "text_index_offset",
     "ReportGenerator",
