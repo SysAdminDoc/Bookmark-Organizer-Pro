@@ -1189,6 +1189,57 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
             finally:
                 api.stop()
 
+    def _post_json_with_headers(self, base_url, payload, token=""):
+        """POST and return (status, body, headers) so Retry-After is visible."""
+        headers = {"Content-Type": "application/json"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        request = urllib.request.Request(
+            f"{base_url}/bookmarks",
+            data=json.dumps(payload).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=3) as response:
+                return response.status, json.loads(response.read().decode("utf-8")), response.headers
+        except urllib.error.HTTPError as error:
+            return error.code, json.loads(error.read().decode("utf-8")), error.headers
+
+    def test_storage_failure_is_retryable_rather_than_a_client_error(self):
+        """A save that fails because the library could not be written must not
+        come back as 400: `isRetryableSaveStatus` in the extension only journals
+        408/425/429/5xx, so a 400 silently discards the captured page."""
+        import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            api = main.BookmarkAPI(manager, port=0)
+            try:
+                api.start()
+                token = self._api_token()
+                base_url = f"http://127.0.0.1:{api.port}"
+
+                with mock.patch.object(
+                    manager.storage, "save", side_effect=OSError("disk is full"),
+                ):
+                    status, body, headers = self._post_json_with_headers(
+                        base_url, {"url": "https://storage-failure.example.com/a"}, token,
+                    )
+
+                self.assertEqual(status, 503)
+                self.assertEqual(headers.get("Retry-After"), "5")
+                self.assertIn("retried", body["error"])
+                self.assertEqual(manager.get_all_bookmarks(), [])
+
+                # A genuinely bad payload is still an unretryable client error.
+                status, body, _headers = self._post_json_with_headers(
+                    base_url, {"url": "file:///tmp/not-saveable"}, token,
+                )
+                self.assertEqual(status, 400)
+            finally:
+                api.stop()
+
     def test_authenticated_browser_snapshot_is_sanitized_and_stored(self):
         import main
 

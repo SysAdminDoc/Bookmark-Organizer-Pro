@@ -6,6 +6,14 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Fixed
 
+- A save that fails because the library itself could not be written now returns
+  a retryable error instead of looking like a bad request. The browser
+  extension only queues a failed save for retry on 408, 425, 429, and 5xx
+  responses, so a full disk or a locked library used to come back as 400 and
+  the captured page was dropped from the pending queue. Storage failures now
+  answer 503 with `Retry-After`, and the underlying error is written to the log
+  instead of being swallowed.
+
 - **Check All Links** in the Tools menu and `bop check` on the command line now
   use the same polite scanner as scheduled scanning. Both used to run their own
   bare request loop that recorded a `429` or `503` as a dead link, so a host

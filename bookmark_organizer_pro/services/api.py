@@ -12,6 +12,7 @@ import re
 import secrets
 import socket
 import socketserver
+import sqlite3
 import threading
 import time
 import urllib.parse
@@ -515,7 +516,7 @@ class BookmarkAPI:
                     return origin
                 return 'null'
 
-            def _send_json(self, data, status=200):
+            def _send_json(self, data, status=200, extra_headers=None):
                 body = json.dumps(data, ensure_ascii=False, default=str).encode("utf-8")
                 self.send_response(status)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -523,6 +524,8 @@ class BookmarkAPI:
                 self.send_header('Content-Length', str(len(body)))
                 self.send_header('Access-Control-Allow-Origin', self._cors_origin())
                 self.send_header('Vary', 'Origin')
+                for name, value in (extra_headers or {}).items():
+                    self.send_header(name, str(value))
                 self.end_headers()
                 try:
                     self.wfile.write(body)
@@ -1036,8 +1039,25 @@ class BookmarkAPI:
                     
                     except json.JSONDecodeError:
                         self._send_json({"error": "Invalid JSON"}, 400)
-                    except Exception:
+                    except ValueError as exc:
+                        # The payload itself is unusable; retrying it verbatim
+                        # would fail the same way, so this stays a client error.
+                        log.info(f"Rejected bookmark payload: {exc}")
                         self._send_json({"error": "Could not add bookmark"}, 400)
+                    except (OSError, RuntimeError, sqlite3.Error) as exc:
+                        # The request was fine and the library could not be
+                        # written. Answering 400 would tell the extension the
+                        # save is unretryable and drop it from the pending
+                        # journal, losing the page.
+                        log.error(f"Bookmark save failed against storage: {exc}")
+                        self._send_json(
+                            {"error": "Library could not be written; the save will be retried"},
+                            503,
+                            {"Retry-After": 5},
+                        )
+                    except Exception:
+                        log.exception("Unexpected failure while adding a bookmark")
+                        self._send_json({"error": "Could not add bookmark"}, 500)
                 else:
                     self._send_json({"error": "Not found"}, 404)
             
