@@ -350,7 +350,7 @@ MCP_RESOURCE_DEFINITIONS = (
     (
         "bookmarks://reader/reviews/due",
         "Due reader reviews",
-        "Highlights currently due for SM-2 review.",
+        "Highlights currently due for review.",
     ),
 )
 
@@ -913,7 +913,7 @@ def t_list_reader_highlights(
 
 
 def t_list_due_reader_reviews(limit: int = 50, offset: int = 0) -> List[Dict]:
-    """List highlights due for SM-2 review."""
+    """List highlights due for review."""
     limit = _clamp_limit(limit)
     offset = _clamp_offset(offset)
     s = _services()
@@ -1089,7 +1089,7 @@ def t_relink_reader_highlight(
 
 
 def t_record_reader_review(highlight_id: str, quality: int) -> Dict:
-    """Record a 0-5 SM-2 review quality score for a reader highlight."""
+    """Record a 0-5 review quality score for a reader highlight."""
     highlight_id = _sanitize_str(highlight_id, 200)
     try:
         score = int(quality)
@@ -1604,7 +1604,7 @@ TOOLS = [
          },
      }),
     ("list_due_reader_reviews", t_list_due_reader_reviews,
-     "List reader highlights currently due for SM-2 review.",
+     "List reader highlights currently due for review.",
      {
          "type": "object",
          "properties": {
@@ -1648,7 +1648,7 @@ TOOLS = [
          "required": ["highlight_id", "char_start", "char_end"],
      }),
     ("record_reader_review", t_record_reader_review,
-     "Record a 0-5 SM-2 review quality score for a reader highlight.",
+     "Record a 0-5 review quality score for a reader highlight.",
      {
          "type": "object",
          "properties": {
@@ -1981,7 +1981,7 @@ def _build_fastmcp_server():
             anchor_status=anchor_status,
         )
 
-    @tool("list_due_reader_reviews", "List reader highlights due for SM-2 review.")
+    @tool("list_due_reader_reviews", "List reader highlights due for review.")
     def list_due_reader_reviews(limit: int = 50, offset: int = 0) -> list[dict]:
         return t_list_due_reader_reviews(limit, offset)
 
@@ -2008,7 +2008,7 @@ def _build_fastmcp_server():
     def relink_reader_highlight(highlight_id: str, char_start: int, char_end: int) -> dict:
         return t_relink_reader_highlight(highlight_id, char_start, char_end)
 
-    @tool("record_reader_review", "Record a 0-5 SM-2 reader review quality score.")
+    @tool("record_reader_review", "Record a 0-5 reader review quality score.")
     def record_reader_review(highlight_id: str, quality: int) -> dict:
         return t_record_reader_review(highlight_id, quality)
 

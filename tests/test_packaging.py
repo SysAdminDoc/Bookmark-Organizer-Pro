@@ -6,6 +6,7 @@ import copy
 import importlib.util
 import json
 import shutil
+import tomllib
 import subprocess
 import sys
 import tempfile
@@ -278,6 +279,31 @@ class TestExtensionDistribution(unittest.TestCase):
         self.assertEqual(document["name"], "io.github.sysadmindoc/bookmark-organizer-pro")
         self.assertEqual(document["packages"][0]["identifier"], "bookmark-organizer-pro")
         self.assertEqual(document["packages"][0]["transport"]["type"], "stdio")
+        self.assertLessEqual(len(document["description"]), 100)
+
+        # The declared launch command must name a console script that exists,
+        # or the registry entry installs and then fails to start.
+        pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        scripts = pyproject["project"]["scripts"]
+        declared = [
+            argument["value"]
+            for argument in document["packages"][0]["runtimeArguments"]
+            if argument["type"] == "positional"
+        ]
+        self.assertEqual(declared, ["bop-mcp"])
+        self.assertIn("bop-mcp", scripts)
+
+        broken = copy.deepcopy(document)
+        broken["packages"][0]["runtimeArguments"] = [
+            {"type": "positional", "valueHint": "console_script", "value": "not-a-script"}
+        ]
+        original = module.MCP_SERVER_JSON.read_text(encoding="utf-8")
+        try:
+            module.MCP_SERVER_JSON.write_text(json.dumps(broken), encoding="utf-8")
+            with self.assertRaises(module.ContractError):
+                module.validate_mcp_server_json()
+        finally:
+            module.MCP_SERVER_JSON.write_text(original, encoding="utf-8")
 
         original = module.MCP_SERVER_JSON.read_text(encoding="utf-8")
         stale = json.loads(original)

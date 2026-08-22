@@ -5,7 +5,7 @@ A powerful, professional-grade bookmark manager with AI-powered categorization, 
 Executable product contract: 67 CLI subcommands, 34 MCP tools, 6 AI providers, 3 extension surfaces, 59 service modules, 44 UI modules, and 51 test files.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
-![Version](https://img.shields.io/badge/Version-v6.13.0-2dd4bf.svg)
+![Version](https://img.shields.io/badge/Version-v6.14.0-2dd4bf.svg)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
@@ -27,9 +27,13 @@ Add to your MCP config:
 }
 ```
 
+Installed from PyPI, the same server starts with
+`uvx --from "bookmark-organizer-pro[mcp]" bop-mcp`, which is the command
+`packaging/server.json` declares for MCP registry clients.
+
 After restart, the MCP-compatible client can query your bookmark library directly.
 The server exposes bookmark search, semantic/hybrid retrieval, snapshots,
-research flows, reader highlights, due SM-2 reviews, per-bookmark highlight
+research flows, reader highlights, highlights due for review, per-bookmark highlight
 Markdown export, and scoped reader review, note, and orphan-relink updates.
 Read-only MCP tokens can list and export reader data; review recording, note
 edits, and relinking require read-write scope. Streamable HTTP MCP also validates

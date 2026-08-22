@@ -394,7 +394,45 @@ def validate_mcp_server_json() -> dict:
             raise ContractError("server.json package version does not match the app version")
         if not package.get("registryType") or not package.get("transport", {}).get("type"):
             raise ContractError("server.json package needs registryType and transport.type")
+        _validate_declared_entry_point(package)
     return document
+
+
+def _validate_declared_entry_point(package: dict) -> None:
+    """Check the launch command resolves to a real console script.
+
+    A registry consumer runs the declared runtime command. Naming a script the
+    package does not install produces an entry that installs and then fails.
+    """
+    scripts = set(
+        tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+        .get("project", {}).get("scripts", {})
+    )
+    arguments = package.get("runtimeArguments") or []
+    if not isinstance(arguments, list):
+        raise ContractError("server.json runtimeArguments must be a list")
+
+    declared = ""
+    for argument in arguments:
+        if not isinstance(argument, dict):
+            raise ContractError("server.json runtime arguments must be objects")
+        kind = argument.get("type")
+        if kind == "named" and not argument.get("name"):
+            raise ContractError("server.json named arguments require a name")
+        if kind == "positional":
+            if not argument.get("value") and not argument.get("valueHint"):
+                raise ContractError("server.json positional arguments require value or valueHint")
+            declared = str(argument.get("value") or declared)
+        elif kind not in {"named", "positional"}:
+            raise ContractError(f"server.json argument type {kind!r} is not positional or named")
+
+    if not declared:
+        raise ContractError("server.json does not declare which console script to run")
+    if declared not in scripts:
+        raise ContractError(
+            f"server.json runs {declared!r}, which is not a [project.scripts] entry: "
+            f"{', '.join(sorted(scripts))}"
+        )
 
 
 def update_lock() -> None:
