@@ -53,11 +53,12 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         
         apply_window_chrome(self)
         
-        # Header
-        header = tk.Frame(self, bg=theme.bg_dark, height=76)
+        # Header. No fixed height: at 125% scaling the subtitle wraps to a
+        # second line, and a 76px frame with pack_propagate off cut it off
+        # mid-sentence behind the content below.
+        header = tk.Frame(self, bg=theme.bg_dark)
         header.pack(fill=tk.X)
-        header.pack_propagate(False)
-        
+
         title_stack = tk.Frame(header, bg=theme.bg_dark)
         title_stack.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=20, pady=10)
         tk.Label(

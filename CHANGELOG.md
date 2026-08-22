@@ -16,6 +16,15 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Fixed
 
+- Counts in the interface read properly now. The export dialog said "51
+  categorys", and several dialogs showed "(s)" instead of choosing a form, so
+  cleanup review, the highlights workspace, organization rules, and reader view
+  now say "2 duplicates" and "1 highlight" like everywhere else.
+
+- The export dialog no longer cuts off its own subtitle. Its header was a fixed
+  76 pixels tall, so at 125% display scaling the second line of wrapped text
+  disappeared behind the format options.
+
 - A CSV export with a very long cell no longer loses the whole file. Python
   refuses a field over 131,072 characters, and exports that put article text in
   a column (Readwise "Document note", Instapaper "Selection") hit that ceiling
