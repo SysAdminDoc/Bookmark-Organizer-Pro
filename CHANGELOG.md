@@ -6,6 +6,16 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Added
 
+- Added rule suggestions derived from the library itself. The shipped patterns
+  cannot know about an employer intranet or a local council site, but the way
+  those hosts are already filed says exactly where they belong. Where enough
+  bookmarks on one host agree on a category, **Suggest from library** in the
+  organization rules dialog (or `bop rules suggest`) proposes a rule, showing
+  the supporting bookmarks and any competing categories. Hosts the bundled
+  patterns already route, hosts an existing rule already covers, and
+  placeholder categories such as Imported or Uncategorized are all left out.
+  Nothing is applied until the usual preview and apply steps run.
+
 - Made dead-link scanning polite so large libraries stop producing false
   positives. Requests to one host are capped (two at a time by default) while
   separate hosts still run in parallel, `429` and `503` responses honour

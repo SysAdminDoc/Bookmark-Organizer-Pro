@@ -914,6 +914,7 @@ _bop() {
                             export
                             enable
                             disable
+                            suggest
                         )
                         _describe 'argument' values
                         return
@@ -928,6 +929,8 @@ _bop() {
                 '-h[show this help message and exit]' \
                 '--help[show this help message and exit]' \
                 '--replace[Replace existing rules during import]' \
+                '--min-support[Bookmarks that must agree before a rule is suggested (default: 3)]:min_support:' \
+                '--adopt[Save every suggested rule instead of only listing them]' \
                 '--json[Print machine-readable output]'
             return
             ;;

@@ -422,6 +422,8 @@ complete -c bop -f -n "__fish_seen_subcommand_from smart-collections" -a "update
 complete -c bop -n "__fish_seen_subcommand_from rules" -s h -d "show this help message and exit"
 complete -c bop -n "__fish_seen_subcommand_from rules" -l help -d "show this help message and exit"
 complete -c bop -n "__fish_seen_subcommand_from rules" -l replace -d "Replace existing rules during import"
+complete -c bop -n "__fish_seen_subcommand_from rules" -l min-support -d "Bookmarks that must agree before a rule is suggested (default: 3)" -r
+complete -c bop -n "__fish_seen_subcommand_from rules" -l adopt -d "Save every suggested rule instead of only listing them"
 complete -c bop -n "__fish_seen_subcommand_from rules" -l json -d "Print machine-readable output"
 complete -c bop -f -n "__fish_seen_subcommand_from rules" -a "list" -d "Action (default: list)"
 complete -c bop -f -n "__fish_seen_subcommand_from rules" -a "preview" -d "Action (default: list)"
@@ -431,5 +433,6 @@ complete -c bop -f -n "__fish_seen_subcommand_from rules" -a "import" -d "Action
 complete -c bop -f -n "__fish_seen_subcommand_from rules" -a "export" -d "Action (default: list)"
 complete -c bop -f -n "__fish_seen_subcommand_from rules" -a "enable" -d "Action (default: list)"
 complete -c bop -f -n "__fish_seen_subcommand_from rules" -a "disable" -d "Action (default: list)"
+complete -c bop -f -n "__fish_seen_subcommand_from rules" -a "suggest" -d "Action (default: list)"
 complete -c bop -n "__fish_seen_subcommand_from nl-query" -s h -d "show this help message and exit"
 complete -c bop -n "__fish_seen_subcommand_from nl-query" -l help -d "show this help message and exit"

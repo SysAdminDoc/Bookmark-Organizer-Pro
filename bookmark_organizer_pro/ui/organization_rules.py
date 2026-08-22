@@ -339,6 +339,53 @@ class OrganizationRulesDialog(tk.Toplevel):
         self.apply_button = ModernButton(footer, text=_("Apply preview"), command=self._apply_preview, style="success", state="disabled", padx=10, pady=6)
         self.apply_button.pack(side=tk.RIGHT, padx=(8, 0))
         ModernButton(footer, text=_("Preview"), command=self._preview_rules, style="primary", padx=10, pady=6).pack(side=tk.RIGHT)
+        ModernButton(footer, text=_("Suggest from library"), command=self._suggest_rules, padx=10, pady=6).pack(side=tk.RIGHT, padx=(0, 8))
+
+    def _suggest_rules(self) -> None:
+        """Propose rules for hosts this library already files consistently."""
+        from tkinter import messagebox
+        from bookmark_organizer_pro.services.rule_suggestions import (
+            existing_rule_domains,
+            shipped_pattern_domains,
+            suggest_domain_category_rules,
+        )
+
+        suggestions = suggest_domain_category_rules(
+            self.bookmark_manager.get_all_bookmarks(),
+            known_domains=shipped_pattern_domains(),
+            existing_rule_domains=existing_rule_domains(self.service.list_rules()),
+        )
+        if not suggestions:
+            messagebox.showinfo(
+                _("Suggest rules"),
+                _("No host is filed consistently enough to turn into a rule yet."),
+                parent=self,
+            )
+            return
+
+        shown = suggestions[:12]
+        lines = [
+            format_message(
+                "{domain} to {category} ({support} of {total} agree)",
+                domain=item.domain, category=item.category,
+                support=item.support, total=item.total,
+            )
+            for item in shown
+        ]
+        if len(suggestions) > len(shown):
+            lines.append(format_message("and {count} more", count=len(suggestions) - len(shown)))
+        lines.append("")
+        lines.append(_("Save these rules? Nothing is applied until you run Preview."))
+
+        if not messagebox.askyesno(_("Suggest rules"), "\n".join(lines), parent=self):
+            return
+        for item in suggestions:
+            self.service.add_rule(item.to_rule_document())
+        self._refresh_rules()
+        self.preview_status.configure(
+            text=format_message("Saved {count} suggested rule(s). Run Preview to inspect them.",
+                                count=len(suggestions))
+        )
 
     @staticmethod
     def _button(parent, text, command, style="default"):

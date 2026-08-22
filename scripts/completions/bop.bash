@@ -1550,9 +1550,14 @@ _bop_completions() {
                 -h
                 --help
                 --replace
+                --min-support
+                --adopt
                 --json
             )
             case "$prev" in
+                --min-support)
+                    return 0
+                    ;;
             esac
             if [[ "$cur" == -* ]]; then
                 _bop_complete_array "$cur" "${options[@]}"
@@ -1568,6 +1573,7 @@ _bop_completions() {
                     export
                     enable
                     disable
+                    suggest
                 )
                 _bop_complete_array "$cur" "${values[@]}"
                 return 0

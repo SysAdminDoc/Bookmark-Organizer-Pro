@@ -512,11 +512,15 @@ class BookmarkCLI:
         p = sub.add_parser("rules", help="Preview and apply declarative organization rules")
         p.add_argument(
             "action", nargs="?", default="list",
-            choices=["list", "preview", "apply", "undo", "import", "export", "enable", "disable"],
+            choices=["list", "preview", "apply", "undo", "import", "export", "enable", "disable", "suggest"],
             help="Action (default: list)",
         )
         p.add_argument("target", nargs="?", help="Rule ID/name or JSON path for import/export")
         p.add_argument("--replace", action="store_true", help="Replace existing rules during import")
+        p.add_argument("--min-support", type=int, default=3,
+                       help="Bookmarks that must agree before a rule is suggested (default: 3)")
+        p.add_argument("--adopt", action="store_true",
+                       help="Save every suggested rule instead of only listing them")
         p.add_argument("--json", action="store_true", dest="as_json", help="Print machine-readable output")
         p.set_defaults(func=self._cmd_organization_rules)
 
@@ -649,6 +653,38 @@ Examples:
 
         service = OrganizationRulesService(self.bookmark_manager)
         action = ns.action
+        if action == "suggest":
+            from bookmark_organizer_pro.services.rule_suggestions import (
+                existing_rule_domains,
+                shipped_pattern_domains,
+                suggest_domain_category_rules,
+            )
+
+            suggestions = suggest_domain_category_rules(
+                self.bookmark_manager.get_all_bookmarks(),
+                min_support=max(1, int(getattr(ns, "min_support", 3) or 3)),
+                known_domains=shipped_pattern_domains(),
+                existing_rule_domains=existing_rule_domains(service.list_rules()),
+            )
+            if ns.as_json:
+                print(json.dumps([s.to_dict() for s in suggestions], indent=2, ensure_ascii=False))
+            elif not suggestions:
+                print("No rules to suggest: no host is filed consistently enough yet.")
+            else:
+                for suggestion in suggestions:
+                    print(f"{suggestion.domain} -> {suggestion.category} "
+                          f"({suggestion.support}/{suggestion.total} agree)")
+                    if suggestion.competing:
+                        competing = ", ".join(f"{n} x{c}" for n, c in suggestion.competing)
+                        print(f"  also filed as: {competing}")
+                    for example in suggestion.examples:
+                        print(f"  e.g. {example}")
+            if getattr(ns, "adopt", False) and suggestions:
+                for suggestion in suggestions:
+                    service.add_rule(suggestion.to_rule_document())
+                print(f"Saved {len(suggestions)} rule(s). Run 'rules preview' before applying.")
+            return 0
+
         if action == "list":
             rules = service.list_rules()
             if ns.as_json:

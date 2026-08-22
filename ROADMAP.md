@@ -19,13 +19,6 @@ Added 2026-08-21 from RESEARCH.md (same date). IDs continue the R-series after R
 
 ### P2
 
-- [ ] P2 — R-112: Suggest organization rules from the existing library
-  Why: The pattern engine cannot ship personal domains (8.7% of the 2026-08-21 corpus stayed uncategorized for that reason), the rule engine from R-104 only applies rules users write by hand, and the derivation logic already exists as a dev script.
-  Evidence: `scripts/add_user_domains.py`; `services/organization_rules.py`; `core/pattern_engine.py`; https://linkding.link/auto-tagging/ (rule preview UX); https://github.com/karakeep-app/karakeep/releases (v0.33.1 suggestions from similar bookmarks).
-  Touches: new `services/rule_suggestions.py`, `ui/organization_rules.py` (Suggest button + review list), `cli.py rules suggest`, tests.
-  Acceptance: Given the library, the suggester proposes domain→category rules where ≥N (default 3) manually categorized bookmarks on one host agree and no shipped pattern matches; each proposal shows supporting bookmarks and conflicts; accepted proposals become versioned rules through the existing preview/apply path; a test library with 10 hosts yields the expected proposals and rejects a split-category host.
-  Complexity: M
-
 - [ ] P2 — R-114: Refresh locked dependencies and pin the lingua Python floor
   Why: The lock is behind on feature releases (trafilatura 2.2.0 extraction overhaul 2026-07-31, lancedb 0.37.1, cryptography 50.0.0) and `lingua-language-detector` 2.2.0 requires Python ≥3.12 while the verified release lane is 3.11, so an unguarded regeneration will fail or silently pin.
   Evidence: `pylock.toml` (lancedb 0.34.0, trafilatura 2.1.0, cryptography 49.0.0, lingua 2.1.1); `pyproject.toml` (`lingua-language-detector>=2.0`, no ceiling); `packaging/release_manifest.json` (python 3.11 lock); https://raw.githubusercontent.com/adbar/trafilatura/master/HISTORY.md; https://github.com/lancedb/lancedb/releases.
