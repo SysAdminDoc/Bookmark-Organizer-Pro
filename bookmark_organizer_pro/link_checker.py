@@ -167,6 +167,15 @@ class LinkChecker:
 
             status_code = response.status_code if response is not None else 0
             if response is not None:
+                # Preserve the server's own pacing request so callers can back
+                # off instead of hammering a host that is rate limiting us.
+                if status_code in (429, 503):
+                    retry_after = str(response.headers.get('Retry-After', '') or '').strip()
+                    with self._lock:
+                        if retry_after:
+                            bookmark.custom_data['retry_after'] = retry_after
+                        else:
+                            bookmark.custom_data.pop('retry_after', None)
                 response.close()
 
             if status_code in (301, 302, 303, 307, 308):

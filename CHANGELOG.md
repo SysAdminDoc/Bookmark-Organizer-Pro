@@ -6,6 +6,14 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Added
 
+- Made dead-link scanning polite so large libraries stop producing false
+  positives. Requests to one host are capped (two at a time by default) while
+  separate hosts still run in parallel, `429` and `503` responses honour
+  `Retry-After` or an exponential backoff before a bounded retry, and a host
+  that never answers is recorded as rate limited rather than dead. Verdicts are
+  cached with an optional TTL so a rescan skips links already checked, and a
+  rate-limited result is never cached.
+
 - Added an Omnivore importer for the export archive as downloaded: a zip, an
   unpacked folder, or a single `metadata_*.json` file. Entries are merged
   across every metadata batch with repeated URLs collapsed, labels become tags,

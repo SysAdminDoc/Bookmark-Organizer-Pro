@@ -26,13 +26,6 @@ Added 2026-08-21 from RESEARCH.md (same date). IDs continue the R-series after R
   Acceptance: Given the library, the suggester proposes domain→category rules where ≥N (default 3) manually categorized bookmarks on one host agree and no shipped pattern matches; each proposal shows supporting bookmarks and conflicts; accepted proposals become versioned rules through the existing preview/apply path; a test library with 10 hosts yields the expected proposals and rejects a split-category host.
   Complexity: M
 
-- [ ] P2 — R-113: Make the dead-link scanner host-polite with cached verdicts
-  Why: At 5k+ bookmarks the scanner has no per-host concurrency cap, backoff, or Retry-After handling, so rate-limited hosts (429/503) are misreported as dead; lychee's design (retries, rate-limit awareness, result cache) is the reference, and broken-link finding is a feature Raindrop and start.me paywall.
-  Evidence: `bookmark_organizer_pro/services/dead_link_scanner.py` (no `Retry-After`/backoff/per-host code); https://github.com/lycheeverse/lychee/releases; https://raindrop.io/pro/buy; https://github.com/sissbruecker/linkding/issues/68.
-  Touches: `services/dead_link_scanner.py`, shared egress policy helpers, scan results UI, `cli.py` scan command, tests with a fake server returning 429 + Retry-After.
-  Acceptance: Concurrent requests per host are capped (default 2); 429/503 honor Retry-After or exponential backoff up to a bound and are classified `rate-limited`, not dead; verdicts are cached with a TTL so a rescan within the TTL skips unchanged hosts; the fake-server test produces zero false-dead results.
-  Complexity: M
-
 - [ ] P2 — R-114: Refresh locked dependencies and pin the lingua Python floor
   Why: The lock is behind on feature releases (trafilatura 2.2.0 extraction overhaul 2026-07-31, lancedb 0.37.1, cryptography 50.0.0) and `lingua-language-detector` 2.2.0 requires Python ≥3.12 while the verified release lane is 3.11, so an unguarded regeneration will fail or silently pin.
   Evidence: `pylock.toml` (lancedb 0.34.0, trafilatura 2.1.0, cryptography 49.0.0, lingua 2.1.1); `pyproject.toml` (`lingua-language-detector>=2.0`, no ceiling); `packaging/release_manifest.json` (python 3.11 lock); https://raw.githubusercontent.com/adbar/trafilatura/master/HISTORY.md; https://github.com/lancedb/lancedb/releases.
