@@ -1565,7 +1565,81 @@ class TestDependencyManager(unittest.TestCase):
         self.assertIn("Installed before cancellation: first", manager.last_install_report.summary())
 
 
-class TestMainAppManagers(unittest.TestCase):
+class _LocalAPIServerMixin:
+    """Isolation for cases that boot a real ``BookmarkAPI``.
+
+    ``BookmarkAPI`` defaults ``extension_origins_file`` to the real data
+    directory, so a case that omits it pairs a fake extension id into the
+    user's own registry and leaks that state into every later test. R-140 gave
+    ``tests/test_browser_extension.py`` this treatment; the two classes below
+    were missed and kept flaking under a full-file run.
+    """
+
+    API_REQUEST_TIMEOUT = 10.0
+    API_CONNECT_RETRY_SECONDS = 5.0
+
+    def setUp(self):
+        super().setUp()
+        from bookmark_organizer_pro.services.api import _EXTENSION_ORIGINS_FILE
+
+        self._shared_registry = _EXTENSION_ORIGINS_FILE
+        self._registry_before = (
+            _EXTENSION_ORIGINS_FILE.read_bytes()
+            if _EXTENSION_ORIGINS_FILE.exists()
+            else None
+        )
+        self.addCleanup(self._assert_shared_registry_untouched)
+
+    def _assert_shared_registry_untouched(self):
+        after = (
+            self._shared_registry.read_bytes()
+            if self._shared_registry.exists()
+            else None
+        )
+        self.assertEqual(
+            self._registry_before, after,
+            "this test wrote the shared extension-origin registry; start the "
+            "server with self._start_api(...) instead of BookmarkAPI(...)",
+        )
+
+    def _start_api(self, manager, tmp, **kwargs):
+        """Boot an API on an ephemeral port with its own origin registry."""
+        import main
+
+        kwargs.setdefault(
+            "extension_origins_file", Path(tmp) / "extension-origins.json"
+        )
+        api = main.BookmarkAPI(manager, port=0, **kwargs)
+        api.start()
+        self.addCleanup(api.stop)
+        return api
+
+    def _urlopen_with_retry(self, request):
+        """Open ``request``, retrying only failures to reach the socket.
+
+        One short timeout assumes the listener is already accepting and the
+        machine is idle, which is exactly the assumption that breaks when the
+        whole file runs at once. Any HTTP response, including a 4xx, ends the
+        loop immediately so a real status is never retried away.
+        """
+        import urllib.error
+        import urllib.request
+
+        deadline = time.monotonic() + self.API_CONNECT_RETRY_SECONDS
+        while True:
+            try:
+                return urllib.request.urlopen(
+                    request, timeout=self.API_REQUEST_TIMEOUT
+                )
+            except urllib.error.HTTPError:
+                raise
+            except (urllib.error.URLError, OSError):
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.05)
+
+
+class TestMainAppManagers(_LocalAPIServerMixin, unittest.TestCase):
     """Regression tests for main.py manager behavior that the GUI/CLI rely on."""
 
     def _make_manager(self, tmp: str):
@@ -2229,16 +2303,15 @@ class TestMainAppManagers(unittest.TestCase):
                 method="POST",
             )
             try:
-                with urllib.request.urlopen(request, timeout=3) as response:
+                with self._urlopen_with_retry(request) as response:
                     return response.status, json.loads(response.read().decode("utf-8"))
             except urllib.error.HTTPError as error:
                 return error.code, json.loads(error.read().decode("utf-8"))
 
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
-            api = main.BookmarkAPI(manager, port=0)
+            api = self._start_api(manager, tmp)
             try:
-                api.start()
                 base_url = f"http://127.0.0.1:{api.port}"
 
                 from bookmark_organizer_pro.services.api import _TOKEN_FILE, _KEYRING_SERVICE, _KEYRING_KEY
@@ -2301,7 +2374,7 @@ class TestMainAppManagers(unittest.TestCase):
                 headers["Authorization"] = f"Bearer {token}"
             request = urllib.request.Request(url, headers=headers)
             try:
-                with urllib.request.urlopen(request, timeout=3) as response:
+                with self._urlopen_with_retry(request) as response:
                     return response.status, response.read().decode("utf-8"), response.headers
             except urllib.error.HTTPError as error:
                 return error.code, error.read().decode("utf-8"), error.headers
@@ -2315,9 +2388,8 @@ class TestMainAppManagers(unittest.TestCase):
                 category="Books",
                 tags=["OPDS"],
             ), save=False)
-            api = main.BookmarkAPI(manager, port=0)
+            api = self._start_api(manager, tmp)
             try:
-                api.start()
                 url = f"http://127.0.0.1:{api.port}/opds?tag=OPDS&title=Catalog"
                 from bookmark_organizer_pro.services.api import _TOKEN_FILE, _KEYRING_SERVICE, _KEYRING_KEY
                 token = ""
@@ -2578,7 +2650,7 @@ class TestMainAppManagers(unittest.TestCase):
         self.assertEqual(processor.errors, [])
 
 
-class TestRESTAPIEndpoints(unittest.TestCase):
+class TestRESTAPIEndpoints(_LocalAPIServerMixin, unittest.TestCase):
     """Test REST API endpoints that were previously untested."""
 
     def _make_manager(self, tmp):
@@ -2618,7 +2690,7 @@ class TestRESTAPIEndpoints(unittest.TestCase):
             method=method,
         )
         try:
-            with urllib.request.urlopen(request, timeout=3) as response:
+            with self._urlopen_with_retry(request) as response:
                 return response.status, json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as error:
             return error.code, json.loads(error.read().decode("utf-8"))
@@ -2642,9 +2714,8 @@ class TestRESTAPIEndpoints(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
             manager.add_bookmark(Bookmark(id=1, url="https://example.com", title="Test"), save=False)
-            api = main.BookmarkAPI(manager, port=0)
+            api = self._start_api(manager, tmp)
             try:
-                api.start()
                 token = self._get_token()
                 status, body = self._get_json(f"http://127.0.0.1:{api.port}", "/stats", token)
                 self.assertEqual(status, 200)
@@ -2658,9 +2729,8 @@ class TestRESTAPIEndpoints(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
             manager.add_bookmark(Bookmark(id=1, url="https://example.com", title="Test", category="Dev"), save=False)
-            api = main.BookmarkAPI(manager, port=0)
+            api = self._start_api(manager, tmp)
             try:
-                api.start()
                 token = self._get_token()
                 status, body = self._get_json(f"http://127.0.0.1:{api.port}", "/categories", token)
                 self.assertEqual(status, 200)
@@ -2674,9 +2744,8 @@ class TestRESTAPIEndpoints(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
             manager.add_bookmark(Bookmark(id=1, url="https://example.com", title="Test", tags=["python"]), save=False)
-            api = main.BookmarkAPI(manager, port=0)
+            api = self._start_api(manager, tmp)
             try:
-                api.start()
                 token = self._get_token()
                 status, body = self._get_json(f"http://127.0.0.1:{api.port}", "/tags", token)
                 self.assertEqual(status, 200)
@@ -2690,9 +2759,8 @@ class TestRESTAPIEndpoints(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
             manager.add_bookmark(Bookmark(id=1, url="https://python.org", title="Python Docs"), save=False)
-            api = main.BookmarkAPI(manager, port=0)
+            api = self._start_api(manager, tmp)
             try:
-                api.start()
                 token = self._get_token()
                 status, body = self._get_json(f"http://127.0.0.1:{api.port}", "/search?q=Python", token)
                 self.assertEqual(status, 200)
@@ -2712,9 +2780,8 @@ class TestRESTAPIEndpoints(unittest.TestCase):
                 Bookmark(id=1, url="https://example.com", title="Python"),
                 save=False,
             )
-            api = main.BookmarkAPI(manager, port=0)
+            api = self._start_api(manager, tmp)
             try:
-                api.start()
                 token = self._get_token()
                 base = f"http://127.0.0.1:{api.port}"
                 for query, expected_code in SEARCH_CONFORMANCE_CASES:
@@ -2740,9 +2807,8 @@ class TestRESTAPIEndpoints(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
             manager.add_bookmark(Bookmark(id=42, url="https://example.com", title="By ID"), save=False)
-            api = main.BookmarkAPI(manager, port=0)
+            api = self._start_api(manager, tmp)
             try:
-                api.start()
                 token = self._get_token()
                 status, body = self._get_json(f"http://127.0.0.1:{api.port}", "/bookmarks/42", token)
                 self.assertEqual(status, 200)
@@ -2789,9 +2855,8 @@ class TestRESTAPIEndpoints(unittest.TestCase):
             for bookmark in fixtures:
                 manager.add_bookmark(bookmark, save=False)
 
-            api = main.BookmarkAPI(manager, port=0)
+            api = self._start_api(manager, tmp)
             try:
-                api.start()
                 token = self._get_token()
                 base = f"http://127.0.0.1:{api.port}"
 
@@ -2830,9 +2895,8 @@ class TestRESTAPIEndpoints(unittest.TestCase):
             manager = self._make_manager(tmp)
             manager.add_bookmark(Bookmark(id=1, url="https://example.com", title="Old One",
                                           created_at="2024-01-01T12:00:00"), save=False)
-            api = main.BookmarkAPI(manager, port=0)
+            api = self._start_api(manager, tmp)
             try:
-                api.start()
                 token = self._get_token()
                 status, body = self._get_json(f"http://127.0.0.1:{api.port}", "/digest?count=3", token)
                 self.assertEqual(status, 200)
@@ -2847,14 +2911,13 @@ class TestRESTAPIEndpoints(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
-            api = main.BookmarkAPI(manager, port=0)
+            api = self._start_api(manager, tmp)
             try:
-                api.start()
                 request = urllib.request.Request(
                     f"http://127.0.0.1:{api.port}/bookmarks",
                     method="OPTIONS",
                 )
-                with urllib.request.urlopen(request, timeout=3) as response:
+                with self._urlopen_with_retry(request) as response:
                     self.assertEqual(response.status, 204)
                     self.assertIn("Access-Control-Allow-Origin", response.headers)
                     self.assertIn("Access-Control-Allow-Methods", response.headers)
@@ -2889,15 +2952,13 @@ class TestRESTAPIEndpoints(unittest.TestCase):
                 audience="rest",
                 scopes=[REST_EXTENSION_SCOPE],
             )
-            api = main.BookmarkAPI(
+            api = self._start_api(
                 manager,
-                port=0,
+                tmp,
                 credential_manager=credentials,
                 bootstrap_legacy_token=False,
-                extension_origins_file=Path(tmp) / "extension-origins.json",
             )
             try:
-                api.start()
                 base = f"http://127.0.0.1:{api.port}"
                 status, _body = self._get_json(base, "/bookmarks", reader.token)
                 self.assertEqual(status, 200)

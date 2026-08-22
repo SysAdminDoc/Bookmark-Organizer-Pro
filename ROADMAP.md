@@ -8,16 +8,6 @@ Actionable work only. Historical and completed roadmap material is archived in C
 
 Audit-only pass against `d51beb7` (v6.14.0). Baseline before any finding was logged: `python -m pytest -q` 1049 passed / 3 skipped (Playwright ×2, POSIX ×1) / 129 subtests; `ruff check --select F,E9` clean; `gitleaks detect` 372 commits, no leaks; `scripts/dependency_vulnerability_audit.py` 121 locked deps, 0 unsuppressed; `scripts/generate_completions.py --check` and `python -m bookmark_organizer_pro.i18n --check` current; `bandit -r` 7 hits, all reviewed as false positives (SHA-1/MD5 used for layout/simhash/favicon cache names, `0.0.0.0` appears only in deny-lists, RSS already uses defusedxml with a fail-closed stdlib fallback). Tracker: 0 issues, 0 PRs, 2 maintainer-authored discussions with 0 replies, nothing to triage. Extension smoke needs `py -3.13` (Playwright lives there, not in 3.12).
 
-- [ ] P3 — R-145: REST API tests in test_core.py still bind real ports and share the data directory
-  Category: testing
-  Where: `tests/test_core.py::TestRESTAPIEndpoints` (e.g. `test_api_bookmarks_supports_pagination_and_filter_parity`), which starts a real `BookmarkAPI` on a port.
-  Problem: R-140 isolated the pairing registry and removed fixed sleeps in `tests/test_browser_extension.py`, and five consecutive full-suite runs were clean afterwards. `TestRESTAPIEndpoints` did not get the same treatment and failed once on 2026-08-22 during the version-bump run, passing in isolation and on the next full run. Same shape as the flakes R-140 fixed, different file.
-  Evidence: 2026-08-22, identical tree: `1 failed, 1086 passed` naming only that test, then `1087 passed` on the immediately following run; `pytest tests/test_core.py -k pagination_and_filter_parity` alone passes.
-  Fix: Apply the R-140 treatment: pass `extension_origins_file` pointing into the test's temp directory for every `BookmarkAPI` construction in this class, add the same setUp guard that fails a case which writes the shared registry, and replace any fixed sleep with the bounded `_wait_for` helper pattern.
-  Acceptance: Five consecutive full-suite runs pass, and `tests/test_core.py` contains no `BookmarkAPI(` call without an explicit `extension_origins_file`.
-  Confidence: Verified
-  Effort: S
-
 - [ ] P3 — R-142: Twenty-eight "(s)" placeholders remain in desktop copy outside the four dialogs already fixed
   Category: ux
   Where: `bookmark_organizer_pro/app_mixins/tools.py` (21 sites, e.g. `:285`, `:356`, `:1005`, `:1092`, `:1204`, `:1255`, `:1285`, `:1456`, `:1503`), `app_mixins/selection.py:263,304,330,347`, `app_mixins/tools.py` snapshot/tag-lint messages, `app_mixins/ai_titles.py:178,256`, `app_mixins/dashboard.py:666,681`, `ui/widget_controls.py:806,811,813`, `ui/reader_view.py:536`.
