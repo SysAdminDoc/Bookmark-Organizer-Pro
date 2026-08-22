@@ -1543,7 +1543,7 @@ TOOLS = [
          "required": ["query"],
      }),
     ("add_bookmark", t_add_bookmark,
-     "Add a new bookmark with automatic categorization via 7,550 pattern rules across 48 categories and URL tracking-param cleaning.",
+     "Add a new bookmark with automatic categorization via 7,826 pattern rules across 48 categories and URL tracking-param cleaning.",
      {
          "type": "object",
          "properties": {

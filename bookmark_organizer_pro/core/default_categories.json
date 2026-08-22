@@ -410,7 +410,14 @@
     "domain:ynet.co.il",
     "domain:yomiuri.co.jp",
     "domain:youm7.com",
-    "domain:zdf.de"
+    "domain:zdf.de",
+    "domain:baynews9.com",
+    "domain:fox13news.com",
+    "domain:pizzint.watch",
+    "domain:takimag.com",
+    "domain:unz.com",
+    "domain:wfla.com",
+    "domain:wtsp.com"
   ],
   "Technology": [
     "domain:theverge.com",
@@ -679,7 +686,15 @@
     "domain:ycombinator.com",
     "domain:zebra.com",
     "domain:ifixit.com",
-    "domain:frontier.com"
+    "domain:frontier.com",
+    "domain:betanews.com",
+    "domain:cdw.com",
+    "domain:crucial.com",
+    "domain:kimovil.com",
+    "domain:seagate.com",
+    "domain:station-drivers.com",
+    "domain:thurrott.com",
+    "domain:westerndigital.com"
   ],
   "Software Development": [
     "domain:github.com",
@@ -991,7 +1006,12 @@
     "domain:wireshark.org",
     "domain:woocommerce.com",
     "domain:bun.sh",
-    "domain:pnpm.io"
+    "domain:pnpm.io",
+    "domain:blog.nviso.eu",
+    "domain:nocodexport.com",
+    "domain:pages.dev",
+    "domain:stackoverflow.blog",
+    "domain:ticksy.com"
   ],
   "Artificial Intelligence": [
     "domain:openai.com",
@@ -1194,7 +1214,13 @@
     "domain:janitorai.com",
     "domain:magnific.com",
     "domain:polybuzz.ai",
-    "domain:talkie-ai.com"
+    "domain:talkie-ai.com",
+    "domain:jan.ai",
+    "domain:kimi.com",
+    "domain:localai.io",
+    "domain:mcp.apify.com",
+    "domain:ollama.ai",
+    "domain:slidesgpt.com"
   ],
   "Cloud Computing": [
     "domain:aws.amazon.com",
@@ -1363,7 +1389,8 @@
     "domain:icloud.com.cn",
     "domain:rackspace.com",
     "domain:snowflake.com",
-    "domain:supabase.co"
+    "domain:supabase.co",
+    "domain:mega.io"
   ],
   "Cybersecurity": [
     "domain:1password.com",
@@ -1535,7 +1562,17 @@
     "domain:verkada.com",
     "domain:watchguard.com",
     "domain:wordfence.com",
-    "domain:zscaler.com"
+    "domain:zscaler.com",
+    "domain:10minutemail.com",
+    "domain:dinopass.com",
+    "domain:easylist.to",
+    "domain:futo.org",
+    "domain:guerrillamail.com",
+    "domain:justdeleteme.xyz",
+    "domain:oisd.nl",
+    "domain:security.org",
+    "domain:spybot.info",
+    "domain:twofactorauth.org"
   ],
   "System Administration": [
     "domain:getadmx.com",
@@ -1826,7 +1863,39 @@
     "domain:n-able.com",
     "domain:ninjarmm.com",
     "domain:no-ip.com",
-    "domain:plesk.com"
+    "domain:plesk.com",
+    "domain:adminarsenal.com",
+    "domain:askvg.com",
+    "domain:canyouseeme.org",
+    "domain:codesector.com",
+    "domain:connectbooster.com",
+    "domain:experts-exchange.com",
+    "domain:forums.mydigitallife.net",
+    "domain:grc.com",
+    "domain:ideas.codesector.com",
+    "domain:join.me",
+    "domain:kmkeen.com",
+    "domain:opensignal.com",
+    "domain:prajwaldesai.com",
+    "domain:putty.org",
+    "domain:raymond.cc",
+    "domain:rclone.org",
+    "domain:secure.adminarsenal.com",
+    "domain:smartftp.com",
+    "domain:store.rg-adguard.net",
+    "domain:store.ui.com",
+    "domain:superops.com",
+    "domain:syncromsp.com",
+    "domain:syncrosecure.com",
+    "domain:sysadmindocumentation.com",
+    "domain:tb.rg-adguard.net",
+    "domain:techdows.com",
+    "domain:theitbros.com",
+    "domain:ui.com",
+    "domain:unifi-network.ui.com",
+    "domain:whatismyipaddress.com",
+    "domain:woshub.com",
+    "domain:wtfismyip.com"
   ],
   "Self-Hosting": [
     "domain:pfsense.org",
@@ -1990,7 +2059,8 @@
     "keyword:selfhosted vpn",
     "keyword:selfhosted dashboard",
     "domain:rustdesk.com",
-    "domain:synology.me"
+    "domain:synology.me",
+    "domain:tautulli.com"
   ],
   "Science": [
     "domain:nature.com",
@@ -2398,7 +2468,8 @@
     "domain:uwaterloo.ca",
     "domain:wikibooks.org",
     "domain:wordwall.net",
-    "domain:zearn.org"
+    "domain:zearn.org",
+    "domain:credly.com"
   ],
   "Reference": [
     "domain:wikipedia.org",
@@ -2565,7 +2636,9 @@
     "domain:wordreference.com",
     "domain:worldcat.org",
     "domain:worldtimeserver.com",
-    "domain:yahoo.co.jp"
+    "domain:yahoo.co.jp",
+    "domain:bing.com",
+    "domain:searx.be"
   ],
   "Finance": [
     "domain:chase.com",
@@ -2810,7 +2883,10 @@
     "domain:visa.com",
     "domain:visualcapitalist.com",
     "domain:vtb.ru",
-    "domain:westernunion.com"
+    "domain:westernunion.com",
+    "domain:cash.app",
+    "domain:finance.yahoo.com",
+    "domain:spectrum.net"
   ],
   "Business": [
     "domain:bloomberg.com",
@@ -2915,7 +2991,13 @@
     "domain:square.site",
     "domain:surveymonkey.com",
     "domain:weforum.org",
-    "domain:apollo.io"
+    "domain:apollo.io",
+    "domain:aircall.io",
+    "domain:contractscounsel.com",
+    "domain:insightly.com",
+    "domain:northwestregisteredagent.com",
+    "domain:pandadoc.com",
+    "domain:thimble.com"
   ],
   "Careers": [
     "domain:indeed.com",
@@ -3069,7 +3151,10 @@
     "domain:resume.com",
     "domain:rocketreach.co",
     "domain:sarkariresult.com.cm",
-    "domain:seek.com.au"
+    "domain:seek.com.au",
+    "domain:aerotek.com",
+    "domain:randstadusa.com",
+    "domain:teksystems.com"
   ],
   "Real Estate": [
     "domain:zillow.com",
@@ -3222,7 +3307,11 @@
     "domain:idealista.it",
     "domain:immobiliare.it",
     "domain:property24.com",
-    "domain:suumo.jp"
+    "domain:suumo.jp",
+    "domain:activebuilding.com",
+    "domain:greystar.com",
+    "domain:showmojo.com",
+    "domain:tenants.doorstead.com"
   ],
   "Shopping": [
     "domain:amazon.com",
@@ -3523,7 +3612,13 @@
     "domain:vseinstrumenti.ru",
     "domain:wildberries.ru",
     "domain:zalando.de",
-    "domain:zozo.jp"
+    "domain:zozo.jp",
+    "domain:adafruit.com",
+    "domain:banggood.com",
+    "domain:fakespot.com",
+    "domain:meh.com",
+    "domain:sparkfun.com",
+    "domain:teespring.com"
   ],
   "Health": [
     "domain:webmd.com",
@@ -3783,7 +3878,31 @@
     "domain:ouraring.com",
     "domain:redcross.org",
     "domain:tabletki.ua",
-    "domain:uhc.com"
+    "domain:uhc.com",
+    "domain:biokinemetrics.com",
+    "domain:cloud.patientimage.com",
+    "domain:delworksllc.com",
+    "domain:drtech.co.kr",
+    "domain:genoray.com",
+    "domain:genorayamerica.com",
+    "domain:iqhealth.com",
+    "domain:jpi.co.kr",
+    "domain:konicaminolta.com",
+    "domain:labcorp.com",
+    "domain:memberportal.com",
+    "domain:mindray.com",
+    "domain:moffitt.org",
+    "domain:mymindrayportal.com",
+    "domain:orthanc.uclouvain.be",
+    "domain:questdiagnostics.com",
+    "domain:rayence.com",
+    "domain:rayencecare.com",
+    "domain:science.bio",
+    "domain:selfhacked.com",
+    "domain:sourceray.com",
+    "domain:summitindustriesllc.com",
+    "domain:vieworks.com",
+    "domain:voyance.health"
   ],
   "Food": [
     "domain:doordash.com",
@@ -4012,7 +4131,8 @@
     "domain:russianfood.com",
     "domain:swiggy.com",
     "domain:tabelog.com",
-    "domain:takeaway.com"
+    "domain:takeaway.com",
+    "domain:fooducate.com"
   ],
   "Travel": [
     "domain:booking.com",
@@ -4463,7 +4583,16 @@
     "domain:sportskeeda.com",
     "domain:tjk.org",
     "domain:varzesh3.com",
-    "domain:yallakora.com"
+    "domain:yallakora.com",
+    "domain:ammunitiontogo.com",
+    "domain:midwestwhitetail.com",
+    "domain:mossberg.com",
+    "domain:myoutdoortv.com",
+    "domain:smith-wesson.com",
+    "domain:smithandwesson.com",
+    "domain:sportsmans.com",
+    "domain:videos.myoutdoortv.com",
+    "domain:wildtv.ca"
   ],
   "Entertainment": [
     "domain:imdb.com",
@@ -4780,7 +4909,34 @@
     "domain:trilltrill.jp",
     "domain:twkan.com",
     "domain:vymanga.com",
-    "domain:warnerbros.com"
+    "domain:warnerbros.com",
+    "domain:braflix.video",
+    "domain:busysimulator.com",
+    "domain:casualcrimes.com",
+    "domain:fakeupdate.net",
+    "domain:gcpdot.com",
+    "domain:isitchristmas.com",
+    "domain:isitreadonlyfriday.com",
+    "domain:livetv.sx",
+    "domain:mapcrunch.com",
+    "domain:monkeyguts.com",
+    "domain:pixelplanet.fun",
+    "domain:pointerpointer.com",
+    "domain:putlocker.vip",
+    "domain:robotop.xyz",
+    "domain:robotstreamer.com",
+    "domain:soap2day.to",
+    "domain:sportsurge.net",
+    "domain:stream2watch.com",
+    "domain:streameast.io",
+    "domain:theuselessweb.com",
+    "domain:tvmaze.com",
+    "domain:tvpass.org",
+    "domain:ustvgo.tv",
+    "domain:vipbox.lc",
+    "domain:window-swap.com",
+    "domain:windows93.net",
+    "domain:zoomquilt.org"
   ],
   "Gaming": [
     "domain:steam.com",
@@ -5022,7 +5178,16 @@
     "domain:xboxlive.com",
     "domain:xoso.com.vn",
     "domain:zynga.com",
-    "domain:spigotmc.org"
+    "domain:spigotmc.org",
+    "domain:builtbybit.com",
+    "domain:emulationstation.org",
+    "domain:mc-market.org",
+    "domain:minecraftservers.org",
+    "domain:namemc.com",
+    "domain:parsecgaming.com",
+    "domain:planetminecraft.com",
+    "domain:polymart.org",
+    "domain:songoda.com"
   ],
   "Social Media": [
     "domain:twitter.com",
@@ -5191,7 +5356,11 @@
     "domain:wa.me",
     "domain:weibo.cn",
     "domain:zaloapp.com",
-    "domain:gab.com"
+    "domain:gab.com",
+    "domain:redditsearch.io",
+    "domain:removeddit.com",
+    "domain:reveddit.com",
+    "domain:unddit.com"
   ],
   "Forums": [
     "domain:reddit.com",
@@ -5367,7 +5536,13 @@
     "domain:hatena.ne.jp",
     "domain:pikabu.ru",
     "domain:ptt.cc",
-    "domain:theqoo.net"
+    "domain:theqoo.net",
+    "domain:4chanarchives.com",
+    "domain:8chan.moe",
+    "domain:archived.moe",
+    "domain:desuarchive.org",
+    "domain:lowendtalk.com",
+    "domain:warosu.org"
   ],
   "Video": [
     "domain:youtube.com",
@@ -5484,7 +5659,8 @@
     "domain:tubi.io",
     "domain:tubitv.com",
     "domain:vkvideo.ru",
-    "domain:youku.com"
+    "domain:youku.com",
+    "domain:streamerstats.com"
   ],
   "Design": [
     "domain:figma.com",
@@ -5623,7 +5799,15 @@
     "domain:themeforest.net",
     "domain:wincustomize.com",
     "domain:userstyles.org",
-    "domain:userstyles.world"
+    "domain:userstyles.world",
+    "domain:1001fonts.com",
+    "domain:getpaint.net",
+    "domain:iconfinder.com",
+    "domain:makerworld.com",
+    "domain:paint.net",
+    "domain:printables.com",
+    "domain:redketchup.io",
+    "domain:squoosh.app"
   ],
   "Photography": [
     "domain:flickr.com",
@@ -5837,7 +6021,23 @@
     "domain:telestream.net",
     "domain:videohelp.com",
     "domain:capcut.com",
-    "domain:issuu.com"
+    "domain:issuu.com",
+    "domain:birddog.tv",
+    "domain:bluemic.com",
+    "domain:castr.com",
+    "domain:elgato.com",
+    "domain:grassvalley.com",
+    "domain:knightsoftheeditingtable.com",
+    "domain:krisp.ai",
+    "domain:magewell.com",
+    "domain:newtek.com",
+    "domain:ptzoptics.com",
+    "domain:thinklogical.com",
+    "domain:vb-audio.com",
+    "domain:vb-audio.pagesperso-orange.fr",
+    "domain:vdo.ninja",
+    "domain:voicemeeter.com",
+    "domain:wowza.com"
   ],
   "Automotive": [
     "domain:cars.com",
@@ -6025,7 +6225,9 @@
     "domain:polovniautomobili.com",
     "domain:tesla.services",
     "domain:turbo.az",
-    "domain:volvocars.com"
+    "domain:volvocars.com",
+    "domain:automotiveforums.com",
+    "domain:tirekingdom.com"
   ],
   "Home": [
     "domain:homedepot.com",
@@ -6132,7 +6334,8 @@
     "domain:goodhousekeeping.com",
     "domain:simplisafe.com",
     "domain:southernliving.com",
-    "domain:theknot.com"
+    "domain:theknot.com",
+    "domain:autonomous.ai"
   ],
   "Parenting": [
     "domain:babycenter.com",
@@ -6573,7 +6776,14 @@
     "domain:sinoptik.ua",
     "domain:tenki.jp",
     "domain:weathernews.jp",
-    "domain:zuimeitianqi.com"
+    "domain:zuimeitianqi.com",
+    "domain:cyclocane.com",
+    "domain:earthcam.com",
+    "domain:fplmaps.com",
+    "domain:meteologix.com",
+    "domain:mytampabay.wfla.com",
+    "domain:poweroutage.us",
+    "domain:windy.tv"
   ],
   "Government": [
     "regex:\\.gov(/|$)",
@@ -6800,7 +7010,11 @@
     "domain:vatican.va",
     "domain:vietnam.vn",
     "domain:wipo.int",
-    "domain:www.gov.pl"
+    "domain:www.gov.pl",
+    "domain:floridadisaster.org",
+    "domain:floridarevenue.com",
+    "domain:myfloridacfo.com",
+    "domain:myfwc.com"
   ],
   "Productivity": [
     "domain:docs.google.com",
@@ -6953,7 +7167,21 @@
     "domain:wps.com",
     "domain:wufoo.com",
     "domain:zoho.com",
-    "domain:zoom.com"
+    "domain:zoom.com",
+    "domain:12ft.io",
+    "domain:aconvert.com",
+    "domain:carnet.live",
+    "domain:clideo.com",
+    "domain:convertio.co",
+    "domain:downforeveryoneorjustme.com",
+    "domain:isitdownrightnow.com",
+    "domain:naturalreaders.com",
+    "domain:online-convert.com",
+    "domain:online-video-cutter.com",
+    "domain:pdf24.org",
+    "domain:photomosh.com",
+    "domain:saveweb2zip.com",
+    "domain:tinywow.com"
   ],
   "Software": [
     "domain:vsthemes.org",
@@ -7162,7 +7390,28 @@
     "domain:wixsite.com",
     "domain:wondershare.com",
     "domain:zimbra.com",
-    "domain:thehouseofportable.com"
+    "domain:thehouseofportable.com",
+    "domain:balena.io",
+    "domain:catppuccin-userstyles-customizer.uncenter.dev",
+    "domain:catppuccin.com",
+    "domain:doc.e.foundation",
+    "domain:e.foundation",
+    "domain:etcher.balena.io",
+    "domain:floorp.app",
+    "domain:magiskmanager.com",
+    "domain:mcpedl.com",
+    "domain:odindownload.com",
+    "domain:pushbullet.com",
+    "domain:revanced.app",
+    "domain:rufus.ie",
+    "domain:scrcpy.org",
+    "domain:sleazyfork.org",
+    "domain:thorium.rocks",
+    "domain:twrp.me",
+    "domain:ventoy.net",
+    "domain:vivaldi.com",
+    "domain:waterfox.net",
+    "domain:winrar.com"
   ],
   "File Sharing": [
     "domain:1337x.to",
@@ -7296,7 +7545,24 @@
     "domain:bittorrent.com",
     "domain:mega.co.nz",
     "domain:postimg.cc",
-    "domain:thepiratebay.se"
+    "domain:thepiratebay.se",
+    "domain:audioz.download",
+    "domain:avxgfx.com",
+    "domain:avxhm.se",
+    "domain:btdig.com",
+    "domain:cobalt.directory",
+    "domain:cobalt.meowing.de",
+    "domain:cobalt.tools",
+    "domain:glodls.to",
+    "domain:imput.net",
+    "domain:nsaneforums.com",
+    "domain:odcrawler.xyz",
+    "domain:passthepopcorn.me",
+    "domain:sanet.st",
+    "domain:snapdrop.net",
+    "domain:the-eye.eu",
+    "domain:whatsoftware.com",
+    "domain:yt-dlp.org"
   ],
   "Adult Content": [
     "domain:pornhub.com",
@@ -7553,7 +7819,11 @@
     "domain:gotomeeting.com",
     "domain:whereby.com",
     "domain:jitsi.org",
-    "domain:skype.com"
+    "domain:skype.com",
+    "domain:app.openmailbox.org",
+    "domain:disboard.org",
+    "domain:tinychat.com",
+    "domain:top.gg"
   ],
   "Cryptocurrency": [
     "domain:coinbase.com",
@@ -7599,7 +7869,13 @@
     "domain:arbitrum.io",
     "domain:chain.link",
     "domain:blockchain.com",
-    "domain:bitcointalk.org"
+    "domain:bitcointalk.org",
+    "domain:bisq.network",
+    "domain:bitcoincharts.com",
+    "domain:bitcointicker.co",
+    "domain:blockchain.info",
+    "domain:coinmama.com",
+    "domain:localbitcoins.com"
   ],
   "Maps & Navigation": [
     "domain:maps.google.com",

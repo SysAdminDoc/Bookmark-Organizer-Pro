@@ -2,10 +2,18 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
-## [Unreleased]
+## [v6.13.0] - 2026-08-21
 
 ### Added
 
+- Added 276 curated domain categorization patterns (7,550 -> 7,826) sourced
+  from a large-scale real-world organization pass over 131,005 bookmark
+  entries spanning 89 browser exports: MSP/RMM platforms, medical imaging and
+  DICOM vendors, broadcast production gear, ad-block filter lists, Android
+  ROM/modding resources, private trackers and media-downloader tools, Reddit
+  archive utilities, hurricane tracking, 3D printing, retro emulation, and
+  Discord ecosystem services; raised the release-manifest pattern floor to
+  7,800.
 - Added a shared AI operation contract with Stop propagation through desktop
   workflows, provider retries, streaming clients, caches, and job history;
   operations now enforce bounded attempts, elapsed time, input/output size,

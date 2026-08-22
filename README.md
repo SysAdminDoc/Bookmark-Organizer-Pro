@@ -5,7 +5,7 @@ A powerful, professional-grade bookmark manager with AI-powered categorization, 
 Executable product contract: 64 CLI subcommands, 34 MCP tools, 6 AI providers, 3 extension surfaces, 56 service modules, 44 UI modules, and 44 test files.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
-![Version](https://img.shields.io/badge/Version-v6.12.0-2dd4bf.svg)
+![Version](https://img.shields.io/badge/Version-v6.13.0-2dd4bf.svg)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
@@ -345,7 +345,7 @@ Native messaging and offline category/tag suggestions remain on the roadmap.
 - **Page Metadata Fetch**: Auto-fetch title, description, and favicon from live URLs
 - **Wayback Machine Integration**: Check archive.org for snapshots, submit pages for archival
 - **URL Normalization**: RFC 3986 canonicalization for precise deduplication
-- **7,550 Categorization Patterns**: 48 categories with curated domain, keyword, and regex rules
+- **7,826 Categorization Patterns**: 48 categories with curated domain, keyword, and regex rules
 - **Redirect Detection**: Link checker detects and offers to fix redirected URLs
 - **Batch Metadata Refresh**: Multi-threaded re-fetch of all bookmark titles/descriptions
 - **Random Bookmark**: Rediscover forgotten bookmarks

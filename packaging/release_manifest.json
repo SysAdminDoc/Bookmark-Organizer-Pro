@@ -40,7 +40,7 @@
       "name": "default_categories",
       "module": "bookmark_organizer_pro.core.default_categories",
       "minimum_categories": 48,
-      "minimum_patterns": 7500
+      "minimum_patterns": 7800
     },
     {
       "name": "html_parsing",
