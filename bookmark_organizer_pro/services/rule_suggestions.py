@@ -14,7 +14,7 @@ allowlisted-predicate and undo guarantees intact.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from bookmark_organizer_pro.models import Bookmark

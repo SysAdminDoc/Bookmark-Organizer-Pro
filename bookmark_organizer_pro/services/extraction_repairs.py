@@ -23,7 +23,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from bookmark_organizer_pro.constants import DATA_DIR
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.services.extraction_templates import (
-    MAX_SELECTOR_LENGTH,
     _clamp_int,
     _clean_value,
     _read_template_payload,
@@ -159,8 +158,6 @@ def load_extraction_repairs(path: str | Path | None = None) -> List[ExtractionRe
 
 def save_extraction_repairs(repairs: List[ExtractionRepair], path: str | Path | None = None) -> Path:
     """Persist repairs, re-validating every one before writing."""
-    import json
-
     from bookmark_organizer_pro.utils.runtime import atomic_json_write
 
     destination = Path(path) if path else REPAIRS_FILE
