@@ -794,6 +794,48 @@ vm.runInContext(`(async () => {
 
 
 class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
+    def setUp(self):
+        """Fail loudly if a case forgets to isolate the pairing registry.
+
+        `BookmarkAPI` defaults `extension_origins_file` to the real data
+        directory, so a case that omits it pairs a fake extension id into the
+        user's own registry and leaks that state into every later test.
+        """
+        from bookmark_organizer_pro.services.api import _EXTENSION_ORIGINS_FILE
+
+        self._shared_registry = _EXTENSION_ORIGINS_FILE
+        self._registry_before = (
+            _EXTENSION_ORIGINS_FILE.read_bytes()
+            if _EXTENSION_ORIGINS_FILE.exists()
+            else None
+        )
+        self.addCleanup(self._assert_shared_registry_untouched)
+
+    def _assert_shared_registry_untouched(self):
+        after = (
+            self._shared_registry.read_bytes()
+            if self._shared_registry.exists()
+            else None
+        )
+        self.assertEqual(
+            self._registry_before, after,
+            "this test wrote the shared extension-origin registry; pass "
+            "extension_origins_file=... when constructing BookmarkAPI",
+        )
+
+    def _wait_for(self, predicate, timeout=5.0, message=""):
+        """Poll until predicate() is true. A fixed sleep assumes the server's
+        deadline timer has already run, which is exactly what fails under load."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                if predicate():
+                    return True
+            except Exception:
+                pass
+            time.sleep(0.02)
+        self.fail(message or "condition was not met before the timeout")
+
     def _make_manager(self, tmp: str):
         import main
 
@@ -931,6 +973,7 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
             manager = self._make_manager(tmp)
             api = main.BookmarkAPI(
                 manager,
+                extension_origins_file=Path(tmp) / "approved-origins.json",
                 port=0,
                 max_workers=1,
                 header_deadline_seconds=0.2,
@@ -956,8 +999,11 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
                 with self.assertRaises(urllib.error.HTTPError) as busy:
                     self._get_json(base_url, "/health")
                 self.assertEqual(busy.exception.code, 503)
-                time.sleep(0.3)
-                self.assertEqual(self._get_json(base_url, "/health")[0], 200)
+                # The header deadline must release the admission slot.
+                self._wait_for(
+                    lambda: self._get_json(base_url, "/health")[0] == 200,
+                    message="the header deadline never released the worker",
+                )
 
                 body_client.connect(("127.0.0.1", api.port))
                 request_headers = (
@@ -968,8 +1014,10 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
                     "Content-Length: 100\r\n\r\n"
                 ).encode("ascii")
                 body_client.sendall(request_headers + b"{")
-                time.sleep(0.3)
-                self.assertEqual(self._get_json(base_url, "/health")[1]["status"], "ok")
+                self._wait_for(
+                    lambda: self._get_json(base_url, "/health")[1]["status"] == "ok",
+                    message="the body deadline never released the worker",
+                )
                 self.assertEqual(manager.get_all_bookmarks(), [])
             finally:
                 header_client.close()
@@ -983,6 +1031,7 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
             manager = self._make_manager(tmp)
             api = main.BookmarkAPI(
                 manager,
+                extension_origins_file=Path(tmp) / "approved-origins.json",
                 port=0,
                 max_workers=2,
                 request_deadline_seconds=0.2,
@@ -1173,7 +1222,10 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
-            api = main.BookmarkAPI(manager, port=0)
+            api = main.BookmarkAPI(
+                manager, port=0,
+                extension_origins_file=Path(tmp) / "approved-origins.json",
+            )
             try:
                 api.start()
                 token = self._api_token()
@@ -1266,7 +1318,10 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
-            api = main.BookmarkAPI(manager, port=0)
+            api = main.BookmarkAPI(
+                manager, port=0,
+                extension_origins_file=Path(tmp) / "approved-origins.json",
+            )
             try:
                 api.start()
                 token = self._api_token()
