@@ -325,6 +325,31 @@ class TestMappedCSVImporter(unittest.TestCase):
         self.assertEqual(mapping["tags"], "Tags")
         self.assertNotIn("category", mapping)
 
+    def test_a_cell_past_pythons_field_limit_does_not_abort_the_file(self):
+        """Python caps a CSV field at 131,072 characters and raises for
+        anything longer, which used to lose every row in the file. Real
+        exports put article text in a cell."""
+        import csv
+
+        from bookmark_organizer_pro.importers_extra import MappedCSVImporter
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "big.csv"
+            with path.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.writer(handle)
+                writer.writerow(["Title", "URL", "Notes"])
+                writer.writerow(["before", "https://example.com/a", "short"])
+                writer.writerow(["huge", "https://example.com/b", "x" * 200_000])
+                writer.writerow(["after", "https://example.com/c", "short"])
+
+            bookmarks = list(MappedCSVImporter().from_path(str(path)))
+
+        self.assertEqual(
+            [bm.url for bm in bookmarks],
+            ["https://example.com/a", "https://example.com/b", "https://example.com/c"],
+        )
+        self.assertEqual(len(bookmarks[1].notes), 200_000)
+
 
 if __name__ == "__main__":
     unittest.main()

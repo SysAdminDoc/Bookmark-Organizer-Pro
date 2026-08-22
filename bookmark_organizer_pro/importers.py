@@ -28,7 +28,48 @@ from urllib.parse import urlparse
 from .constants import DATA_DIR, IS_WINDOWS, IS_MAC
 from .logging_config import log
 from .models import Bookmark
+
 from .utils import xml_safe_text
+
+# Python caps a CSV field at 131,072 characters and raises `csv.Error` for
+# anything longer, which aborts the whole file rather than one row. Real
+# exports embed article text in a cell (Readwise "Document note", Instapaper
+# "Selection"), so the ceiling is raised once for every importer.
+MAX_CSV_FIELD_CHARS = 50_000_000
+
+
+def raise_csv_field_limit(limit: int = MAX_CSV_FIELD_CHARS) -> int:
+    """Raise the CSV field ceiling as far as this platform allows."""
+    while limit > 131_072:
+        try:
+            csv.field_size_limit(limit)
+            return limit
+        except OverflowError:
+            limit //= 2
+    return csv.field_size_limit()
+
+
+raise_csv_field_limit()
+
+
+def _iter_csv_rows(reader, stats=None):
+    """Yield CSV rows, reporting a malformed file instead of raising.
+
+    `csv.Error` leaves the reader's state undefined, so the file stops here
+    rather than being retried row by row; the rows already parsed are kept and
+    the loss is recorded for the import report.
+    """
+    while True:
+        try:
+            yield next(reader)
+        except StopIteration:
+            return
+        except csv.Error as exc:
+            if stats is not None:
+                stats.record(f"CSV could not be read past this row: {str(exc)[:120]}")
+            else:
+                log.warning(f"CSV import stopped early: {exc}")
+            return
 
 
 def _decode(text: str) -> str:
@@ -690,7 +731,7 @@ class RaindropImporter:
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
-                for row in reader:
+                for row in _iter_csv_rows(reader):
                     url = str(row.get('url', row.get('link', '')) or '').strip()
                     if not _is_supported_web_url(url):
                         continue

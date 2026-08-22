@@ -14,6 +14,19 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   README now documents the workflow and the selector rules. The v6.14.0 entry
   described a preview-before-save flow that had no save step; this is it.
 
+### Fixed
+
+- A CSV export with a very long cell no longer loses the whole file. Python
+  refuses a field over 131,072 characters, and exports that put article text in
+  a column (Readwise "Document note", Instapaper "Selection") hit that ceiling
+  and aborted the import mid-file. The ceiling is raised for every CSV
+  importer, and a file that still cannot be read reports what was lost instead
+  of raising.
+
+- An Omnivore zip is now checked against the declared size of each metadata
+  member before reading it, so a small archive holding a huge compressed member
+  is reported rather than loaded into memory.
+
 ### Changed
 
 - Duplicate detection no longer re-reads the whole library on every save. Each

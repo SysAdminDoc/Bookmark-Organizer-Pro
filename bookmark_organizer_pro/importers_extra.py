@@ -16,9 +16,21 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Iterator, List, Tuple
 
-from bookmark_organizer_pro.importers import SessionImportStats
+from bookmark_organizer_pro.importers import (
+    SessionImportStats,
+    _iter_csv_rows,
+    raise_csv_field_limit,
+)
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
+
+
+raise_csv_field_limit()
+
+# Metadata JSON in a real export is a few megabytes; a zip declares the
+# uncompressed size of each member, so an absurd one is refused before it is
+# read into memory.
+MAX_ARCHIVE_MEMBER_BYTES = 50_000_000
 
 
 def _ts(value) -> str:
@@ -120,7 +132,7 @@ class ReadwiseReaderCSVImporter:
         out: List[Bookmark] = []
         with p.open("r", encoding="utf-8", newline="") as f:
             reader = csv.DictReader(f)
-            for row in reader:
+            for row in _iter_csv_rows(reader):
                 url = (row.get("URL") or row.get("url") or "").strip()
                 if not url:
                     continue
@@ -204,7 +216,7 @@ class MappedCSVImporter:
         out: List[Bookmark] = []
         with p.open("r", encoding="utf-8-sig", errors="replace", newline="") as handle:
             reader = csv.DictReader(handle)
-            for raw in reader:
+            for raw in _iter_csv_rows(reader, self.stats):
                 row = {str(k or "").strip().lower(): (v or "") for k, v in raw.items()}
                 url = self._value(row, "url")
                 if not url:
@@ -279,7 +291,7 @@ class InstapaperImporter:
         out: List[Bookmark] = []
         with p.open("r", encoding="utf-8", newline="") as f:
             reader = csv.reader(f)
-            for row in reader:
+            for row in _iter_csv_rows(reader):
                 if len(row) < 2:
                     continue
                 # Header detection
@@ -368,7 +380,7 @@ class MatterImporter:
         try:
             with open(path, "r", encoding="utf-8-sig") as f:
                 reader = csv.DictReader(f)
-                for row in reader:
+                for row in _iter_csv_rows(reader):
                     url = (row.get("URL") or row.get("url") or "").strip()
                     if not url or not url.startswith(("http://", "https://")):
                         continue
@@ -432,6 +444,16 @@ class OmnivoreImporter:
                              if n.endswith(".json") and "metadata_" in Path(n).name]
                     for name in sorted(names):
                         try:
+                            # A zip declares its uncompressed size, so check it
+                            # before reading: a small archive can hold a
+                            # highly compressible multi-gigabyte member.
+                            declared = archive.getinfo(name).file_size
+                            if declared > MAX_ARCHIVE_MEMBER_BYTES:
+                                yield name, _UnreadableMember(
+                                    f"member is {declared} bytes, over the "
+                                    f"{MAX_ARCHIVE_MEMBER_BYTES}-byte limit"
+                                )
+                                continue
                             yield name, json.loads(archive.read(name).decode("utf-8-sig"))
                         except (KeyError, ValueError, UnicodeDecodeError) as exc:
                             yield name, _UnreadableMember(str(exc))

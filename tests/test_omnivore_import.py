@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+import unittest.mock
 import zipfile
 from pathlib import Path
 
@@ -132,6 +133,30 @@ class TestOmnivoreImporter(unittest.TestCase):
 
     def test_missing_source_yields_nothing(self):
         self.assertEqual(list(OmnivoreImporter().from_path("does-not-exist.json")), [])
+
+    def test_an_oversized_archive_member_is_reported_rather_than_read(self):
+        """A zip declares each member's uncompressed size, so a small archive
+        can hold a highly compressible multi-gigabyte member."""
+        from bookmark_organizer_pro import importers_extra
+
+        with tempfile.TemporaryDirectory() as tmp:
+            archive_path = Path(tmp) / "export.zip"
+            payload = json.dumps([{"url": "https://example.com/a", "title": "A"}])
+            with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("metadata_0.json", "[" + " " * 200_000 + "]")
+                archive.writestr("metadata_1.json", payload)
+
+            with unittest.mock.patch.object(
+                importers_extra, "MAX_ARCHIVE_MEMBER_BYTES", 1_000,
+            ):
+                importer = OmnivoreImporter()
+                bookmarks = list(importer.from_path(str(archive_path)))
+
+        self.assertEqual([bm.url for bm in bookmarks], ["https://example.com/a"])
+        self.assertTrue(
+            any("over the" in cause for cause in importer.stats.causes),
+            f"the oversized member must be reported, got {importer.stats.causes}",
+        )
 
 
 if __name__ == "__main__":
