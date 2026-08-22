@@ -103,6 +103,20 @@ def run_smoke(
         if lint.returncode:
             raise RuntimeError(f"Firefox web-ext lint failed: {(lint.stdout + lint.stderr)[-1200:]}")
         lint_report = json.loads(lint.stdout)
+        # web-ext exits 0 on warnings, and the manifest regression this gate
+        # exists to catch (a version floor below the key it declares) is a
+        # warning. Reading the summary is what makes the gate a gate.
+        summary = lint_report.get("summary", {})
+        noisy = {
+            level: int(summary.get(level, 0) or 0)
+            for level in ("errors", "warnings", "notices")
+            if int(summary.get(level, 0) or 0)
+        }
+        if noisy:
+            detail = json.dumps(lint_report.get("warnings", []) + lint_report.get("errors", []))
+            raise RuntimeError(
+                f"Firefox web-ext lint is not clean: {noisy}; {detail[:900]}"
+            )
 
         watchdog.phase("temporary-install")
         with tempfile.NamedTemporaryFile(prefix="bop-firefox-smoke-", suffix=".log", delete=False) as handle:

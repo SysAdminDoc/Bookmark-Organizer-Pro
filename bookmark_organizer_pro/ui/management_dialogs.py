@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import Callable
 
-from bookmark_organizer_pro.i18n import _, format_message
+from bookmark_organizer_pro.i18n import _, format_message, format_plural
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services import FaviconWrapperGenerator
 from bookmark_organizer_pro.services.atomic_document_store import AtomicDocumentError
@@ -382,9 +382,10 @@ class CategoryManagementDialog(tk.Toplevel):
             self._populate_categories()
             if self.on_change:
                 self.on_change()
-            self._set_status(format_message(
-                "Restored '{name}' and {bookmarks}.",
-                name=name, bookmarks=pluralize(restored, "bookmark"),
+            self._set_status(format_plural(
+                "Restored '{name}' and {count} bookmark.",
+                "Restored '{name}' and {count} bookmarks.",
+                restored, name=name, count=restored,
             ))
             return True
 
@@ -413,9 +414,10 @@ class CategoryManagementDialog(tk.Toplevel):
         self._populate_categories()
         if self.on_change:
             self.on_change()
-        self._set_status(format_message(
-            "Restored '{name}' and {bookmarks}.",
-            name=name, bookmarks=pluralize(restored, "bookmark"),
+        self._set_status(format_plural(
+            "Restored '{name}' and {count} bookmark.",
+            "Restored '{name}' and {count} bookmarks.",
+            restored, name=name, count=restored,
         ))
         return True
 

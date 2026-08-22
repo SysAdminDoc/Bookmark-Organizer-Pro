@@ -5,7 +5,7 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from bookmark_organizer_pro.i18n import _, format_message
+from bookmark_organizer_pro.i18n import _, format_message, format_plural
 from bookmark_organizer_pro.services.highlight_workspace import (
     HighlightWorkspacePage,
     HighlightWorkspaceQuery,
@@ -14,7 +14,7 @@ from bookmark_organizer_pro.services.highlight_workspace import (
 )
 from bookmark_organizer_pro.services.reader_annotations import HIGHLIGHT_COLORS, ReaderAnnotationStore
 
-from .foundation import FONTS, pluralize
+from .foundation import FONTS
 from .reader_view import ReaderViewDialog
 from .widget_controls import ModernButton
 from .window_geometry import apply_screen_aware_geometry
@@ -49,7 +49,10 @@ class HighlightsWorkspaceDialog(tk.Toplevel):
         )
         self.page: HighlightWorkspacePage | None = None
         self._rows: dict[str, HighlightWorkspaceRecord] = {}
-        self._deleted = ()
+        # A stack of deleted batches. One slot meant a second delete
+        # silently replaced the first while the status line still said
+        # undo was available.
+        self._deleted_batches: list[tuple] = []
         self._bookmark_choices: dict[str, int | None] = {}
         self._bookmark_label_by_id: dict[int, str] = {}
         self.title(_("Highlights workspace"))
@@ -320,7 +323,10 @@ class HighlightsWorkspaceDialog(tk.Toplevel):
                 ),
             )
         self.status.configure(
-            text=format_message("{count} matching", count=pluralize(self.page.total, "highlight")),
+            text=format_plural(
+                "{count} highlight matching", "{count} highlights matching",
+                self.page.total, count=self.page.total,
+            ),
         )
         start = self.page.offset + 1 if self.page.total else 0
         end = self.page.offset + len(self.page.items)
@@ -337,7 +343,7 @@ class HighlightsWorkspaceDialog(tk.Toplevel):
         self.open_button.set_state("normal" if len(self.tree.selection()) == 1 else "disabled")
         self.export_selected_button.set_state("normal" if selected else "disabled")
         self.delete_button.set_state("normal" if selected else "disabled")
-        self.undo_button.set_state("normal" if self._deleted else "disabled")
+        self.undo_button.set_state("normal" if self._deleted_batches else "disabled")
 
     def _previous_page(self) -> None:
         if self.page is None or self.page.offset <= 0:
@@ -380,24 +386,39 @@ class HighlightsWorkspaceDialog(tk.Toplevel):
             return "break"
         # Deleting is immediate: `_undo_delete` restores the exact ids below and
         # the Undo button takes focus, so a modal asking first added nothing.
-        self._deleted = self.workspace.delete_many([item.id for item in selected])
+        deleted = self.workspace.delete_many([item.id for item in selected])
+        if deleted:
+            self._deleted_batches.append(tuple(deleted))
         self._refresh(offset=self.page.offset if self.page else 0)
         self.status.configure(
-            text=format_message(
-                "Deleted {count}. Undo is available.",
-                count=pluralize(len(self._deleted), "highlight"),
+            text=format_plural(
+                "Deleted {count} highlight. Undo is available.",
+                "Deleted {count} highlights. Undo is available.",
+                len(deleted), count=len(deleted),
             ),
         )
         self.undo_button.focus_set()
         return "break"
 
     def _undo_delete(self) -> None:
-        if not self._deleted:
+        """Restore the most recent batch, keeping the ones before it."""
+        if not self._deleted_batches:
             return
-        count = self.workspace.restore_many(self._deleted)
-        self._deleted = ()
+        count = self.workspace.restore_many(self._deleted_batches[-1])
+        # Only drop the batch once the store has taken it back.
+        self._deleted_batches.pop()
         self._refresh(offset=self.page.offset if self.page else 0)
-        self.status.configure(text=format_message("Restored {count}.", count=pluralize(count, "highlight")))
+        message = format_plural(
+            "Restored {count} highlight.", "Restored {count} highlights.",
+            count, count=count,
+        )
+        if self._deleted_batches:
+            message += " " + format_plural(
+                "{count} earlier batch can still be restored.",
+                "{count} earlier batches can still be restored.",
+                len(self._deleted_batches), count=len(self._deleted_batches),
+            )
+        self.status.configure(text=message)
 
     def _export_selected(self) -> None:
         selected = self._selected_records()

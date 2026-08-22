@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import sys
 import zipfile
@@ -100,24 +101,40 @@ DATA_COLLECTION_MIN_DESKTOP = (140, 0)
 DATA_COLLECTION_MIN_ANDROID = (142, 0)
 
 
+_GECKO_VERSION = re.compile(r"^(\d+)\.(\d+)(?:\.(\d+))?$")
+
+
 def _version_tuple(value: str) -> tuple[int, ...]:
-    parts = []
-    for chunk in str(value or "").split("."):
-        digits = "".join(character for character in chunk if character.isdigit())
-        parts.append(int(digits) if digits else 0)
-    return tuple(parts) or (0,)
+    """Parse a Gecko `strict_min_version`, refusing anything ambiguous.
+
+    Stripping non-digits per chunk turned "140b1" into 1401, which passes any
+    floor, and quietly accepted "v140.0", "140,0" and "1400". A version this
+    cannot read is a version it cannot judge, so it says so.
+    """
+    match = _GECKO_VERSION.fullmatch(str(value or "").strip())
+    if not match:
+        raise ValueError(
+            f"Firefox strict_min_version {value!r} is not a plain major.minor version"
+        )
+    return tuple(int(part) for part in match.groups() if part is not None)
 
 
 def validate_data_collection_floors(settings) -> None:
     """Both Gecko floors must be new enough for the disclosure key."""
-    desktop = settings.get("gecko", {}).get("strict_min_version")
+    gecko_settings = settings.get("gecko")
+    if gecko_settings is not None and not isinstance(gecko_settings, dict):
+        raise ValueError("browser_specific_settings.gecko must be an object")
+    desktop = (gecko_settings or {}).get("strict_min_version")
     if _version_tuple(desktop) < DATA_COLLECTION_MIN_DESKTOP:
         raise ValueError(
             f"Firefox strict_min_version {desktop!r} predates "
             f"{'.'.join(str(part) for part in DATA_COLLECTION_MIN_DESKTOP)}, which "
             "introduced data_collection_permissions"
         )
-    android = settings.get("gecko_android", {}).get("strict_min_version")
+    android_settings = settings.get("gecko_android")
+    if android_settings is not None and not isinstance(android_settings, dict):
+        raise ValueError("browser_specific_settings.gecko_android must be an object")
+    android = (android_settings or {}).get("strict_min_version")
     if not android:
         raise ValueError(
             "Firefox build requires browser_specific_settings.gecko_android."

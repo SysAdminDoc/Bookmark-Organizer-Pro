@@ -9,7 +9,7 @@ from typing import Dict
 from bookmark_organizer_pro.constants import APP_VERSION
 from bookmark_organizer_pro.i18n import _, format_message, format_plural
 from bookmark_organizer_pro.ui.components import EnhancedProgressBar, FaviconStatusDisplay
-from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, format_compact_count, pluralize, truncate_middle
+from bookmark_organizer_pro.ui.foundation import FONTS, DesignTokens, format_compact_count, truncate_middle
 from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable, route_pointer_to_control
 from bookmark_organizer_pro.ui.view_models import build_collection_pulse, build_collection_summary
 from bookmark_organizer_pro.ui.widgets import ModernButton, Tooltip, get_theme
@@ -217,7 +217,10 @@ class DashboardActionsMixin:
             return
         count = len(self.selected_bookmarks)
         if count > 1:
-            self.selection_count_label.configure(text=format_message('{value_0} selected', value_0=pluralize(count, 'bookmark')))
+            self.selection_count_label.configure(text=format_plural(
+                '{count} bookmark selected', '{count} bookmarks selected',
+                count, count=count,
+            ))
             if not self.selection_bar.winfo_ismapped():
                 self.selection_bar.pack(
                     fill=tk.X,

@@ -1316,7 +1316,8 @@ Top Domains:
         print(f"Ingested {ok}/{len(ids)} bookmarks; {updated} updated.")
         if missing:
             return self._failure(
-                f"{pluralize(missing, 'requested bookmark')} were not found"
+                f"{pluralize(missing, 'requested bookmark')} "
+                f"{'was' if missing == 1 else 'were'} not found"
             )
         return 0
 
@@ -1428,7 +1429,8 @@ Top Domains:
               f"({emb.backend}, dim={emb.dim}).")
         if missing:
             return self._failure(
-                f"{pluralize(missing, 'requested bookmark')} were not found"
+                f"{pluralize(missing, 'requested bookmark')} "
+                f"{'was' if missing == 1 else 'were'} not found"
             )
         return 0
 

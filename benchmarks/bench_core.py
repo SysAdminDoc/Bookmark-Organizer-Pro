@@ -447,7 +447,7 @@ def run_benchmark(
 
 
 def _print_human_report(report: dict[str, Any]) -> None:
-    print("Bookmark Organizer Pro — bounded performance benchmark")
+    print("Bookmark Organizer Pro bounded performance benchmark")
     print(
         f"sizes={','.join(str(size) for size in report['sizes'])} "
         f"elapsed={report['elapsed_ms']:.0f}ms "

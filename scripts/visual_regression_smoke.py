@@ -742,7 +742,30 @@ def assert_keyboard_traversal_reaches_every_control(window) -> None:
         )
 
 
-def verify_desktop_viewports(root, theme_manager, *, collapsible_rail=None) -> None:
+def _painted_background(window) -> str:
+    """The background Tk actually resolved for the window's largest frame.
+
+    Read from the realized widget rather than from the palette, so a theme that
+    computes a colour but never applies it is not mistaken for one that does.
+    """
+    best = ""
+    best_area = -1
+    stack = list(window.winfo_children())
+    while stack:
+        widget = stack.pop()
+        stack.extend(widget.winfo_children())
+        if not widget.winfo_ismapped() or "background" not in widget.keys():
+            continue
+        area = widget.winfo_width() * widget.winfo_height()
+        if area > best_area:
+            best_area = area
+            best = str(widget.cget("background"))
+    return best or str(window.cget("background"))
+
+
+def verify_desktop_viewports(
+    root, theme_manager, *, collapsible_rail=None, output_dir: Path | None = None
+) -> None:
     """Exercise supported desktop sizes and themes without foreground activation."""
     _prepare_background_window(root)
     baseline = float(root.tk.call("tk", "scaling"))
@@ -760,10 +783,27 @@ def verify_desktop_viewports(root, theme_manager, *, collapsible_rail=None) -> N
                     if width >= 1400 and not rail_visible:
                         raise VisualSmokeError("right rail did not restore at wide viewport")
         sweep_width, sweep_height, sweep_scaling = THEME_SWEEP_VIEWPORT
+        painted: dict[str, str] = {}
         for theme_name in theme_sweep_names():
             _set_scaling(root, baseline, sweep_scaling)
-            theme_manager.set_theme(theme_name)
+            # The return value is the difference between rendering this theme
+            # and silently rendering the previous one, so it is not dropped.
+            if not theme_manager.set_theme(theme_name):
+                raise VisualSmokeError(f"theme {theme_name} could not be applied")
             _verify_viewport(root, sweep_width, sweep_height)
+            painted[theme_name] = _painted_background(root)
+            if output_dir is not None:
+                # Geometry checks cannot see colour. A capture runs the pixel
+                # health check, which is what catches a palette that renders
+                # the window blank.
+                capture_tk_window(root, output_dir, f"desktop-theme-{theme_name}", ())
+                _prepare_background_window(root)
+        distinct = len(set(painted.values()))
+        if distinct < 2:
+            raise VisualSmokeError(
+                "every swept theme painted the same background "
+                f"({sorted(set(painted.values()))}); the theme is not reaching the window"
+            )
         assert_keyboard_traversal_reaches_every_control(root)
     finally:
         _set_scaling(root, baseline, 1.0)
@@ -906,7 +946,12 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
     app = FinalBookmarkOrganizerApp(root)
     root.update()
     theme_manager = get_theme_manager()
-    verify_desktop_viewports(root, theme_manager, collapsible_rail=lambda: app._right_sidebar)
+    verify_desktop_viewports(
+        root,
+        theme_manager,
+        collapsible_rail=lambda: app._right_sidebar,
+        output_dir=output_dir,
+    )
     root.geometry("1540x980")
     theme_manager.set_theme("github_dark")
     root.update()
@@ -1120,7 +1165,12 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
                 "virtual table semantic state diverges from sorted visible rows"
             )
 
-        verify_desktop_viewports(root, theme_manager, collapsible_rail=lambda: app._right_sidebar)
+        verify_desktop_viewports(
+        root,
+        theme_manager,
+        collapsible_rail=lambda: app._right_sidebar,
+        output_dir=output_dir,
+    )
         if app.tree.selection() != ("502",) or app.selected_bookmarks != [502]:
             raise VisualSmokeError(
                 "theme and viewport reconstruction lost table selection: "

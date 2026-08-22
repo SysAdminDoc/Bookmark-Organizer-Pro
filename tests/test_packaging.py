@@ -555,6 +555,42 @@ vm.runInContext(`(async () => {
 
         self.assertEqual(offenders, [], "\n".join(offenders))
 
+    def test_no_translatable_string_has_its_noun_built_in_python(self):
+        """`format_message("Review {n}", n=pluralize(x, "broken link"))` hands
+        gettext a msgid with no noun in it, so "broken link" cannot be
+        translated at all. `format_plural` puts both wordings in the catalogue,
+        which is what the POT generator already knows how to extract.
+
+        `pluralize` is still right for report bodies and log lines, which never
+        reach the catalogue. This only forbids nesting it inside a translator.
+        """
+        import ast
+
+        root = Path(__file__).resolve().parents[1]
+        translators = {"_", "format_message", "gettext", "ngettext"}
+        offenders = []
+
+        for source in sorted((root / "bookmark_organizer_pro").rglob("*.py")):
+            text = source.read_text(encoding="utf-8")
+            if "pluralize(" not in text:
+                continue
+            relative = source.relative_to(root).as_posix()
+            for node in ast.walk(ast.parse(text, filename=relative)):
+                if not isinstance(node, ast.Call):
+                    continue
+                name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+                if name not in translators:
+                    continue
+                for child in ast.walk(node):
+                    if (
+                        isinstance(child, ast.Call)
+                        and getattr(child.func, "id", None) == "pluralize"
+                    ):
+                        offenders.append(f"{relative}:{node.lineno}")
+                        break
+
+        self.assertEqual(sorted(set(offenders)), [], "\n".join(sorted(set(offenders))))
+
     def test_product_strings_avoid_em_and_en_dashes(self):
         """The writing rule covers anything a person reads, which includes the
         strings the desktop, the CLI, and the dialogs render.
@@ -563,16 +599,38 @@ vm.runInContext(`(async () => {
         exempts along with comments and test names; a lone dash standing in for
         an empty table cell, which is a glyph for "no value"; and a numeric
         range written "{start}-{end}", which is the one job an en dash has.
+
+        The exemptions are deliberately narrow. Matching a stripped value let
+        " - ".join(...) through, and exempting everything under a log call let
+        log.debug(self._set_status("...")) through with it, so a placeholder
+        now has to be the entire string and only a log call's own direct
+        arguments count as logged.
         """
         import ast
 
         root = Path(__file__).resolve().parents[1]
-        package = root / "bookmark_organizer_pro"
         dashes = ("\u2014", "\u2013")
         placeholders = {"\u2014", "\u2013"}
         offenders = []
 
-        for source in sorted(package.rglob("*.py")):
+        targets = sorted((root / "bookmark_organizer_pro").rglob("*.py"))
+        targets += sorted((root / "scripts").rglob("*.py"))
+        benchmarks = root / "benchmarks"
+        if benchmarks.is_dir():
+            targets += sorted(benchmarks.rglob("*.py"))
+        targets.append(root / "main.py")
+
+        def direct_string_args(call):
+            """The strings this call itself passes, not everything beneath it."""
+            for argument in list(call.args) + [kw.value for kw in call.keywords]:
+                if isinstance(argument, ast.Constant):
+                    yield argument
+                elif isinstance(argument, ast.JoinedStr):
+                    for piece in argument.values:
+                        if isinstance(piece, ast.Constant):
+                            yield piece
+
+        for source in targets:
             text = source.read_text(encoding="utf-8")
             if not any(dash in text for dash in dashes):
                 continue
@@ -597,11 +655,11 @@ vm.runInContext(`(async () => {
                     isinstance(node, ast.Call)
                     and isinstance(node.func, ast.Attribute)
                     and isinstance(node.func.value, ast.Name)
-                    and node.func.value.id in {"log", "logging", "logger"}
+                    and node.func.value.id == "log"
+                    and node.func.attr in {"debug", "info", "warning", "error", "exception", "critical"}
                 ):
-                    for child in ast.walk(node):
-                        if isinstance(child, ast.Constant):
-                            logged.add(id(child))
+                    for argument in direct_string_args(node):
+                        logged.add(id(argument))
 
             for node in ast.walk(tree):
                 if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
@@ -611,7 +669,7 @@ vm.runInContext(`(async () => {
                     continue
                 if id(node) in docstrings or id(node) in logged:
                     continue
-                if value.strip() in placeholders:
+                if value in placeholders:
                     continue
                 if any(f"}}{dash}{{" in value for dash in dashes):
                     continue

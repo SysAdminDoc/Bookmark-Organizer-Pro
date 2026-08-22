@@ -5,10 +5,9 @@ from __future__ import annotations
 from typing import Dict
 
 from bookmark_organizer_pro.commands import DeleteBookmarksCommand
-from bookmark_organizer_pro.i18n import format_message
+from bookmark_organizer_pro.i18n import format_message, format_plural
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.ui.bookmark_workflows import QuickAddDialog
-from bookmark_organizer_pro.ui.foundation import pluralize
 from bookmark_organizer_pro.ui.widgets import BookmarkEditorDialog
 from bookmark_organizer_pro.utils.validators import validate_url
 
@@ -85,7 +84,9 @@ class BookmarkCrudMixin:
         if urls:
             self.root.clipboard_clear()
             self.root.clipboard_append('\n'.join(urls))
-            self._set_status(format_message("Copied {urls}", urls=pluralize(len(urls), "URL")))
+            self._set_status(format_plural(
+            "Copied {count} URL", "Copied {count} URLs", len(urls), count=len(urls),
+        ))
     
     def _toggle_pin(self):
         """Toggle pin status"""
@@ -98,8 +99,10 @@ class BookmarkCrudMixin:
                 changed += 1
         self._refresh_bookmark_list()
         if changed:
-            self._set_status(format_message(
-                "Updated pin state for {bookmarks}", bookmarks=pluralize(changed, "bookmark"),
+            self._set_status(format_plural(
+                "Updated pin state for {count} bookmark",
+                "Updated pin state for {count} bookmarks",
+                changed, count=changed,
             ))
     
     def _delete_selected(self):
@@ -118,7 +121,8 @@ class BookmarkCrudMixin:
         self.selected_bookmarks.clear()
         self._refresh_all()
         self._update_selection_bar()
-        self._show_toast(format_message(
-            "Deleted {bookmarks}. Undo is available from Edit.",
-            bookmarks=pluralize(count, "bookmark"),
+        self._show_toast(format_plural(
+            "Deleted {count} bookmark. Undo is available from Edit.",
+            "Deleted {count} bookmarks. Undo is available from Edit.",
+            count, count=count,
         ), "info")

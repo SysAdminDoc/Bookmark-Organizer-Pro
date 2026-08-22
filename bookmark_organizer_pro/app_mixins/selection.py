@@ -11,7 +11,6 @@ from datetime import datetime
 from bookmark_organizer_pro.i18n import _, format_message, format_plural
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.snapshot import open_snapshot_file
-from bookmark_organizer_pro.ui.foundation import pluralize
 from bookmark_organizer_pro.ui.widgets import get_theme
 from bookmark_organizer_pro.utils.runtime import open_external_url
 
@@ -47,9 +46,9 @@ class SelectionActionsMixin:
         if hasattr(self, "_refresh_table_semantic_status"):
             self._refresh_table_semantic_status()
         if self.selected_bookmarks:
-            self._set_status(format_message(
-                "{bookmarks} selected",
-                bookmarks=pluralize(len(self.selected_bookmarks), "bookmark"),
+            self._set_status(format_plural(
+                "{count} bookmark selected", "{count} bookmarks selected",
+                len(self.selected_bookmarks), count=len(self.selected_bookmarks),
             ))
     
     def _on_item_double_click(self, event):

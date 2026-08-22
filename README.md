@@ -259,7 +259,9 @@ Get-Content "$env:USERPROFILE\.bookmark_organizer\api_token.txt"
 ```
 
 Load `build/browser-extension/chromium` in Chrome/Edge or temporarily load the
-`build/browser-extension/firefox` manifest in Firefox, open Options, enter the
+`build/browser-extension/firefox` manifest in Firefox 140 or newer (Firefox for
+Android needs 142, which is where the Gecko data collection disclosure the
+build declares became readable), open Options, enter the
 API port and a **Browser extension** credential created under
 **Settings > Access Credentials**, then use the toolbar popup to save the
 current tab. Existing installations can continue using the legacy API token. The

@@ -43,6 +43,11 @@ if TYPE_CHECKING:
 
 _TOKEN_FILE = DATA_DIR / "api_token.txt"
 _EXTENSION_ORIGINS_FILE = DATA_DIR / "approved_extension_origins.json"
+
+# Serializes the attach path's check-then-write. Attaching is rare and the
+# work inside is a single archive import, so one process-wide lock costs
+# nothing and removes the interleaving entirely.
+_ATTACH_LOCK = threading.Lock()
 _KEYRING_SERVICE = "bookmark-organizer-pro"
 _KEYRING_KEY = "api_token"
 _MAX_BOOKMARK_BODY_BYTES = 65_536
@@ -885,19 +890,25 @@ class BookmarkAPI:
                     self._send_json({"error": "Not found"}, 404)
             
             def _has_snapshot(self, bookmark, bookmark_manager) -> bool:
-                """Whether this row already has a readable offline archive."""
+                """Whether this row already has an archive worth protecting.
+
+                Deliberately not `SnapshotArchiver.has_snapshot`. That answers
+                "is the archive readable", and it swallows a corrupt manifest
+                into a plain False. Routing the guard through it meant a
+                damaged sidecar made a good artifact replaceable by anyone who
+                knew the URL. The question here is "is there a file on disk
+                that is not this request's to overwrite", so it asks that.
+                """
                 from pathlib import Path
 
-                from bookmark_organizer_pro.services.snapshot import SnapshotArchiver
-
-                if not getattr(bookmark, "snapshot_path", ""):
+                recorded = str(getattr(bookmark, "snapshot_path", "") or "")
+                if not recorded:
                     return False
                 try:
-                    snapshots_dir = Path(bookmark_manager.filepath).parent / "snapshots"
-                    return SnapshotArchiver(snapshots_dir=snapshots_dir).has_snapshot(bookmark)
-                except (OSError, ValueError):
-                    # An unreadable manifest is not something to overwrite on a
-                    # guess, so treat it as present and let the caller answer 409.
+                    return Path(recorded).is_file()
+                except OSError:
+                    # A path that cannot even be interrogated is not a path to
+                    # write over on a guess.
                     return True
 
             def _store_capture(self, bookmark, capture, bookmark_manager, *, created):
@@ -1089,15 +1100,20 @@ class BookmarkAPI:
                             # over an existing one would let any caller replace
                             # the saved copy of any bookmark just by knowing its
                             # URL, and that is what 409 is for.
-                            attachable = capture is not None and not self._has_snapshot(
-                                existing, bookmark_manager
-                            )
-                            if not attachable:
-                                self._send_json({"error": "Bookmark already exists"}, 409)
-                                return
-                            report = self._store_capture(
-                                existing, capture, bookmark_manager, created=False
-                            )
+                            # The check and the write are one critical section.
+                            # This server is thread per request, so two captures
+                            # for the same archiveless URL could otherwise both
+                            # pass the guard and interleave their writes.
+                            with _ATTACH_LOCK:
+                                attachable = capture is not None and not self._has_snapshot(
+                                    existing, bookmark_manager
+                                )
+                                if not attachable:
+                                    self._send_json({"error": "Bookmark already exists"}, 409)
+                                    return
+                                report = self._store_capture(
+                                    existing, capture, bookmark_manager, created=False
+                                )
                             if report is None:
                                 return
                             response = asdict(existing)

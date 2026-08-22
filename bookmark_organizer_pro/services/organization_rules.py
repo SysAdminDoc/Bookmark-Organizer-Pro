@@ -548,6 +548,49 @@ class OrganizationRulesService:
 
     upsert_rule = add_rule
 
+    def restore_rules(
+        self, entries: "list[tuple[int, OrganizationRule]]"
+    ) -> "list[OrganizationRule]":
+        """Put previously removed rules back where they were.
+
+        `add_rule` is an upsert that matches on rule id **or** name, so using
+        it to undo a delete could silently overwrite a different rule that had
+        taken the name in the meantime, and it appends rather than reinserting,
+        which changes the order that decides which action wins in a preview.
+        Restoring is its own operation for both reasons.
+
+        Raises before mutating anything if any entry cannot be restored.
+        """
+        restored: list[OrganizationRule] = []
+        working = list(self.rules)
+        for index, rule in sorted(entries, key=lambda item: item[0]):
+            for existing in working:
+                if existing.rule_id == rule.rule_id:
+                    raise ValueError(f"Rule {rule.name!r} is already present")
+                if existing.name.casefold() == rule.name.casefold():
+                    raise ValueError(
+                        f"Another rule is now named {rule.name!r}; "
+                        "rename it before restoring"
+                    )
+            if len(working) >= MAX_RULES:
+                raise ValueError(f"Organization rules are limited to {MAX_RULES} rules")
+            working.insert(max(0, min(index, len(working))), rule)
+            restored.append(rule)
+        self.rules = working
+        self._save()
+        return [copy.deepcopy(rule) for rule in restored]
+
+    def replace_all_rules(
+        self, rules: "list[OrganizationRule]"
+    ) -> "list[OrganizationRule]":
+        """Swap the whole rule set, returning what was there before."""
+        if len(rules) > MAX_RULES:
+            raise ValueError(f"Organization rules are limited to {MAX_RULES} rules")
+        previous = list(self.rules)
+        self.rules = list(rules)
+        self._save()
+        return previous
+
     def remove_rule(self, rule_id_or_name: str) -> bool:
         needle = _text(rule_id_or_name, limit=MAX_ID_LENGTH)
         before = len(self.rules)
@@ -1058,7 +1101,10 @@ class OrganizationRulesService:
         document = self._read_document(Path(path))
         imported = [OrganizationRule.from_dict(raw_rule) for raw_rule in document["rules"]]
         if replace:
-            self.rules = imported
+            # The caller needs the old set to be able to offer an undo, so this
+            # goes through replace_all_rules rather than assigning in place.
+            self._replaced_rules = self.replace_all_rules(imported)
+            return len(imported)
         else:
             merged = list(self.rules)
             for incoming in imported:

@@ -1593,12 +1593,13 @@ class TestBrowserExtensionApiRoundTrip(SharedExtensionRegistryGuard, unittest.Te
             finally:
                 api.stop()
 
-    def test_a_failed_attach_leaves_the_existing_archive_alone(self):
-        """Cleaning up after a failed import must only remove what this request
-        wrote. Deleting unconditionally erased a good offline copy, and because
-        an unusable capture answers 422, the extension had nothing to retry."""
+    def test_a_damaged_manifest_does_not_make_an_archive_replaceable(self):
+        """The guard used to ask SnapshotArchiver.has_snapshot, which answers
+        "is this readable" and turns a corrupt sidecar into a plain False. A
+        damaged manifest therefore made a perfectly good artifact replaceable
+        by anyone who knew the URL. The guard now asks whether a file is there,
+        which is the question that decides who owns the bytes."""
         import main
-        from bookmark_organizer_pro.services import snapshot as snapshot_module
 
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
@@ -1629,24 +1630,31 @@ class TestBrowserExtensionApiRoundTrip(SharedExtensionRegistryGuard, unittest.Te
                 kept = Path(body["snapshot_path"])
                 original = kept.read_bytes()
 
-                # Reach the attach branch by clearing the guard, then fail the
-                # import. The archive on disk still belongs to the user.
-                with mock.patch.object(
-                    snapshot_module.SnapshotArchiver, "has_snapshot", return_value=False
-                ), mock.patch.object(
-                    snapshot_module.SnapshotArchiver,
-                    "import_browser_snapshot",
-                    side_effect=ValueError("Snapshot HTML is empty"),
-                ):
-                    status, body = self._post_json(
-                        base_url, payload, token, capture_headers
-                    )
+                for damage in ("corrupt-manifest", "missing-manifest", "truncated-artifact"):
+                    with self.subTest(damage=damage):
+                        manifest = kept.with_name(kept.name + ".manifest.json")
+                        if damage == "corrupt-manifest":
+                            manifest.write_text("{ not json", encoding="utf-8")
+                        elif damage == "missing-manifest":
+                            manifest.unlink(missing_ok=True)
+                        else:
+                            kept.write_bytes(original[: len(original) // 2])
 
-                self.assertEqual(status, 422, body)
-                self.assertTrue(kept.exists(), "the existing archive was deleted")
-                self.assertEqual(kept.read_bytes(), original)
-                self.assertEqual(len(manager.get_all_bookmarks()), 1)
-                self.assertTrue(manager.get_all_bookmarks()[0].snapshot_path)
+                        replacement = dict(payload, title="Replacement")
+                        replacement["browser_snapshot"] = {
+                            "html": "<html><body><p>Replacement content.</p></body></html>",
+                            "source_url": url,
+                        }
+                        before = kept.read_bytes()
+                        status, body = self._post_json(
+                            base_url, replacement, token, capture_headers
+                        )
+                        self.assertEqual(status, 409, body)
+                        self.assertEqual(kept.read_bytes(), before)
+                        self.assertEqual(len(manager.get_all_bookmarks()), 1)
+
+                        # Put the artifact back for the next round.
+                        kept.write_bytes(original)
             finally:
                 api.stop()
 

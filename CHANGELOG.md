@@ -23,32 +23,6 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   that gets this wrong again, and the extension installs into a real Firefox
   with a clean lint. Firefox 121 through 139 are no longer supported.
 
-### Changed
-
-- Roughly fifty messages, labels, and help entries were rewritten to drop the
-  em dashes the project's writing rule bans. Status lines now read "Done: 12
-  processed", the search-syntax help reads "title:react searches the title",
-  and the credential scopes read "MCP, read only". Nothing changed except the
-  wording.
-- Actions you can undo no longer stop to ask first. Deleting highlights,
-  deleting an organization rule, applying rules over a conflict, and both
-  import paths now just run, and say what they did. Highlights and rule runs
-  keep their Undo button, a deleted rule gets a Restore button next to Delete,
-  and every import still ends on the summary with Roll Back. Replace or merge
-  on a rules import moved out of a popup and into a checkbox in the dialog.
-  Four prompts stay: installing Ollama, sharing domains with a favicon proxy,
-  and rotating or revoking a credential. Those change something that cannot be
-  taken back.
-
-- Everything a person reads now says "1 bookmark" and "5 bookmarks" instead of
-  "1 bookmark(s)". v6.15.0 fixed four dialogs; this covers the Tools menu, bulk
-  selection toasts, the dashboard badges, the tag editor, Reader View, the
-  command line, the undo history, and the recovery workflow. Twenty-eight of
-  those messages now carry both wordings into the translation catalogue rather
-  than pasting finished English into a translatable slot.
-
-### Fixed
-
 - A capture that reached the library but failed to write its offline archive
   can now be retried. The first attempt saves the bookmark and then hits the
   storage error, so the row survives; the retry used to collide with that row
@@ -59,6 +33,36 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   already have, and the title, tags, and notes on the saved row are left as
   they are. The extension says so rather than reporting a fresh save. A
   duplicate save with no capture is still refused the same way it always was.
+  A bookmark whose archive is on disk but whose sidecar is damaged counts as
+  having one, so a broken sidecar cannot make a good copy replaceable.
+
+### Changed
+
+- Roughly fifty messages, labels, and help entries were rewritten to drop the
+  em dashes the project's writing rule bans. Status lines now read "Done: 12
+  processed", the search-syntax help reads "title:react searches the title",
+  and the credential scopes read "MCP, read only". Nothing changed except the
+  wording.
+- Actions you can undo no longer stop to ask first. Deleting highlights,
+  deleting an organization rule, applying rules over a conflict, and both
+  import paths now just run, and say what they did. The undo behind each one
+  is a stack, so a second delete does not throw the first one away, and a
+  restore that cannot go through keeps what it was holding rather than losing
+  it. A restored rule goes back to its original position, and is refused
+  outright if another rule has taken its name in the meantime. Replace or
+  merge on a rules import moved out of a popup and into a checkbox, and
+  because replacing discards every rule at once, the previous set goes on that
+  same undo stack. Every import still ends on the summary with Roll Back. Four
+  prompts stay: installing Ollama, sharing domains with a favicon proxy, and
+  rotating or revoking a credential. Those change something that cannot be
+  taken back.
+
+- Everything a person reads now says "1 bookmark" and "5 bookmarks" instead of
+  "1 bookmark(s)". v6.15.0 fixed four dialogs; this covers the Tools menu, bulk
+  selection toasts, the dashboard badges, the tag editor, Reader View, the
+  command line, the undo history, and the recovery workflow. Twenty-eight of
+  those messages now carry both wordings into the translation catalogue rather
+  than pasting finished English into a translatable slot.
 
 ## [v6.15.0] - 2026-08-22
 

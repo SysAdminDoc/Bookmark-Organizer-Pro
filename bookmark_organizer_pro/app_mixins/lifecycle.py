@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import tkinter as tk
 
-from bookmark_organizer_pro.i18n import _, format_message
+from bookmark_organizer_pro.i18n import _, format_message, format_plural
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.services.auto_snapshot import SnapshotScheduler
 from bookmark_organizer_pro.services.settings_store import load_settings, update_settings
@@ -44,8 +44,9 @@ class LifecycleActionsMixin:
                     "error",
                 )
         elif bookmarks:
-            self._set_status(format_message(
-                "Loaded {bookmarks}", bookmarks=pluralize(len(bookmarks), "bookmark"),
+            self._set_status(format_plural(
+                "Loaded {count} bookmark", "Loaded {count} bookmarks",
+                len(bookmarks), count=len(bookmarks),
             ))
         else:
             self._set_status("Library ready")

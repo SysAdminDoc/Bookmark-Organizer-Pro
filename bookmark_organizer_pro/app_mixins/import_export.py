@@ -7,7 +7,7 @@ import tkinter as tk
 from pathlib import Path
 from typing import List
 
-from bookmark_organizer_pro.i18n import _, format_message
+from bookmark_organizer_pro.i18n import _, format_message, format_plural
 from bookmark_organizer_pro.importers import (
     BrowserProfileImporter,
     BrowserProfileSessionImporter,
@@ -237,15 +237,24 @@ class ImportExportMixin:
         
         self._set_status(format_message(
             "Imported {added}; skipped {duplicates}",
-            added=pluralize(added, "bookmark"), duplicates=pluralize(dupes, "duplicate"),
+            added=format_plural(
+                "{count} bookmark", "{count} bookmarks", added, count=added,
+            ),
+            duplicates=format_plural(
+                "{count} duplicate", "{count} duplicates", dupes, count=dupes,
+            ),
         ))
         
         if added > 0 or dupes > 0:
             self._show_toast(
                 format_message(
                     "Imported {added}. Skipped {duplicates}.",
-                    added=pluralize(added, "bookmark"),
-                    duplicates=pluralize(dupes, "duplicate"),
+                    added=format_plural(
+                        "{count} bookmark", "{count} bookmarks", added, count=added,
+                    ),
+                    duplicates=format_plural(
+                        "{count} duplicate", "{count} duplicates", dupes, count=dupes,
+                    ),
                 ),
                 "success" if added > 0 else "info"
             )
@@ -259,10 +268,10 @@ class ImportExportMixin:
         had already asked for. Field coverage goes to the log, where it is
         useful when a source turns out to be lossy.
         """
+        # Not translated: this goes to the log, and a locale-dependent log
+        # line is harder to read back than an English one.
         fields = "; ".join(
-            _("{field}: {count} of {total}").format(
-                field=field.title(), count=count, total=preflight.total,
-            )
+            f"{field.title()}: {count} of {preflight.total}"
             for field, count in preflight.field_coverage.items()
         )
         causes = "; ".join(
@@ -865,7 +874,7 @@ class ImportExportMixin:
             "Formats: {formats}\n\n"
             "{entries} entries merged into {urls} unique bookmarks\n"
             "{merged} collapsed, {conflicts} field conflicts, {unreadable} unreadable\n\n"
-            "Import these {urls} bookmarks?"
+            "Importing {urls} bookmarks."
         ).format(
             files=summary["files"], unique=summary["unique_files"],
             duplicates=summary["duplicate_files"], formats=", ".join(formats) or _("none"),
@@ -877,10 +886,8 @@ class ImportExportMixin:
         # and the session that follows keeps a rollback safepoint reachable from
         # the import summary. Report the scan and get on with the import.
         log.info(f"Batch folder import plan: {detail}")
-        self._set_status(_("Importing {urls} from {files} scanned files").format(
-            urls=pluralize(summary["unique_urls"], "bookmark"),
-            files=summary["files"],
-        ))
+        # No _set_status here: _begin_import_session sets its own one statement
+        # later, so this only ever flickered. The toast is what the user reads.
         self._show_toast(
             _("{urls} merged from {entries}; {duplicates} duplicate files skipped").format(
                 urls=pluralize(summary["unique_urls"], "unique bookmark"),

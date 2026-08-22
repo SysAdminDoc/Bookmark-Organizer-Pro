@@ -8,14 +8,17 @@ relies on actually restores what was deleted.
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 import pytest
 
 from bookmark_organizer_pro.core import CategoryManager
 from bookmark_organizer_pro.managers import BookmarkManager, TagManager
+from unittest import mock
+
 from bookmark_organizer_pro.services.organization_rules import (
+    ORGANIZATION_RULES_SCHEMA,
+    ORGANIZATION_RULES_VERSION,
     OrganizationRule,
     OrganizationRulesService,
 )
@@ -97,20 +100,178 @@ def test_deleting_a_rule_is_immediate_and_restorable(tmp_path, monkeypatch):
     assert restored[0].to_dict() == stored.to_dict()
 
 
-def test_the_rules_dialog_wires_delete_restore_and_the_import_mode():
-    """The Restore button and the replace-on-import control have to exist, or
-    removing the modals just removed the choice."""
-    source = (PACKAGE / "ui/organization_rules.py").read_text(encoding="utf-8")
+class _StubButton:
+    """The two state calls `_delete_rule` and `_restore_rule` make on a button."""
 
-    assert "self.restore_button = self._button(rule_toolbar, _(\"Restore\")" in source
-    assert "def _restore_rule(self)" in source
-    assert "self._deleted_rule" in source
-    assert "self.replace_on_import_var" in source
-    assert "replace=replace" in source
+    def __init__(self):
+        self.state = "disabled"
+        self.focused = False
 
-    # Restore starts unavailable and is enabled by a delete.
-    enable = re.search(r"def _delete_rule\(self\):(.*?)def _restore_rule", source, re.S)
-    assert enable and 'self.restore_button.set_state("normal")' in enable.group(1)
+    def set_state(self, state):
+        self.state = state
+
+    def focus_set(self):
+        self.focused = True
+
+
+class _StubLabel:
+    def __init__(self):
+        self.text = ""
+
+    def configure(self, **kwargs):
+        self.text = kwargs.get("text", self.text)
+
+
+def _dialog(service):
+    """An OrganizationRulesDialog with only what the undo paths touch.
+
+    Built without Tk on purpose: the standing rule is that GUI validation never
+    takes over the screen, and these two methods are pure state machines over
+    the service plus three widgets.
+    """
+    from bookmark_organizer_pro.ui.organization_rules import OrganizationRulesDialog
+
+    dialog = OrganizationRulesDialog.__new__(OrganizationRulesDialog)
+    dialog.service = service
+    dialog._undo_stack = []
+    dialog.restore_button = _StubButton()
+    dialog.apply_button = _StubButton()
+    dialog.preview_status = _StubLabel()
+    dialog.preview = None
+    dialog._refresh_rules = lambda: None
+    dialog._selected_rule = lambda: None
+    return dialog
+
+
+def _rule(name, value="Reference"):
+    return OrganizationRule.from_dict(
+        {
+            "name": name,
+            "conditions": [{"field": "domain", "operator": "equals", "value": f"{name.lower()}.example"}],
+            "actions": [{"action": "set_category", "value": value}],
+        }
+    )
+
+
+def _service(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        OrganizationRulesService, "RULES_FILE", tmp_path / "organization_rules.json"
+    )
+    monkeypatch.setattr(
+        OrganizationRulesService, "LEGACY_RULES_FILE", tmp_path / "smart_tag_rules.json"
+    )
+    manager = BookmarkManager(
+        CategoryManager(filepath=tmp_path / "categories.json"),
+        TagManager(filepath=tmp_path / "tags.json"),
+        filepath=tmp_path / "bookmarks.json",
+    )
+    return OrganizationRulesService(manager)
+
+
+def test_a_second_delete_does_not_throw_the_first_one_away(tmp_path, monkeypatch):
+    """The undo was one slot, so deleting A then B lost A for good while the
+    status line still said a restore was available."""
+    service = _service(tmp_path, monkeypatch)
+    for name in ("Alpha", "Beta", "Gamma"):
+        service.add_rule(_rule(name))
+    dialog = _dialog(service)
+
+    for name in ("Alpha", "Beta"):
+        target = next(r for r in service.list_rules() if r.name == name)
+        dialog._selected_rule = lambda target=target: target
+        dialog._delete_rule()
+
+    assert [r.name for r in service.list_rules()] == ["Gamma"]
+    dialog._restore_rule()
+    dialog._restore_rule()
+    # Both come back, and each lands where it was rather than on the end.
+    assert [r.name for r in service.list_rules()] == ["Alpha", "Beta", "Gamma"]
+    assert dialog.restore_button.state == "disabled"
+
+
+def test_a_refused_restore_keeps_the_rule_it_could_not_put_back(tmp_path, monkeypatch):
+    """The held rule used to be cleared before the service accepted it, so a
+    restore refused at the rule ceiling threw the rule away for good."""
+    service = _service(tmp_path, monkeypatch)
+    service.add_rule(_rule("Alpha"))
+    dialog = _dialog(service)
+    dialog._selected_rule = lambda: service.list_rules()[0]
+    dialog._delete_rule()
+
+    errors = []
+    with mock.patch(
+        "bookmark_organizer_pro.ui.organization_rules.messagebox.showerror",
+        side_effect=lambda *a, **k: errors.append(a),
+    ), mock.patch.object(
+        OrganizationRulesService, "restore_rules", side_effect=ValueError("no room")
+    ):
+        dialog._restore_rule()
+
+    assert errors, "the user was not told the restore failed"
+    assert dialog.restore_button.state == "normal"
+    assert len(dialog._undo_stack) == 1
+
+    dialog._restore_rule()
+    assert [r.name for r in service.list_rules()] == ["Alpha"]
+
+
+def test_restore_refuses_rather_than_overwriting_a_rule_that_took_the_name(
+    tmp_path, monkeypatch
+):
+    """`add_rule` upserts on id **or** name, so undoing a delete through it
+    could silently replace a different rule that had taken the name."""
+    service = _service(tmp_path, monkeypatch)
+    service.add_rule(_rule("Alpha", value="Reference"))
+    dialog = _dialog(service)
+    dialog._selected_rule = lambda: service.list_rules()[0]
+    dialog._delete_rule()
+
+    service.add_rule(_rule("Alpha", value="Development"))
+
+    errors = []
+    with mock.patch(
+        "bookmark_organizer_pro.ui.organization_rules.messagebox.showerror",
+        side_effect=lambda *a, **k: errors.append(a),
+    ):
+        dialog._restore_rule()
+
+    assert errors, "the user was not told why nothing was restored"
+    surviving = service.list_rules()
+    assert len(surviving) == 1
+    action = surviving[0].actions[0]
+    value = action["value"] if isinstance(action, dict) else action.value
+    assert value == "Development", "the newer rule was clobbered"
+
+
+def test_a_replace_import_can_be_put_back(tmp_path, monkeypatch):
+    """Replacing discards every rule at once and nothing else undoes that."""
+    import json
+
+    service = _service(tmp_path, monkeypatch)
+    for name in ("Alpha", "Beta"):
+        service.add_rule(_rule(name))
+    before = [r.name for r in service.list_rules()]
+
+    source = tmp_path / "incoming.json"
+    source.write_text(
+        json.dumps(
+            {
+                "schema": ORGANIZATION_RULES_SCHEMA,
+                "schema_version": ORGANIZATION_RULES_VERSION,
+                "rules": [_rule("Imported").to_dict()],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    previous = service.list_rules()
+    service.import_rules(source, replace=True)
+    assert [r.name for r in service.list_rules()] == ["Imported"]
+
+    dialog = _dialog(service)
+    dialog._push_undo(("all", previous))
+    dialog._restore_rule()
+    assert [r.name for r in service.list_rules()] == before
 
 
 def test_the_import_preflight_reports_instead_of_asking():
@@ -122,10 +283,50 @@ def test_the_import_preflight_reports_instead_of_asking():
     assert 'text=_("Roll Back")' in source
 
 
-def test_deleted_highlights_report_that_undo_is_available():
-    source = (PACKAGE / "ui/highlights_workspace.py").read_text(encoding="utf-8")
-    assert "Deleted {count}. Undo is available." in source
-    assert "def _undo_delete(self)" in source
+def test_highlight_deletes_stack_so_a_second_one_keeps_the_first():
+    """Deleting is immediate now, so the undo has to survive a second delete.
+    One slot meant batch two silently replaced batch one while the status line
+    still said undo was available."""
+    from bookmark_organizer_pro.ui.highlights_workspace import HighlightsWorkspaceDialog
+
+    class _Workspace:
+        def __init__(self):
+            self.live = {"a", "b", "c", "d"}
+
+        def delete_many(self, ids):
+            removed = tuple(i for i in ids if i in self.live)
+            self.live -= set(removed)
+            return removed
+
+        def restore_many(self, ids):
+            self.live |= set(ids)
+            return len(ids)
+
+    dialog = HighlightsWorkspaceDialog.__new__(HighlightsWorkspaceDialog)
+    dialog.workspace = _Workspace()
+    dialog._deleted_batches = []
+    dialog.page = None
+    dialog.status = _StubLabel()
+    dialog.undo_button = _StubButton()
+    dialog._refresh = lambda **kwargs: None
+
+    class _Record:
+        def __init__(self, ident):
+            self.id = ident
+
+    dialog._selected_records = lambda: [_Record("a"), _Record("b")]
+    dialog._delete_selected()
+    dialog._selected_records = lambda: [_Record("c")]
+    dialog._delete_selected()
+    assert dialog.workspace.live == {"d"}
+    assert len(dialog._deleted_batches) == 2
+
+    dialog._undo_delete()
+    assert dialog.workspace.live == {"c", "d"}
+    assert "earlier batch can still be restored" in dialog.status.text
+    dialog._undo_delete()
+    assert dialog.workspace.live == {"a", "b", "c", "d"}
+    assert dialog._deleted_batches == []
 
 
 if __name__ == "__main__":

@@ -86,7 +86,7 @@ class RecoveryWorkflow:
                 raise RuntimeError(detail)
             self._progress("ok", "Validated restored library", detail)
             return RecoveryResult(
-                "restore", True, f"Restore complete. {detail}.", backup_name,
+                "restore", True, f"Restore complete, {detail}.", backup_name,
                 rollback_source=rollback,
                 recovered_count=len(self.manager.get_all_bookmarks()),
             )

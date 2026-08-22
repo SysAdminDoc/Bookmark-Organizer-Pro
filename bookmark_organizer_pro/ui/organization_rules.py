@@ -6,7 +6,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-from bookmark_organizer_pro.i18n import _, format_message
+from bookmark_organizer_pro.i18n import _, format_message, format_plural
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.services.organization_rules import (
     ALLOWED_ACTIONS,
@@ -17,8 +17,8 @@ from bookmark_organizer_pro.services.organization_rules import (
     OrganizationRulesService,
 )
 
-from .foundation import FONTS, pluralize
-from .widget_controls import ModernButton
+from .foundation import FONTS
+from .widget_controls import ModernButton, Tooltip
 from .window_geometry import apply_screen_aware_geometry
 from .widgets import apply_window_chrome, get_theme
 
@@ -257,7 +257,9 @@ class OrganizationRulesDialog(tk.Toplevel):
         self.bookmark_manager = bookmark_manager
         self.service = OrganizationRulesService(bookmark_manager)
         self.preview: OrganizationPreview | None = None
-        self._deleted_rule: OrganizationRule | None = None
+        # A stack, not a slot: a second delete used to overwrite the first
+        # while the status line still claimed a restore was available.
+        self._undo_stack: list[tuple[str, object]] = []
         self.title(_("Organization rules"))
         apply_screen_aware_geometry(self, 1120, 760)
         self.minsize(860, 600)
@@ -306,11 +308,17 @@ class OrganizationRulesDialog(tk.Toplevel):
         # Replace or merge is a choice about the import, not a confirmation of
         # it, so it lives here as a control instead of a modal at click time.
         self.replace_on_import_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(
+        replace_toggle = ttk.Checkbutton(
             rule_toolbar,
-            text=_("Replace on import"),
+            text=_("Replace all rules on import"),
             variable=self.replace_on_import_var,
-        ).pack(side=tk.LEFT, padx=(10, 0))
+        )
+        replace_toggle.pack(side=tk.LEFT, padx=(10, 0))
+        Tooltip(
+            replace_toggle,
+            _("Off, an import merges. On, it discards every current rule first, "
+              "and Restore brings them back until this window closes."),
+        )
         self.rules_tree = ttk.Treeview(rule_frame, columns=("enabled", "name", "conditions", "actions"), show="headings", selectmode="browse", height=7)
         for column, label, width in (
             ("enabled", _("Enabled"), 100), ("name", _("Name"), 190),
@@ -435,7 +443,10 @@ class OrganizationRulesDialog(tk.Toplevel):
         elif self.service.last_run:
             self.status.configure(text=format_message("Last run: {status}", status=self.service.last_run.status))
         else:
-            self.status.configure(text=format_message("{count}", count=pluralize(len(self.service.rules), "rule")))
+            self.status.configure(text=format_plural(
+                "{count} rule", "{count} rules",
+                len(self.service.rules), count=len(self.service.rules),
+            ))
 
     def _selected_rule(self) -> OrganizationRule | None:
         selection = self.rules_tree.selection()
@@ -469,11 +480,16 @@ class OrganizationRulesDialog(tk.Toplevel):
         rule = self._selected_rule()
         if not rule:
             return "break"
-        # Deleted immediately and held in `_deleted_rule` so Restore can put it
-        # back. That is cheaper for the user than a modal on every delete.
+        # Deleted immediately, with its position pushed onto the undo stack so
+        # Restore can put it back where it was. Cheaper for the user than a
+        # modal on every delete, and a second delete no longer loses the first.
+        index = next(
+            (position for position, item in enumerate(self.service.list_rules())
+             if item.rule_id == rule.rule_id),
+            len(self.service.list_rules()),
+        )
         self.service.remove_rule(rule.rule_id)
-        self._deleted_rule = rule
-        self.restore_button.set_state("normal")
+        self._push_undo(("rule", (index, rule)))
         self.preview = None
         self.apply_button.set_state("disabled")
         self._refresh_rules()
@@ -482,22 +498,42 @@ class OrganizationRulesDialog(tk.Toplevel):
         )
         return "break"
 
+    def _push_undo(self, entry) -> None:
+        self._undo_stack.append(entry)
+        self.restore_button.set_state("normal")
+
     def _restore_rule(self):
-        """Put the last deleted rule back, exactly as it was."""
-        rule = self._deleted_rule
-        if rule is None:
+        """Undo the most recent delete or replace, exactly as it was.
+
+        The entry is only dropped once the service accepts it. Clearing first
+        meant a refused restore, which is what happens at the rule ceiling or
+        when another rule has taken the name, threw the rule away for good.
+        """
+        if not self._undo_stack:
             return "break"
-        self._deleted_rule = None
-        self.restore_button.set_state("disabled")
+        kind, payload = self._undo_stack[-1]
         try:
-            self.service.add_rule(rule)
+            if kind == "rule":
+                index, rule = payload
+                self.service.restore_rules([(index, rule)])
+                message = format_message("Restored rule '{name}'.", name=rule.name)
+            else:
+                self.service.replace_all_rules(list(payload))
+                message = format_plural(
+                    "Restored the {count} rule from before the import.",
+                    "Restored the {count} rules from before the import.",
+                    len(payload), count=len(payload),
+                )
         except (OSError, ValueError) as exc:
-            messagebox.showerror(_("Rule not restored"), str(exc), parent=self)
+            messagebox.showerror(_("Nothing was restored"), str(exc), parent=self)
             return "break"
+        self._undo_stack.pop()
+        if not self._undo_stack:
+            self.restore_button.set_state("disabled")
+        self.preview = None
+        self.apply_button.set_state("disabled")
         self._refresh_rules()
-        self.preview_status.configure(
-            text=format_message("Restored rule '{name}'.", name=rule.name),
-        )
+        self.preview_status.configure(text=message)
         return "break"
 
     def _set_enabled(self, enabled: bool) -> None:
@@ -555,14 +591,15 @@ class OrganizationRulesDialog(tk.Toplevel):
         self.preview = None
         self.apply_button.set_state("disabled")
         self.undo_button.set_state("normal" if report.undo_available else "disabled")
-        summary = format_message(
-            "Run {status}: {count} changed.",
-            status=report.status,
-            count=pluralize(report.affected_count, "bookmark"),
+        summary = format_plural(
+            "Run {status}: {count} bookmark changed.",
+            "Run {status}: {count} bookmarks changed.",
+            report.affected_count, status=report.status, count=report.affected_count,
         )
         if skipped:
-            summary += " " + format_message(
-                "{count} skipped.", count=pluralize(skipped, "conflict"),
+            summary += " " + format_plural(
+                "{count} conflict skipped.", "{count} conflicts skipped.",
+                skipped, count=skipped,
             )
         self.preview_status.configure(text=summary)
         self._refresh_rules()
@@ -570,7 +607,11 @@ class OrganizationRulesDialog(tk.Toplevel):
     def _undo_last(self) -> None:
         report = self.service.undo_last()
         self.undo_button.set_state("normal" if report.undo_available else "disabled")
-        self.preview_status.configure(text=format_message("Undo {status}: {count}.", status=report.status, count=pluralize(report.affected_count, "bookmark")))
+        self.preview_status.configure(text=format_plural(
+            "Undo {status}: {count} bookmark.",
+            "Undo {status}: {count} bookmarks.",
+            report.affected_count, status=report.status, count=report.affected_count,
+        ))
         self._refresh_rules()
 
     def _import_rules(self) -> None:
@@ -578,15 +619,29 @@ class OrganizationRulesDialog(tk.Toplevel):
         if not path:
             return
         replace = bool(self.replace_on_import_var.get())
+        previous = self.service.list_rules() if replace else []
         try:
             count = self.service.import_rules(path, replace=replace)
         except (OSError, ValueError) as exc:
             messagebox.showerror(_("Import failed"), str(exc), parent=self)
             return
+        # Replacing discards every existing rule at once, which nothing else
+        # in this dialog undoes, so the previous set goes on the undo stack.
+        if replace and previous:
+            self._push_undo(("all", previous))
         self.preview = None
         self.apply_button.set_state("disabled")
         self._refresh_rules()
-        self.preview_status.configure(text=format_message("Imported {count}.", count=pluralize(count, "rule")))
+        summary = format_plural(
+            "Imported {count} rule.", "Imported {count} rules.", count, count=count,
+        )
+        if replace and previous:
+            summary += " " + format_plural(
+                "The {count} rule it replaced can be restored.",
+                "The {count} rules it replaced can be restored.",
+                len(previous), count=len(previous),
+            )
+        self.preview_status.configure(text=summary)
 
     def _export_rules(self) -> None:
         path = filedialog.asksaveasfilename(parent=self, title=_("Export organization rules"), initialfile="organization-rules.json", defaultextension=".json", filetypes=[(_("JSON files"), "*.json")])
