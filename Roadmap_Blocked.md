@@ -41,6 +41,8 @@ Items moved here from ROADMAP.md because they have hard blockers preventing impl
 
 **Blocker:** Requires Chrome 138+ with Gemini Nano on-device model (2.7-4 GB download, 16 GB RAM). Cannot be tested or validated without a Chrome 138+ browser environment with the Prompt API enabled. Implementation is straightforward once a test environment is available.
 
+**Update 2026-08-21:** The Prompt API has been stable for extensions since Chrome 138 (2025-06) with the extensions channel at Chrome 148, so the test-environment blocker no longer applies. The remaining blocker is the hardware gate (16 GB RAM or >4 GB VRAM, 22 GB free disk on the profile volume, desktop only), which means it can only ever be an optional accelerator over the desktop app's own Ollama/fastembed path, never a default. Source: https://developer.chrome.com/docs/ai/prompt-api (fetched 2026-08-21).
+
 **Source:** [S-130][S-135]
 
 ## First community translation (es or zh)
@@ -97,3 +99,4 @@ Blocked items moved from the actionable roadmap:
   Touches: dependency compatibility matrix, MCP server resources/tools, optional AppConfig UI, capability negotiation, fallback and security tests, then the stale blocked entry if validation succeeds.
   Acceptance: An isolated prototype runs the existing MCP contract suite against the minimum and latest allowed dependency versions, negotiates capabilities with both pre-2026-07-28 and final-spec clients, renders one read-only bookmark-search app without broadening scopes or exposing content unexpectedly, and documents a keep/reject decision with measured compatibility evidence.
   Complexity: L
+  Note 2026-08-21: mcp SDK 2.0.0 shipped 2026-07-28 (stateless requests, `server/discover`, Tasks + MCP Apps extensions, Roots/Sampling/Logging deprecated on a 12-month clock; `FastMCP` class renamed `MCPServer`); fastmcp 4.0.0b3 (2026-08-14) targets SDK v2 but is still beta, and fastmcp 3.4.x pins `mcp<2`. Current pins (`mcp>=1.28,<2.0`, `fastmcp>=3.4.1,<4.0`) are correct until fastmcp 4 goes stable or a decision is made to target the raw SDK. Sources: https://github.com/modelcontextprotocol/python-sdk/releases; https://github.com/jlowin/fastmcp/releases.
