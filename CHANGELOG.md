@@ -6,6 +6,14 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Fixed
 
+- Changing your encryption passphrase no longer leaves a copy the old one can
+  still open. The pre-rotation backup is written and read back so a failure
+  between the two writes is recoverable, then deleted once the new file is
+  verified. If rotation does fail, the backup stays and the log says plainly
+  that the old passphrase still opens it.
+- Libraries written under the two oldest encrypted formats are rewritten under
+  the current one the first time you decrypt them. Those formats only signed
+  the file's magic bytes, so the version and salt were not covered.
 - The Firefox build failed validation. v6.14.0 added the Gecko data collection
   disclosure, which Firefox only reads from version 140 and Firefox for Android
   from 142, while the manifest still claimed 121 as its floor. The pinned

@@ -77,6 +77,37 @@ def test_windows_capture_resolves_top_level_hwnd_contract():
     assert "winfo_id" in source
 
 
+def test_desktop_gate_walks_the_tab_ring_not_just_single_controls():
+    """R-149. The accessibility contract checks controls one at a time, which a
+    control can pass while still being unreachable, because Tab follows a ring
+    that does not cross between toplevels. Verified live against the real main
+    window: a button parented onto a stray Toplevel is reported, and the
+    unmodified window is fully reachable.
+
+    There is deliberately no assertion about traversal order. A first attempt
+    scored the ring against reading order across the whole window and flagged
+    the real one, which runs search, toolbar, sidebar, content, right rail.
+    That order is correct for a multi-pane window, so the check was measuring
+    the wrong thing, and loosening it until it passed would have left a gate
+    asserting nothing.
+    """
+    source = inspect.getsource(smoke.assert_keyboard_traversal_reaches_every_control)
+    assert "winfo_toplevel()" in source
+    assert "Tab never reaches" in source
+    assert "a separate toplevel" in source
+
+    ring = inspect.getsource(smoke._tab_ring)
+    assert "tk_focusNext" in ring
+    assert "did not return to its starting point" in ring
+
+    picker = inspect.getsource(smoke.focusable_widgets)
+    assert "winfo_ismapped" in picker
+    assert "takefocus" in picker
+
+    desktop = inspect.getsource(smoke.verify_desktop_viewports)
+    assert "assert_keyboard_traversal_reaches_every_control(root)" in desktop
+
+
 def test_desktop_viewport_gate_covers_supported_sizes_and_themes():
     source = inspect.getsource(smoke.verify_desktop_viewports)
     assert smoke.DESKTOP_VIEWPORTS == (

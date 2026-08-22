@@ -663,6 +663,85 @@ def _verify_viewport(window, width: int, height: int) -> None:
     assert_no_horizontal_overflow(window)
 
 
+def focusable_widgets(window) -> list:
+    """Every mapped widget under `window` that opts into keyboard focus."""
+    found = []
+    stack = list(window.winfo_children())
+    while stack:
+        widget = stack.pop()
+        stack.extend(widget.winfo_children())
+        if not widget.winfo_ismapped():
+            continue
+        if widget.winfo_width() <= 1 or widget.winfo_height() <= 1:
+            continue
+        if "takefocus" not in widget.keys():
+            continue
+        if str(widget.cget("takefocus")) not in {"1", "true"}:
+            continue
+        found.append(widget)
+    return found
+
+
+def _tab_ring(start, limit: int) -> set:
+    """Widget paths reachable by following Tab from `start` until it cycles."""
+    seen: set[str] = set()
+    current = start
+    for _ in range(limit):
+        key = str(current)
+        if key in seen:
+            return seen
+        seen.add(key)
+        following = current.tk_focusNext()
+        if following is None:
+            return seen
+        current = following
+    raise VisualSmokeError("keyboard traversal did not return to its starting point")
+
+
+def assert_keyboard_traversal_reaches_every_control(window) -> None:
+    """Follow Tab all the way round and prove no control is stranded off the ring.
+
+    The accessibility contract checks controls one at a time: focusable, fires
+    once, restores focus. A control can pass all of that and still be
+    unreachable, because Tab follows Tk's ring and that ring does not cross
+    between toplevels. A control parented onto a leaked or stray toplevel is
+    mapped, is focusable, and no amount of tabbing in the main window will ever
+    land on it.
+
+    Each toplevel is walked from its own first control, so the failure names
+    the widgets that are actually stranded rather than whichever group the walk
+    happened not to start in.
+    """
+    window.update_idletasks()
+    controls = focusable_widgets(window)
+    if not controls:
+        raise VisualSmokeError("no focusable controls found in the main window")
+
+    by_toplevel: dict[str, list] = {}
+    for widget in controls:
+        by_toplevel.setdefault(str(widget.winfo_toplevel()), []).append(widget)
+
+    stranded: list[str] = []
+    for group in by_toplevel.values():
+        reached = _tab_ring(group[0], len(group) * 4 + 32)
+        stranded.extend(str(widget) for widget in group if str(widget) not in reached)
+
+    extra = sorted(name for name in by_toplevel if name != str(window))
+    if extra:
+        stranded.extend(
+            f"{name} (a separate toplevel, unreachable from the main window)"
+            for name in extra
+        )
+
+    if stranded:
+        shown = sorted(stranded)
+        raise VisualSmokeError(
+            "Tab never reaches "
+            + ", ".join(shown[:5])
+            + (f" and {len(shown) - 5} more" if len(shown) > 5 else "")
+        )
+
+
 def verify_desktop_viewports(root, theme_manager, *, collapsible_rail=None) -> None:
     """Exercise supported desktop sizes and themes without foreground activation."""
     _prepare_background_window(root)
@@ -685,6 +764,7 @@ def verify_desktop_viewports(root, theme_manager, *, collapsible_rail=None) -> N
             _set_scaling(root, baseline, sweep_scaling)
             theme_manager.set_theme(theme_name)
             _verify_viewport(root, sweep_width, sweep_height)
+        assert_keyboard_traversal_reaches_every_control(root)
     finally:
         _set_scaling(root, baseline, 1.0)
         root.withdraw()

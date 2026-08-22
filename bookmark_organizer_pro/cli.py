@@ -2062,9 +2062,12 @@ Top Domains:
             return self._usage_error("error: passphrase required")
         try:
             store = EncryptedStore(passphrase)
+            was_legacy = EncryptedStore.format_version(src.read_bytes()) in (1, 2)
             out = store.decrypt_file(src, dst)
             store.close()
             print(f"decrypted -> {out}")
+            if was_legacy and EncryptedStore.format_version(src.read_bytes()) not in (1, 2):
+                print(f"upgraded {src.name} to the current encrypted format")
         except Exception as e:
             return self._failure(f"Decryption failed: {e}")
         return 0

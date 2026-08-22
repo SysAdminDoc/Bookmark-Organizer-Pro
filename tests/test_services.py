@@ -2734,21 +2734,141 @@ class TestEncryptionRecoveryKey(_IsolatedTestBase):
         with self.assertRaises(Exception):
             store.decrypt(bytes(blob))
 
-    def test_rotation_upgrades_after_byte_exact_backup(self):
+    def test_opening_a_legacy_file_moves_it_onto_the_authenticated_envelope(self):
+        """R-147. Versions 1 and 2 authenticate only the magic bytes, so the
+        version field and the salt sit outside the AES-GCM associated data.
+        Nothing can repair a file already written that way, so the fix is to
+        stop having one the first time the passphrase is available."""
         self._skip_if_no_crypto()
         from bookmark_organizer_pro.services.encryption import EncryptedStore
-        path = Path(self._tmp) / "library.enc"
+
+        directory = Path(self._tmp) / "legacy-upgrade"
+        directory.mkdir()
+        path = directory / "library.enc"
+        path.write_bytes(self._legacy_blob("pass", b"library data"))
+        self.assertEqual(EncryptedStore.format_version(path.read_bytes()), 1)
+
+        store = EncryptedStore("pass")
+        out = store.decrypt_file(path, directory / "plain.json")
+        self.assertEqual(out.read_bytes(), b"library data")
+        self.assertEqual(EncryptedStore.format_version(path.read_bytes()), 3)
+        self.assertEqual(EncryptedStore("pass").decrypt(path.read_bytes()), b"library data")
+
+        # Already current, so nothing to do and nothing rewritten.
+        before = path.read_bytes()
+        self.assertFalse(EncryptedStore("pass").upgrade_legacy_file(path))
+        self.assertEqual(path.read_bytes(), before)
+
+    def test_upgrading_a_recovery_bearing_legacy_file_needs_its_recovery_key(self):
+        """Same rule rotation follows: never drop emergency access silently."""
+        self._skip_if_no_crypto()
+        from bookmark_organizer_pro.services.encryption import (
+            EncryptedStore, generate_recovery_key,
+        )
+
+        directory = Path(self._tmp) / "legacy-recovery"
+        directory.mkdir()
+        path = directory / "library.enc"
+        recovery_key = generate_recovery_key()
+        path.write_bytes(self._legacy_blob("pass", b"recoverable", recovery_key))
+
+        with self.assertRaises(ValueError):
+            EncryptedStore("pass").upgrade_legacy_file(path)
+        self.assertEqual(EncryptedStore.format_version(path.read_bytes()), 2)
+
+        self.assertTrue(
+            EncryptedStore("pass").upgrade_legacy_file(path, recovery_key=recovery_key)
+        )
+        rotated = path.read_bytes()
+        self.assertEqual(EncryptedStore.format_version(rotated), 4)
+        self.assertEqual(
+            EncryptedStore.decrypt_with_recovery_key(rotated, recovery_key), b"recoverable"
+        )
+
+    def test_a_tampered_recovery_record_is_refused_not_returned(self):
+        """The recovery record's own AES-GCM tag is what protects its contents,
+        so swapping it cannot make it decrypt to anything an attacker chooses."""
+        self._skip_if_no_crypto()
+        from bookmark_organizer_pro.services.encryption import (
+            EncryptedStore, generate_recovery_key,
+        )
+
+        recovery_key = generate_recovery_key()
+        blob = bytearray(self._legacy_blob("pass", b"recoverable", recovery_key))
+        blob[-1] ^= 0xFF
+        with self.assertRaises(Exception):
+            EncryptedStore.decrypt_with_recovery_key(bytes(blob), recovery_key)
+        # The primary payload is unaffected and still opens.
+        self.assertEqual(EncryptedStore("pass").decrypt(bytes(blob)), b"recoverable")
+
+    def test_rotation_leaves_nothing_the_old_passphrase_can_open(self):
+        """R-146. This used to assert the pre-rotation backup survived. That
+        file is the original ciphertext, so the old passphrase still opened it,
+        and someone rotating because that passphrase leaked was left with a
+        readable copy beside the file that no longer opens. The backup still
+        covers a failure between the two writes; it is deleted once the new
+        file is written and read back."""
+        self._skip_if_no_crypto()
+        from bookmark_organizer_pro.services.encryption import EncryptedStore
+        # Its own directory: the scan below walks every file beside the
+        # library, and a sibling case deliberately leaves one behind.
+        directory = Path(self._tmp) / "rotation-clean"
+        directory.mkdir()
+        path = directory / "library.enc"
         original = self._legacy_blob("old-passphrase", b"library data")
         path.write_bytes(original)
 
         self.assertTrue(EncryptedStore.rotate_passphrase(path, "old-passphrase", "new-passphrase"))
-        backups = list(path.parent.glob("library.enc.pre-rotation-*.bak"))
-        self.assertEqual(len(backups), 1)
-        self.assertEqual(backups[0].read_bytes(), original)
+        self.assertEqual(list(path.parent.glob("library.enc.pre-rotation-*.bak")), [])
         self.assertEqual(EncryptedStore.format_version(path.read_bytes()), 3)
         self.assertEqual(EncryptedStore("new-passphrase").decrypt(path.read_bytes()), b"library data")
-        with self.assertRaises(Exception):
-            EncryptedStore("old-passphrase").decrypt(path.read_bytes())
+
+        # Nothing left in the directory may open with the retired passphrase.
+        for leftover in sorted(path.parent.iterdir()):
+            if not leftover.is_file():
+                continue
+            with self.subTest(leftover=leftover.name):
+                with self.assertRaises(Exception):
+                    EncryptedStore("old-passphrase").decrypt(leftover.read_bytes())
+
+    def test_a_failed_rotation_keeps_the_backup_and_says_so(self):
+        """R-146. The backup only earns its keep when rotation did not finish,
+        and then the user has to be told the old passphrase still opens it."""
+        self._skip_if_no_crypto()
+        from unittest import mock
+        from bookmark_organizer_pro.services import encryption as encryption_module
+        from bookmark_organizer_pro.services.encryption import EncryptedStore
+
+        directory = Path(self._tmp) / "rotation-failed"
+        directory.mkdir()
+        path = directory / "library-failed.enc"
+        original = self._legacy_blob("old-passphrase", b"library data")
+        path.write_bytes(original)
+
+        real_write = encryption_module._atomic_write
+        calls = {"count": 0}
+
+        def fail_on_the_library_write(target, payload):
+            calls["count"] += 1
+            if calls["count"] == 1:
+                return real_write(target, payload)
+            raise OSError("disk filled up between the two writes")
+
+        with mock.patch.object(
+            encryption_module, "_atomic_write", side_effect=fail_on_the_library_write
+        ), self.assertLogs("BookmarkOrganizer", level="WARNING") as logged:
+            self.assertFalse(
+                EncryptedStore.rotate_passphrase(path, "old-passphrase", "new-passphrase")
+            )
+
+        backups = list(path.parent.glob("library-failed.enc.pre-rotation-*.bak"))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(backups[0].read_bytes(), original)
+        self.assertEqual(path.read_bytes(), original)
+        self.assertTrue(
+            any("old passphrase still opens it" in line for line in logged.output),
+            logged.output,
+        )
 
     def test_rotation_preserves_recovery_access(self):
         self._skip_if_no_crypto()

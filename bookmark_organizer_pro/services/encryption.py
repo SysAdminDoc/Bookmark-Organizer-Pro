@@ -313,12 +313,58 @@ class EncryptedStore:
         _atomic_write(dst, self.encrypt(src.read_bytes()))
         return dst
 
-    def decrypt_file(self, src: Path, dst: Optional[Path] = None) -> Path:
+    def decrypt_file(
+        self, src: Path, dst: Optional[Path] = None, *, upgrade: bool = True
+    ) -> Path:
+        """Decrypt ``src`` to ``dst``, moving ``src`` off a legacy envelope.
+
+        Versions 1 and 2 authenticate only the magic bytes, so the version and
+        the salt sit outside the AES-GCM associated data. Nothing can fix that
+        for a file already written that way; the fix is to stop having one, and
+        the moment the passphrase is in hand is the moment that is possible.
+        A failed upgrade never fails the decryption the caller asked for.
+        """
         dst = dst or src.with_suffix("")
         if dst.resolve() == src.resolve():
             raise ValueError("Destination must differ from source")
         _atomic_write(dst, self.decrypt(src.read_bytes()))
+        if upgrade:
+            try:
+                self.upgrade_legacy_file(src)
+            except Exception as exc:
+                log.warning("Could not upgrade %s off the legacy envelope: %s", src.name, exc)
         return dst
+
+    def upgrade_legacy_file(self, path: Path, *, recovery_key: str | None = None) -> bool:
+        """Rewrite a version 1 or 2 file under the current envelope.
+
+        Returns False when the file is already current. A recovery-bearing
+        legacy file needs its recovery key, for the same reason rotation does:
+        upgrading without it would quietly drop emergency access.
+        """
+        original = path.read_bytes()
+        version = self.format_version(original)
+        if version not in (VERSION, VERSION_RECOVERY):
+            return False
+        plaintext = self.decrypt(original)
+        if version == VERSION_RECOVERY:
+            if not recovery_key:
+                raise ValueError("Recovery key required to upgrade a recovery-bearing file")
+            if self.decrypt_with_recovery_key(original, recovery_key) != plaintext:
+                raise ValueError("Recovery key verification failed")
+            new_blob = self.encrypt_with_recovery(plaintext, recovery_key)
+        else:
+            new_blob = self.encrypt(plaintext)
+        if self.decrypt(new_blob) != plaintext:
+            raise ValueError("Upgraded encrypted file verification failed")
+        _atomic_write(path, new_blob)
+        if path.read_bytes() != new_blob:
+            raise OSError("Upgraded encrypted file did not survive the write")
+        log.info(
+            "Upgraded %s from encrypted format v%d to v%d",
+            path.name, version, self.format_version(new_blob),
+        )
+        return True
 
     @staticmethod
     def decrypt_recovery_file(src: Path, recovery_key: str, dst: Path | None = None) -> Path:
@@ -344,11 +390,18 @@ class EncryptedStore:
         new_passphrase: str,
         recovery_key: str | None = None,
     ) -> bool:
-        """Rotate a passphrase only after creating and verifying a byte-exact backup.
+        """Rotate a passphrase behind a verified, then discarded, backup.
+
+        A byte-exact copy of the original is written and read back before the
+        new file is produced, so a failure between the two writes is
+        recoverable. Once the new file is written and verified that copy is
+        deleted: it is the original ciphertext, and leaving it in place would
+        keep the old passphrase working against the same data.
 
         Recovery-bearing files require their recovery key so rotation cannot
         silently discard emergency access.
         """
+        backup: Path | None = None
         try:
             original = path.read_bytes()
             version = EncryptedStore.format_version(original)
@@ -379,8 +432,28 @@ class EncryptedStore:
             if has_recovery and EncryptedStore.decrypt_with_recovery_key(new_blob, recovery_key) != plaintext:
                 raise ValueError("Rotated recovery copy verification failed")
             _atomic_write(path, new_blob)
-            log.info("Passphrase rotated for %s after verified backup %s", path.name, backup.name)
+            if path.read_bytes() != new_blob:
+                raise OSError("Rotated encrypted file did not survive the write")
+            # The backup is the original ciphertext, so the passphrase being
+            # rotated away from still opens it. Leaving it beside the library
+            # undoes the rotation for anyone who rotated because that
+            # passphrase leaked. It exists only to cover a failure between the
+            # two writes above, and both have now been verified.
+            backup.unlink(missing_ok=True)
+            log.info(
+                "Passphrase rotated for %s; the pre-rotation backup was removed "
+                "once the new file verified",
+                path.name,
+            )
             return True
         except Exception as exc:
             log.error("Passphrase rotation failed for %s: %s", path.name, exc)
+            if backup is not None and backup.exists():
+                log.warning(
+                    "Rotation left %s in place. It is the original file and the "
+                    "old passphrase still opens it, so delete it once %s is back "
+                    "in a known state.",
+                    backup.name,
+                    path.name,
+                )
             return False

@@ -27,34 +27,5 @@ Clean verdicts, no findings:
 - **`services/ollama_manager.py`.** HTTPS only, hostname allowlist re-checked on every redirect hop, bounded redirects, streamed to a `.part` file, SHA-256 verified against a pinned digest before `os.replace`, and the installer runs as an argument list.
 - **`services/rag_chat.py` and `services/citation_summarizer.py` prompt isolation.** Page text goes through `build_untrusted_evidence`, which serializes it as bounded JSON with validated citation IDs, per-chunk and total character ceilings, and a system prompt stating that only the system message defines the task. Page content never reaches the instruction position.
 
-Findings follow.
+All three findings this pass raised were then drained in the same session, so nothing is left open here. R-146 stopped `rotate_passphrase` leaving a copy the retired passphrase still opens. R-147 moves a legacy v1 or v2 file onto the authenticated envelope the moment its passphrase is available. R-149 walks the Tab ring across the whole window in the desktop smoke.
 
-- [ ] P2 — R-146: Rotating a passphrase leaves a readable copy under the old one
-  Category: security
-  Where: `bookmark_organizer_pro/services/encryption.py:340-385` (`rotate_passphrase`), backup written at `:364`.
-  Problem: Rotation writes `<name>.pre-rotation-<stamp>.bak` next to the library and never removes it. That file is the original ciphertext, so it still opens with the old passphrase. Someone rotating precisely because the old passphrase leaked is left with a file the leaked passphrase decrypts, sitting beside the one it no longer opens, with nothing in the UI or the log line saying so.
-  Evidence: `_atomic_write(backup, original)` at `:364`, verified at `:365`, and never referenced again; the success log names the backup but does not say it is readable under the old secret.
-  Fix: Keep the verified backup for the duration of the rotation and delete it once the new file has been read back and verified, which the function already does at `:370-374`. If a durable backup is wanted, re-encrypt it under the new passphrase instead of preserving the old ciphertext, and either way say plainly in the CLI output and the log what the file is and which secret opens it.
-  Acceptance: After a successful rotation no file that the old passphrase can decrypt remains in the directory, and a test asserts that by attempting decryption with the old passphrase against every file left behind.
-  Confidence: Verified
-  Effort: S
-
-- [ ] P3 — R-147: The legacy encryption envelope authenticates only the magic bytes
-  Category: security
-  Where: `bookmark_organizer_pro/services/encryption.py:236-244` (versions 1 and 2 pass `MAGIC` as the AES-GCM associated data).
-  Problem: For v1 and v2 the version field, salt, and nonce sit outside the authenticated data, so an attacker who can write the file can relabel a v1 file as v2 and append an unauthenticated recovery record, and the primary payload still decrypts. Versions 3 and 4 fixed this by authenticating the full header, so this only affects files written before the Argon2 envelope landed. No plaintext is disclosed and no key is recovered; the exposure is that a legacy file's trailing bytes are attacker-shaped and parsed.
-  Evidence: `decrypt` at `:236` uses `MAGIC` as AAD on the legacy branch, against `header` on the Argon2 branch at `:250`; `_parse_recovery_record` at `:253` is reached with no authentication on the legacy path.
-  Fix: Re-encrypt legacy files to the current envelope on first successful open, which is a one-line follow-up to a successful legacy `decrypt`, and drop the legacy write path entirely once nothing produces it.
-  Acceptance: Opening a v1 or v2 file rewrites it as v3 or v4, and a test asserts that a relabelled legacy blob is refused rather than parsed.
-  Confidence: Verified
-  Effort: M
-
-- [ ] P3 — R-149: Keyboard traversal is asserted per widget, never across a window
-  Category: accessibility
-  Where: `scripts/accessibility_contract_smoke.py:188-240` and `tests/test_accessibility_contracts.py`.
-  Problem: The contract proves individual controls are focusable, that activation fires once, and that focus is restored, and three dialogs assert their own keyboard actions. Nothing walks a real window end to end to check that every interactive control is reachable by Tab, that the order follows the visual layout, and that focus does not escape into a dead region. A control that is focusable in isolation can still be unreachable once it sits inside a frame that traps or skips it.
-  Evidence: The smoke builds one label and one button rather than a window; no test calls `tk_focusNext` in a loop over a realized main window.
-  Fix: In the desktop visual smoke, which already realizes the main window offscreen, walk `tk_focusNext` from the first control until it cycles, and assert that the set of visited widgets covers every widget with `takefocus=1` and that the visited order matches the geometry order top to bottom, left to right.
-  Acceptance: The smoke fails when a focusable control is added inside a container that Tab cannot reach.
-  Confidence: Verified
-  Effort: M
