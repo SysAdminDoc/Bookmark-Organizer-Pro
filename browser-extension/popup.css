@@ -501,6 +501,19 @@ button:disabled {
   padding: 0 14px 18px;
 }
 
+/* The Add form is taller than the panel, so its primary action used to sit
+   below the fold with no hint it was there. Pin it as a form footer; the
+   panel body above it keeps scrolling. */
+.sidepanel-body #tab-add .actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: 14px;
+  padding: 10px 0;
+  background: var(--panel);
+  border-top: 1px solid var(--border-soft);
+}
+
 .sidepanel-body .product-header {
   margin-inline: -14px;
   padding-inline: 14px;

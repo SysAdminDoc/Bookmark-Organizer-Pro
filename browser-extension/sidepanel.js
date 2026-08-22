@@ -5,11 +5,14 @@
           normalizeTagInput */
 
 const RECENT_PAGE_SIZE = 30;
+const SEARCH_PAGE_SIZE = 30;
 let recentOffset = 0;
 let recentHasMore = false;
 let recentLoading = false;
 let searchDebounceTimer = null;
 let searchRequestId = 0;
+let searchOffset = 0;
+let searchQuery = "";
 let searchLoading = false;
 
 class ApiResponseError extends Error {
@@ -95,6 +98,14 @@ function connectionMessage(error) {
     );
   }
   return extensionMessage("apiUnavailable", [], "Cannot reach the local API. Start the app or run: bop api-server");
+}
+
+function setSearchLoadMore(hasMore) {
+  const button = document.getElementById("loadMoreSearch");
+  if (!button) return;
+  button.hidden = !hasMore;
+  button.disabled = false;
+  button.textContent = extensionMessage("loadMore", [], "Load More");
 }
 
 function setRecentLoadMore(hasMore, label = "") {
@@ -224,7 +235,7 @@ async function loadRediscover() {
   }
 }
 
-async function doSearch(query) {
+async function doSearch(query, { append = false } = {}) {
   const requestId = ++searchRequestId;
   const results = document.getElementById("searchResults");
   const searchButton = document.getElementById("searchBtn");
@@ -257,10 +268,17 @@ async function doSearch(query) {
       searchStatus.textContent = extensionMessage("addTokenToConnect", [], "Add the local API token in Options to connect.");
       return;
     }
-    const data = await apiFetch(`/search?q=${encodeURIComponent(normalizedQuery)}`, config);
+    if (!append) searchOffset = 0;
+    searchQuery = normalizedQuery;
+    const data = await apiFetch(
+      `/search?q=${encodeURIComponent(normalizedQuery)}&limit=${SEARCH_PAGE_SIZE}&offset=${searchOffset}`,
+      config,
+    );
     const hits = data.results || [];
+    const total = typeof data.count === "number" ? data.count : hits.length;
     if (requestId !== searchRequestId) return;
-    if (!hits.length) {
+    if (!hits.length && !append) {
+      setSearchLoadMore(false);
       showEmpty(results, extensionMessage("noSearchResults", [normalizedQuery], `No results for "${normalizedQuery}".`));
       searchStatus.dataset.tone = "info";
       searchStatus.textContent = extensionMessage(
@@ -268,14 +286,18 @@ async function doSearch(query) {
       );
       return;
     }
-    results.innerHTML = "";
-    for (const bm of hits.slice(0, 50)) {
+    if (!append) results.innerHTML = "";
+    for (const bm of hits) {
       results.appendChild(renderBookmark(bm));
     }
+    searchOffset += hits.length;
+    setSearchLoadMore(Boolean(data.has_more));
     searchStatus.dataset.tone = "success";
-    searchStatus.textContent = hits.length === 1
+    // Report the real total, not the page size: the panel used to say
+    // "50 bookmarks found" for a 300-hit query with no way to see more.
+    searchStatus.textContent = total === 1
       ? extensionMessage("searchResultOne", [], "1 bookmark found")
-      : extensionMessage("searchResultCount", [String(hits.length)], `${hits.length} bookmarks found`);
+      : extensionMessage("searchResultCount", [String(total)], `${total} bookmarks found`);
   } catch (error) {
     if (requestId !== searchRequestId) return;
     showEmpty(results, connectionMessage(error));
@@ -537,6 +559,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
     searchDebounceTimer = null;
     doSearch(document.getElementById("searchInput").value);
+  });
+  document.getElementById("loadMoreSearch").addEventListener("click", () => {
+    if (searchLoading || !searchQuery) return;
+    doSearch(searchQuery, { append: true });
   });
   document.getElementById("searchInput").addEventListener("input", e => {
     scheduleSearch(e.target.value);

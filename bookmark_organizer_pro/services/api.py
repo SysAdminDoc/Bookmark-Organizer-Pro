@@ -862,10 +862,21 @@ class BookmarkAPI:
                                 ],
                             }, 400)
                         else:
+                            limit = _clamp_int(
+                                params.get('limit', [50])[0], 50, minimum=1, maximum=500,
+                            )
+                            offset = _clamp_int(
+                                params.get('offset', [0])[0], 0, minimum=0, maximum=100_000,
+                            )
+                            page = results[offset: offset + limit]
+                            next_offset = offset + len(page)
                             self._send_json({
                                 "query": query,
                                 "count": len(results),
-                                "results": [asdict(bm) for bm in results[:50]]
+                                "returned": len(page),
+                                "next_offset": next_offset if next_offset < len(results) else None,
+                                "has_more": next_offset < len(results),
+                                "results": [asdict(bm) for bm in page],
                             })
                     else:
                         self._send_json({"error": "Query parameter 'q' required"}, 400)

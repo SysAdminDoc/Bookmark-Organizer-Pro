@@ -16,6 +16,15 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Fixed
 
+- The side panel's Save button no longer sits below the fold. On the Add tab the
+  form is taller than the panel, so the button the tab exists for was only
+  reachable by scrolling; it is pinned to the bottom now, like the popup.
+
+- Side panel search stops pretending 50 results is the whole answer. It reported
+  the size of the first page as the total and offered no way to see the rest;
+  it now shows the real count and pages through with Load More. The local API's
+  `/search` endpoint takes `limit` and `offset` to match.
+
 - Counts in the interface read properly now. The export dialog said "51
   categorys", and several dialogs showed "(s)" instead of choosing a form, so
   cleanup review, the highlights workspace, organization rules, and reader view

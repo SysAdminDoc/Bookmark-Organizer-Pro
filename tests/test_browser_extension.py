@@ -503,6 +503,18 @@ vm.runInContext(`(async () => {
         self.assertIn("data.has_more", sidepanel_js)
         self.assertIn("append: true", sidepanel_js)
 
+    def test_sidepanel_pages_search_results_and_reports_the_real_total(self):
+        """The panel rendered the first 50 hits and called that the total, with
+        no way to reach the rest."""
+        sidepanel_html = (EXT_DIR / "sidepanel.html").read_text(encoding="utf-8")
+        sidepanel_js = (EXT_DIR / "sidepanel.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="loadMoreSearch"', sidepanel_html)
+        self.assertIn("SEARCH_PAGE_SIZE", sidepanel_js)
+        self.assertIn("offset=${searchOffset}", sidepanel_js)
+        self.assertIn("data.count", sidepanel_js)
+        self.assertNotIn("hits.slice(0, 50)", sidepanel_js)
+
     def test_extension_save_payloads_include_read_later_state(self):
         popup_js = (EXT_DIR / "popup.js").read_text(encoding="utf-8")
         sidepanel_js = (EXT_DIR / "sidepanel.js").read_text(encoding="utf-8")
@@ -1205,6 +1217,46 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
                 return response.status, json.loads(response.read().decode("utf-8")), response.headers
         except urllib.error.HTTPError as error:
             return error.code, json.loads(error.read().decode("utf-8")), error.headers
+
+    def test_search_endpoint_pages_and_reports_the_full_count(self):
+        import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            for index in range(7):
+                manager.add_bookmark_clean(
+                    url=f"https://paging{index}.example.com",
+                    title=f"Pageable marker {index}",
+                    category="Testing",
+                )
+            api = main.BookmarkAPI(
+                manager, port=0,
+                extension_origins_file=Path(tmp) / "approved_extension_origins.json",
+            )
+            try:
+                api.start()
+                token = self._api_token()
+                base_url = f"http://127.0.0.1:{api.port}"
+
+                _status, first = self._get_json(
+                    base_url, "/search?q=Pageable&limit=3&offset=0", token,
+                )
+                _status, second = self._get_json(
+                    base_url, "/search?q=Pageable&limit=3&offset=3", token,
+                )
+
+                self.assertEqual(first["count"], 7)
+                self.assertEqual(first["returned"], 3)
+                self.assertTrue(first["has_more"])
+                self.assertEqual(first["next_offset"], 3)
+                self.assertEqual(len(second["results"]), 3)
+                self.assertFalse(
+                    {bm["id"] for bm in first["results"]}
+                    & {bm["id"] for bm in second["results"]},
+                    "pages must not overlap",
+                )
+            finally:
+                api.stop()
 
     def test_storage_failure_is_retryable_rather_than_a_client_error(self):
         """A save that fails because the library could not be written must not
