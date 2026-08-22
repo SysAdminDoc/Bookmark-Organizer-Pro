@@ -2,6 +2,20 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- **Check All Links** in the Tools menu and `bop check` on the command line now
+  use the same polite scanner as scheduled scanning. Both used to run their own
+  bare request loop that recorded a `429` or `503` as a dead link, so a host
+  asking you to slow down showed up as broken in the Dead Links badge, the
+  `is:broken` search filter, and the broken quick filter. They now cap requests
+  per host, honour `Retry-After`, retry with backoff, and leave a bookmark's
+  status alone when a host never gives an answer. The command line reports
+  rate-limited links separately from broken ones, and a long scan can still be
+  cancelled from the status bar.
+
 ## [v6.14.0] - 2026-08-21
 
 ### Changed

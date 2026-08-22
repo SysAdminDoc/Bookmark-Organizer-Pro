@@ -60,7 +60,6 @@ from bookmark_organizer_pro.ui.widgets import (
                 apply_window_chrome,
                 get_theme,
 )
-from bookmark_organizer_pro.url_utils import URLUtilities
 
 
 class ToolsActionsMixin:
@@ -897,65 +896,66 @@ class ToolsActionsMixin:
         
         self._set_status("Checking links…")
         
-        broken_count = [0]  # Use list to allow modification in closure
-        checked_count = [0]
-        
         import threading
 
-        def _check_one(bm):
-            status = 0
-            valid = False
-            try:
-                if URLUtilities._is_safe_url(bm.url):
-                    response = requests.head(bm.url, timeout=5, allow_redirects=False, headers={'User-Agent': 'BookmarkOrganizerPro/6.0 LinkChecker'})
-                    status = response.status_code
-                    valid = response.status_code < 400
-            except Exception:
-                pass
-            return bm.id, status, valid
+        from bookmark_organizer_pro.services.dead_link_scanner import DeadLinkScanner
+
+        total = len(bookmarks)
+        # The scanner reports counts; the UI only mirrors its latest snapshot.
+        latest = {"done": 0, "broken": 0, "rate_limited": 0}
+
+        def _apply_progress(done, broken, rate_limited):
+            latest.update(done=done, broken=broken, rate_limited=rate_limited)
+            progress_fill.place(relwidth=(done / total) if total else 1.0)
+            progress_label.configure(text=format_message(
+                'Checked {value_0}/{value_1} - {value_2} broken',
+                value_0=done, value_1=total, value_2=broken,
+            ))
+
+        def _on_progress(progress):
+            self._post_to_ui(
+                lambda d=progress.done, b=progress.broken, r=progress.rate_limited:
+                _apply_progress(d, b, r)
+            )
 
         def _worker():
-            from concurrent.futures import ThreadPoolExecutor, as_completed
-            with ThreadPoolExecutor(max_workers=5) as pool:
-                futures = {pool.submit(_check_one, bm): bm for bm in bookmarks}
-                for future in as_completed(futures):
-                    if self._link_check_cancelled:
-                        pool.shutdown(wait=False, cancel_futures=True)
-                        break
-                    bm_id, http_status, is_valid = future.result()
-                    self._post_to_ui(lambda bid=bm_id, hs=http_status, iv=is_valid: _apply_result(bid, hs, iv))
-
+            # A host that answers 429/503 is rate limiting us, not dead, so the
+            # scanner owns this check: it caps per-host concurrency, honours
+            # Retry-After, and leaves is_valid alone when a host never answers.
+            scanner = DeadLinkScanner(get_bookmarks=lambda: bookmarks)
+            try:
+                scanner.scan_now(
+                    progress_callback=_on_progress,
+                    should_cancel=lambda: self._link_check_cancelled,
+                )
+            except Exception:
+                log.warning("Link check failed", exc_info=True)
             self._post_to_ui(_finish)
-
-        def _apply_result(bm_id, http_status, is_valid):
-            bm = self.bookmark_manager.get_bookmark(bm_id)
-            if bm:
-                bm.http_status = http_status
-                bm.is_valid = is_valid
-                bm.last_checked = datetime.now().isoformat()
-                if not is_valid:
-                    broken_count[0] += 1
-                checked_count[0] += 1
-                progress = checked_count[0] / len(bookmarks)
-                progress_fill.place(relwidth=progress)
-                progress_label.configure(text=format_message('Checked {value_0}/{value_1} - {value_2} broken', value_0=checked_count[0], value_1=len(bookmarks), value_2=broken_count[0]))
-                if checked_count[0] % 20 == 0:
-                    self.bookmark_manager.save_bookmarks()
 
         def _finish():
             self.bookmark_manager.save_bookmarks()
             progress_frame.destroy()
+            broken = latest["broken"]
+            rate_limited = latest["rate_limited"]
             status = "Cancelled" if self._link_check_cancelled else "Complete"
             self._set_status(format_message(
                 "{status}: Found {broken} broken links",
-                status=status, broken=broken_count[0],
+                status=status, broken=broken,
             ))
             self._refresh_all()
-            if not self._link_check_cancelled:
+            if self._link_check_cancelled:
+                return
+            if rate_limited:
+                self._show_toast(format_message(
+                    "Checked {checked} links, found {broken} broken; "
+                    "{limited} hosts rate limited and left unchanged",
+                    checked=latest["done"], broken=broken, limited=rate_limited,
+                ), "warning")
+            else:
                 self._show_toast(format_message(
                     "Checked {checked} links, found {broken} broken",
-                    checked=checked_count[0], broken=broken_count[0],
-                ), "success" if broken_count[0] == 0 else "warning")
+                    checked=latest["done"], broken=broken,
+                ), "success" if broken == 0 else "warning")
 
         threading.Thread(target=_worker, daemon=True).start()
 

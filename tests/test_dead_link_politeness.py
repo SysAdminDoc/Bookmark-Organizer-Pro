@@ -3,11 +3,17 @@ Retry-After, and never report a rate-limited host as dead."""
 
 from __future__ import annotations
 
+import argparse
+import contextlib
+import shutil
+import sys
 import tempfile
 import threading
 import unittest
 from datetime import datetime, timedelta
+from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.dead_link_scanner import (
@@ -181,6 +187,16 @@ class TestDeadLinkPoliteness(unittest.TestCase):
             scanner.scan_now()
             self.assertNotIn(bookmark.url, scanner._verdicts)
 
+    def test_a_cancelled_scan_stops_early_and_keeps_finished_verdicts(self):
+        bookmarks = [_bookmark(i, f"https://host{i}.test/page") for i in range(8)]
+        server = _FakeServer({b.url: [200] for b in bookmarks})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            scanner, _slept = _scanner(bookmarks, server, tmp, max_workers=1)
+            scanner.scan_now(should_cancel=lambda: True)
+
+        self.assertLess(scanner._progress.done, len(bookmarks))
+
     def test_retry_after_parsing(self):
         self.assertEqual(_retry_after_seconds("5", 0), 5.0)
         self.assertEqual(_retry_after_seconds("", 0), 1.0)
@@ -191,6 +207,199 @@ class TestDeadLinkPoliteness(unittest.TestCase):
         future = datetime.now().astimezone() + timedelta(seconds=10)
         stamp = future.strftime("%a, %d %b %Y %H:%M:%S %z")
         self.assertGreater(_retry_after_seconds(stamp, 0), 0.0)
+
+
+class _StubWidget:
+    """Stands in for the Tk widgets the link-check status bar builds."""
+
+    def __init__(self, *args, **kwargs):
+        self.destroyed = False
+        self.text = kwargs.get("text", "")
+
+    def pack(self, *args, **kwargs):
+        return None
+
+    def pack_propagate(self, *args, **kwargs):
+        return None
+
+    def place(self, *args, **kwargs):
+        return None
+
+    def configure(self, **kwargs):
+        if "text" in kwargs:
+            self.text = kwargs["text"]
+
+    def destroy(self):
+        self.destroyed = True
+
+
+class _StubTheme:
+    bg_dark = "#000000"
+    bg_tertiary = "#111111"
+    text_muted = "#888888"
+    accent_primary = "#00ff00"
+    accent_error = "#ff0000"
+
+
+class _FakeApp:
+    """The slice of the app coordinator that `_check_all_links` touches."""
+
+    def __init__(self, manager):
+        self.bookmark_manager = manager
+        self.root = object()
+        self.status_bar = object()
+        self.statuses = []
+        self.toasts = []
+        self.finished = threading.Event()
+
+    def _set_status(self, message):
+        self.statuses.append(message)
+
+    def _toast(self, message, tone="info"):
+        self.toasts.append((message, tone))
+
+    def _show_toast(self, message, tone="info"):
+        self.toasts.append((message, tone))
+
+    def _post_to_ui(self, callback):
+        callback()
+
+    def _refresh_all(self):
+        # `_finish` always refreshes, so this is the completion signal.
+        self.finished.set()
+
+
+class TestLinkCheckEntryPoints(unittest.TestCase):
+    """`bop check` and the Tools menu must use the polite scanner.
+
+    Both used to run their own bare HEAD loop that recorded a 429 as
+    `is_valid=False`, which surfaces the bookmark as dead in
+    `find_broken_links`, `is:broken`, the broken quick filter, and the
+    dashboard Dead Links badge.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="bop_link_check_")
+        self.addCleanup(shutil.rmtree, self._tmp, ignore_errors=True)
+
+        from bookmark_organizer_pro.core.category_manager import CategoryManager
+        from bookmark_organizer_pro.managers import BookmarkManager, TagManager
+
+        root = Path(self._tmp)
+        self.manager = BookmarkManager(
+            CategoryManager(filepath=root / "categories.json"),
+            TagManager(filepath=root / "tags.json"),
+            filepath=root / "bookmarks.json",
+        )
+        self.limited = self.manager.add_bookmark_clean(
+            url="https://limited.test/page", title="Rate limited", category="Testing",
+        )
+        self.healthy = self.manager.add_bookmark_clean(
+            url="https://healthy.test/page", title="Healthy", category="Testing",
+        )
+        self.limited.is_valid = True
+        self.healthy.is_valid = True
+
+        self.server = _FakeServer({
+            self.limited.url: [429],
+            self.healthy.url: [200],
+        })
+
+    def _patched_scanner(self):
+        """Route every scanner check at this server, without real backoff sleeps."""
+        from bookmark_organizer_pro.link_checker import LinkChecker
+
+        server = self.server
+        results_file = Path(self._tmp) / "dead_links.json"
+
+        # `results_file=DEAD_LINKS_FILE` is a default argument bound when the
+        # class was defined, so patching the module constant would NOT redirect
+        # it and the scan would write to the real user data directory. Wrap the
+        # constructor instead.
+        def scoped_scanner(*args, **kwargs):
+            kwargs.setdefault("results_file", results_file)
+            return DeadLinkScanner(*args, **kwargs)
+
+        return [
+            patch.object(LinkChecker, "_check_url", lambda _self, bm: server.check(bm)),
+            patch(
+                "bookmark_organizer_pro.services.dead_link_scanner._default_sleep",
+                lambda _seconds: None,
+            ),
+            patch(
+                "bookmark_organizer_pro.services.dead_link_scanner.DeadLinkScanner",
+                scoped_scanner,
+            ),
+        ]
+
+    def _assert_rate_limited_survived(self):
+        # Prove the scan actually ran: without this, an entry point that
+        # silently did nothing would satisfy every assertion below.
+        self.assertEqual(
+            sorted({self.limited.url, self.healthy.url}),
+            sorted(set(self.server.calls)),
+            "both bookmarks must have been checked",
+        )
+        self.assertEqual(self.healthy.http_status, 200)
+        self.assertTrue(
+            self.limited.is_valid,
+            "a rate-limited host must not be recorded as a dead link",
+        )
+        self.assertIn("rate_limited_at", self.limited.custom_data)
+        self.assertNotIn(
+            self.limited.id,
+            [bm.id for bm in self.manager.find_broken_links()],
+            "a rate-limited bookmark must not surface as broken",
+        )
+        self.assertLessEqual(
+            self.server.peak.get("limited.test", 0), 2,
+            "per-host concurrency must stay capped",
+        )
+
+    def test_cli_check_leaves_rate_limited_links_alone(self):
+        from bookmark_organizer_pro.cli import BookmarkCLI
+
+        cli = BookmarkCLI.__new__(BookmarkCLI)
+        cli.bookmark_manager = self.manager
+
+        stdout = sys.stdout
+        sys.stdout = captured = StringIO()
+        try:
+            with contextlib.ExitStack() as stack:
+                for patcher in self._patched_scanner():
+                    stack.enter_context(patcher)
+                cli._cmd_check(argparse.Namespace())
+        finally:
+            sys.stdout = stdout
+
+        output = captured.getvalue()
+        self._assert_rate_limited_survived()
+        self.assertIn("Found 0 broken links", output)
+        self.assertIn("rate limited", output)
+
+    def test_tools_menu_check_leaves_rate_limited_links_alone(self):
+        from bookmark_organizer_pro.app_mixins import tools as tools_mixin
+
+        app = _FakeApp(self.manager)
+
+        with contextlib.ExitStack() as stack:
+            for patcher in self._patched_scanner():
+                stack.enter_context(patcher)
+            stack.enter_context(patch.object(tools_mixin.tk, "Frame", _StubWidget))
+            stack.enter_context(patch.object(tools_mixin.tk, "Label", _StubWidget))
+            stack.enter_context(patch.object(tools_mixin, "get_theme", _StubTheme))
+            stack.enter_context(
+                patch.object(tools_mixin, "make_keyboard_activatable", lambda *a, **k: None)
+            )
+            stack.enter_context(patch.object(tools_mixin, "Tooltip", lambda *a, **k: None))
+            tools_mixin.ToolsActionsMixin._check_all_links(app)
+            self.assertTrue(app.finished.wait(timeout=30), "link check never finished")
+
+        self._assert_rate_limited_survived()
+        self.assertTrue(
+            any("0 broken" in str(message) for message, _tone in app.toasts),
+            f"expected a zero-broken summary, got {app.toasts}",
+        )
 
 
 if __name__ == "__main__":

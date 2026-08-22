@@ -175,7 +175,14 @@ class DeadLinkScanner:
     # ---- single scan -------------------------------------------------------
     def scan_now(self, progress_callback: Optional[Callable[[ScanProgress], None]] = None,
                  only_unchecked_for_hours: int = 0,
-                 cache_ttl_hours: float = 0) -> List[DeadLinkRecord]:
+                 cache_ttl_hours: float = 0,
+                 should_cancel: Optional[Callable[[], bool]] = None) -> List[DeadLinkRecord]:
+        """Scan every bookmark once, honouring per-host politeness.
+
+        ``should_cancel`` is polled between completed checks so an interactive
+        caller can stop a long scan; the bookmarks already checked keep their
+        verdicts and the partial results are still persisted.
+        """
         from concurrent.futures import ThreadPoolExecutor, as_completed
         bookmarks = list(self.get_bookmarks())
         if only_unchecked_for_hours > 0:
@@ -220,6 +227,9 @@ class DeadLinkScanner:
         with ThreadPoolExecutor(max_workers=self.checker.max_workers) as ex:
             futures = {ex.submit(self._check_with_backoff, bm): bm for bm in bookmarks}
             for fut in as_completed(futures):
+                if should_cancel is not None and should_cancel():
+                    ex.shutdown(wait=False, cancel_futures=True)
+                    break
                 bm = futures[fut]
                 rate_limited = False
                 try:

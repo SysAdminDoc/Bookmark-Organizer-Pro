@@ -12,7 +12,6 @@ from bookmark_organizer_pro.constants import APP_NAME, APP_VERSION, MASTER_BOOKM
 from bookmark_organizer_pro.core import CategoryManager, get_category_icon
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.managers import BookmarkManager, TagManager
-from bookmark_organizer_pro.url_utils import URLUtilities
 
 
 def _format_rule_conditions(rule) -> str:
@@ -1157,49 +1156,31 @@ Top Domains:
             print(f"  {domain}: {count}")
 
     def _cmd_check(self, ns: argparse.Namespace):
-        """Check for broken links (multi-threaded)"""
-        from bookmark_organizer_pro.services.egress import public_egress as requests
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        """Check for broken links through the polite dead-link scanner."""
+        from bookmark_organizer_pro.services.dead_link_scanner import DeadLinkScanner
+
         bookmarks = self.bookmark_manager.get_all_bookmarks()
-
         print(f"Checking {len(bookmarks)} bookmarks for broken links...")
-        print("(Using 5 concurrent workers)\n")
 
-        def _check_one(bm):
-            try:
-                if not URLUtilities._is_safe_url(bm.url):
-                    return bm.id, 0, False
-                response = requests.head(
-                    bm.url, timeout=5, allow_redirects=False,
-                    headers={"User-Agent": "BookmarkOrganizerPro/6.2 LinkChecker"},
-                )
-                status = response.status_code
-                response.close()
-                return bm.id, status, status < 400
-            except Exception:
-                return bm.id, 0, False
-
-        broken = []
-        checked = 0
-        with ThreadPoolExecutor(max_workers=5) as pool:
-            futures = {pool.submit(_check_one, bm): bm for bm in bookmarks}
-            for future in as_completed(futures):
-                bm = futures[future]
-                bm_id, status, is_valid = future.result()
-                bm.http_status = status
-                bm.is_valid = is_valid
-                if not is_valid:
-                    broken.append((bm, status))
-                checked += 1
-                if checked % 20 == 0:
-                    print(f"  Checked {checked}/{len(bookmarks)}...")
-
+        # A host answering 429/503 is rate limiting us, not dead. The scanner
+        # caps per-host concurrency, honours Retry-After, and leaves is_valid
+        # untouched when a host never gives a verdict.
+        scanner = DeadLinkScanner(get_bookmarks=lambda: bookmarks)
+        records = scanner.scan_now()
         self.bookmark_manager.save_bookmarks()
 
+        broken = [r for r in records if r.error.startswith("HTTP")]
+        rate_limited = [r for r in records if r.error == "rate-limited"]
+
         print(f"\n✓ Check complete. Found {len(broken)} broken links:\n")
-        for bm, status in broken[:20]:
-            print(f"  [{bm.id}] {bm.title[:40]}")
-            print(f"       {bm.url[:50]} (status: {status})")
+        titles = {bm.id: bm.title for bm in bookmarks}
+        for record in broken[:20]:
+            print(f"  [{record.bookmark_id}] {titles.get(record.bookmark_id, '')[:40]}")
+            print(f"       {record.url[:50]} (status: {record.status})")
+        if rate_limited:
+            print(f"\n{len(rate_limited)} links were rate limited and left unchanged:\n")
+            for record in rate_limited[:20]:
+                print(f"  [{record.bookmark_id}] {record.url[:50]} (status: {record.status})")
 
     # ──────────────────────────────────────────────────────────────────
     # v6.0.0 commands
