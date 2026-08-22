@@ -23,6 +23,7 @@ PYPROJECT = ROOT / "pyproject.toml"
 REQUIREMENTS = ROOT / "requirements.txt"
 LOCK = ROOT / "pylock.toml"
 CLAIMS = ROOT / "packaging" / "product_claims.json"
+MCP_SERVER_JSON = ROOT / "packaging" / "server.json"
 RELEASE_MANIFEST = ROOT / "packaging" / "release_manifest.json"
 BUILD_METADATA = ROOT / "build" / "release_metadata"
 RELEASE_EXTRAS = ("ai", "encryption", "mcp", "sunvalley", "themedetect")
@@ -358,6 +359,38 @@ def validate_product_claims() -> dict[str, int]:
     return actual
 
 
+def validate_mcp_server_json() -> dict:
+    """Check the MCP registry manifest against the live package identity."""
+    from bookmark_organizer_pro.constants import APP_VERSION
+
+    document = json.loads(MCP_SERVER_JSON.read_text(encoding="utf-8"))
+    for key in ("$schema", "name", "description", "version", "packages"):
+        if not document.get(key):
+            raise ContractError(f"server.json is missing required field {key!r}")
+    if document["version"] != APP_VERSION:
+        raise ContractError(
+            f"server.json version {document['version']!r} != app {APP_VERSION!r}"
+        )
+    name = str(document["name"])
+    if "/" not in name or not name.startswith("io.github."):
+        raise ContractError(f"server.json name {name!r} is not a reverse-DNS namespace")
+
+    packages = document["packages"]
+    if not isinstance(packages, list) or not packages:
+        raise ContractError("server.json must declare at least one package")
+    project_name = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]["name"]
+    for package in packages:
+        if package.get("identifier") != project_name:
+            raise ContractError(
+                f"server.json package identifier {package.get('identifier')!r} != {project_name!r}"
+            )
+        if package.get("version") != APP_VERSION:
+            raise ContractError("server.json package version does not match the app version")
+        if not package.get("registryType") or not package.get("transport", {}).get("type"):
+            raise ContractError("server.json package needs registryType and transport.type")
+    return document
+
+
 def update_lock() -> None:
     command = [
         sys.executable,
@@ -405,6 +438,7 @@ def main(argv: list[str] | None = None) -> int:
             update_lock()
         report = validate_dependency_contract()
         report.update(validate_product_claims())
+        report["mcp_server_name"] = validate_mcp_server_json()["name"]
         if args.write_locked_requirements:
             report["locked_requirements"] = str(write_locked_requirements(args.write_locked_requirements))
         if args.prepare_build_metadata:

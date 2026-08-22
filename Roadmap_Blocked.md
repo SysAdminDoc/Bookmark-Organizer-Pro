@@ -51,6 +51,17 @@ Items moved here from ROADMAP.md because they have hard blockers preventing impl
 
 **Source:** [S-128]
 
+## Publish the MCP server to the official registry
+
+**Blocker:** `packaging/server.json` is written and validated by
+`scripts/package_contract_audit.py` (name, version, and PyPI identifier are
+asserted against the live app), but publishing requires operator-gated actions:
+the package must first exist on PyPI under `bookmark-organizer-pro`, and
+publishing to registry.modelcontextprotocol.io needs GitHub namespace
+authentication for `io.github.sysadmindoc`. Neither can be automated here.
+
+**Source:** https://modelcontextprotocol.io/registry/about; https://glama.ai/blog/2026-01-24-official-mcp-registry-serverjson-requirements
+
 ## Awesome-list and ecosystem submissions
 
 **Blocker:** Requires submitting PRs to external repositories (awesome-bookmarking, awesome-mcp-servers, awesome-selfhosted). These are operator-gated actions requiring a GitHub account with permissions to fork and submit PRs to third-party repos, plus waiting for maintainer review.

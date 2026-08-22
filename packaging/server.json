@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.sysadmindoc/bookmark-organizer-pro",
+  "description": "Local-first bookmark library with semantic search, offline snapshots, reader highlights, and organization rules, exposed as MCP tools and resources.",
+  "version": "6.13.0",
+  "websiteUrl": "https://github.com/SysAdminDoc/Bookmark-Organizer-Pro",
+  "repository": {
+    "url": "https://github.com/SysAdminDoc/Bookmark-Organizer-Pro",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "bookmark-organizer-pro",
+      "version": "6.13.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

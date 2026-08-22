@@ -268,6 +268,27 @@ class TestExtensionDistribution(unittest.TestCase):
         self.assertNotIn("readingList", firefox["permissions"])
         self.assertIn("browser_specific_settings", firefox)
 
+    def test_mcp_registry_manifest_tracks_the_app_version(self):
+        from bookmark_organizer_pro.constants import APP_VERSION
+
+        module = _load_package_contract_audit()
+        document = module.validate_mcp_server_json()
+
+        self.assertEqual(document["version"], APP_VERSION)
+        self.assertEqual(document["name"], "io.github.sysadmindoc/bookmark-organizer-pro")
+        self.assertEqual(document["packages"][0]["identifier"], "bookmark-organizer-pro")
+        self.assertEqual(document["packages"][0]["transport"]["type"], "stdio")
+
+        original = module.MCP_SERVER_JSON.read_text(encoding="utf-8")
+        stale = json.loads(original)
+        stale["version"] = "0.0.1"
+        try:
+            module.MCP_SERVER_JSON.write_text(json.dumps(stale), encoding="utf-8")
+            with self.assertRaises(module.ContractError):
+                module.validate_mcp_server_json()
+        finally:
+            module.MCP_SERVER_JSON.write_text(original, encoding="utf-8")
+
     def test_firefox_manifest_declares_data_collection_consent(self):
         module = _load_extension_builder()
         firefox = module.load_manifest("firefox")

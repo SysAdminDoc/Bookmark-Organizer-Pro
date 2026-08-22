@@ -40,13 +40,6 @@ Added 2026-08-21 from RESEARCH.md (same date). IDs continue the R-series after R
   Acceptance: `lingua-language-detector` carries `<2.2; python_version<'3.12'` (or equivalent marker); trafilatura 2.2.x, lancedb 0.37.x, cryptography 50.x are locked; a new fixture set locks extraction output for 5 representative pages and passes after the bump; the vulnerability audit and full suite pass; release contract regenerates with the new SBOM count.
   Complexity: M
 
-- [ ] P2 — R-116: Generate and validate MCP registry `server.json` metadata
-  Why: The official MCP registry (API v0.1 frozen 2025-10, feeding GitHub's and PulseMCP's directories) is how MCP servers are discovered in 2026; Raindrop and Karakeep ship listed servers and BOP has no `server.json`.
-  Evidence: repo grep (no `server.json`); https://modelcontextprotocol.io/registry/about; https://glama.ai/blog/2026-01-24-official-mcp-registry-serverjson-requirements; https://help.raindrop.io/integrations/mcp.
-  Touches: new `packaging/server.json` (namespace `io.github.sysadmindoc/bookmark-organizer-pro`), `bookmark_organizer_pro/mcp_server.py` (advertised name/version must match), `scripts/package_contract_audit.py` (schema validation), tests.
-  Acceptance: `server.json` validates against the registry schema, declares the stdio `bop-mcp` entry point and the PyPI package, and its version is asserted equal to `APP_VERSION` by a test; the publish step itself stays operator-gated and is documented in `Roadmap_Blocked.md`.
-  Complexity: S
-
 ### P3
 
 - [ ] P3 — R-117: Expose LanceDB stop-word, tokenization, and hybrid-pagination controls in hybrid search
