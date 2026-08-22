@@ -2,7 +2,7 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
-## [Unreleased]
+## [v6.16.0] - 2026-08-22
 
 ### Fixed
 
