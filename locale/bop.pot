@@ -102,7 +102,7 @@ msgstr ""
 msgid "1 year"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:93
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:94
 msgid "1. Choose a format"
 msgstr ""
 
@@ -110,7 +110,7 @@ msgstr ""
 msgid "100%"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:116
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:117
 msgid "2. Choose categories"
 msgstr ""
 
@@ -729,7 +729,7 @@ msgstr ""
 #: bookmark_organizer_pro/ui/widget_theme_dialogs.py:191
 #: bookmark_organizer_pro/ui/workflow_bulk_tags.py:127
 #: bookmark_organizer_pro/ui/workflow_quick_add.py:210
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:80
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:81
 msgid "Cancel"
 msgstr ""
 
@@ -888,7 +888,7 @@ msgstr ""
 msgid "Choose a built-in theme or create a custom look that fits your workspace."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:409
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:410
 msgid "Choose a category"
 msgstr ""
 
@@ -944,7 +944,7 @@ msgstr ""
 msgid "Choose the narrowest purpose that can perform the required work."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:71
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:72
 msgid "Choose what to include and preview the result before creating a portable file."
 msgstr ""
 
@@ -1216,7 +1216,7 @@ msgstr ""
 msgid "Could not create this theme:\n\n{error}"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:483
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:484
 msgid "Could not export bookmarks:\n\n{value_0}"
 msgstr ""
 
@@ -1627,9 +1627,9 @@ msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/command_palette.py:18
 #: bookmark_organizer_pro/ui/workflow_selective_export.py:44
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:64
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:82
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:436
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:65
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:83
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:437
 msgid "Export Bookmarks"
 msgstr ""
 
@@ -1662,13 +1662,13 @@ msgstr ""
 msgid "Export bookmarks…"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:465
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:466
 msgid "Export complete"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/highlights_workspace.py:432
 #: bookmark_organizer_pro/ui/organization_rules.py:561
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:482
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:483
 msgid "Export failed"
 msgstr ""
 
@@ -1930,7 +1930,7 @@ msgstr ""
 msgid "HTML"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:99
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:100
 msgid "HTML works well for browsers. JSON preserves app data. CSV is best for spreadsheets."
 msgstr ""
 
@@ -2227,15 +2227,15 @@ msgstr ""
 msgid "In progress"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:221
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:222
 msgid "Include metadata (dates, visit count)"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:216
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:217
 msgid "Include notes"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:211
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:212
 msgid "Include tags"
 msgstr ""
 
@@ -2243,7 +2243,7 @@ msgstr ""
 msgid "Include website hostnames (paths, queries, and fragments stay excluded)"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:205
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:206
 msgid "Included Data"
 msgstr ""
 
@@ -2808,7 +2808,7 @@ msgstr ""
 msgid "No bookmarks to graph"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:183
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:184
 msgid "No categories yet. Add or import bookmarks first."
 msgstr ""
 
@@ -2975,7 +2975,7 @@ msgstr ""
 msgid "Nothing queued — add a bookmark to Read Later to see it here."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:419
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:420
 msgid "Nothing to export"
 msgstr ""
 
@@ -4105,7 +4105,7 @@ msgid "Select"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:69
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:153
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:154
 msgid "Select All"
 msgstr ""
 
@@ -4127,7 +4127,7 @@ msgstr ""
 msgid "Select Favicon Image"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:160
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:161
 msgid "Select None"
 msgstr ""
 
@@ -4160,7 +4160,7 @@ msgstr ""
 msgid "Select an image before applying a custom favicon."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:410
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:411
 msgid "Select at least one category to export."
 msgstr ""
 
@@ -4641,7 +4641,7 @@ msgstr ""
 msgid "The secret is shown once. Bookmark Organizer Pro stores only a salted verifier and cannot reveal it later."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:420
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:421
 msgid "The selected categories do not contain any bookmarks."
 msgstr ""
 
@@ -5337,7 +5337,7 @@ msgstr ""
 msgid "{value_0} ({value_1:.1f}%)"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:195
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:196
 msgid "{value_0} ({value_1})"
 msgstr ""
 
@@ -5537,7 +5537,7 @@ msgctxt "read-later"
 msgid "Open"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/workflow_selective_export.py:466
+#: bookmark_organizer_pro/ui/workflow_selective_export.py:467
 #, python-brace-format
 msgid "Exported {count} bookmark to {name}."
 msgid_plural "Exported {count} bookmarks to {name}."
