@@ -472,6 +472,30 @@ vm.runInContext(`(async () => {
 
         self.assertEqual(module.validate_product_claims(), module.live_product_claims())
 
+    def test_desktop_copy_uses_real_plurals_not_the_parenthesised_shorthand(self):
+        """"5 bookmark(s)" reads as unfinished product copy. `pluralize` picks
+        the right word, so the shorthand has no reason to reappear.
+
+        `ui/import_center.py` builds a callback as `lambda s=source:
+        self._select(s)`, which is code rather than copy, so that one line is
+        allowed by exact position.
+        """
+        root = Path(__file__).resolve().parents[1]
+        allowed = {("ui/import_center.py", "command=lambda s=source: self._select(s),")}
+        offenders = []
+
+        for folder in ("ui", "app_mixins"):
+            for source in sorted((root / "bookmark_organizer_pro" / folder).rglob("*.py")):
+                relative = f"{folder}/{source.name}"
+                for number, line in enumerate(source.read_text(encoding="utf-8").splitlines(), 1):
+                    if "(s)" not in line:
+                        continue
+                    if (relative, line.strip()) in allowed:
+                        continue
+                    offenders.append(f"{relative}:{number}: {line.strip()[:90]}")
+
+        self.assertEqual(offenders, [], "\n".join(offenders))
+
     def test_shipping_docs_avoid_em_and_en_dashes(self):
         """README and the newest changelog section are read by users and are
         reused verbatim as release notes, so they follow the project's writing

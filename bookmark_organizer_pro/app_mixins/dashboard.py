@@ -663,7 +663,11 @@ class DashboardActionsMixin:
             dead_row = tk.Frame(self.analytics_frame, bg=theme.bg_secondary, cursor="hand2")
             dead_row.pack(fill=tk.X, pady=2)
             dead_lbl = tk.Label(
-                dead_row, text=format_message('Review {value_0} broken link(s)', value_0=dead_count), bg=theme.bg_secondary,
+                dead_row,
+                text=format_message(
+                    'Review {value_0}', value_0=pluralize(dead_count, 'broken link'),
+                ),
+                bg=theme.bg_secondary,
                 fg=theme.accent_error, font=FONTS.small(bold=True), cursor="hand2",
             )
             dead_lbl.pack(side=tk.LEFT)
@@ -678,7 +682,10 @@ class DashboardActionsMixin:
             snap_row.pack(fill=tk.X, pady=2)
             snap_lbl = tk.Label(
                 snap_row,
-                text=format_message('Review {value_0} retryable failure(s)', value_0=retryable),
+                text=format_message(
+                    'Review {value_0}',
+                    value_0=pluralize(retryable, 'retryable failure'),
+                ),
                 bg=theme.bg_secondary,
                 fg=theme.accent_warning,
                 font=FONTS.small(bold=True),

@@ -4,6 +4,12 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- The rest of the desktop copy now says "1 bookmark" and "5 bookmarks" instead
+  of "1 bookmark(s)". v6.15.0 fixed four dialogs; this covers the Tools menu,
+  bulk selection toasts, the dashboard badges, the tag editor, and Reader View.
+
 ### Fixed
 
 - A capture that reached the library but failed to write its offline archive

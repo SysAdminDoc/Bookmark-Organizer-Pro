@@ -22,7 +22,7 @@ from bookmark_organizer_pro.services.reader_progress import (
     ReaderProgressStore,
 )
 
-from .foundation import FONTS, readable_text_on
+from .foundation import FONTS, pluralize, readable_text_on
 from .widget_controls import ModernButton
 from .window_geometry import apply_screen_aware_geometry
 from .widgets import apply_window_chrome, get_theme
@@ -533,8 +533,8 @@ class ReaderViewDialog(tk.Toplevel):
                 )
             else:
                 self.status.configure(
-                    text=_("{count} highlight(s) saved locally").format(
-                        count=len(self.highlight_ids)
+                    text=_("{count} saved locally").format(
+                        count=pluralize(len(self.highlight_ids), "highlight")
                     )
                 )
         else:

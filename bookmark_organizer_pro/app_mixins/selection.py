@@ -260,7 +260,9 @@ class SelectionActionsMixin:
 
         action = _("Removing") if remove else _("Fetching")
         self._set_status(format_message(
-            "{action} YouTube transcript(s)…", action=action,
+            "{action} {count}…",
+            action=action,
+            count=pluralize(len(targets), "YouTube transcript"),
         ))
 
         def worker() -> None:
@@ -301,9 +303,9 @@ class SelectionActionsMixin:
     def _finish_youtube_transcripts(self, succeeded: int, failed: int, remove: bool) -> None:
         verb = _("Removed") if remove else _("Fetched")
         message = format_message(
-            "{verb} {count} YouTube transcript(s)",
+            "{verb} {count}",
             verb=verb,
-            count=succeeded,
+            count=pluralize(succeeded, "YouTube transcript"),
         )
         if failed:
             message += " " + format_message("{count} failed.", count=failed)
@@ -327,7 +329,9 @@ class SelectionActionsMixin:
         
         self._refresh_all()
         self._set_status(format_message(
-            "Moved {count} bookmark(s) to '{category}'", count=count, category=category,
+            "Moved {count} to '{category}'",
+            count=pluralize(count, "bookmark"),
+            category=category,
         ))
     
     def _mark_as_broken(self):
@@ -344,5 +348,6 @@ class SelectionActionsMixin:
         
         self._refresh_bookmark_list()
         self._set_status(format_message(
-            "Marked {count} bookmark(s) as broken", count=len(self.selected_bookmarks),
+            "Marked {count} as broken",
+            count=pluralize(len(self.selected_bookmarks), "bookmark"),
         ))

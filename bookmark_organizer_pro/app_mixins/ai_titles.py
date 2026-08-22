@@ -24,7 +24,7 @@ from bookmark_organizer_pro.services.ai_operation import (
     AIOperationCancelled,
     call_ai,
 )
-from bookmark_organizer_pro.ui.foundation import FONTS
+from bookmark_organizer_pro.ui.foundation import FONTS, pluralize
 from bookmark_organizer_pro.ui.live_workflow import LiveWorkflowDialog
 from bookmark_organizer_pro.ui.widgets import ModernButton, apply_window_chrome, get_theme
 
@@ -175,7 +175,10 @@ Respond with ONLY valid JSON in this exact format:
         ).pack(anchor="w")
         tk.Label(
             header,
-            text=format_message('Review {value_0} suggested title update(s) before applying them.', value_0=len(changes)),
+            text=format_message(
+                'Review {value_0} before applying them.',
+                value_0=pluralize(len(changes), 'suggested title update'),
+            ),
             bg=theme.bg_secondary, fg=theme.text_secondary,
             font=FONTS.small(), wraplength=640, justify=tk.LEFT
         ).pack(anchor="w", pady=(4, 0))
@@ -253,7 +256,10 @@ Respond with ONLY valid JSON in this exact format:
             
             messagebox.showinfo(
                 _("Titles Updated"),
-                format_message('Updated {value_0} bookmark title(s).', value_0=applied),
+                format_message(
+                    'Updated {value_0}.',
+                    value_0=pluralize(applied, 'bookmark title'),
+                ),
                 parent=self.root
             )
             self._set_status(format_message("Updated {count} titles", count=applied))

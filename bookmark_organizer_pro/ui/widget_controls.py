@@ -17,7 +17,7 @@ from bookmark_organizer_pro.tag_suggestions import (
     unique_tags,
 )
 
-from .foundation import FONTS, DesignTokens, readable_text_on
+from .foundation import FONTS, DesignTokens, pluralize, readable_text_on
 from .theme import ThemeColors
 from .tk_interactions import make_keyboard_activatable
 from .widget_runtime import get_theme
@@ -803,14 +803,19 @@ class TagEditor(tk.Frame, ThemedWidget):
         self._hide_suggestions()
         if added and duplicates:
             message = format_message(
-                "Added {value_0} tag(s); {value_1} duplicate(s) skipped.",
-                value_0=len(added),
-                value_1=duplicates,
+                "Added {value_0}; {value_1} skipped.",
+                value_0=pluralize(len(added), "tag"),
+                value_1=pluralize(duplicates, "duplicate"),
             )
         elif added:
-            message = format_message("Added {value_0} tag(s).", value_0=len(added))
+            message = format_message(
+                "Added {value_0}.", value_0=pluralize(len(added), "tag")
+            )
         elif duplicates:
-            message = format_message("{value_0} duplicate tag(s) skipped.", value_0=duplicates)
+            message = format_message(
+                "{value_0} skipped.",
+                value_0=pluralize(duplicates, "duplicate tag"),
+            )
         else:
             message = _("Enter a tag to add.")
         self.suggestion_status.configure(text=message)
