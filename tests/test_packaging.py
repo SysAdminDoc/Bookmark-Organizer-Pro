@@ -472,6 +472,31 @@ vm.runInContext(`(async () => {
 
         self.assertEqual(module.validate_product_claims(), module.live_product_claims())
 
+    def test_shipping_docs_avoid_em_and_en_dashes(self):
+        """README and the newest changelog section are read by users and are
+        reused verbatim as release notes, so they follow the project's writing
+        rule. Older changelog sections describe shipped releases and are left
+        as they were written."""
+        root = Path(__file__).resolve().parents[1]
+        offenders = []
+
+        readme = (root / "README.md").read_text(encoding="utf-8")
+        for number, line in enumerate(readme.splitlines(), 1):
+            if "—" in line or "–" in line:
+                offenders.append(f"README.md:{number}: {line.strip()[:90]}")
+
+        changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
+        starts = [i for i, line in enumerate(changelog) if line.startswith("## ")]
+        if starts:
+            end = starts[1] if len(starts) > 1 else len(changelog)
+            for offset, line in enumerate(changelog[starts[0]:end], starts[0] + 1):
+                if line.startswith("## "):
+                    continue
+                if "—" in line or "–" in line:
+                    offenders.append(f"CHANGELOG.md:{offset}: {line.strip()[:90]}")
+
+        self.assertEqual(offenders, [], "\n".join(offenders))
+
 
 if __name__ == "__main__":
     unittest.main()
