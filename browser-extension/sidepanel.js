@@ -172,7 +172,7 @@ async function loadRecent({ append = false } = {}) {
   try {
     const config = await getConfig();
     if (!config.apiToken) {
-      showEmpty(list, extensionMessage("addTokenToConnect", [], "Add the API token in Options to connect."));
+      showEmpty(list, extensionMessage("addTokenToConnect", [], "Add the local API token in Options to connect."));
       setRecentLoadMore(false);
       return;
     }
@@ -252,9 +252,9 @@ async function doSearch(query) {
     const config = await getConfig();
     if (!config.apiToken) {
       if (requestId !== searchRequestId) return;
-      showEmpty(results, extensionMessage("addTokenToConnect", [], "Add the API token in Options to connect."));
+      showEmpty(results, extensionMessage("addTokenToConnect", [], "Add the local API token in Options to connect."));
       searchStatus.dataset.tone = "error";
-      searchStatus.textContent = extensionMessage("searchRequiresToken", [], "Add the API token in Options before searching.");
+      searchStatus.textContent = extensionMessage("addTokenToConnect", [], "Add the local API token in Options to connect.");
       return;
     }
     const data = await apiFetch(`/search?q=${encodeURIComponent(normalizedQuery)}`, config);
@@ -374,7 +374,7 @@ async function saveBookmark() {
   }
   const config = await getConfig();
   if (!config.apiToken) {
-    setAddStatus(extensionMessage("tokenRequiredShort", [], "Set API token in Options."), "error");
+    setAddStatus(extensionMessage("addTokenBeforeSaving", [], "Add the local API token in Options before saving."), "error");
     return;
   }
 
@@ -438,7 +438,7 @@ async function importReadingList() {
     button.textContent = extensionMessage("importing", [], "Importing...");
     const config = await getConfig();
     if (!config.apiToken) {
-      setAddStatus(extensionMessage("tokenRequiredFirst", [], "Set API token in Options first."), "error");
+      setAddStatus(extensionMessage("addTokenBeforeSaving", [], "Add the local API token in Options before saving."), "error");
       return;
     }
     const items = await api.readingList.query({});

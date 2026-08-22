@@ -21,6 +21,14 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   cleanup review, the highlights workspace, organization rules, and reader view
   now say "2 duplicates" and "1 highlight" like everywhere else.
 
+- Tidied the assistant provider descriptions, which repeated the price already
+  shown on the badge beside them ("Free tier available, fast · Free") and used
+  dashes the rest of the interface avoids.
+
+- The extension said the same thing five ways when the API token was missing.
+  There are now two messages, one for saving and one for connecting, used
+  consistently by the popup, the side panel, and the options page.
+
 - The export dialog no longer cuts off its own subtitle. Its header was a fixed
   76 pixels tall, so at 125% display scaling the second line of wrapped text
   disappeared behind the format options.

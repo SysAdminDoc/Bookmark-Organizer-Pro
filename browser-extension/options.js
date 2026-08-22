@@ -78,7 +78,7 @@ async function saveOptions({ replacePairing = false } = {}) {
   }
 
   if (!apiToken) {
-    setStatus(extensionMessage("tokenRequired", [], "Enter the local API token before saving."), "error");
+    setStatus(extensionMessage("addTokenBeforeSaving", [], "Add the local API token in Options before saving."), "error");
     return;
   }
 
@@ -136,7 +136,7 @@ async function testConnection() {
     return;
   }
   if (!token) {
-    setStatus(extensionMessage("tokenRequiredTesting", [], "Enter the local API token before testing."), "error");
+    setStatus(extensionMessage("addTokenToConnect", [], "Add the local API token in Options to connect."), "error");
     return;
   }
 

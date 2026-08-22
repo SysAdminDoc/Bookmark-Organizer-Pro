@@ -154,7 +154,7 @@ AI_PROVIDERS = {
         api_key_env="OPENAI_API_KEY",
         models=["gpt-4o-mini", "gpt-4o", "gpt-4.1", "gpt-4.1-mini", "gpt-3.5-turbo"],
         default_model="gpt-4o-mini",
-        description="GPT models - reliable and fast"
+        description="Reliable, fast GPT models"
     ),
     "anthropic": AIProviderInfo(
         name="anthropic",
@@ -164,7 +164,7 @@ AI_PROVIDERS = {
         models=["claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022",
                 "claude-3-5-haiku-20241022", "claude-3-haiku-20240307"],
         default_model="claude-sonnet-4-20250514",
-        description="Claude models - excellent reasoning"
+        description="Claude models, strong at reasoning"
     ),
     "google": AIProviderInfo(
         name="google",
@@ -174,7 +174,7 @@ AI_PROVIDERS = {
         models=["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-2.5-flash",
                 "gemini-2.5-pro", "gemini-1.5-flash"],
         default_model="gemini-2.0-flash",
-        description="Free tier available, fast",
+        description="Fast Google models",
         free_tier=True
     ),
     "groq": AIProviderInfo(
@@ -185,7 +185,7 @@ AI_PROVIDERS = {
         models=["llama-3.3-70b-versatile", "llama3-70b-8192", "llama3-8b-8192",
                 "gemma2-9b-it", "mixtral-8x7b-32768"],
         default_model="llama-3.3-70b-versatile",
-        description="Ultra-fast inference, free tier",
+        description="Very fast inference",
         free_tier=True
     ),
     "deepseek": AIProviderInfo(
@@ -195,7 +195,7 @@ AI_PROVIDERS = {
         api_key_env="DEEPSEEK_API_KEY",
         models=["deepseek-chat", "deepseek-reasoner"],
         default_model="deepseek-chat",
-        description="DeepSeek V3/R1 — powerful and affordable",
+        description="DeepSeek V3 and R1, capable and cheap",
         free_tier=False,
     ),
     "ollama": AIProviderInfo(
@@ -207,7 +207,7 @@ AI_PROVIDERS = {
                 "mistral", "deepseek-r1:8b", "deepseek-r1",
                 "codellama", "command-r", "mixtral", "llava"],
         default_model="qwen3.5",
-        description="Run models locally via Ollama — completely free, no API key needed",
+        description="Runs on this machine, no API key",
         requires_api_key=False,
         free_tier=True,
         local=True
