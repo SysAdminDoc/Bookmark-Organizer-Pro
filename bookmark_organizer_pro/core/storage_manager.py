@@ -36,6 +36,10 @@ class StorageVersionError(StorageRecoveryRequiredError):
     """Raised when a library was written by a newer, unsupported schema."""
 
 
+# Ceiling on how long a save waits for another writer's lock.
+_LOCK_WAIT_SECONDS = 30.0
+
+
 @contextmanager
 def _exclusive_file_lock(path: Path):
     """Hold a small sidecar file lock across revision check and replacement."""
@@ -49,8 +53,24 @@ def _exclusive_file_lock(path: Path):
         handle.seek(0)
         if os.name == "nt":
             import msvcrt
+            import time as _time
 
-            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            # LK_LOCK gives up after ten one-second attempts and raises, which
+            # would surface as a bare OSError from an otherwise ordinary save.
+            # Keep waiting, with a ceiling so a stuck holder cannot hang a save
+            # forever.
+            deadline = _time.monotonic() + _LOCK_WAIT_SECONDS
+            while True:
+                try:
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError:
+                    if _time.monotonic() >= deadline:
+                        raise OSError(
+                            f"Timed out waiting for the library lock at {lock_path}"
+                        ) from None
+                    _time.sleep(0.01)
+                    handle.seek(0)
             try:
                 yield
             finally:
