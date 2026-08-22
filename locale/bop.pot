@@ -1400,7 +1400,7 @@ msgid "Delete selected bookmarks"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/highlights_workspace.py:383
-msgid "Delete {count} selected highlight(s)? Undo will be available."
+msgid "Delete {count} selected? Undo will be available."
 msgstr ""
 
 #: bookmark_organizer_pro/ui/management_dialogs.py:367
@@ -1424,7 +1424,7 @@ msgid "Deleted {bookmarks}. Undo is available from Edit."
 msgstr ""
 
 #: bookmark_organizer_pro/ui/highlights_workspace.py:390
-msgid "Deleted {count} highlight(s)."
+msgid "Deleted {count}."
 msgstr ""
 
 #: bookmark_organizer_pro/ui/widget_bookmark_editor.py:249
@@ -2170,7 +2170,7 @@ msgid "Imported {categories} categories, {patterns} patterns"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/organization_rules.py:552
-msgid "Imported {count} rule(s)."
+msgid "Imported {count}."
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/tools.py:822
@@ -3272,7 +3272,7 @@ msgid "Preview title changes"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/organization_rules.py:505
-msgid "Preview: {affected} bookmark(s), {changes} change(s), {conflicts} conflict(s), {errors} error(s)"
+msgid "Preview: {affected}, {changes}, {conflicts}, {errors}"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/highlights_workspace.py:166
@@ -3704,7 +3704,7 @@ msgid "Restored {count} bookmarks to the previous assistant state"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/highlights_workspace.py:401
-msgid "Restored {count} highlight(s)."
+msgid "Restored {count}."
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/import_export.py:166
@@ -3882,7 +3882,7 @@ msgid "Run Preview to inspect the next batch."
 msgstr ""
 
 #: bookmark_organizer_pro/ui/organization_rules.py:530
-msgid "Run {status}: {count} bookmark(s) changed."
+msgid "Run {status}: {count} changed."
 msgstr ""
 
 #: bookmark_organizer_pro/ui/workflow_detail_panel.py:100
@@ -3973,7 +3973,7 @@ msgid "Saved rule: {name}"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/organization_rules.py:398
-msgid "Saved {count} suggested rule(s). Run Preview to inspect them."
+msgid "Saved {count}. Run Preview to inspect them."
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/tools.py:1017
@@ -4884,7 +4884,7 @@ msgid "Undo last"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/organization_rules.py:536
-msgid "Undo {status}: {count} bookmark(s)."
+msgid "Undo {status}: {count}."
 msgstr ""
 
 #: bookmark_organizer_pro/ui/about.py:279
@@ -5189,6 +5189,10 @@ msgstr ""
 msgid "{bookmarks} selected"
 msgstr ""
 
+#: bookmark_organizer_pro/ui/organization_rules.py:430
+msgid "{count}"
+msgstr ""
+
 #: bookmark_organizer_pro/ui/about.py:506
 msgid "{count} allowlisted text files ready for review"
 msgstr ""
@@ -5201,10 +5205,6 @@ msgstr ""
 msgid "{count} bookmarks in the current view."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:522
-msgid "{count} conflict(s) will be skipped. Apply the remaining changes?"
-msgstr ""
-
 #: bookmark_organizer_pro/app_mixins/selection.py:309
 msgid "{count} failed."
 msgstr ""
@@ -5214,7 +5214,7 @@ msgid "{count} highlight(s) saved locally"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/highlights_workspace.py:323
-msgid "{count} matching highlight(s)"
+msgid "{count} matching"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/import_center.py:301
@@ -5229,12 +5229,12 @@ msgstr ""
 msgid "{count} rows selected"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:430
-msgid "{count} rule(s)"
-msgstr ""
-
 #: bookmark_organizer_pro/ui/reader_view.py:527
 msgid "{count} saved · {orphans} orphaned; select one to relink or delete"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/organization_rules.py:522
+msgid "{count} will be skipped. Apply the remaining changes?"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/organization_rules.py:368

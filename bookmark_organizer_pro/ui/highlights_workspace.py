@@ -14,7 +14,7 @@ from bookmark_organizer_pro.services.highlight_workspace import (
 )
 from bookmark_organizer_pro.services.reader_annotations import HIGHLIGHT_COLORS, ReaderAnnotationStore
 
-from .foundation import FONTS
+from .foundation import FONTS, pluralize
 from .reader_view import ReaderViewDialog
 from .widget_controls import ModernButton
 from .window_geometry import apply_screen_aware_geometry
@@ -320,7 +320,7 @@ class HighlightsWorkspaceDialog(tk.Toplevel):
                 ),
             )
         self.status.configure(
-            text=format_message("{count} matching highlight(s)", count=self.page.total),
+            text=format_message("{count} matching", count=pluralize(self.page.total, "highlight")),
         )
         start = self.page.offset + 1 if self.page.total else 0
         end = self.page.offset + len(self.page.items)
@@ -380,14 +380,14 @@ class HighlightsWorkspaceDialog(tk.Toplevel):
             return "break"
         if not messagebox.askyesno(
             _("Delete highlights"),
-            format_message("Delete {count} selected highlight(s)? Undo will be available.", count=len(selected)),
+            format_message("Delete {count} selected? Undo will be available.", count=pluralize(len(selected), "highlight")),
             parent=self,
         ):
             return "break"
         self._deleted = self.workspace.delete_many([item.id for item in selected])
         self._refresh(offset=self.page.offset if self.page else 0)
         self.status.configure(
-            text=format_message("Deleted {count} highlight(s).", count=len(self._deleted)),
+            text=format_message("Deleted {count}.", count=pluralize(len(self._deleted), "highlight")),
         )
         self.undo_button.focus_set()
         return "break"
@@ -398,7 +398,7 @@ class HighlightsWorkspaceDialog(tk.Toplevel):
         count = self.workspace.restore_many(self._deleted)
         self._deleted = ()
         self._refresh(offset=self.page.offset if self.page else 0)
-        self.status.configure(text=format_message("Restored {count} highlight(s).", count=count))
+        self.status.configure(text=format_message("Restored {count}.", count=pluralize(count, "highlight")))
 
     def _export_selected(self) -> None:
         selected = self._selected_records()

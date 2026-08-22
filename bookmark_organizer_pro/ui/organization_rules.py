@@ -16,7 +16,7 @@ from bookmark_organizer_pro.services.organization_rules import (
     OrganizationRulesService,
 )
 
-from .foundation import FONTS
+from .foundation import FONTS, pluralize
 from .widget_controls import ModernButton
 from .window_geometry import apply_screen_aware_geometry
 from .widgets import apply_window_chrome, get_theme
@@ -395,7 +395,7 @@ class OrganizationRulesDialog(tk.Toplevel):
         for item in adopting:
             self.service.add_rule(item.to_rule_document())
         self._refresh_rules()
-        message = format_message("Saved {count} suggested rule(s). Run Preview to inspect them.",
+        message = format_message("Saved {count}. Run Preview to inspect them.",
                                  count=len(adopting))
         if len(adopting) < len(suggestions):
             message += " " + format_message("Skipped {count} over the rule limit.",
@@ -427,7 +427,7 @@ class OrganizationRulesDialog(tk.Toplevel):
         elif self.service.last_run:
             self.status.configure(text=format_message("Last run: {status}", status=self.service.last_run.status))
         else:
-            self.status.configure(text=format_message("{count} rule(s)", count=len(self.service.rules)))
+            self.status.configure(text=format_message("{count}", count=pluralize(len(self.service.rules), "rule")))
 
     def _selected_rule(self) -> OrganizationRule | None:
         selection = self.rules_tree.selection()
@@ -503,7 +503,7 @@ class OrganizationRulesDialog(tk.Toplevel):
             )
         self.preview_status.configure(
             text=format_message(
-                "Preview: {affected} bookmark(s), {changes} change(s), {conflicts} conflict(s), {errors} error(s)",
+                "Preview: {affected}, {changes}, {conflicts}, {errors}",
                 affected=self.preview.affected_count,
                 changes=self.preview.change_count,
                 conflicts=self.preview.conflict_count,
@@ -519,7 +519,7 @@ class OrganizationRulesDialog(tk.Toplevel):
             return
         if self.preview.conflicts and not messagebox.askyesno(
             _("Apply organization rules"),
-            format_message("{count} conflict(s) will be skipped. Apply the remaining changes?", count=self.preview.conflict_count),
+            format_message("{count} will be skipped. Apply the remaining changes?", count=pluralize(self.preview.conflict_count, "conflict")),
             parent=self,
         ):
             return
@@ -527,13 +527,13 @@ class OrganizationRulesDialog(tk.Toplevel):
         self.preview = None
         self.apply_button.set_state("disabled")
         self.undo_button.set_state("normal" if report.undo_available else "disabled")
-        self.preview_status.configure(text=format_message("Run {status}: {count} bookmark(s) changed.", status=report.status, count=report.affected_count))
+        self.preview_status.configure(text=format_message("Run {status}: {count} changed.", status=report.status, count=pluralize(report.affected_count, "bookmark")))
         self._refresh_rules()
 
     def _undo_last(self) -> None:
         report = self.service.undo_last()
         self.undo_button.set_state("normal" if report.undo_available else "disabled")
-        self.preview_status.configure(text=format_message("Undo {status}: {count} bookmark(s).", status=report.status, count=report.affected_count))
+        self.preview_status.configure(text=format_message("Undo {status}: {count}.", status=report.status, count=pluralize(report.affected_count, "bookmark")))
         self._refresh_rules()
 
     def _import_rules(self) -> None:
@@ -549,7 +549,7 @@ class OrganizationRulesDialog(tk.Toplevel):
         self.preview = None
         self.apply_button.set_state("disabled")
         self._refresh_rules()
-        self.preview_status.configure(text=format_message("Imported {count} rule(s).", count=count))
+        self.preview_status.configure(text=format_message("Imported {count}.", count=pluralize(count, "rule")))
 
     def _export_rules(self) -> None:
         path = filedialog.asksaveasfilename(parent=self, title=_("Export organization rules"), initialfile="organization-rules.json", defaultextension=".json", filetypes=[(_("JSON files"), "*.json")])

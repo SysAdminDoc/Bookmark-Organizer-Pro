@@ -10,7 +10,7 @@ from typing import Callable, Iterable, List, Mapping, Sequence
 from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.models import Bookmark
 
-from .foundation import FONTS, truncate_middle
+from .foundation import FONTS, pluralize, truncate_middle
 from .tk_interactions import bind_scoped_mousewheel
 from .widgets import ModernButton, apply_window_chrome, get_theme
 from .window_geometry import apply_screen_aware_geometry
@@ -55,9 +55,9 @@ def build_url_duplicate_review_groups(dupes: Mapping[str, Sequence[Bookmark]]) -
         groups.append(CleanupReviewGroup(
             key=f"url:{index}:{keep.id}",
             title=truncate_middle(canonical_url or keep.url, 90),
-            subtitle=f"{len(extras)} duplicate bookmark(s) will be removed; earliest item is kept.",
+            subtitle=f"{pluralize(len(extras), 'duplicate bookmark')} will be removed; earliest item is kept.",
             items=tuple(items),
-            action_label=f"Remove {len(extras)} duplicate(s)",
+            action_label=f"Remove {pluralize(len(extras), 'duplicate')}",
         ))
     return groups
 
@@ -84,9 +84,9 @@ def build_hybrid_duplicate_review_groups(report, bookmarks_by_id: Mapping[int, B
         groups.append(CleanupReviewGroup(
             key=f"hybrid:{index}:{canonical_id}",
             title=format_message('{value_0} match for #{value_1}', value_0=method.title(), value_1=canonical_id),
-            subtitle=f"Confidence {confidence:.2f}; {len(extras)} duplicate bookmark(s) will be removed.",
+            subtitle=f"Confidence {confidence:.2f}; {pluralize(len(extras), 'duplicate bookmark')} will be removed.",
             items=tuple(items),
-            action_label=f"Remove {len(extras)} duplicate(s)",
+            action_label=f"Remove {pluralize(len(extras), 'duplicate')}",
         ))
     return groups
 
@@ -111,9 +111,9 @@ def build_tag_lint_review_groups(report) -> List[CleanupReviewGroup]:
         groups.append(CleanupReviewGroup(
             key=f"tag:{index}:{canonical}",
             title=format_message("Normalize to '{value_0}'", value_0=canonical),
-            subtitle=f"{bookmark_count} bookmark(s) affected; {len(variants)} variant tag(s).",
+            subtitle=f"{pluralize(bookmark_count, 'bookmark')} affected; {pluralize(len(variants), 'variant tag')}.",
             items=items,
-            action_label=f"Merge {len(variants)} variant(s)",
+            action_label=f"Merge {pluralize(len(variants), 'variant')}",
         ))
     return groups
 
@@ -271,7 +271,7 @@ class CleanupReviewDialog(tk.Toplevel):
     def _selection_changed(self) -> None:
         count = len(self.selected_keys())
         self._status_var.set(
-            f"{count} group(s) selected. A safepoint will be created before changes."
+            f"{pluralize(count, 'group')} selected. A safepoint will be created before changes."
             if count else "Nothing selected. Choose at least one group to continue."
         )
         enabled = bool(count and not self._apply_in_progress and not self._applied)

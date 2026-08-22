@@ -3741,6 +3741,36 @@ class TestLevenshtein(unittest.TestCase):
         self.assertFalse(matches)
 
 
+class TestPluralize(unittest.TestCase):
+    """The export dialog rendered "51 categorys" because the helper appended a
+    bare "s" to every noun."""
+
+    def test_regular_english_plurals(self):
+        from bookmark_organizer_pro.ui.foundation import plural_of
+
+        cases = {
+            "category": "categories",
+            "entry": "entries",
+            "bookmark": "bookmarks",
+            "duplicate": "duplicates",
+            "match": "matches",
+            "box": "boxes",
+            "variant tag": "variant tags",
+            "day": "days",          # vowel before y keeps the simple form
+        }
+        for singular, expected in cases.items():
+            with self.subTest(singular=singular):
+                self.assertEqual(plural_of(singular), expected)
+
+    def test_counts_choose_the_right_form(self):
+        from bookmark_organizer_pro.ui.foundation import pluralize
+
+        self.assertEqual(pluralize(1, "category"), "1 category")
+        self.assertEqual(pluralize(0, "category"), "0 categories")
+        self.assertEqual(pluralize(51, "category"), "51 categories")
+        self.assertEqual(pluralize(2, "person", "people"), "2 people")
+
+
 class TestNormalizedURLIndex(unittest.TestCase):
     """`find_by_url` is served from an index, which must survive every mutation.
 

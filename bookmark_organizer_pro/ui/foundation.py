@@ -144,9 +144,25 @@ class DesignTokens:
     PRIMARY_TARGET_MIN = 44
 
 
+def plural_of(singular: str) -> str:
+    """Regular English plural for the nouns this UI shows.
+
+    Appending a bare "s" produced "51 categorys" in the export dialog.
+    """
+    word = str(singular or "")
+    if not word:
+        return word
+    lowered = word.lower()
+    if lowered.endswith("y") and len(word) > 1 and word[-2].lower() not in "aeiou":
+        return word[:-1] + "ies"
+    if lowered.endswith(("s", "x", "z", "ch", "sh")):
+        return word + "es"
+    return word + "s"
+
+
 def pluralize(count: int, singular: str, plural: Optional[str] = None) -> str:
     """Return a count with a correctly pluralized label for UI copy."""
-    return f"{count} {singular if count == 1 else (plural or singular + 's')}"
+    return f"{count} {singular if count == 1 else (plural or plural_of(singular))}"
 
 
 def format_compact_count(value: int) -> str:
