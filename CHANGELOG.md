@@ -2,6 +2,18 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- Declared Mozilla's data collection consent categories in the Firefox
+  extension manifest: `bookmarksInfo` is required because every save transmits
+  URL, title, tags, and notes to the local API, and `websiteContent` is
+  optional because page content is only sent when snapshot capture is ticked on
+  an individual save. The extension build now refuses a manifest that omits the
+  declaration, combines `none` with a data type, marks
+  `technicalAndInteraction` as required, or names an unknown category.
+
 ## [v6.13.0] - 2026-08-21
 
 ### Added

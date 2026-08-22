@@ -282,6 +282,15 @@ Panel search announces its waiting, loading, result-count, no-match, and error
 states through a live region; its responsive layout remains usable at narrow
 200% zoom-equivalent widths.
 
+The Firefox manifest declares Mozilla's data collection consent categories, which
+Firefox shows before install. Saving a bookmark always sends its URL, title, tags,
+and notes to the local API, so `bookmarksInfo` is declared as required. Page
+content leaves the browser only when you tick the snapshot box on an individual
+save, so `websiteContent` is declared as optional. Everything goes to the API on
+your own machine at `127.0.0.1`; the extension has no other host permissions and
+reports nothing to the developer. `python scripts/build_extension.py firefox`
+refuses to build a manifest that omits or misdeclares these categories.
+
 Retryable API failures from every save surface enter the same deduplicated local
 journal. The popup and side panel show each pending title, source, time, and
 failure reason; retries retain failures, while JSON export and confirmed Clear

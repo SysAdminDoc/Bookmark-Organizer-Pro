@@ -48,6 +48,49 @@ def load_manifest(target: str) -> dict:
     return json.loads(MANIFESTS[target].read_text(encoding="utf-8"))
 
 
+# Firefox data collection consent vocabulary. Mozilla requires every extension to
+# declare what it collects or transmits; "none" is the explicit no-collection value
+# and "technicalAndInteraction" may only ever be optional.
+DATA_COLLECTION_TYPES = frozenset({
+    "authenticationInfo", "bookmarksInfo", "browsingActivity",
+    "financialAndPaymentInfo", "healthInfo", "locationInfo",
+    "personalCommunications", "personallyIdentifyingInfo", "searchTerms",
+    "websiteActivity", "websiteContent",
+})
+OPTIONAL_ONLY_DATA_COLLECTION_TYPES = frozenset({"technicalAndInteraction"})
+
+
+def validate_data_collection_permissions(declared) -> None:
+    """Validate the Gecko data_collection_permissions disclosure block."""
+    if not isinstance(declared, dict):
+        raise ValueError(
+            "Firefox build requires gecko.data_collection_permissions; declare the data "
+            "the extension transmits, or ['none'] when it transmits nothing"
+        )
+    required = declared.get("required")
+    if not isinstance(required, list) or not required:
+        raise ValueError("Firefox data_collection_permissions.required must be a non-empty list")
+    optional = declared.get("optional", [])
+    if not isinstance(optional, list):
+        raise ValueError("Firefox data_collection_permissions.optional must be a list")
+    if "none" in required and len(required) > 1:
+        raise ValueError("Firefox data_collection_permissions.required cannot combine 'none' with data types")
+    if "none" in optional:
+        raise ValueError("Firefox data_collection_permissions.optional cannot declare 'none'")
+    for value in required:
+        if value == "none":
+            continue
+        if value in OPTIONAL_ONLY_DATA_COLLECTION_TYPES:
+            raise ValueError(f"Firefox data collection type {value!r} must be optional, not required")
+        if value not in DATA_COLLECTION_TYPES:
+            raise ValueError(f"Unknown Firefox data collection type {value!r}")
+    for value in optional:
+        if value not in DATA_COLLECTION_TYPES | OPTIONAL_ONLY_DATA_COLLECTION_TYPES:
+            raise ValueError(f"Unknown Firefox data collection type {value!r}")
+    if set(required) & set(optional):
+        raise ValueError("Firefox data collection types cannot be both required and optional")
+
+
 def validate_manifest(target: str, manifest: dict) -> None:
     if manifest.get("manifest_version") != 3:
         raise ValueError(f"{target} manifest must use Manifest V3")
@@ -83,6 +126,7 @@ def validate_manifest(target: str, manifest: dict) -> None:
         gecko = manifest.get("browser_specific_settings", {}).get("gecko", {})
         if not gecko.get("id") or not gecko.get("strict_min_version"):
             raise ValueError("Firefox build requires a stable Gecko ID and minimum version")
+        validate_data_collection_permissions(gecko.get("data_collection_permissions"))
 
 
 def validate_parity(chromium: dict, firefox: dict) -> None:

@@ -17,13 +17,6 @@ Added 2026-08-21 from RESEARCH.md (same date). IDs continue the R-series after R
 
 ### P1
 
-- [ ] P1 — R-107: Declare Firefox data-collection permissions in the extension manifest
-  Why: Mozilla requires `browser_specific_settings.gecko.data_collection_permissions` for new extensions since 2025-11-03 and for all existing extensions by mid-2026; the Firefox manifest has no declaration, which blocks any AMO submission and misstates what the extension transmits (sanitized page snapshots and URLs to the localhost API).
-  Evidence: `browser-extension/manifest.firefox.json` (no `data_collection_permissions` key); https://blog.mozilla.org/addons/2025/10/23/data-collection-consent-changes-for-new-firefox-extensions/; https://extensionworkshop.com/documentation/develop/firefox-builtin-data-consent/; `browser-extension/shared.js::captureSanitizedPage`.
-  Touches: `browser-extension/manifest.firefox.json`, `scripts/build_extension.py` (manifest validation), `tests/test_packaging.py`, README extension privacy section, `packaging/product_claims.json` if surfaces are counted.
-  Acceptance: The Firefox build manifest declares `data_collection_permissions` with `required` and `optional` arrays matching actual behavior (or an explicit `none` with a documented justification per the open question in RESEARCH.md); `scripts/build_extension.py firefox` fails if the key is absent; a packaging test asserts the declared categories; the Chromium manifest is unchanged; README states the declaration verbatim.
-  Complexity: S
-
 - [ ] P1 — R-108: Constrain AI tag suggestions to a bounded vocabulary with page-state suppression
   Why: `suggest_tags` asks the model for 5–7 tags that must not duplicate existing tags, which is the exact recipe behind Karakeep's 12.7K-tag sprawl and Linkwarden's 836-tags-for-592-links reports; both projects now ship constrained modes and tag caps.
   Evidence: `bookmark_organizer_pro/services/ai_tools.py` line 329 prompt; https://github.com/karakeep-app/karakeep/issues/1266; https://github.com/karakeep-app/karakeep/issues/529; https://github.com/karakeep-app/karakeep/issues/1892; https://github.com/linkwarden/linkwarden/issues/1597; https://github.com/linkwarden/docs/blob/main/docs/Usage/ai-tagging.md (predefined/existing/auto modes).

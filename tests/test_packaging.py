@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import importlib.util
 import json
 import shutil
@@ -266,6 +267,37 @@ class TestExtensionDistribution(unittest.TestCase):
         self.assertNotIn("sidePanel", firefox["permissions"])
         self.assertNotIn("readingList", firefox["permissions"])
         self.assertIn("browser_specific_settings", firefox)
+
+    def test_firefox_manifest_declares_data_collection_consent(self):
+        module = _load_extension_builder()
+        firefox = module.load_manifest("firefox")
+        declared = firefox["browser_specific_settings"]["gecko"]["data_collection_permissions"]
+
+        # Saving always transmits bookmark data to the local API; page content is
+        # only sent when the user ticks the per-save snapshot capture box.
+        self.assertEqual(declared["required"], ["bookmarksInfo"])
+        self.assertEqual(declared["optional"], ["websiteContent"])
+
+        stripped = copy.deepcopy(firefox)
+        del stripped["browser_specific_settings"]["gecko"]["data_collection_permissions"]
+        with self.assertRaises(ValueError):
+            module.validate_manifest("firefox", stripped)
+
+        for invalid in (
+            {"required": []},
+            {"required": ["none", "bookmarksInfo"]},
+            {"required": ["technicalAndInteraction"]},
+            {"required": ["notARealDataType"]},
+            {"required": ["bookmarksInfo"], "optional": ["none"]},
+            {"required": ["bookmarksInfo"], "optional": ["bookmarksInfo"]},
+        ):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                module.validate_data_collection_permissions(invalid)
+
+        module.validate_data_collection_permissions({"required": ["none"]})
+        module.validate_data_collection_permissions(
+            {"required": ["bookmarksInfo"], "optional": ["technicalAndInteraction"]}
+        )
 
     def test_extension_builder_emits_deterministic_isolated_artifacts(self):
         module = _load_extension_builder()
