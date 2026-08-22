@@ -567,7 +567,13 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
         self.assertRegex(pyproject_text, re.compile(r'"mcp>=1\.28,<2\.0"'))
         self.assertRegex(pyproject_text, re.compile(r'"fastmcp>=3\.4\.1,<4\.0"'))
         self.assertIn(".[ai,encryption,mcp,sunvalley,themedetect]", requirements_text)
-        self.assertRegex(locked["mcp"], r"^1\.28\.")
+        # The contract is the declared RANGE, not one patch line: pinning the
+        # lock to 1.28.x contradicted "mcp>=1.28,<2.0" above and failed the
+        # moment the maintenance line moved to 1.29.0. Staying below 2.0 is
+        # what matters, because 2.0 implements the stateless 2026-07-28 spec.
+        mcp_version = tuple(int(part) for part in locked["mcp"].split(".")[:2])
+        self.assertGreaterEqual(mcp_version, (1, 28))
+        self.assertLess(mcp_version, (2, 0))
         self.assertRegex(locked["fastmcp"], r"^3\.")
 
     def test_raw_mcp_tools_result_has_cache_hints_and_annotations(self):

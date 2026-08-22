@@ -24,12 +24,17 @@ dependencies = [
 
 [project.optional-dependencies]
 ai = [
-    "trafilatura>=2.1",
-    "lingua-language-detector>=2.0",
+    "trafilatura>=2.2",
+    # lingua 2.2 raised its floor to Python 3.12, but the verified release lock
+    # is built on Python 3.11 (packaging/release_manifest.json). Without this
+    # marker a lock regenerated on 3.11 either fails or silently pins an older
+    # version while the manifest still claims the range.
+    "lingua-language-detector>=2.0,<2.2; python_version < '3.12'",
+    "lingua-language-detector>=2.0; python_version >= '3.12'",
     "fastembed>=0.4,<1.0",
-    "lancedb>=0.13,<1.0",
+    "lancedb>=0.37,<1.0",
 ]
-encryption = ["cryptography>=49.0.0"]
+encryption = ["cryptography>=50.0.0"]
 mcp = ["mcp>=1.28,<2.0", "fastmcp>=3.4.1,<4.0"]
 nuitka = ["Nuitka>=4.1,<5.0"]
 sunvalley = ["sv-ttk>=2.6.1,<3.0"]

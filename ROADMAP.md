@@ -19,13 +19,6 @@ Added 2026-08-21 from RESEARCH.md (same date). IDs continue the R-series after R
 
 ### P2
 
-- [ ] P2 — R-114: Refresh locked dependencies and pin the lingua Python floor
-  Why: The lock is behind on feature releases (trafilatura 2.2.0 extraction overhaul 2026-07-31, lancedb 0.37.1, cryptography 50.0.0) and `lingua-language-detector` 2.2.0 requires Python ≥3.12 while the verified release lane is 3.11, so an unguarded regeneration will fail or silently pin.
-  Evidence: `pylock.toml` (lancedb 0.34.0, trafilatura 2.1.0, cryptography 49.0.0, lingua 2.1.1); `pyproject.toml` (`lingua-language-detector>=2.0`, no ceiling); `packaging/release_manifest.json` (python 3.11 lock); https://raw.githubusercontent.com/adbar/trafilatura/master/HISTORY.md; https://github.com/lancedb/lancedb/releases.
-  Touches: `pyproject.toml`, `pylock.toml` via `scripts/package_contract_audit.py --update-lock`, extraction regression fixtures (new) under `tests/`, `scripts/dependency_vulnerability_audit.py` run.
-  Acceptance: `lingua-language-detector` carries `<2.2; python_version<'3.12'` (or equivalent marker); trafilatura 2.2.x, lancedb 0.37.x, cryptography 50.x are locked; a new fixture set locks extraction output for 5 representative pages and passes after the bump; the vulnerability audit and full suite pass; release contract regenerates with the new SBOM count.
-  Complexity: M
-
 ### P3
 
 - [ ] P3 — R-117: Expose LanceDB stop-word, tokenization, and hybrid-pagination controls in hybrid search

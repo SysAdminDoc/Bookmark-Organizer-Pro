@@ -4,6 +4,17 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Refreshed locked dependencies: trafilatura 2.2.0 (its extraction overhaul),
+  lancedb 0.37.1, cryptography 50.0.0, and mcp 1.29.0 on the pre-2.0
+  maintenance line. `lingua-language-detector` now carries a Python marker
+  because 2.2 requires Python 3.12 while the verified release lock is built on
+  3.11; without it a regenerated lock either fails or silently pins an older
+  version. New extraction fixtures pin what representative article, news, docs,
+  forum, and stub pages must keep and must drop, so a future extractor bump
+  cannot quietly degrade reader view, content search, and embeddings.
+
 ### Added
 
 - Added rule suggestions derived from the library itself. The shipped patterns
