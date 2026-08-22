@@ -4,6 +4,17 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- The Firefox build failed validation. v6.14.0 added the Gecko data collection
+  disclosure, which Firefox only reads from version 140 and Firefox for Android
+  from 142, while the manifest still claimed 121 as its floor. The pinned
+  web-ext was old enough to reject the key outright, so the Firefox gate had
+  been failing since the key landed and nothing in the test suite ran it. The
+  floors now match the key, Android has its own, the builder refuses a manifest
+  that gets this wrong again, and the extension installs into a real Firefox
+  with a clean lint. Firefox 121 through 139 are no longer supported.
+
 ### Changed
 
 - Actions you can undo no longer stop to ask first. Deleting highlights,

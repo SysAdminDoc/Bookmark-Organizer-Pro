@@ -91,6 +91,45 @@ def validate_data_collection_permissions(declared) -> None:
         raise ValueError("Firefox data collection types cannot be both required and optional")
 
 
+# Firefox understands browser_specific_settings.gecko.data_collection_permissions
+# from 140, and Firefox for Android from 142. Declaring the key under a lower
+# floor is what web-ext reports as KEY_FIREFOX_UNSUPPORTED_BY_MIN_VERSION, and
+# it means the users on those older builds get a manifest key their browser
+# does not read.
+DATA_COLLECTION_MIN_DESKTOP = (140, 0)
+DATA_COLLECTION_MIN_ANDROID = (142, 0)
+
+
+def _version_tuple(value: str) -> tuple[int, ...]:
+    parts = []
+    for chunk in str(value or "").split("."):
+        digits = "".join(character for character in chunk if character.isdigit())
+        parts.append(int(digits) if digits else 0)
+    return tuple(parts) or (0,)
+
+
+def validate_data_collection_floors(settings) -> None:
+    """Both Gecko floors must be new enough for the disclosure key."""
+    desktop = settings.get("gecko", {}).get("strict_min_version")
+    if _version_tuple(desktop) < DATA_COLLECTION_MIN_DESKTOP:
+        raise ValueError(
+            f"Firefox strict_min_version {desktop!r} predates "
+            f"{'.'.join(str(part) for part in DATA_COLLECTION_MIN_DESKTOP)}, which "
+            "introduced data_collection_permissions"
+        )
+    android = settings.get("gecko_android", {}).get("strict_min_version")
+    if not android:
+        raise ValueError(
+            "Firefox build requires browser_specific_settings.gecko_android."
+            "strict_min_version; Android reads the disclosure key only from 142"
+        )
+    if _version_tuple(android) < DATA_COLLECTION_MIN_ANDROID:
+        raise ValueError(
+            f"Firefox for Android strict_min_version {android!r} predates "
+            f"{'.'.join(str(part) for part in DATA_COLLECTION_MIN_ANDROID)}"
+        )
+
+
 def validate_manifest(target: str, manifest: dict) -> None:
     if manifest.get("manifest_version") != 3:
         raise ValueError(f"{target} manifest must use Manifest V3")
@@ -123,10 +162,12 @@ def validate_manifest(target: str, manifest: dict) -> None:
             raise ValueError("Firefox build requires sidebar_action")
         if {"sidePanel", "readingList"} & permissions or "side_panel" in manifest:
             raise ValueError("Firefox build contains Chromium-only APIs")
-        gecko = manifest.get("browser_specific_settings", {}).get("gecko", {})
+        settings = manifest.get("browser_specific_settings", {})
+        gecko = settings.get("gecko", {})
         if not gecko.get("id") or not gecko.get("strict_min_version"):
             raise ValueError("Firefox build requires a stable Gecko ID and minimum version")
         validate_data_collection_permissions(gecko.get("data_collection_permissions"))
+        validate_data_collection_floors(settings)
 
 
 def validate_parity(chromium: dict, firefox: dict) -> None:

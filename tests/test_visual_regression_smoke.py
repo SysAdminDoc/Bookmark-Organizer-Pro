@@ -93,6 +93,17 @@ def test_desktop_viewport_gate_covers_supported_sizes_and_themes():
         "solarized_dark",
     )
     assert "DESKTOP_SMOKE_THEMES" in source
+
+    # R-137: the nine themes outside the deep matrix are still rendered once
+    # each, so a palette that only breaks layout in, say, Nord cannot ship
+    # unseen. Together the two lists have to cover every built-in theme.
+    from bookmark_organizer_pro.theme_runtime import BUILT_IN_THEMES
+
+    covered = set(smoke.DESKTOP_SMOKE_THEMES) | set(smoke.theme_sweep_names())
+    assert covered == set(BUILT_IN_THEMES)
+    assert not set(smoke.DESKTOP_SMOKE_THEMES) & set(smoke.theme_sweep_names())
+    assert smoke.THEME_SWEEP_VIEWPORT in smoke.DESKTOP_VIEWPORTS
+    assert "theme_sweep_names()" in source
     viewport_source = inspect.getsource(smoke._verify_viewport)
     assert "assert_realized_viewport" in viewport_source
     assert "assert_actionable_controls_inside" in viewport_source

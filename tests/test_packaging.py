@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import re
 import shutil
 import tomllib
 import subprocess
@@ -314,6 +315,47 @@ class TestExtensionDistribution(unittest.TestCase):
                 module.validate_mcp_server_json()
         finally:
             module.MCP_SERVER_JSON.write_text(original, encoding="utf-8")
+
+    def test_firefox_version_floors_match_the_data_collection_key(self):
+        """R-137. The disclosure key was declared under strict_min_version 121,
+        which web-ext rejects outright on the pinned version and warns about on
+        current ones, because Firefox only reads the key from 140 and Firefox
+        for Android from 142. The gate never caught it: the Firefox smoke is not
+        part of the suite, and the pinned web-ext was old enough that the whole
+        lint failed on a different error first."""
+        module = _load_extension_builder()
+        firefox = module.load_manifest("firefox")
+        settings = firefox["browser_specific_settings"]
+
+        self.assertGreaterEqual(
+            module._version_tuple(settings["gecko"]["strict_min_version"]),
+            module.DATA_COLLECTION_MIN_DESKTOP,
+        )
+        self.assertGreaterEqual(
+            module._version_tuple(settings["gecko_android"]["strict_min_version"]),
+            module.DATA_COLLECTION_MIN_ANDROID,
+        )
+
+        for broken in (
+            {"gecko": {"strict_min_version": "121.0"}, "gecko_android": {"strict_min_version": "142.0"}},
+            {"gecko": {"strict_min_version": "140.0"}},
+            {"gecko": {"strict_min_version": "140.0"}, "gecko_android": {"strict_min_version": "141.0"}},
+        ):
+            with self.subTest(broken=broken), self.assertRaises(ValueError):
+                module.validate_data_collection_floors(broken)
+
+        module.validate_data_collection_floors(settings)
+
+    def test_firefox_smoke_pins_a_web_ext_that_knows_the_disclosure_key(self):
+        """web-ext 8.9.0 called data_collection_permissions reserved and failed
+        the whole lint, so the Firefox gate had been red since the key landed."""
+        source = (
+            Path(__file__).resolve().parents[1] / "scripts/extension_firefox_smoke.py"
+        ).read_text(encoding="utf-8")
+        match = re.search(r'WEB_EXT_VERSION = "(\d+)\.(\d+)\.(\d+)"', source)
+        self.assertIsNotNone(match, "the smoke must pin an explicit web-ext version")
+        major, minor, _patch = (int(part) for part in match.groups())
+        self.assertGreaterEqual((major, minor), (10, 0), "web-ext is too old to lint the manifest")
 
     def test_firefox_manifest_declares_data_collection_consent(self):
         module = _load_extension_builder()

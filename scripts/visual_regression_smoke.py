@@ -35,8 +35,22 @@ DESKTOP_VIEWPORTS = (
 
 # The two GitHub themes are the shipped defaults; Solarized Dark is included
 # because its surfaces sit closest to the AA floor, so a palette regression
-# shows up there first.
+# shows up there first. These three are rendered at every viewport and DPI.
 DESKTOP_SMOKE_THEMES = ("github_dark", "github_light", "solarized_dark")
+
+# R-122 checked the other nine themes as palette maths only, never as pixels.
+# Each one now gets rendered once, at the scaled laptop viewport where clipping
+# and overflow show up first, which is far cheaper than the full matrix.
+THEME_SWEEP_VIEWPORT = (1540, 980, 1.25)
+
+
+def theme_sweep_names() -> tuple[str, ...]:
+    """Built-in themes that the deep matrix above does not already cover."""
+    from bookmark_organizer_pro.theme_runtime import BUILT_IN_THEMES
+
+    return tuple(
+        name for name in BUILT_IN_THEMES if name not in DESKTOP_SMOKE_THEMES
+    )
 
 
 @dataclass(frozen=True)
@@ -666,6 +680,11 @@ def verify_desktop_viewports(root, theme_manager, *, collapsible_rail=None) -> N
                         raise VisualSmokeError("right rail did not collapse at laptop width")
                     if width >= 1400 and not rail_visible:
                         raise VisualSmokeError("right rail did not restore at wide viewport")
+        sweep_width, sweep_height, sweep_scaling = THEME_SWEEP_VIEWPORT
+        for theme_name in theme_sweep_names():
+            _set_scaling(root, baseline, sweep_scaling)
+            theme_manager.set_theme(theme_name)
+            _verify_viewport(root, sweep_width, sweep_height)
     finally:
         _set_scaling(root, baseline, 1.0)
         root.withdraw()

@@ -21,7 +21,7 @@ from scripts.build_extension import DEFAULT_OUTPUT, build_target
 from scripts.contract_runtime import ScriptWatchdog, preserve_path, terminate_process_tree
 
 
-WEB_EXT_VERSION = "8.9.0"
+WEB_EXT_VERSION = "10.6.0"
 INSTALL_MARKER = "as a temporary add-on"
 PROFILE_MARKER = "Creating new Firefox profile"
 
