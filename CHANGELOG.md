@@ -6,6 +6,16 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Fixed
 
+- Every built-in theme now meets the WCAG AA 4.5:1 text floor on the surfaces
+  it actually draws on. Muted text over hover and card backgrounds, status and
+  link colours over panels, and menu labels over the selection highlight were
+  all below the line in eleven of the twelve themes, worst in Solarized Dark,
+  whose panel colours had drifted well away from the palette it is named after
+  and are now back on it. Colours moved as little as the floor allowed, so each
+  theme keeps its character. The primary button also recomputes its label
+  colour when hovered or pressed, instead of keeping the resting colour against
+  a different background.
+
 - A save that fails because the library itself could not be written now returns
   a retryable error instead of looking like a bad request. The browser
   extension only queues a failed save for retry on 408, 425, 429, and 5xx

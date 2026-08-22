@@ -84,8 +84,15 @@ def test_desktop_viewport_gate_covers_supported_sizes_and_themes():
         (1540, 980, 1.25),
         (1920, 1080, 1.0),
     )
-    assert '"github_dark"' in source
-    assert '"github_light"' in source
+    # The theme list is a module constant so the palette-contrast suite and the
+    # smoke agree on what is covered; assert the coverage itself rather than
+    # where the literal happens to live.
+    assert smoke.DESKTOP_SMOKE_THEMES == (
+        "github_dark",
+        "github_light",
+        "solarized_dark",
+    )
+    assert "DESKTOP_SMOKE_THEMES" in source
     viewport_source = inspect.getsource(smoke._verify_viewport)
     assert "assert_realized_viewport" in viewport_source
     assert "assert_actionable_controls_inside" in viewport_source

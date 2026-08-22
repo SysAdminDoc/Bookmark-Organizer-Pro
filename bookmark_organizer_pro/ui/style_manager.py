@@ -269,7 +269,12 @@ class StyleManager:
                 ("disabled", colors.bg_tertiary)
             ],
             foreground=[
-                ("disabled", colors.text_muted)
+                ("disabled", colors.text_muted),
+                # Hover and press swap the background to `selected`, so the ink
+                # has to be recomputed for it; keeping the resting ink here is
+                # what drops the label under AA on most themes.
+                ("pressed", readable_text_on(colors.selected)),
+                ("active", readable_text_on(colors.selected)),
             ],
             bordercolor=[
                 ("focus", colors.border_active),

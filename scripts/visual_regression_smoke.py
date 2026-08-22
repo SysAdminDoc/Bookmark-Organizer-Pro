@@ -33,6 +33,11 @@ DESKTOP_VIEWPORTS = (
     (1920, 1080, 1.0),
 )
 
+# The two GitHub themes are the shipped defaults; Solarized Dark is included
+# because its surfaces sit closest to the AA floor, so a palette regression
+# shows up there first.
+DESKTOP_SMOKE_THEMES = ("github_dark", "github_light", "solarized_dark")
+
 
 @dataclass(frozen=True)
 class ExtensionSurface:
@@ -650,7 +655,7 @@ def verify_desktop_viewports(root, theme_manager, *, collapsible_rail=None) -> N
     baseline = float(root.tk.call("tk", "scaling"))
     try:
         for width, height, scaling in DESKTOP_VIEWPORTS:
-            for theme_name in ("github_dark", "github_light"):
+            for theme_name in DESKTOP_SMOKE_THEMES:
                 _set_scaling(root, baseline, scaling)
                 theme_manager.set_theme(theme_name)
                 _verify_viewport(root, width, height)
