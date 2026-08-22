@@ -62,7 +62,7 @@ def _show_first_run_privacy_notice(root: tk.Tk):
 
     tk.Label(
         banner,
-        text="Fully local — no data leaves your machine unless you configure an AI API key.",
+        text="Fully local. No data leaves your machine unless you configure an AI API key.",
         bg=accent, fg=accent_fg, font=FONTS.small(),
         anchor="w",
     ).pack(side=tk.LEFT, padx=(16, 8), fill=tk.Y)

@@ -222,7 +222,7 @@ class AiSettingsMixin:
         ).pack(side=tk.LEFT, padx=(0, 6))
 
         popular = OllamaManager.get_popular_models()
-        model_names_for_pull = [f"{m[0]}  ({m[1]}) — {m[2]}" for m in popular]
+        model_names_for_pull = [f"{m[0]}  ({m[1]}): {m[2]}" for m in popular]
 
         pull_var = tk.StringVar(value=model_names_for_pull[0] if model_names_for_pull else "")
         pull_combo = ttk.Combobox(download_frame, textvariable=pull_var, values=model_names_for_pull, state="readonly", width=40)
@@ -253,13 +253,13 @@ class AiSettingsMixin:
                 install_btn.set_state("normal")
                 start_btn.set_state("disabled")
             elif not status.running:
-                ollama_status_var.set(_("Installed (v{version}) — server stopped").format(version=status.version))
+                ollama_status_var.set(_("Installed (v{version}), server stopped").format(version=status.version))
                 ollama_dot.configure(fg=theme.accent_warning)
                 install_btn.set_state("disabled")
                 start_btn.set_state("normal")
             else:
                 n = len(status.models)
-                ollama_status_var.set(_("Running — {models} available").format(models=pluralize(n, 'model')))
+                ollama_status_var.set(_("Running, {models} available").format(models=pluralize(n, 'model')))
                 ollama_dot.configure(fg=theme.accent_success)
                 install_btn.set_state("disabled")
                 start_btn.set_state("disabled")

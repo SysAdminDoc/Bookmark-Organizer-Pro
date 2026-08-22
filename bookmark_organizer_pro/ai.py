@@ -113,7 +113,7 @@ def _friendly_model_error(exc: Exception, provider_label: str, model: str) -> st
     if any(hint in msg.lower() for hint in _MODEL_ERROR_HINTS):
         return (
             f"{provider_label} could not use model '{model}'. It may have been "
-            f"renamed or retired — open AI settings and pick a current model. "
+            f"renamed or retired. Open AI settings and pick a current model. "
             f"({msg[:160]})"
         )
     return f"Error: {msg[:200]}"

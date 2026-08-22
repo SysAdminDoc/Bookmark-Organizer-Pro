@@ -588,7 +588,7 @@ BUILT_IN_THEMES: Dict[str, ThemeInfo] = {
     "high_contrast": ThemeInfo(
         name="high_contrast",
         display_name="High Contrast",
-        description="WCAG AA accessible — maximum contrast, bold focus indicators",
+        description="WCAG AA accessible, maximum contrast and bold focus indicators",
         is_dark=True,
         colors=ThemeColors(
             bg_dark="#000000",

@@ -122,7 +122,7 @@ class LiveWorkflowDialog:
         self.theme = theme
 
         dialog = tk.Toplevel(parent)
-        dialog.title(format_message('{value_0} — Live', value_0=title))
+        dialog.title(format_message('{value_0}: Live', value_0=title))
         dialog.configure(bg=theme.bg_primary)
         apply_screen_aware_geometry(dialog, width, height)
         dialog.minsize(int(width * 0.85), int(height * 0.78))
@@ -214,7 +214,7 @@ class LiveWorkflowDialog:
         except Exception:  # pragma: no cover - defensive; worker logs its own errors
             from bookmark_organizer_pro.logging_config import log
             log.warning("Live workflow worker crashed", exc_info=True)
-            self.signal_finish("Stopped — an unexpected error occurred", outcome="error")
+            self.signal_finish("Stopped: an unexpected error occurred", outcome="error")
 
     def _alive(self) -> bool:
         try:

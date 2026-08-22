@@ -106,19 +106,19 @@ class ToolsActionsMixin:
             bd=0,
         )
         proxy_menu.add_radiobutton(
-            label=_("None — same-origin only"),
+            label=_("None, same-origin only"),
             variable=self._favicon_proxy_var,
             value=FAVICON_PROXY_NONE,
             command=self._save_favicon_proxy_preference,
         )
         proxy_menu.add_radiobutton(
-            label=_("Google — shares missing domains"),
+            label=_("Google, shares missing domains"),
             variable=self._favicon_proxy_var,
             value="google",
             command=self._save_favicon_proxy_preference,
         )
         proxy_menu.add_radiobutton(
-            label=_("DuckDuckGo — shares missing domains"),
+            label=_("DuckDuckGo, shares missing domains"),
             variable=self._favicon_proxy_var,
             value="duckduckgo",
             command=self._save_favicon_proxy_preference,

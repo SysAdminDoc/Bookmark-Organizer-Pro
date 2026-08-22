@@ -555,6 +555,72 @@ vm.runInContext(`(async () => {
 
         self.assertEqual(offenders, [], "\n".join(offenders))
 
+    def test_product_strings_avoid_em_and_en_dashes(self):
+        """The writing rule covers anything a person reads, which includes the
+        strings the desktop, the CLI, and the dialogs render.
+
+        Three uses stay, and none of them are prose: log lines, which the rule
+        exempts along with comments and test names; a lone dash standing in for
+        an empty table cell, which is a glyph for "no value"; and a numeric
+        range written "{start}-{end}", which is the one job an en dash has.
+        """
+        import ast
+
+        root = Path(__file__).resolve().parents[1]
+        package = root / "bookmark_organizer_pro"
+        dashes = ("\u2014", "\u2013")
+        placeholders = {"\u2014", "\u2013"}
+        offenders = []
+
+        for source in sorted(package.rglob("*.py")):
+            text = source.read_text(encoding="utf-8")
+            if not any(dash in text for dash in dashes):
+                continue
+            relative = source.relative_to(root).as_posix()
+            tree = ast.parse(text, filename=relative)
+
+            docstrings = set()
+            logged = set()
+            for node in ast.walk(tree):
+                body = getattr(node, "body", None)
+                if isinstance(
+                    node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+                ) and body:
+                    first = body[0]
+                    if (
+                        isinstance(first, ast.Expr)
+                        and isinstance(first.value, ast.Constant)
+                        and isinstance(first.value.value, str)
+                    ):
+                        docstrings.add(id(first.value))
+                if (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id in {"log", "logging", "logger"}
+                ):
+                    for child in ast.walk(node):
+                        if isinstance(child, ast.Constant):
+                            logged.add(id(child))
+
+            for node in ast.walk(tree):
+                if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
+                    continue
+                value = node.value
+                if not any(dash in value for dash in dashes):
+                    continue
+                if id(node) in docstrings or id(node) in logged:
+                    continue
+                if value.strip() in placeholders:
+                    continue
+                if any(f"}}{dash}{{" in value for dash in dashes):
+                    continue
+                if source.name == "ai_tools.py" and value.startswith(r"\s*[|"):
+                    continue
+                offenders.append(f"{relative}:{node.lineno}: {value.strip()[:90]}")
+
+        self.assertEqual(offenders, [], "\n".join(offenders))
+
     def test_shipping_docs_avoid_em_and_en_dashes(self):
         """README and the changelog are both read by users, and the newest
         changelog section is reused verbatim as release notes, so the whole of

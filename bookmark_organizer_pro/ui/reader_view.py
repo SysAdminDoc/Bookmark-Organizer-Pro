@@ -90,7 +90,7 @@ class ReaderViewDialog(tk.Toplevel):
         self.highlight_ids: List[str] = []
         self._deleted_highlight: ReaderHighlight | None = None
 
-        self.title(_("Reader — {title}").format(title=bookmark.title))
+        self.title(_("Reader: {title}").format(title=bookmark.title))
         apply_screen_aware_geometry(self, 980, 720)
         self.minsize(720, 520)
         self.configure(bg=theme.bg_primary)

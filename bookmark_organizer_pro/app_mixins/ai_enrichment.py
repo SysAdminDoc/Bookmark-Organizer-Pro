@@ -102,9 +102,9 @@ class AiEnrichmentMixin:
                 with operation:
                     _run_operation(operation)
             except AIOperationCancelled:
-                dialog.signal_finish("Cancelled — no partial AI output was cached", outcome="warning")
+                dialog.signal_finish("Cancelled. No partial AI output was cached.", outcome="warning")
             except AIBudgetExceeded as exc:
-                dialog.signal_finish(format_message("Stopped — {error}", error=str(exc)), outcome="error")
+                dialog.signal_finish(format_message("Stopped: {error}", error=str(exc)), outcome="error")
 
         def _run_operation(operation: AIOperation):
             try:
@@ -239,7 +239,7 @@ class AiEnrichmentMixin:
             self.bookmark_manager.save_bookmarks()
 
             summary = format_message(
-                "Done — {tagged} tagged, {unchanged} unchanged",
+                "Done: {tagged} tagged, {unchanged} unchanged",
                 tagged=tagged, unchanged=processed - tagged - skipped_urls,
             )
             if skipped_urls:
@@ -284,15 +284,15 @@ class AiEnrichmentMixin:
                 with operation:
                     _run_operation(operation)
             except AIOperationCancelled:
-                dialog.signal_finish("Cancelled — no partial AI output was cached", outcome="warning")
+                dialog.signal_finish("Cancelled. No partial AI output was cached.", outcome="warning")
             except AIBudgetExceeded as exc:
-                dialog.signal_finish(format_message("Stopped — {error}", error=str(exc)), outcome="error")
+                dialog.signal_finish(format_message("Stopped: {error}", error=str(exc)), outcome="error")
 
         def _run_operation(operation: AIOperation):
             client = self._get_ai_client()
             if not client:
                 dialog.set_status("AI client unavailable")
-                dialog.signal_finish("Stopped — AI client unavailable")
+                dialog.signal_finish("Stopped: AI client unavailable")
                 operation.fail("AI client unavailable", retryable=False)
                 return
 
@@ -371,7 +371,7 @@ class AiEnrichmentMixin:
             operation.check()
             self.bookmark_manager.save_bookmarks()
             dialog.signal_finish(format_message(
-                "Done — {count} summaries generated", count=updated,
+                "Done: {count} summaries generated", count=updated,
             ))
             self._post_to_ui(self._refresh_all)
 

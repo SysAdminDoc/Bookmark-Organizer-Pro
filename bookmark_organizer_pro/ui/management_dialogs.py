@@ -596,19 +596,19 @@ class CredentialSecurityDialog(tk.Toplevel):
     """Inspectable named-credential inventory and bounded usage audit."""
 
     PURPOSES = {
-        _("MCP — read only"): (
+        _("MCP, read only"): (
             "mcp",
             [MCP_READ_SCOPE],
         ),
-        _("MCP — read and write"): (
+        _("MCP, read and write"): (
             "mcp",
             [MCP_READ_SCOPE, MCP_WRITE_SCOPE],
         ),
-        _("REST API — read only"): (
+        _("REST API, read only"): (
             "rest",
             [REST_READ_SCOPE],
         ),
-        _("REST API — read and write"): (
+        _("REST API, read and write"): (
             "rest",
             [REST_READ_SCOPE, REST_WRITE_SCOPE],
         ),

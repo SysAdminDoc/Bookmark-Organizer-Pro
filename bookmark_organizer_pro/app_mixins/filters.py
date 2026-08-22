@@ -10,20 +10,20 @@ from bookmark_organizer_pro.ui.foundation import FONTS, format_compact_count
 from bookmark_organizer_pro.ui.widgets import get_theme
 
 SEARCH_FILTER_HINTS = [
-    ("tag:", "tag:python — bookmarks with tag"),
-    ("category:", "category:Dev — bookmarks in category"),
-    ("cat:", "cat:AI — category short form"),
-    ("domain:", "domain:github.com — by domain"),
-    ("title:", "title:react — search in title"),
-    ("url:", "url:docs — search in URL"),
-    ("content:", "content:keyword — search page text"),
-    ("before:", "before:2025-01-01 — created before date"),
-    ("after:", "after:2025-01-01 — created after date"),
+    ("tag:", "tag:python for bookmarks with that tag"),
+    ("category:", "category:Dev for bookmarks in a category"),
+    ("cat:", "cat:AI is the short form of category"),
+    ("domain:", "domain:github.com to filter by domain"),
+    ("title:", "title:react searches the title"),
+    ("url:", "url:docs searches the URL"),
+    ("content:", "content:keyword searches page text"),
+    ("before:", "before:2025-01-01 for anything older"),
+    ("after:", "after:2025-01-01 for anything newer"),
     ("is:", "is:pinned  is:in-progress  is:finished  is:unread  is:broken  is:stale  is:archived  is:recent  is:untagged"),
     ("has:", "has:notes  has:tags"),
-    ("visits:", "visits:>5 — visited more than N times"),
-    ("regex:", "regex:pattern — time-bounded regular expression"),
-    ("#", "#python — tag shorthand"),
+    ("visits:", "visits:>5 for anything visited more than N times"),
+    ("regex:", "regex:pattern runs a time-bounded regular expression"),
+    ("#", "#python is shorthand for a tag"),
 ]
 
 

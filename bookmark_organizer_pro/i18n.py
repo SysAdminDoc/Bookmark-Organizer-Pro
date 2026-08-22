@@ -510,7 +510,7 @@ def build_pot() -> str:
     contextual_plurals = collect_contextual_plural_strings()
 
     lines = [
-        '# Bookmark Organizer Pro — Translation Template',
+        '# Bookmark Organizer Pro Translation Template',
         '# This file is auto-generated. Do not edit manually.',
         '#',
         'msgid ""',

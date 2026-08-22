@@ -17,6 +17,11 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Changed
 
+- Roughly fifty messages, labels, and help entries were rewritten to drop the
+  em dashes the project's writing rule bans. Status lines now read "Done: 12
+  processed", the search-syntax help reads "title:react searches the title",
+  and the credential scopes read "MCP, read only". Nothing changed except the
+  wording.
 - Actions you can undo no longer stop to ask first. Deleting highlights,
   deleting an organization rule, applying rules over a conflict, and both
   import paths now just run, and say what they did. Highlights and rule runs

@@ -1,4 +1,4 @@
-# Bookmark Organizer Pro — Translation Template
+# Bookmark Organizer Pro Translation Template
 # This file is auto-generated. Do not edit manually.
 #
 msgid ""
@@ -44,7 +44,7 @@ msgid "(empty highlight)"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/import_export.py:163
-msgid "(no backups yet — they appear after the first save/import)"
+msgid "(no backups yet, they appear after the first save or import)"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:413
@@ -132,7 +132,7 @@ msgid "?"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/import_export.py:131
-msgid "A safepoint is captured automatically at startup and before each import. Restoring replaces your current bookmarks — a pre-restore backup is saved first, so this is also reversible."
+msgid "A safepoint is captured automatically at startup and before each import. Restoring replaces your current bookmarks, but a pre-restore backup is saved first, so this is also reversible."
 msgstr ""
 
 #: bookmark_organizer_pro/ui/workflow_detail_panel.py:76
@@ -253,7 +253,7 @@ msgid "Actions"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/organization_rules.py:104
-msgid "Actions — applied as one batch"
+msgid "Actions, applied as one batch"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/categories.py:207
@@ -1085,7 +1085,7 @@ msgid "Conditions"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/organization_rules.py:95
-msgid "Conditions — all must match"
+msgid "Conditions, all must match"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/widget_bookmark_editor.py:215
@@ -1140,11 +1140,11 @@ msgid "Continue where you left off"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/widget_theme_dialogs.py:332
-msgid "Contrast needs attention — "
+msgid "Contrast needs attention: "
 msgstr ""
 
 #: bookmark_organizer_pro/ui/widget_theme_dialogs.py:332
-msgid "Contrast passes — "
+msgid "Contrast passes: "
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/bookmark_crud.py:88
@@ -1417,15 +1417,15 @@ msgid "Done"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_enrichment.py:373
-msgid "Done — {count} summaries generated"
+msgid "Done: {count} summaries generated"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_categorization.py:245
-msgid "Done — {processed} processed, {categorized} categorized, {titles} titles improved"
+msgid "Done: {processed} processed, {categorized} categorized, {titles} titles improved"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_enrichment.py:241
-msgid "Done — {tagged} tagged, {unchanged} unchanged"
+msgid "Done: {tagged} tagged, {unchanged} unchanged"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:405
@@ -1442,7 +1442,7 @@ msgid "Downloading…"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/tools.py:121
-msgid "DuckDuckGo — shares missing domains"
+msgid "DuckDuckGo, shares missing domains"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/highlights_workspace.py:117
@@ -1882,7 +1882,7 @@ msgid "Get API key"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/tools.py:115
-msgid "Google — shares missing domains"
+msgid "Google, shares missing domains"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/tools.py:442
@@ -2239,7 +2239,7 @@ msgid "Installation complete."
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:256
-msgid "Installed (v{version}) — server stopped"
+msgid "Installed (v{version}), server stopped"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:278
@@ -2434,11 +2434,11 @@ msgid "Local processing"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/management_dialogs.py:603
-msgid "MCP — read and write"
+msgid "MCP, read and write"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/management_dialogs.py:599
-msgid "MCP — read only"
+msgid "MCP, read only"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/widget_theme_dialogs.py:316
@@ -2875,7 +2875,7 @@ msgid "None detected"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/tools.py:109
-msgid "None — same-origin only"
+msgid "None, same-origin only"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/cleanup_review.py:113
@@ -2918,7 +2918,7 @@ msgid "Nothing queued"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/read_later_queue.py:172
-msgid "Nothing queued — add a bookmark to Read Later to see it here."
+msgid "Nothing queued. Add a bookmark to Read Later to see it here."
 msgstr ""
 
 #: bookmark_organizer_pro/ui/workflow_selective_export.py:420
@@ -3303,11 +3303,11 @@ msgid "READ LATER"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/management_dialogs.py:611
-msgid "REST API — read and write"
+msgid "REST API, read and write"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/management_dialogs.py:607
-msgid "REST API — read only"
+msgid "REST API, read only"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/import_center.py:187
@@ -3377,7 +3377,7 @@ msgid "Reader state set to {state}."
 msgstr ""
 
 #: bookmark_organizer_pro/ui/reader_view.py:93
-msgid "Reader — {title}"
+msgid "Reader: {title}"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/reader_view.py:180
@@ -3819,7 +3819,7 @@ msgid "Running"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:262
-msgid "Running — {models} available"
+msgid "Running, {models} available"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/workflow_detail_panel.py:125
@@ -4373,7 +4373,7 @@ msgstr ""
 #: bookmark_organizer_pro/app_mixins/ai_categorization.py:65
 #: bookmark_organizer_pro/app_mixins/ai_enrichment.py:107
 #: bookmark_organizer_pro/app_mixins/ai_enrichment.py:289
-msgid "Stopped — {error}"
+msgid "Stopped: {error}"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/live_workflow.py:232
@@ -4771,7 +4771,7 @@ msgid "Uncategorized"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_menu_data.py:78
-msgid "Undid assistant {operation} — {count} bookmarks restored"
+msgid "Undid assistant {operation}: {count} bookmarks restored"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:66
@@ -5287,10 +5287,6 @@ msgstr ""
 msgid "{value_0} {value_1}"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/live_workflow.py:125
-msgid "{value_0} — Live"
-msgstr ""
-
 #: bookmark_organizer_pro/ui/widget_theme_dialogs.py:559
 msgid "{value_0} • {value_1}"
 msgstr ""
@@ -5303,6 +5299,10 @@ msgstr ""
 
 #: bookmark_organizer_pro/ui/import_center.py:366
 msgid "{value_0}:"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/live_workflow.py:125
+msgid "{value_0}: Live"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:972

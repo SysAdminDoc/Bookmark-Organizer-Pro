@@ -129,8 +129,8 @@ class ImportExportMixin:
                  bg=theme.bg_primary, fg=theme.text_primary,
                  font=FONTS.subtitle(bold=True)).pack(anchor="w", padx=18, pady=(16, 4))
         tk.Label(dlg, text=_("A safepoint is captured automatically at startup and before each "
-                            "import. Restoring replaces your current bookmarks — a pre-restore "
-                            "backup is saved first, so this is also reversible."),
+                            "import. Restoring replaces your current bookmarks, but a "
+                            "pre-restore backup is saved first, so this is also reversible."),
                  bg=theme.bg_primary, fg=theme.text_muted, font=FONTS.small(),
                  wraplength=590, justify=tk.LEFT).pack(anchor="w", padx=18, pady=(0, 10))
 
@@ -160,7 +160,7 @@ class ImportExportMixin:
         if names:
             lb.selection_set(0)
         else:
-            lb.insert(tk.END, "  " + _("(no backups yet — they appear after the first save/import)"))
+            lb.insert(tk.END, "  " + _("(no backups yet, they appear after the first save or import)"))
 
         def start_recovery(operation: str, source: str = ""):
             title = _("Restoring Library") if operation == "restore" else _("Salvaging Library")
@@ -471,7 +471,7 @@ class ImportExportMixin:
         )
         listing.pack(fill=tk.BOTH, expand=True, padx=22)
         for name, path in profiles:
-            listing.insert(tk.END, f"{name}  —  {path}")
+            listing.insert(tk.END, f"{name}:  {path}")
         listing.selection_set(0)
         listing.focus_set()
 

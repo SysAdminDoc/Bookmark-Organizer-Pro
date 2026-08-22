@@ -329,7 +329,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
             for item in report
         )
         self.contrast_status.configure(
-            text=(_("Contrast passes — ") if not failed else _("Contrast needs attention — ")) + summary,
+            text=(_("Contrast passes: ") if not failed else _("Contrast needs attention: ")) + summary,
             fg=theme.accent_success if not failed else theme.accent_error,
         )
     

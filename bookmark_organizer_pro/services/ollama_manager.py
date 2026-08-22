@@ -39,8 +39,8 @@ OLLAMA_INSTALL_REDIRECT_HOSTS = frozenset(
 OLLAMA_INSTALL_MAX_REDIRECTS = 5
 
 POPULAR_MODELS = [
-    ("qwen3.5", "4.8 GB", "⭐ RECOMMENDED — Best overall quality. Smart, fast, great at tagging and categorizing."),
-    ("phi4", "9.1 GB", "⭐ RECOMMENDED — Excellent reasoning. Best if you have 16+ GB RAM."),
+    ("qwen3.5", "4.8 GB", "⭐ RECOMMENDED. Best overall quality. Smart, fast, great at tagging and categorizing."),
+    ("phi4", "9.1 GB", "⭐ RECOMMENDED. Excellent reasoning. Best if you have 16+ GB RAM."),
     ("qwen3", "4.7 GB", "Great quality, strong with multiple languages."),
     ("gemma3", "3.3 GB", "Good and lightweight. Works well on most computers."),
     ("llama3.2", "2.0 GB", "Smallest download, runs on anything. OK quality for basic tasks."),
@@ -303,8 +303,8 @@ class OllamaManager:
                     handle.write(chunk)
                     if progress and downloaded >= next_progress:
                         progress(
-                            f"Downloading verified Ollama {OLLAMA_INSTALL_VERSION}"
-                            f" — {downloaded / (1024 ** 2):.0f} MiB"
+                            f"Downloading verified Ollama {OLLAMA_INSTALL_VERSION}: "
+                            f"{downloaded / (1024 ** 2):.0f} MiB"
                         )
                         next_progress += 64 * 1024 * 1024
 
@@ -517,7 +517,7 @@ class OllamaManager:
                         completed = data.get("completed", 0)
                         if total and completed and on_progress:
                             pct = int(completed / total * 100)
-                            on_progress(f"{status_text} — {pct}%")
+                            on_progress(f"{status_text}: {pct}%")
                         elif status_text and on_progress:
                             on_progress(status_text)
                     except Exception:

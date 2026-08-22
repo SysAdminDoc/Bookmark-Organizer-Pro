@@ -169,7 +169,7 @@ class ReadLaterQueueDialog(tk.Toplevel):
         self._rows = build_read_later_rows(self._all_bookmarks())
         self.listbox.delete(0, tk.END)
         if not self._rows:
-            self.listbox.insert(tk.END, _("Nothing queued — add a bookmark to Read Later to see it here."))
+            self.listbox.insert(tk.END, _("Nothing queued. Add a bookmark to Read Later to see it here."))
             self._status_var.set(_("Queue is clear. Add items from the bookmark editor or browser extension."))
             self._sync_action_states()
             return

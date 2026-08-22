@@ -44,7 +44,7 @@ class _CLIParser(argparse.ArgumentParser):
             print(f"Unknown command: {token}", file=sys.stderr)
         else:
             prog = self.prog or "bop"
-            print(f"usage: {prog.split()[-1]} — {message}", file=sys.stderr)
+            print(f"usage: {prog.split()[-1]}: {message}", file=sys.stderr)
         raise SystemExit(2)
 
 
@@ -1052,7 +1052,7 @@ Examples:
                       f"conf={r['avg_confidence']}){flag}")
         if report["summary"].get("suspect_flagged"):
             print(f"\n  ({pluralize(report['summary']['suspect_flagged'], 'candidate')} flagged suspect "
-                  f"— search-engine/portal or sensitive reclassification)")
+                  f"as search-engine/portal or sensitive reclassification)")
         print()
         return 0
 
@@ -2014,7 +2014,7 @@ Top Domains:
                         _os.remove(tmp)
                     raise
                 print(f"encrypted -> {out_path}")
-                print(f"\nRECOVERY KEY (save this — it can decrypt without the passphrase):\n  {rk}\n")
+                print(f"\nRECOVERY KEY (save this, it can decrypt without the passphrase):\n  {rk}\n")
             else:
                 out = store.encrypt_file(src, dst)
                 print(f"encrypted -> {out}")
@@ -2384,7 +2384,7 @@ Top Domains:
         if report.storage_backend:
             print(f"Storage backend: {report.storage_backend}")
         for action in report.actions:
-            suffix = f" — {action.detail}" if action.detail else ""
+            suffix = f": {action.detail}" if action.detail else ""
             print(f"Plan: {action.kind} {action.path}{suffix}")
         for warning in report.warnings:
             print(f"Warning: {warning}")
@@ -2617,7 +2617,7 @@ Top Domains:
             matches = collection.evaluate(bms)
             print(f"Matches: {len(matches)}")
             for bm in matches[:20]:
-                print(f"  {bm.title[:60]} — {bm.url[:60]}")
+                print(f"  {bm.title[:60]}: {bm.url[:60]}")
             return 0
         elif sub == "create":
             if not ns.collection_id:
@@ -2685,7 +2685,7 @@ Top Domains:
             results = service.query(query, bms)
             print(f"Results: {len(results)}")
             for bm in results[:20]:
-                print(f"  {bm.title[:60]} — {bm.url[:60]}")
+                print(f"  {bm.title[:60]}: {bm.url[:60]}")
         except Exception as e:
             return self._failure(f"NL query failed: {e}")
 

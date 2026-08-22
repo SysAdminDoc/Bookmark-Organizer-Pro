@@ -76,7 +76,7 @@ class AiMenuDataMixin:
                 "Restored {count} bookmarks to the previous assistant state", count=count,
             ), "success")
             self._set_status(format_message(
-                "Undid assistant {operation} — {count} bookmarks restored",
+                "Undid assistant {operation}: {count} bookmarks restored",
                 operation=latest["operation"], count=count,
             ))
         else:

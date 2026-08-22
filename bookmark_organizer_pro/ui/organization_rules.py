@@ -92,7 +92,7 @@ class OrganizationRuleEditorDialog(tk.Toplevel):
             row=0, column=2, sticky="e", padx=(12, 0), pady=4,
         )
 
-        self._section_label(details, 1, _("Conditions — all must match"))
+        self._section_label(details, 1, _("Conditions, all must match"))
         self.conditions_frame = tk.Frame(details, bg=theme.bg_primary)
         self.conditions_frame.grid(row=2, column=0, columnspan=3, sticky="ew")
         self.conditions_frame.grid_columnconfigure(1, weight=1)
@@ -101,7 +101,7 @@ class OrganizationRuleEditorDialog(tk.Toplevel):
             padx=9, pady=5,
         ).grid(row=3, column=0, columnspan=3, sticky="w", pady=(5, 10))
 
-        self._section_label(details, 4, _("Actions — applied as one batch"))
+        self._section_label(details, 4, _("Actions, applied as one batch"))
         self.actions_frame = tk.Frame(details, bg=theme.bg_primary)
         self.actions_frame.grid(row=5, column=0, columnspan=3, sticky="ew")
         self.actions_frame.grid_columnconfigure(1, weight=1)

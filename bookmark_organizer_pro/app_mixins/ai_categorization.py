@@ -60,9 +60,9 @@ class AiCategorizationMixin:
                 with operation:
                     _run_operation(operation)
             except AIOperationCancelled:
-                dialog.signal_finish("Cancelled — no partial AI output was cached", outcome="warning")
+                dialog.signal_finish("Cancelled. No partial AI output was cached.", outcome="warning")
             except AIBudgetExceeded as exc:
-                dialog.signal_finish(format_message("Stopped — {error}", error=str(exc)), outcome="error")
+                dialog.signal_finish(format_message("Stopped: {error}", error=str(exc)), outcome="error")
 
         def _run_operation(operation: AIOperation):
             try:
@@ -243,7 +243,7 @@ class AiCategorizationMixin:
             self.category_manager.save_categories()
 
             summary = format_message(
-                "Done — {processed} processed, {categorized} categorized, {titles} titles improved",
+                "Done: {processed} processed, {categorized} categorized, {titles} titles improved",
                 processed=processed, categorized=applied_count, titles=titles_changed,
             )
             if failover_count:
