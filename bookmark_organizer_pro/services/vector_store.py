@@ -71,8 +71,16 @@ class VectorStore:
         source_digest_resolver: Optional[Callable[[int], Optional[str]]] = None,
         chunk_chars: int = DEFAULT_CHUNK_CHARS,
         chunk_overlap: int = DEFAULT_CHUNK_OVERLAP,
+        fts_language: str = "English",
+        fts_remove_stop_words: bool = True,
+        fts_ascii_folding: bool = True,
     ):
         self.embedder = embedder
+        # Full-text index tuning. Stop-word removal keeps "the" and "and" from
+        # diluting rankings; ASCII folding lets "cafe" find "café".
+        self.fts_language = str(fts_language or "English")
+        self.fts_remove_stop_words = bool(fts_remove_stop_words)
+        self.fts_ascii_folding = bool(fts_ascii_folding)
         self.store_dir = Path(store_dir)
         self.store_dir.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
@@ -654,8 +662,33 @@ class VectorStore:
             return results[:k]
 
     # ------------------------------------------------------------------
-    def fts_search(self, query: str, k: int = 50) -> List[int]:
-        """Full-text search via the active, compatible LanceDB generation."""
+    def _create_fts_index(self, table) -> None:
+        """Build the FTS index, applying stop-word and tokenizer settings.
+
+        LanceDB gained these options in 0.35; older builds reject the keywords,
+        so an unsupported option falls back to a plain index rather than
+        leaving the library with no full-text search at all.
+        """
+        options: Dict[str, Any] = {"replace": True}
+        language = str(getattr(self, "fts_language", "") or "English").strip() or "English"
+        if getattr(self, "fts_remove_stop_words", True):
+            options["remove_stop_words"] = True
+            options["language"] = language
+        if getattr(self, "fts_ascii_folding", True):
+            options["ascii_folding"] = True
+        try:
+            table.create_fts_index("text", **options)
+            return
+        except (TypeError, ValueError, AttributeError) as exc:
+            log.debug(f"LanceDB FTS options unsupported, using defaults: {exc}")
+        table.create_fts_index("text", replace=True)
+
+    def fts_search(self, query: str, k: int = 50, offset: int = 0) -> List[int]:
+        """Full-text search via the active, compatible LanceDB generation.
+
+        ``offset`` pages through results without re-ranking the whole candidate
+        set on the caller's side.
+        """
         if not query or self._backend != "lancedb":
             return []
         with self._lock:
@@ -667,9 +700,21 @@ class VectorStore:
                 return []
             try:
                 if not getattr(self, "_fts_indexed", False):
-                    table.create_fts_index("text", replace=True)
+                    self._create_fts_index(table)
                     self._fts_indexed = True
-                rows = table.search(query, query_type="fts").limit(k).to_list()
+                search = table.search(query, query_type="fts").limit(k)
+                offset = max(0, int(offset or 0))
+                if offset:
+                    # Older LanceDB builds have no offset(); fall back to
+                    # over-fetching and slicing rather than failing the query.
+                    try:
+                        search = search.offset(offset)
+                        offset = 0
+                    except (AttributeError, TypeError):
+                        search = table.search(query, query_type="fts").limit(k + offset)
+                rows = search.to_list()
+                if offset:
+                    rows = rows[offset:]
                 ordered: List[int] = []
                 seen: set[int] = set()
                 stale_codes: set[str] = set()

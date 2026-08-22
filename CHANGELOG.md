@@ -6,6 +6,13 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Added
 
+- Hybrid search accepts an offset, so long result sets page without re-ranking
+  the whole candidate set on each request. Fusion and reranking both complete
+  before paging, so page two continues page one instead of being cut from a
+  different ordering. The LanceDB full-text index is now built with stop-word
+  removal and ASCII folding (so "cafe" finds "café"), falling back to a plain
+  index on builds that predate those options.
+
 - Added declarative extraction repairs for the handful of sites a generic
   extractor reads badly: a forum thread that keeps only the first post, a page
   whose sidebar drowns the body. A repair names the element holding the article

@@ -99,9 +99,19 @@ class HybridSearch:
     def search(self, bookmarks: Sequence[Bookmark], query: str,
                limit: int = 50, semantic_k: int = 50,
                time_weight: float = 0.0,
-               rerank: bool = False) -> List[HybridResult]:
+               rerank: bool = False,
+               offset: int = 0) -> List[HybridResult]:
+        """Rank bookmarks by fusing keyword, semantic, and full-text results.
+
+        ``offset`` pages through the fused ranking. Fusion still happens over
+        the full candidate set, because paging the inputs separately would
+        change which documents fuse together and make page 2 inconsistent with
+        page 1.
+        """
         if not query:
             return []
+        offset = max(0, int(offset or 0))
+        window = limit + offset
 
         keyword_hits = self.keyword_engine.search(list(bookmarks), query)
         keyword_ids = [bm.id for bm, _ in keyword_hits]
@@ -121,8 +131,8 @@ class HybridSearch:
         if not semantic_ids and not fts_ids:
             return [
                 HybridResult(bookmark=bm, score=score, keyword_rank=i)
-                for i, (bm, score) in enumerate(keyword_hits[:limit])
-            ]
+                for i, (bm, score) in enumerate(keyword_hits[:window])
+            ][offset:]
 
         rankings = [keyword_ids, semantic_ids]
         if fts_ids:
@@ -134,7 +144,7 @@ class HybridSearch:
 
         results: List[HybridResult] = []
         tw = max(0.0, min(1.0, time_weight))
-        for bid, score in fused[:limit * 2]:
+        for bid, score in fused[:max(window * 2, limit * 2)]:
             bm = bm_lookup.get(bid)
             if bm is None:
                 continue
@@ -150,7 +160,7 @@ class HybridSearch:
                 snippet=snippet_map.get(bid, ""),
             ))
         results.sort(key=lambda r: r.score, reverse=True)
-        results = results[:limit]
+        results = results[:window]
 
         if rerank and results:
             texts = [r.snippet or r.bookmark.title for r in results]
@@ -160,4 +170,6 @@ class HybridSearch:
                     r.score = rs
                 results.sort(key=lambda r: r.score, reverse=True)
 
-        return results
+        # Reranking must finish before paging, or page 2 would be cut from a
+        # different ordering than page 1.
+        return results[offset:offset + limit]
