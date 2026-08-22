@@ -396,7 +396,7 @@ msgstr ""
 msgid "All colors"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:525
+#: bookmark_organizer_pro/ui/organization_rules.py:540
 #: bookmark_organizer_pro/ui/widget_theme_dialogs.py:609
 msgid "All files"
 msgstr ""
@@ -458,7 +458,7 @@ msgstr ""
 msgid "Apply filters"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:506
+#: bookmark_organizer_pro/ui/organization_rules.py:521
 msgid "Apply organization rules"
 msgstr ""
 
@@ -1379,11 +1379,11 @@ msgstr ""
 msgid "Delete highlights"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:449
+#: bookmark_organizer_pro/ui/organization_rules.py:464
 msgid "Delete rule"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:449
+#: bookmark_organizer_pro/ui/organization_rules.py:464
 msgid "Delete rule '{name}'?"
 msgstr ""
 
@@ -1663,7 +1663,7 @@ msgid "Export complete"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/highlights_workspace.py:432
-#: bookmark_organizer_pro/ui/organization_rules.py:546
+#: bookmark_organizer_pro/ui/organization_rules.py:561
 #: bookmark_organizer_pro/ui/workflow_selective_export.py:482
 msgid "Export failed"
 msgstr ""
@@ -1681,7 +1681,7 @@ msgstr ""
 msgid "Export highlights"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:540
+#: bookmark_organizer_pro/ui/organization_rules.py:555
 msgid "Export organization rules"
 msgstr ""
 
@@ -1703,7 +1703,7 @@ msgstr ""
 
 #: bookmark_organizer_pro/ui/graph_view.py:520
 #: bookmark_organizer_pro/ui/highlights_workspace.py:434
-#: bookmark_organizer_pro/ui/organization_rules.py:548
+#: bookmark_organizer_pro/ui/organization_rules.py:563
 #: bookmark_organizer_pro/ui/reader_view.py:756
 msgid "Exported {name}"
 msgstr ""
@@ -2088,7 +2088,7 @@ msgstr ""
 msgid "Import cancelled before changes were made"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:532
+#: bookmark_organizer_pro/ui/organization_rules.py:547
 msgid "Import failed"
 msgstr ""
 
@@ -2129,7 +2129,7 @@ msgstr ""
 msgid "Import or add bookmarks before running categorization"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:525
+#: bookmark_organizer_pro/ui/organization_rules.py:540
 msgid "Import organization rules"
 msgstr ""
 
@@ -2161,7 +2161,7 @@ msgstr ""
 msgid "Imported {categories} categories, {patterns} patterns"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:537
+#: bookmark_organizer_pro/ui/organization_rules.py:552
 msgid "Imported {count} rule(s)."
 msgstr ""
 
@@ -2313,8 +2313,8 @@ msgstr ""
 msgid "JSON"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:525
 #: bookmark_organizer_pro/ui/organization_rules.py:540
+#: bookmark_organizer_pro/ui/organization_rules.py:555
 #: bookmark_organizer_pro/ui/widget_theme_dialogs.py:609
 msgid "JSON files"
 msgstr ""
@@ -2353,7 +2353,7 @@ msgstr ""
 msgid "LIBRARY"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:413
+#: bookmark_organizer_pro/ui/organization_rules.py:428
 msgid "Last run: {status}"
 msgstr ""
 
@@ -2583,7 +2583,7 @@ msgid "Missing artifact"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/highlights_workspace.py:309
-#: bookmark_organizer_pro/ui/organization_rules.py:483
+#: bookmark_organizer_pro/ui/organization_rules.py:498
 msgid "Missing bookmark"
 msgstr ""
 
@@ -2720,7 +2720,7 @@ msgid "Next: {action}"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/bookmarks.py:275
-#: bookmark_organizer_pro/ui/organization_rules.py:403
+#: bookmark_organizer_pro/ui/organization_rules.py:418
 msgid "No"
 msgstr ""
 
@@ -3263,7 +3263,7 @@ msgstr ""
 msgid "Preview title changes"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:490
+#: bookmark_organizer_pro/ui/organization_rules.py:505
 msgid "Preview: {affected} bookmark(s), {changes} change(s), {conflicts} conflict(s), {errors} error(s)"
 msgstr ""
 
@@ -3612,11 +3612,11 @@ msgstr ""
 msgid "Replace all existing tags (instead of add/remove)"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:528
+#: bookmark_organizer_pro/ui/organization_rules.py:543
 msgid "Replace rules"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:528
+#: bookmark_organizer_pro/ui/organization_rules.py:543
 msgid "Replace the current rules with this import? Choose No to merge."
 msgstr ""
 
@@ -3873,7 +3873,7 @@ msgstr ""
 msgid "Run Preview to inspect the next batch."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:515
+#: bookmark_organizer_pro/ui/organization_rules.py:530
 msgid "Run {status}: {count} bookmark(s) changed."
 msgstr ""
 
@@ -3960,11 +3960,11 @@ msgstr ""
 msgid "Saved"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:443
+#: bookmark_organizer_pro/ui/organization_rules.py:458
 msgid "Saved rule: {name}"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:386
+#: bookmark_organizer_pro/ui/organization_rules.py:398
 msgid "Saved {count} suggested rule(s). Run Preview to inspect them."
 msgstr ""
 
@@ -4352,6 +4352,10 @@ msgstr ""
 msgid "Site icons enabled; same-origin sources are tried first"
 msgstr ""
 
+#: bookmark_organizer_pro/ui/organization_rules.py:401
+msgid "Skipped {count} over the rule limit."
+msgstr ""
+
 #: bookmark_organizer_pro/app_mixins/tools.py:424
 msgid "Smart Collections"
 msgstr ""
@@ -4476,6 +4480,7 @@ msgstr ""
 
 #: bookmark_organizer_pro/ui/organization_rules.py:360
 #: bookmark_organizer_pro/ui/organization_rules.py:380
+#: bookmark_organizer_pro/ui/organization_rules.py:388
 msgid "Suggest rules"
 msgstr ""
 
@@ -4618,6 +4623,10 @@ msgstr ""
 
 #: bookmark_organizer_pro/ui/workflow_quick_add.py:357
 msgid "The requests package is required to download favicon URLs."
+msgstr ""
+
+#: bookmark_organizer_pro/ui/organization_rules.py:389
+msgid "The rule store already holds its maximum of {count} rules."
 msgstr ""
 
 #: bookmark_organizer_pro/ui/management_dialogs.py:1111
@@ -4866,7 +4875,7 @@ msgstr ""
 msgid "Undo last"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:521
+#: bookmark_organizer_pro/ui/organization_rules.py:536
 msgid "Undo {status}: {count} bookmark(s)."
 msgstr ""
 
@@ -5026,7 +5035,7 @@ msgid "YYYY-MM-DD"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/bookmarks.py:275
-#: bookmark_organizer_pro/ui/organization_rules.py:403
+#: bookmark_organizer_pro/ui/organization_rules.py:418
 msgid "Yes"
 msgstr ""
 
@@ -5184,7 +5193,7 @@ msgstr ""
 msgid "{count} bookmarks in the current view."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:507
+#: bookmark_organizer_pro/ui/organization_rules.py:522
 msgid "{count} conflict(s) will be skipped. Apply the remaining changes?"
 msgstr ""
 
@@ -5212,7 +5221,7 @@ msgstr ""
 msgid "{count} rows selected"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/organization_rules.py:415
+#: bookmark_organizer_pro/ui/organization_rules.py:430
 msgid "{count} rule(s)"
 msgstr ""
 

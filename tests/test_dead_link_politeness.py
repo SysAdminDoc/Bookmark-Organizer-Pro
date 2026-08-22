@@ -78,6 +78,33 @@ class TestDeadLinkPoliteness(unittest.TestCase):
         self.assertEqual(scanner._progress.rate_limited, 4)
         self.assertTrue(slept, "the scanner must back off before retrying")
 
+    def test_a_rate_limited_bookmark_is_not_marked_broken_in_the_library(self):
+        """`is_valid` drives find_broken_links, `is:broken`, and the broken
+        quick filter, so a host that never answered must not set it."""
+        bookmark = _bookmark(1, "https://slow.test/page")
+        bookmark.is_valid = True
+        server = _FakeServer({bookmark.url: [429]})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            scanner, _slept = _scanner([bookmark], server, tmp)
+            scanner.scan_now()
+
+        self.assertTrue(bookmark.is_valid, "a rate-limited link must not be marked dead")
+        self.assertIn("rate_limited_at", bookmark.custom_data)
+
+    def test_a_cached_rescan_still_records_a_scan_time(self):
+        bookmark = _bookmark(1, "https://cached.test/page")
+        server = _FakeServer({bookmark.url: [200]})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            scanner, _slept = _scanner([bookmark], server, tmp)
+            scanner.scan_now()
+            first = scanner._last_scan
+            scanner.scan_now(cache_ttl_hours=24)
+
+        self.assertIsNotNone(scanner._last_scan)
+        self.assertGreaterEqual(scanner._last_scan, first)
+
     def test_a_host_that_recovers_after_backoff_is_healthy(self):
         bookmark = _bookmark(1, "https://flaky.test/page")
         server = _FakeServer({bookmark.url: [429, 200]})

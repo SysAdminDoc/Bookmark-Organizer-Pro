@@ -11,6 +11,7 @@ import csv
 import html as html_module
 import json
 import re
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Iterator, List, Tuple
@@ -209,6 +210,9 @@ class MappedCSVImporter:
                 if not url:
                     self.stats.record("row has no URL column value")
                     continue
+                if not url.startswith(("http://", "https://")):
+                    self.stats.record("row URL was not http(s)")
+                    continue
                 tags = [t.strip() for t in re.split(r"[,;]", self._value(row, "tags")) if t.strip()]
                 try:
                     out.append(Bookmark(
@@ -390,6 +394,13 @@ class MatterImporter:
 
 
 # ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class _UnreadableMember:
+    """A metadata file that could not be parsed, reported instead of dropped."""
+
+    error: str
+
+
 class OmnivoreImporter:
     """Omnivore export: a directory or zip of ``metadata_*.json`` files.
 
@@ -407,9 +418,10 @@ class OmnivoreImporter:
         if path.is_dir():
             for candidate in sorted(path.rglob("metadata_*.json")):
                 try:
-                    yield candidate.name, json.loads(candidate.read_text(encoding="utf-8"))
-                except (OSError, json.JSONDecodeError):
-                    continue
+                    # utf-8-sig so a BOM-prefixed export member still parses.
+                    yield candidate.name, json.loads(candidate.read_text(encoding="utf-8-sig"))
+                except (OSError, json.JSONDecodeError) as exc:
+                    yield candidate.name, _UnreadableMember(str(exc))
             return
         if path.suffix.lower() == ".zip":
             import zipfile
@@ -420,16 +432,16 @@ class OmnivoreImporter:
                              if n.endswith(".json") and "metadata_" in Path(n).name]
                     for name in sorted(names):
                         try:
-                            yield name, json.loads(archive.read(name).decode("utf-8"))
-                        except (KeyError, ValueError, UnicodeDecodeError):
-                            continue
+                            yield name, json.loads(archive.read(name).decode("utf-8-sig"))
+                        except (KeyError, ValueError, UnicodeDecodeError) as exc:
+                            yield name, _UnreadableMember(str(exc))
             except (OSError, zipfile.BadZipFile):
                 return
             return
         try:
-            yield path.name, json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return
+            yield path.name, json.loads(path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError) as exc:
+            yield path.name, _UnreadableMember(str(exc))
 
     @staticmethod
     def metadata_files(directory: str) -> List[str]:
@@ -456,6 +468,9 @@ class OmnivoreImporter:
 
     def _collect_one(self, source: Path, out: List[Bookmark], seen: set) -> None:
         for _name, document in self._iter_documents(source):
+            if isinstance(document, _UnreadableMember):
+                self.stats.record(f"metadata file could not be parsed: {document.error[:120]}")
+                continue
             entries = document if isinstance(document, list) else []
             if isinstance(document, dict):
                 for key in ("items", "data", "articles"):
@@ -499,7 +514,10 @@ class OmnivoreImporter:
                 if state in {"SUCCEEDED", "SAVED", "ACTIVE", ""}:
                     bookmark.read_later = True
                 if state == "ARCHIVED":
+                    # Archived means read and filed away, which is distinct from
+                    # never having been saved to the queue at all.
                     bookmark.read_later = False
+                    bookmark.is_archived = True
                 out.append(bookmark)
 
 

@@ -374,6 +374,12 @@ def validate_mcp_server_json() -> dict:
     name = str(document["name"])
     if "/" not in name or not name.startswith("io.github."):
         raise ContractError(f"server.json name {name!r} is not a reverse-DNS namespace")
+    # The published schema caps these; exceeding one is rejected at publish time
+    # rather than here, so the limits are enforced locally instead.
+    if len(str(document["description"])) > 100:
+        raise ContractError("server.json description exceeds the schema's 100 character limit")
+    if len(name) > 200:
+        raise ContractError("server.json name exceeds the schema's 200 character limit")
 
     packages = document["packages"]
     if not isinstance(packages, list) or not packages:

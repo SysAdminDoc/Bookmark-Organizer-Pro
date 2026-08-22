@@ -293,6 +293,25 @@ class TestMappedCSVImporter(unittest.TestCase):
         self.assertEqual(importer.stats.skipped, 1)
         self.assertIn("row has no URL column value", importer.stats.causes)
 
+    def test_non_http_urls_are_rejected(self):
+        from bookmark_organizer_pro.importers_extra import MappedCSVImporter
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._write(
+                Path(tmp), "mixed.csv",
+                "Title,URL\n"
+                "Script,javascript:alert(1)\n"
+                "Local,file:///C:/Windows/win.ini\n"
+                "Ftp,ftp://ftp.example.com/pub\n"
+                "Good,https://example.com/a\n",
+            )
+            importer = MappedCSVImporter()
+            entries = list(importer.from_path(str(path)))
+
+        self.assertEqual([b.url for b in entries], ["https://example.com/a"])
+        self.assertEqual(importer.stats.skipped, 3)
+        self.assertIn("row URL was not http(s)", importer.stats.causes)
+
     def test_header_inspection_suggests_a_mapping(self):
         from bookmark_organizer_pro.importers_extra import MappedCSVImporter
 

@@ -204,7 +204,16 @@ class DeadLinkScanner:
             self._progress = progress
 
         if not bookmarks:
+            # A fully cached rescan is still a scan; leaving _last_scan behind
+            # makes the library look permanently unchecked.
+            with self._lock:
+                self._last_scan = datetime.now()
             self._persist(records)
+            if progress_callback:
+                try:
+                    progress_callback(progress)
+                except Exception:
+                    pass
             return records
 
         now = datetime.now().isoformat()
@@ -220,10 +229,17 @@ class DeadLinkScanner:
                     log.debug(f"check failed for {bm.url}: {exc}")
                 with self._lock:
                     bm.last_checked = now
-                    bm.is_valid = is_valid
                     bm.http_status = status_code
                     redirect = str(bm.custom_data.get("redirect_url", "") or "")
-                    if not rate_limited:
+                    if rate_limited:
+                        # The host never gave a verdict. Writing is_valid=False
+                        # here would mark the bookmark broken everywhere it is
+                        # surfaced (find_broken_links, `is:broken`, the broken
+                        # quick filter), so the previous verdict stands.
+                        bm.custom_data["rate_limited_at"] = now
+                    else:
+                        bm.is_valid = is_valid
+                        bm.custom_data.pop("rate_limited_at", None)
                         self._verdicts[bm.url] = {
                             "is_valid": is_valid, "status": status_code, "checked_at": now,
                         }

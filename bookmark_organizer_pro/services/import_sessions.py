@@ -471,6 +471,8 @@ class ImportSessionManager:
                 importers_extra.MatterImporter,
                 importers_extra.WallabagJSONImporter,
                 importers_extra.ArcBrowserImporter,
+                importers_extra.MappedCSVImporter,
+                importers_extra.OmnivoreImporter,
                 FirefoxBookmarkBackupImporter,
                 ZoteroRDFSessionImporter,
             )

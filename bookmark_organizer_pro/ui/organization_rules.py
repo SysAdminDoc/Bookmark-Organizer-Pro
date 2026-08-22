@@ -379,13 +379,28 @@ class OrganizationRulesDialog(tk.Toplevel):
 
         if not messagebox.askyesno(_("Suggest rules"), "\n".join(lines), parent=self):
             return
-        for item in suggestions:
+
+        from bookmark_organizer_pro.services.organization_rules import MAX_RULES
+
+        room = max(0, MAX_RULES - len(self.service.list_rules()))
+        if room <= 0:
+            messagebox.showwarning(
+                _("Suggest rules"),
+                format_message("The rule store already holds its maximum of {count} rules.",
+                               count=MAX_RULES),
+                parent=self,
+            )
+            return
+        adopting = suggestions[:room]
+        for item in adopting:
             self.service.add_rule(item.to_rule_document())
         self._refresh_rules()
-        self.preview_status.configure(
-            text=format_message("Saved {count} suggested rule(s). Run Preview to inspect them.",
-                                count=len(suggestions))
-        )
+        message = format_message("Saved {count} suggested rule(s). Run Preview to inspect them.",
+                                 count=len(adopting))
+        if len(adopting) < len(suggestions):
+            message += " " + format_message("Skipped {count} over the rule limit.",
+                                            count=len(suggestions) - len(adopting))
+        self.preview_status.configure(text=message)
 
     @staticmethod
     def _button(parent, text, command, style="default"):

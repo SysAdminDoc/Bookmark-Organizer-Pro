@@ -74,6 +74,44 @@ class TestRuleSuggestions(unittest.TestCase):
         # Without that exclusion the same evidence does produce a proposal.
         self.assertEqual(len(suggest_domain_category_rules(bookmarks)), 1)
 
+    def test_subdomains_of_shipped_patterns_are_skipped(self):
+        """The pattern engine matches by suffix, so a rule for a subdomain of a
+        shipped domain would change nothing."""
+        from bookmark_organizer_pro.core.default_categories import DEFAULT_CATEGORIES
+        from bookmark_organizer_pro.core.pattern_engine import PatternEngine
+
+        engine = PatternEngine(DEFAULT_CATEGORIES)
+        known = shipped_pattern_domains()
+        for host in ("engineering.github.com", "careers.stackoverflow.com", "blog.python.org"):
+            with self.subTest(host=host):
+                self.assertIsNotNone(engine.match(f"https://{host}/x", ""))
+                bookmarks = [_bookmark(i, f"https://{host}/p{i}", "My Own Folder") for i in range(4)]
+                self.assertEqual(
+                    suggest_domain_category_rules(bookmarks, known_domains=known), []
+                )
+
+    def test_long_hostnames_do_not_collide_after_name_truncation(self):
+        from bookmark_organizer_pro.services.organization_rules import (
+            MAX_NAME_LENGTH,
+            OrganizationRule,
+        )
+        from bookmark_organizer_pro.services.rule_suggestions import _MAX_RULE_NAME
+
+        self.assertEqual(_MAX_RULE_NAME, MAX_NAME_LENGTH)
+
+        prefix = "a" * 63 + "." + "b" * 63
+        bookmarks = []
+        for index, tail in enumerate(("one.example", "two.example")):
+            bookmarks += [
+                _bookmark(index * 10 + i, f"https://{prefix}.{tail}/p{i}", "Cat")
+                for i in range(3)
+            ]
+        suggestions = suggest_domain_category_rules(bookmarks)
+        self.assertEqual(len(suggestions), 2)
+
+        names = {OrganizationRule.from_dict(s.to_rule_document()).name for s in suggestions}
+        self.assertEqual(len(names), 2, f"names collided after truncation: {names}")
+
     def test_domains_already_covered_by_a_saved_rule_are_skipped(self):
         bookmarks = [_bookmark(i, f"https://covered.test/{i}", "Work") for i in range(5)]
         self.assertEqual(

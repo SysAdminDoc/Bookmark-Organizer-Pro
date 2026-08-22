@@ -73,7 +73,30 @@ class TestOmnivoreImporter(unittest.TestCase):
 
         archived = next(b for b in entries if b.url.endswith("/archived"))
         self.assertFalse(archived.read_later)
+        self.assertTrue(archived.is_archived, "archived state must be distinguishable")
         self.assertEqual(archived.tags, ["done"])
+
+    def test_unparseable_and_bom_members_are_reported_not_dropped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            export = Path(tmp) / "export"
+            export.mkdir()
+            (export / "metadata_0.json").write_text(json.dumps(_BATCH_ONE), encoding="utf-8")
+            (export / "metadata_1.json").write_text('[{"url": "https://x.test/1"', encoding="utf-8")
+            # A BOM-prefixed member must still parse rather than vanish.
+            (export / "metadata_2.json").write_text(
+                json.dumps([{"url": "https://bom.test/1", "title": "BOM", "labels": []}]),
+                encoding="utf-8-sig",
+            )
+            importer = OmnivoreImporter()
+            entries = list(importer.from_path(str(export)))
+
+        urls = {b.url for b in entries}
+        self.assertIn("https://bom.test/1", urls)
+        self.assertEqual(importer.stats.skipped, 1)
+        self.assertTrue(
+            any("could not be parsed" in cause for cause in importer.stats.causes),
+            importer.stats.causes,
+        )
 
     def test_zip_export_is_read_without_unpacking(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -28,6 +28,10 @@ PLACEHOLDER_CATEGORIES = frozenset({
 DEFAULT_MIN_SUPPORT = 3
 DEFAULT_MIN_AGREEMENT = 0.8
 
+# Mirrors organization_rules.MAX_NAME_LENGTH; imported lazily there to avoid a
+# circular import, so the value is asserted equal by the tests.
+_MAX_RULE_NAME = 120
+
 
 @dataclass(frozen=True)
 class RuleSuggestion:
@@ -43,7 +47,19 @@ class RuleSuggestion:
 
     @property
     def name(self) -> str:
-        return f"{self.domain} to {self.category}"
+        """A name that stays unique after the rule store truncates it.
+
+        Rules are deduplicated by name, and long hostnames sharing a prefix
+        would collapse into one rule once truncated, silently dropping every
+        proposal but the last.
+        """
+        full = f"{self.domain} to {self.category}"
+        if len(full) <= _MAX_RULE_NAME:
+            return full
+        import hashlib
+
+        digest = hashlib.sha256(full.encode("utf-8")).hexdigest()[:8]
+        return full[: _MAX_RULE_NAME - len(digest) - 1] + " " + digest
 
     def to_rule_document(self) -> Dict[str, Any]:
         """Shape this proposal as an OrganizationRule payload."""
@@ -98,15 +114,24 @@ def suggest_domain_category_rules(
     """
     min_support = max(1, int(min_support))
     min_agreement = min(1.0, max(0.0, float(min_agreement)))
+    # The pattern engine registers each shipped domain for exact AND suffix
+    # match, so "github.com" already routes "engineering.github.com". Comparing
+    # exact strings would propose a rule that changes nothing.
     skip = {str(d).strip().lower().removeprefix("www.") for d in (known_domains or ())}
     skip |= {str(d).strip().lower().removeprefix("www.") for d in (existing_rule_domains or ())}
+    skip.discard("")
 
     by_domain: Dict[str, Counter] = defaultdict(Counter)
     examples: Dict[Tuple[str, str], List[str]] = defaultdict(list)
 
+    def _already_routed(domain: str) -> bool:
+        if domain in skip:
+            return True
+        return any(domain.endswith("." + known) for known in skip)
+
     for bookmark in bookmarks:
         domain = _domain_of(bookmark)
-        if not domain or domain in skip:
+        if not domain or _already_routed(domain):
             continue
         category = str(getattr(bookmark, "category", "") or "").strip()
         if _is_placeholder(category):

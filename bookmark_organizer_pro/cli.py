@@ -680,9 +680,19 @@ Examples:
                     for example in suggestion.examples:
                         print(f"  e.g. {example}")
             if getattr(ns, "adopt", False) and suggestions:
-                for suggestion in suggestions:
+                from bookmark_organizer_pro.services.organization_rules import MAX_RULES
+
+                room = max(0, MAX_RULES - len(service.list_rules()))
+                if room <= 0:
+                    self._error(f"Rule store is full ({MAX_RULES} rules); adopted nothing")
+                    return 1
+                adopting = suggestions[:room]
+                for suggestion in adopting:
                     service.add_rule(suggestion.to_rule_document())
-                print(f"Saved {len(suggestions)} rule(s). Run 'rules preview' before applying.")
+                print(f"Saved {len(adopting)} rule(s). Run 'rules preview' before applying.")
+                if len(adopting) < len(suggestions):
+                    print(f"Skipped {len(suggestions) - len(adopting)}: "
+                          f"the rule store holds at most {MAX_RULES}.")
             return 0
 
         if action == "list":
