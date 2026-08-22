@@ -2,6 +2,18 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- A capture that reached the library but failed to write its offline archive
+  can now be retried. The first attempt saves the bookmark and then hits the
+  storage error, so the row survives; the retry used to collide with that row
+  and get "Bookmark already exists", which the extension treats as final, so
+  the captured page was thrown away. A retry that carries a snapshot now
+  attaches it to the bookmark already there and answers 200. A duplicate save
+  with no capture is still refused the same way it always was.
+
 ## [v6.15.0] - 2026-08-22
 
 ### Added

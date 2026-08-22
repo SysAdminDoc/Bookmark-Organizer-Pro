@@ -116,7 +116,7 @@ async function quickSave(url, title, notes, source = "context_menu") {
 
   // The shared client owns enqueuePendingSave so every capture surface deduplicates identically.
   const result = await saveBookmarkPayload(payload, values, { source });
-  return result.status === 201 || result.status === 409;
+  return isSavedStatus(result.status) || result.status === 409;
 }
 
 api.contextMenus.onClicked.addListener(async (info, tab) => {

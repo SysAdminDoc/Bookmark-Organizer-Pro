@@ -422,7 +422,7 @@ async function saveBookmark() {
     if (result.queued) {
       setAddStatus(extensionMessage("queuedSave", [], "API unavailable. Save added to the retry journal."), "warning");
       await refreshPendingPanel();
-    } else if (result.status === 201) {
+    } else if (isSavedStatus(result.status)) {
       const preserved = result.body && result.body.browser_snapshot;
       setAddStatus(preserved
         ? extensionMessage("savedWithOfflineCopy", [], "Saved with a sanitized offline copy. No cookies were sent.")
@@ -481,7 +481,7 @@ async function importReadingList() {
           category: config.defaultCategory,
           read_later: !item.hasBeenRead
         }, config, { source: "reading_list" });
-        if (result.status === 201) imported++;
+        if (isSavedStatus(result.status)) imported++;
         else if (result.status === 409) duplicates++;
         else if (result.queued) queued++;
         else failed++;

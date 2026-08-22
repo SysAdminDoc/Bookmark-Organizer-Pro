@@ -884,6 +884,68 @@ class BookmarkAPI:
                 else:
                     self._send_json({"error": "Not found"}, 404)
             
+            def _store_capture(self, bookmark, capture, bookmark_manager, *, created):
+                """Archive ``capture`` against ``bookmark`` and persist the row.
+
+                Returns the archiver's report, or ``None`` once it has already
+                answered the request. ``created`` says whether this request is
+                what put the row in the library: only then may a failure roll
+                the row back, because on the attach path the bookmark predates
+                the request and has to survive a failed capture.
+                """
+                from pathlib import Path
+
+                from bookmark_organizer_pro.services.snapshot import SnapshotArchiver
+
+                archiver = None
+                try:
+                    snapshots_dir = Path(bookmark_manager.filepath).parent / "snapshots"
+                    archiver = SnapshotArchiver(snapshots_dir=snapshots_dir)
+                    report = archiver.import_browser_snapshot(
+                        bookmark,
+                        str(capture.get('html') or ''),
+                        source_url=str(capture.get('source_url') or ''),
+                        selection=str(capture.get('selection') or '')[:500],
+                        resource_summary=capture.get('resources'),
+                    )
+                    bookmark_manager.save_bookmarks()
+                    return report
+                except (ValueError, RuntimeError, OSError, sqlite3.Error) as exc:
+                    if archiver is not None:
+                        with contextlib.suppress(Exception):
+                            archiver.delete_snapshot(bookmark)
+                    # True means nothing half-written is left behind: either
+                    # the row was rolled back, or it predates this request and
+                    # was never this request's to remove.
+                    rolled_back = True
+                    if created:
+                        # When the failure IS the library write, the rollback
+                        # write fails too. Letting it raise skipped the 503
+                        # below and left a half-created bookmark persisted.
+                        try:
+                            bookmark_manager.delete_bookmark(bookmark.id)
+                        except Exception as rollback_error:
+                            rolled_back = False
+                            log.error(
+                                "Could not roll back the partial snapshot bookmark "
+                                f"{bookmark.id}: {rollback_error}"
+                            )
+                    if isinstance(exc, ValueError) and rolled_back:
+                        # The capture itself is unusable, so retrying it would
+                        # fail the same way.
+                        self._send_json({"error": str(exc)}, 422)
+                        return None
+                    # Storage failed, not the capture. 422 would tell the
+                    # extension to discard the page it just captured instead
+                    # of queueing a retry.
+                    log.error(f"Browser snapshot save failed against storage: {exc}")
+                    self._send_json(
+                        {"error": "Snapshot could not be stored; the save will be retried"},
+                        503,
+                        {"Retry-After": 5},
+                    )
+                    return None
+
             def do_POST(self):
                 path_parts, _ = self._parse_path()
                 is_pairing = path_parts[:2] == ['extension', 'pair']
@@ -994,8 +1056,25 @@ class BookmarkAPI:
                         if capture is not None and str(capture.get('source_url') or '') != raw_url:
                             self._send_json({"error": "Snapshot source URL does not match the request URL"}, 400)
                             return
-                        if bookmark_manager.url_exists(raw_url):
+                        existing = bookmark_manager.find_by_url(raw_url)
+                        if existing is not None and capture is None:
                             self._send_json({"error": "Bookmark already exists"}, 409)
+                            return
+                        if existing is not None:
+                            # A capture whose URL is already in the library
+                            # attaches to that row instead of colliding with
+                            # it. This is the retry path: an earlier attempt
+                            # persisted the bookmark and then failed to write
+                            # the archive, and answering 409 here would make
+                            # the extension discard the page it captured.
+                            report = self._store_capture(
+                                existing, capture, bookmark_manager, created=False
+                            )
+                            if report is None:
+                                return
+                            response = asdict(existing)
+                            response['browser_snapshot'] = report
+                            self._send_json(response, 200)
                             return
 
                         tags = data.get('tags', [])
@@ -1018,54 +1097,10 @@ class BookmarkAPI:
                             return
                         response = asdict(bookmark)
                         if capture is not None:
-                            from pathlib import Path
-
-                            from bookmark_organizer_pro.services.snapshot import SnapshotArchiver
-
-                            archiver = None
-                            try:
-                                snapshots_dir = Path(bookmark_manager.filepath).parent / "snapshots"
-                                archiver = SnapshotArchiver(snapshots_dir=snapshots_dir)
-                                report = archiver.import_browser_snapshot(
-                                    bookmark,
-                                    str(capture.get('html') or ''),
-                                    source_url=str(capture.get('source_url') or ''),
-                                    selection=str(capture.get('selection') or '')[:500],
-                                    resource_summary=capture.get('resources'),
-                                )
-                                bookmark_manager.save_bookmarks()
-                            except (ValueError, RuntimeError, OSError, sqlite3.Error) as exc:
-                                if archiver is not None:
-                                    with contextlib.suppress(Exception):
-                                        archiver.delete_snapshot(bookmark)
-                                # When the failure IS the library write, the
-                                # rollback write fails too. Letting it raise
-                                # skipped the 503 below and left a half-created
-                                # bookmark persisted, so the extension's retry
-                                # then hit 409 and dropped the capture.
-                                rolled_back = True
-                                try:
-                                    bookmark_manager.delete_bookmark(bookmark.id)
-                                except Exception as rollback_error:
-                                    rolled_back = False
-                                    log.error(
-                                        "Could not roll back the partial snapshot bookmark "
-                                        f"{bookmark.id}: {rollback_error}"
-                                    )
-                                if isinstance(exc, ValueError) and rolled_back:
-                                    # The capture itself is unusable, so
-                                    # retrying it would fail the same way.
-                                    self._send_json({"error": str(exc)}, 422)
-                                    return
-                                # Storage failed, not the capture. 422 would
-                                # tell the extension to discard the page it
-                                # just captured instead of queueing a retry.
-                                log.error(f"Browser snapshot save failed against storage: {exc}")
-                                self._send_json(
-                                    {"error": "Snapshot could not be stored; the save will be retried"},
-                                    503,
-                                    {"Retry-After": 5},
-                                )
+                            report = self._store_capture(
+                                bookmark, capture, bookmark_manager, created=True
+                            )
+                            if report is None:
                                 return
                             response = asdict(bookmark)
                             response['browser_snapshot'] = report

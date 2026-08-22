@@ -161,7 +161,7 @@ async function saveBookmark() {
     if (result.queued) {
       setStatus(extensionMessage("queuedSave", [], "API unavailable. Save added to the retry journal."), "warning");
       await refreshPendingPanel();
-    } else if (result.status === 201) {
+    } else if (isSavedStatus(result.status)) {
       const preserved = result.body && result.body.browser_snapshot;
       setStatus(preserved
         ? extensionMessage("savedWithOfflineCopy", [], "Saved with a sanitized offline copy. No cookies were sent.")

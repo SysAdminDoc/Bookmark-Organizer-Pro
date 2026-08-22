@@ -105,6 +105,12 @@ async function pairExtension(config, { replace = false } = {}) {
   return { status: response.status, body };
 }
 
+// A capture replayed against a bookmark the previous attempt already
+// persisted comes back 200, not 201: the row was updated, not created.
+function isSavedStatus(status) {
+  return status === 200 || status === 201;
+}
+
 function isRetryableSaveStatus(status) {
   return status === 408 || status === 425 || status === 429 || status >= 500;
 }
@@ -717,7 +723,7 @@ async function retryPendingSaves() {
       const result = await saveBookmarkPayload(
         item.payload, config, { source: item.source || "retry", journal: false }
       );
-      if (result.status === 201 || result.status === 409) {
+      if (isSavedStatus(result.status) || result.status === 409) {
         resolved += 1;
       } else {
         remaining.push({

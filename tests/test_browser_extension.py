@@ -744,7 +744,7 @@ vm.runInContext(`(async () => {
         self.assertIn("saveBookmarkPayload(payload, values, { source })", background_js)
         self.assertIn("HTTP ${response.status}", shared_js)
         self.assertIn("API unavailable", shared_js)
-        self.assertIn("result.status === 201 || result.status === 409", shared_js)
+        self.assertIn("isSavedStatus(result.status) || result.status === 409", shared_js)
         for html in (popup_html, sidepanel_html):
             self.assertIn('id="pendingPanel"', html)
             self.assertIn('id="pendingCount"', html)
@@ -756,6 +756,47 @@ vm.runInContext(`(async () => {
             self.assertIn("refreshPendingPanel", js)
             self.assertIn("retryPendingSaves", js)
             self.assertIn("clearPendingSaves", js)
+
+    def test_a_replayed_capture_answered_200_counts_as_saved(self):
+        """R-143. A capture retried against a row the first attempt already
+        persisted comes back 200, not 201. Every save surface used to compare
+        against 201 alone, so the drain would have kept requeueing a save the
+        server had just stored."""
+        harness = """
+const fs = require("fs");
+const vm = require("vm");
+const chrome = {
+  storage: { local: { get: async values => values, set: async () => {} } },
+  runtime: { sendMessage: async () => ({}), getURL: path => path }
+};
+const context = vm.createContext({ chrome, console, fetch: async () => ({}) });
+context.globalThis = context;
+vm.runInContext(fs.readFileSync(process.argv[1], "utf8"), context);
+vm.runInContext(`globalThis.result = {
+  saved: [200, 201].map(isSavedStatus),
+  notSaved: [400, 403, 409, 422, 500, 503, 0].map(isSavedStatus),
+  retryable: [408, 425, 429, 500, 503].map(isRetryableSaveStatus),
+  notRetryable: [200, 201, 400, 409, 422].map(isRetryableSaveStatus)
+}`, context);
+process.stdout.write(JSON.stringify(context.result));
+"""
+        completed = subprocess.run(
+            ["node", "-e", harness, str(EXT_DIR / "shared.js")],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = json.loads(completed.stdout)
+        self.assertEqual(result["saved"], [True, True])
+        self.assertEqual(result["notSaved"], [False] * 7)
+        self.assertEqual(result["retryable"], [True] * 5)
+        self.assertEqual(result["notRetryable"], [False] * 5)
+
+        for name in ("background.js", "popup.js", "sidepanel.js"):
+            source = (EXT_DIR / name).read_text(encoding="utf-8")
+            self.assertNotIn("status === 201", source, f"{name} still gates on 201 alone")
 
     def test_extension_assets_exist(self):
         for name in [
@@ -1459,6 +1500,73 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
                 # the rollback raised and the generic outer handler replied,
                 # so the failure was reported as a plain library write error.
                 self.assertIn("Snapshot", body["error"])
+            finally:
+                api.stop()
+
+    def test_the_retry_after_a_late_snapshot_failure_attaches_to_the_existing_row(self):
+        """R-143. The first attempt persists the row and then fails to write the
+        archive, so the bookmark survives the failed rollback. The extension
+        retries as the 503 told it to, and that retry used to hit the duplicate
+        check and get a terminal 409, discarding the page it had captured."""
+        import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            api = main.BookmarkAPI(
+                manager,
+                port=0,
+                extension_origins_file=Path(tmp) / "approved-origins.json",
+            )
+            try:
+                api.start()
+                token = self._api_token()
+                base_url = f"http://127.0.0.1:{api.port}"
+                origin = f"chrome-extension://{'e' * 32}"
+                self._pair_extension(base_url, token, origin)
+
+                url = "https://snapshot-retry.example.com/a"
+                payload = {
+                    "url": url,
+                    "title": "Retried capture",
+                    "browser_snapshot": {
+                        "html": "<html><body><p>Captured body.</p></body></html>",
+                        "source_url": url,
+                    },
+                }
+                capture_headers = {"Origin": origin, "X-BOP-Capture-Version": "1"}
+
+                real_save = manager.storage.save
+                calls = {"count": 0}
+
+                def fail_after_first(*args, **kwargs):
+                    calls["count"] += 1
+                    if calls["count"] == 1:
+                        return real_save(*args, **kwargs)
+                    raise OSError("disk filled up mid-save")
+
+                with mock.patch.object(
+                    manager.storage, "save", side_effect=fail_after_first
+                ):
+                    status, body = self._post_json(
+                        base_url, payload, token, capture_headers
+                    )
+                self.assertEqual(status, 503, body)
+                self.assertEqual(len(manager.get_all_bookmarks()), 1)
+
+                # Storage recovers and the extension replays the same payload.
+                status, body = self._post_json(
+                    base_url, payload, token, capture_headers
+                )
+                self.assertEqual(status, 200, body)
+                self.assertTrue(body["browser_snapshot"]["stored"])
+                self.assertTrue(Path(body["snapshot_path"]).exists())
+                self.assertEqual(len(manager.get_all_bookmarks()), 1)
+
+                # A duplicate save carrying no capture is still a plain 409.
+                status, body = self._post_json(
+                    base_url, {"url": url, "title": "Plain duplicate"}, token
+                )
+                self.assertEqual(status, 409, body)
             finally:
                 api.stop()
 

@@ -18,16 +18,6 @@ Audit-only pass against `d51beb7` (v6.14.0). Baseline before any finding was log
   Confidence: Verified
   Effort: M
 
-- [ ] P3 — R-143: A snapshot save that fails after the row is persisted leaves a bookmark the retry cannot replace
-  Category: reliability
-  Where: `bookmark_organizer_pro/services/api.py:1025-1060` (browser-snapshot branch), rollback at `:1035`; the retry then hits the duplicate check at `:982` (`bookmark_manager.url_exists`) and gets 409 at `:983`.
-  Problem: `add_bookmark_clean` saves the row, then `import_browser_snapshot` plus a second `save_bookmarks()` runs. If storage fails on that second write, the row is already on disk, and the rollback `delete_bookmark` fails for the same reason. The response is now correctly 503 with `Retry-After` (fixed 2026-08-22), so the extension retries as instructed, but the retry finds the URL already present and gets 409 "Bookmark already exists". The extension treats 409 as terminal, so the captured page is discarded even though only the snapshot failed. The bookmark itself survives, so no data is lost, but the user is told the save failed and the offline copy never lands.
-  Evidence: Reported by adversarial review on 2026-08-22 with a probe that fails `storage.save` from the second call: attempt 1 returns 503 and persists one record; attempt 2 returns 409 and `snapshot stored? False`. `tests/test_browser_extension.py::test_a_snapshot_storage_failure_after_the_row_is_saved_still_answers_503` now pins the 503 and that the snapshot handler answered, but does not cover the retry.
-  Fix: Let a capture attach to an existing bookmark instead of colliding with it. When `POST /bookmarks` carries a `browser_snapshot` and the URL already exists, run the snapshot import against the existing row and answer 200 rather than 409, keeping 409 for a plain duplicate save with no capture. Alternatively make the snapshot path reserve the row only after the archive succeeds, which is a larger change to `import_browser_snapshot`'s contract.
-  Acceptance: A test drives the two-attempt sequence (storage fails on the second write, then recovers) and asserts the retry stores the snapshot and returns success, with exactly one bookmark in the library.
-  Confidence: Verified
-  Effort: M
-
 - [ ] P3 — R-133: Eleven blocking `messagebox.askyesno` confirmations contradict the product rule of immediate action with undo
   Category: ux
   Where: `bookmark_organizer_pro/app_mixins/import_export.py` (2, including the folder-import confirmation at `:871` added in v6.14.0), `app_mixins/ai_settings.py` (1), `app_mixins/tools.py` (1), `ui/highlights_workspace.py:383` (1, delete highlights, which already has Undo), `ui/management_dialogs.py` (2), `ui/organization_rules.py:522` and three more (4, rules apply already has "Undo last" and preview fingerprints).
