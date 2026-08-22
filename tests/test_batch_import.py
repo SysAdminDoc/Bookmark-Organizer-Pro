@@ -162,5 +162,71 @@ class TestBatchDirectoryImport(unittest.TestCase):
         self.assertEqual(entry.add_date, "2026-01-02")
 
 
+class TestMappedCSVImporter(unittest.TestCase):
+    def _write(self, root: Path, name: str, text: str) -> Path:
+        path = root / name
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def test_markwise_columns_map_without_configuration(self):
+        from bookmark_organizer_pro.importers_extra import MappedCSVImporter
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._write(
+                Path(tmp), "markwise.csv",
+                "Title,URL,Main Category,Sub Category,Added At\n"
+                "Docs,https://csv.test/docs,Reference,Manuals,2026-01-02\n",
+            )
+            entries = list(MappedCSVImporter().from_path(str(path)))
+
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].title, "Docs")
+        self.assertEqual(entries[0].parent_category, "Reference")
+        self.assertEqual(entries[0].category, "Manuals")
+        self.assertEqual(entries[0].add_date, "2026-01-02")
+
+    def test_explicit_mapping_handles_unknown_headers(self):
+        from bookmark_organizer_pro.importers_extra import MappedCSVImporter
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._write(
+                Path(tmp), "odd.csv", "Name,Address,Group\nThing,https://odd.test/1,Stuff\n")
+            importer = MappedCSVImporter({"url": "Address", "title": "Name", "category": "Group"})
+            entries = list(importer.from_path(str(path)))
+
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].url, "https://odd.test/1")
+        self.assertEqual(entries[0].title, "Thing")
+        self.assertEqual(entries[0].category, "Stuff")
+
+    def test_rows_without_a_url_are_reported_as_losses(self):
+        from bookmark_organizer_pro.importers_extra import MappedCSVImporter
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._write(
+                Path(tmp), "gaps.csv",
+                "Title,URL\nKept,https://kept.test/\nDropped,\n",
+            )
+            importer = MappedCSVImporter()
+            entries = list(importer.from_path(str(path)))
+
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(importer.stats.skipped, 1)
+        self.assertIn("row has no URL column value", importer.stats.causes)
+
+    def test_header_inspection_suggests_a_mapping(self):
+        from bookmark_organizer_pro.importers_extra import MappedCSVImporter
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._write(Path(tmp), "h.csv", "Title,URL,Tags\nA,https://a.test/,x;y\n")
+            headers = MappedCSVImporter.headers(str(path))
+            mapping = MappedCSVImporter.suggest_mapping(headers)
+
+        self.assertEqual(headers, ["Title", "URL", "Tags"])
+        self.assertEqual(mapping["url"], "URL")
+        self.assertEqual(mapping["tags"], "Tags")
+        self.assertNotIn("category", mapping)
+
+
 if __name__ == "__main__":
     unittest.main()

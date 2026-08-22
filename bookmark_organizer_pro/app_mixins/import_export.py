@@ -406,6 +406,7 @@ class ImportExportMixin:
                 "arc": self._import_service_arc,
                 "firefox-backup": self._import_service_firefox_backup,
                 "export-folder": self._import_export_folder,
+                "csv": self._import_service_csv,
             }.get(source.action_arg)
             if handler:
                 handler()
@@ -882,6 +883,11 @@ class ImportExportMixin:
         from bookmark_organizer_pro.importers_extra import PocketExportImporter
         self._import_service_file(PocketExportImporter, "Pocket",
                                   [("Pocket Export", "*.html *.json"), ("All", "*.*")])
+
+    def _import_service_csv(self):
+        from bookmark_organizer_pro.importers_extra import MappedCSVImporter
+        self._import_service_file(MappedCSVImporter, "CSV",
+                                  [("CSV", "*.csv"), ("All", "*.*")])
 
     def _import_service_readwise(self):
         from bookmark_organizer_pro.importers_extra import ReadwiseReaderCSVImporter

@@ -6,6 +6,14 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Added
 
+- Added a CSV importer that works with any export carrying a URL column.
+  Headers are matched case-insensitively against known aliases, so Markwise
+  (`Title,URL,Main Category,Sub Category,Added At`), start.me, and Pinboard CSV
+  import without configuration, and `bop import-csv --show-columns` prints the
+  detected mapping. Unusual headers can be mapped explicitly with repeatable
+  `--map field=column` arguments, and rows without a URL are reported as import
+  losses rather than dropped silently.
+
 - Added folder import for the way migrations actually arrive: point the Import
   Center (or `bop import <directory>`) at a folder of accumulated exports and
   every file is hashed, byte-identical copies are skipped, each surviving file

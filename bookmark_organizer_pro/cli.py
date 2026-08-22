@@ -295,6 +295,14 @@ class BookmarkCLI:
                 _usage_hint=_importer_usage[name],
             )
 
+        p = sub.add_parser("import-csv", help="Import any CSV export with a URL column")
+        p.add_argument("file", nargs="?", help="CSV file to import")
+        p.add_argument("--map", action="append", metavar="FIELD=COLUMN",
+                       help="Override a column mapping, e.g. --map url=Address (repeatable)")
+        p.add_argument("--show-columns", action="store_true",
+                       help="Print the header row and the detected mapping, then exit")
+        p.set_defaults(func=self._cmd_import_csv, _usage_hint="import-csv <csv> [--map field=column]")
+
         p = sub.add_parser("import-browser",
                           help="Import bookmarks from Chrome/Firefox/Edge/Brave profiles")
         p.add_argument("browser", nargs="?",
@@ -1677,6 +1685,36 @@ Top Domains:
             f"Firefox backup import: {added} added, {dupes} duplicates skipped, "
             f"{importer.stats.skipped} invalid/missing URL skipped"
         )
+        self._print_import_session(importer)
+
+    def _cmd_import_csv(self, ns: argparse.Namespace):
+        if not ns.file:
+            return self._usage_error(f"usage: {ns._usage_hint}")
+        from bookmark_organizer_pro.importers_extra import MappedCSVImporter, import_into
+
+        mapping = {}
+        for pair in getattr(ns, "map", None) or []:
+            field, _, column = str(pair).partition("=")
+            if not field.strip() or not column.strip():
+                return self._usage_error("--map expects field=column, e.g. --map url=Address")
+            if field.strip() not in MappedCSVImporter.ALIASES:
+                return self._usage_error(
+                    f"unknown field {field.strip()!r}; choose from "
+                    f"{', '.join(sorted(MappedCSVImporter.ALIASES))}"
+                )
+            mapping[field.strip()] = column.strip()
+
+        if getattr(ns, "show_columns", False):
+            headers = MappedCSVImporter.headers(ns.file)
+            suggested = MappedCSVImporter.suggest_mapping(headers)
+            print("Columns: " + ", ".join(headers))
+            for field in sorted(MappedCSVImporter.ALIASES):
+                print(f"  {field:<16} -> {suggested.get(field, '(unmapped)')}")
+            return 0
+
+        importer = MappedCSVImporter(mapping)
+        added, dupes = import_into(self.bookmark_manager, importer, ns.file)
+        print(f"+{added} ({dupes} duplicates skipped)")
         self._print_import_session(importer)
 
     def _cmd_import_readwise(self, ns: argparse.Namespace):

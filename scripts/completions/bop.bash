@@ -66,6 +66,7 @@ _bop_completions() {
         import-zotero
         import-wallabag
         import-arc
+        import-csv
         import-browser
         zip-export
         obsidian-export
@@ -818,6 +819,28 @@ _bop_completions() {
                 --help
             )
             case "$prev" in
+            esac
+            if [[ "$cur" == -* ]]; then
+                _bop_complete_array "$cur" "${options[@]}"
+                return 0
+            fi
+            if (( COMP_CWORD == 2 )); then
+                _bop_complete_files "$cur"
+                return 0
+            fi
+            return 0
+            ;;
+        import-csv)
+            local -a options=(
+                -h
+                --help
+                --map
+                --show-columns
+            )
+            case "$prev" in
+                --map)
+                    return 0
+                    ;;
             esac
             if [[ "$cur" == -* ]]; then
                 _bop_complete_array "$cur" "${options[@]}"

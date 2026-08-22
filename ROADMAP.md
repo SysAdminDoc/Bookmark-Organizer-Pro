@@ -19,13 +19,6 @@ Added 2026-08-21 from RESEARCH.md (same date). IDs continue the R-series after R
 
 ### P2
 
-- [ ] P2 — R-110: Add Markwise CSV and generic column-mapped CSV importers
-  Why: Markwise exports (`Title,URL,Main Category,Sub Category,Added At`) had no importer in the 2026-08-21 corpus, and the only CSV importer is Readwise-specific; a mapped CSV importer also covers start.me and Pinboard CSV variants.
-  Evidence: `bookmark_organizer_pro/importers_extra.py` (`ReadwiseReaderCSVImporter` only CSV class); corpus files `markwise.app-bookmarks-export*.csv`; https://codeberg.org/readeck/readeck/raw/branch/main/CHANGELOG.md (0.20.0 CSV adapters).
-  Touches: `importers_extra.py`, Import Center format list, `cli.py import` format choices, `scripts/generate_completions.py --check`, tests.
-  Acceptance: Markwise CSV imports title/URL/two-level category/ISO date; a generic CSV path lets the user map columns (title, url, category, subcategory, tags, date) with a header preview; both reject non-http(s) URLs and dedupe by normalized URL; completions regenerate cleanly.
-  Complexity: S
-
 - [ ] P2 — R-111: Add an Omnivore export importer
   Why: Omnivore's JSON export became the migration lingua franca after its 2024-11 shutdown; Karakeep, Linkwarden, and Readeck all import it, and BOP's 21 importers do not.
   Evidence: `importers.py`/`importers_extra.py` class list (no Omnivore); https://docs.karakeep.app/using-karakeep/import/; https://github.com/linkwarden/linkwarden/issues/808; Readeck CHANGELOG 0.15.x.

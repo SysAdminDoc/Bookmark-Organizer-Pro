@@ -46,6 +46,7 @@ _bop() {
         'import-zotero:Import Zotero RDF export'
         'import-wallabag:Import Wallabag JSON export'
         'import-arc:Import Arc Browser StorableSidebar.json'
+        'import-csv:Import any CSV export with a URL column'
         'import-browser:Import bookmarks from Chrome/Firefox/Edge/Brave profiles'
         'zip-export:Per-bookmark or whole-collection ZIP export'
         'obsidian-export:Export to Obsidian vault'
@@ -530,6 +531,22 @@ _bop() {
             _arguments -s \
                 '-h[show this help message and exit]' \
                 '--help[show this help message and exit]'
+            return
+            ;;
+        import-csv)
+            if [[ "$words[CURRENT]" != -* ]]; then
+                case $CURRENT in
+                    2)
+                        _files
+                        return
+                        ;;
+                esac
+            fi
+            _arguments -s \
+                '-h[show this help message and exit]' \
+                '--help[show this help message and exit]' \
+                '--map[Override a column mapping, e.g. --map url=Address (repeatable)]:map:' \
+                '--show-columns[Print the header row and the detected mapping, then exit]'
             return
             ;;
         import-browser)

@@ -2,7 +2,7 @@
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **verified offline snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
-Executable product contract: 64 CLI subcommands, 34 MCP tools, 6 AI providers, 3 extension surfaces, 57 service modules, 44 UI modules, and 45 test files.
+Executable product contract: 65 CLI subcommands, 34 MCP tools, 6 AI providers, 3 extension surfaces, 57 service modules, 44 UI modules, and 45 test files.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
 ![Version](https://img.shields.io/badge/Version-v6.13.0-2dd4bf.svg)

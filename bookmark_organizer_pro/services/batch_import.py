@@ -14,7 +14,6 @@ session's single rollback safepoint and transactional apply.
 
 from __future__ import annotations
 
-import csv
 import json
 import re
 from dataclasses import dataclass, field
@@ -164,36 +163,9 @@ def _parse_json_records(path: str) -> List[Bookmark]:
 
 def _parse_csv_records(path: str) -> List[Bookmark]:
     """Parse a CSV export with a URL column, keeping any category columns."""
-    out: List[Bookmark] = []
-    with open(path, "r", encoding="utf-8", errors="replace", newline="") as handle:
-        for row in csv.DictReader(handle):
-            lowered = {str(k or "").strip().lower(): (v or "") for k, v in row.items()}
-            url = str(lowered.get("url") or lowered.get("href") or "").strip()
-            if not url:
-                continue
-            tags_field = str(lowered.get("tags") or "")
-            tags = [t.strip() for t in re.split(r"[,;]", tags_field) if t.strip()]
-            category = str(lowered.get("main category") or lowered.get("category") or "").strip()
-            parent = ""
-            sub = str(lowered.get("sub category") or lowered.get("subcategory") or "").strip()
-            if category and sub:
-                parent, category = category, sub
-            try:
-                out.append(Bookmark(
-                    id=None,
-                    url=url,
-                    title=str(lowered.get("title") or lowered.get("name") or url),
-                    category=category,
-                    parent_category=parent,
-                    tags=tags,
-                    notes=str(lowered.get("note") or lowered.get("notes") or ""),
-                    add_date=str(lowered.get("added at") or lowered.get("saved date")
-                                 or lowered.get("created_at") or lowered.get("date") or ""),
-                    source_file="csv-export",
-                ))
-            except ValueError:
-                continue
-    return out
+    from bookmark_organizer_pro.importers_extra import MappedCSVImporter
+
+    return list(MappedCSVImporter().from_path(path))
 
 
 def _parse_text_urls(path: str) -> List[Bookmark]:

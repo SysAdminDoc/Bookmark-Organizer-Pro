@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Iterator, List, Tuple
 
+from bookmark_organizer_pro.importers import SessionImportStats
 from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
 
@@ -136,6 +137,91 @@ class ReadwiseReaderCSVImporter:
                     ))
                 except ValueError:
                     continue
+        return iter(out)
+
+
+# ---------------------------------------------------------------------------
+class MappedCSVImporter:
+    """Any CSV export with a URL column.
+
+    Column names vary by product, so headers are matched case-insensitively
+    against known aliases and an explicit mapping can override them. This
+    covers Markwise (``Title,URL,Main Category,Sub Category,Added At``),
+    start.me, and Pinboard CSV without a bespoke importer for each.
+    """
+
+    ALIASES = {
+        "url": ("url", "href", "link", "address"),
+        "title": ("title", "name", "description"),
+        "category": ("sub category", "subcategory", "category", "folder", "collection"),
+        "parent_category": ("main category", "parent category", "group"),
+        "tags": ("tags", "labels", "keywords"),
+        "notes": ("notes", "note", "comment", "excerpt", "document note"),
+        "add_date": ("added at", "saved date", "created_at", "created", "date", "time"),
+    }
+
+    def __init__(self, mapping: dict | None = None):
+        self.mapping = {k: str(v) for k, v in (mapping or {}).items() if v}
+        self.stats = SessionImportStats()
+
+    @classmethod
+    def headers(cls, path: str) -> List[str]:
+        """Read just the header row, for building a column mapping."""
+        with open(path, "r", encoding="utf-8", errors="replace", newline="") as handle:
+            for row in csv.reader(handle):
+                return [str(cell).strip() for cell in row]
+        return []
+
+    @classmethod
+    def suggest_mapping(cls, headers: Iterable[str]) -> dict:
+        """Best-guess field -> column name from a header row."""
+        lowered = {str(h).strip().lower(): str(h).strip() for h in headers if str(h).strip()}
+        mapping = {}
+        for field, aliases in cls.ALIASES.items():
+            for alias in aliases:
+                if alias in lowered:
+                    mapping[field] = lowered[alias]
+                    break
+        return mapping
+
+    def _value(self, row: dict, field: str) -> str:
+        # Row keys are lower-cased, so an explicit mapping must be too.
+        column = self.mapping.get(field, "").strip().lower()
+        if column and column in row:
+            return str(row.get(column) or "").strip()
+        for alias in self.ALIASES.get(field, ()):
+            if alias in row:
+                return str(row.get(alias) or "").strip()
+        return ""
+
+    def from_path(self, path: str) -> Iterator[Bookmark]:
+        p = Path(path)
+        if not p.exists():
+            return iter(())
+        out: List[Bookmark] = []
+        with p.open("r", encoding="utf-8", errors="replace", newline="") as handle:
+            reader = csv.DictReader(handle)
+            for raw in reader:
+                row = {str(k or "").strip().lower(): (v or "") for k, v in raw.items()}
+                url = self._value(row, "url")
+                if not url:
+                    self.stats.record("row has no URL column value")
+                    continue
+                tags = [t.strip() for t in re.split(r"[,;]", self._value(row, "tags")) if t.strip()]
+                try:
+                    out.append(Bookmark(
+                        id=None,
+                        url=url,
+                        title=self._value(row, "title") or url,
+                        category=self._value(row, "category"),
+                        parent_category=self._value(row, "parent_category"),
+                        tags=tags,
+                        notes=self._value(row, "notes"),
+                        add_date=self._value(row, "add_date"),
+                        source_file="csv-import",
+                    ))
+                except ValueError as exc:
+                    self.stats.record(f"invalid row: {str(exc)[:120]}")
         return iter(out)
 
 
