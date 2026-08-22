@@ -508,11 +508,20 @@ class BookmarkCLI:
         )
         p.set_defaults(func=self._cmd_smart_collections)
 
-        p = sub.add_parser("repairs", help="Inspect declarative extraction repairs")
-        p.add_argument("action", nargs="?", default="list", choices=["list", "preview"],
+        p = sub.add_parser("repairs", help="Manage declarative extraction repairs")
+        p.add_argument("action", nargs="?", default="list",
+                       choices=["list", "preview", "add", "remove"],
                        help="Action (default: list)")
         p.add_argument("--url", help="Page URL to preview a repair against")
         p.add_argument("--html", help="Local HTML file to preview a repair against")
+        p.add_argument("--domain", action="append", default=[],
+                       help="Domain the repair applies to (repeatable)")
+        p.add_argument("--keep", help="Selector for the element holding the article body")
+        p.add_argument("--drop", action="append", default=[],
+                       help="Selector for boilerplate to remove (repeatable)")
+        p.add_argument("--name", help="Name of the repair to add or remove")
+        p.add_argument("--max-length", type=int, dest="max_length",
+                       help="Cap on repaired text length")
         p.add_argument("--json", action="store_true", dest="as_json", help="Machine-readable output")
         p.set_defaults(func=self._cmd_extraction_repairs)
 
@@ -655,14 +664,62 @@ Examples:
     # Core command handlers
     # ──────────────────────────────────────────────────────────────────
     def _cmd_extraction_repairs(self, ns: argparse.Namespace):
-        """List extraction repairs, or compare one against default output."""
+        """List, author, preview, or delete declarative extraction repairs."""
         from bookmark_organizer_pro.services.extraction_repairs import (
+            MAX_REPAIRS,
             REPAIRS_FILE,
+            ExtractionRepair,
             load_extraction_repairs,
             repair_extraction,
+            save_extraction_repairs,
         )
 
         repairs = load_extraction_repairs()
+
+        if ns.action == "add":
+            if not ns.domain or not (ns.keep or ns.drop):
+                return self._usage_error(
+                    "usage: repairs add --domain <domain> [--keep <selector>] [--drop <selector>]"
+                )
+            if len(repairs) >= MAX_REPAIRS:
+                self._error(f"Error: at most {MAX_REPAIRS} extraction repairs can be stored")
+                return 1
+            payload = {
+                "name": ns.name or f"Repair for {ns.domain[0]}",
+                "domains": list(ns.domain),
+                "content_selector": ns.keep or "",
+                "remove_selectors": list(ns.drop),
+            }
+            if ns.max_length is not None:
+                payload["max_length"] = ns.max_length
+            candidate = ExtractionRepair.from_dict(payload)
+            if candidate is None:
+                # from_dict fails closed on any unusable domain or selector.
+                self._error(
+                    "Error: the repair was rejected. Every --domain must be a plain hostname, "
+                    "and selectors must be under the length cap and must not use the "
+                    "unbounded :has(), :contains(), or :matches() forms."
+                )
+                return 1
+            if any(existing.name == candidate.name for existing in repairs):
+                self._error(f"Error: a repair named {candidate.name!r} already exists")
+                return 1
+            save_extraction_repairs(repairs + [candidate])
+            print(f"Saved repair {candidate.name!r} for {', '.join(candidate.domains)}")
+            print(f"  file: {REPAIRS_FILE}")
+            return 0
+
+        if ns.action == "remove":
+            if not ns.name:
+                return self._usage_error("usage: repairs remove --name <name>")
+            remaining = [repair for repair in repairs if repair.name != ns.name]
+            if len(remaining) == len(repairs):
+                self._error(f"Error: no repair named {ns.name!r}")
+                return 1
+            save_extraction_repairs(remaining)
+            print(f"Removed repair {ns.name!r}")
+            return 0
+
         if ns.action == "list":
             if ns.as_json:
                 print(json.dumps([r.to_dict() for r in repairs], indent=2, ensure_ascii=False))
@@ -688,6 +745,22 @@ Examples:
         from bookmark_organizer_pro.services.ingest import _bs4_fallback, _trafilatura_extract
 
         default = (_trafilatura_extract(html, ns.url) or _bs4_fallback(html) or {}).get("text", "")
+        if ns.keep or ns.drop:
+            # Try a candidate that has not been saved yet, so a repair can be
+            # judged against real output before it is committed to the file.
+            from urllib.parse import urlsplit
+
+            domains = list(ns.domain) or [urlsplit(ns.url).hostname or ""]
+            candidate = ExtractionRepair.from_dict({
+                "name": ns.name or "Candidate repair",
+                "domains": domains,
+                "content_selector": ns.keep or "",
+                "remove_selectors": list(ns.drop),
+            })
+            if candidate is None:
+                self._error("Error: the candidate repair has an unusable domain or selector")
+                return 1
+            repairs = [candidate]
         result = repair_extraction(ns.url, html, default, repairs=repairs)
         if ns.as_json:
             print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))

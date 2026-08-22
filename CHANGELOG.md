@@ -4,6 +4,16 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Extraction repairs can now be written from the command line instead of by
+  hand-editing JSON. `bop repairs add --domain <site> --keep <selector> --drop
+  <selector>` saves one, `bop repairs remove --name <name>` deletes it, and
+  `bop repairs preview` accepts the same `--keep` and `--drop` arguments so a
+  candidate can be judged against a real page before anything is stored.
+  README now documents the workflow and the selector rules. The v6.14.0 entry
+  described a preview-before-save flow that had no save step; this is it.
+
 ### Fixed
 
 - Every built-in theme now meets the WCAG AA 4.5:1 text floor on the surfaces

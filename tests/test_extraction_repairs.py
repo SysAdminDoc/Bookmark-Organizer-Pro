@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import importlib
 import json
+import os
+import shutil
+import sys
 import tempfile
 import unittest
+from io import StringIO
 from pathlib import Path
 
 from bookmark_organizer_pro.services.extraction_repairs import (
@@ -229,6 +234,107 @@ class TestExtractionRepairFixtures(unittest.TestCase):
         self.assertIn("favicon fetch", result.text)
         self.assertNotIn("sponsored offer", result.text)
         self.assertNotIn("Home Forums Search", result.text)
+
+
+class TestExtractionRepairCLI(unittest.TestCase):
+    """A repair has to be authorable without hand-editing JSON."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="bop_repairs_cli_")
+        self.addCleanup(shutil.rmtree, self._tmp, ignore_errors=True)
+        self._previous = os.environ.get("BOOKMARK_DATA_DIR")
+        os.environ["BOOKMARK_DATA_DIR"] = self._tmp
+        self.addCleanup(self._restore_data_dir)
+
+        import bookmark_organizer_pro.constants as constants
+        import bookmark_organizer_pro.services.extraction_repairs as repairs_module
+
+        importlib.reload(constants)
+        constants.ensure_directories()
+        importlib.reload(repairs_module)
+        self.repairs_module = repairs_module
+        self.addCleanup(self._reload_modules)
+
+    def _restore_data_dir(self):
+        if self._previous is None:
+            os.environ.pop("BOOKMARK_DATA_DIR", None)
+        else:
+            os.environ["BOOKMARK_DATA_DIR"] = self._previous
+
+    def _reload_modules(self):
+        import bookmark_organizer_pro.constants as constants
+        import bookmark_organizer_pro.services.extraction_repairs as repairs_module
+
+        importlib.reload(constants)
+        importlib.reload(repairs_module)
+
+    def _run(self, args):
+        from bookmark_organizer_pro.cli import BookmarkCLI
+
+        captured = StringIO()
+        stdout, stderr = sys.stdout, sys.stderr
+        sys.stdout = sys.stderr = captured
+        try:
+            code = BookmarkCLI().run(args)
+        except SystemExit as exit_signal:
+            code = exit_signal.code
+        finally:
+            sys.stdout, sys.stderr = stdout, stderr
+        return code, captured.getvalue()
+
+    def test_a_repair_can_be_added_listed_and_removed(self):
+        code, out = self._run([
+            "repairs", "add", "--domain", "forum.test",
+            "--keep", "#thread", "--drop", ".sidebar", "--name", "Forum thread",
+        ])
+        self.assertEqual(code, 0, out)
+
+        stored = self.repairs_module.load_extraction_repairs()
+        self.assertEqual([r.name for r in stored], ["Forum thread"])
+        self.assertEqual(stored[0].domains, ("forum.test",))
+        self.assertEqual(stored[0].content_selector, "#thread")
+        self.assertEqual(stored[0].remove_selectors, (".sidebar",))
+
+        _code, listed = self._run(["repairs", "list"])
+        self.assertIn("Forum thread", listed)
+
+        code, out = self._run(["repairs", "remove", "--name", "Forum thread"])
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.repairs_module.load_extraction_repairs(), [])
+
+    def test_an_unusable_repair_is_refused_and_nothing_is_written(self):
+        code, out = self._run(["repairs", "add", "--domain", "not a domain", "--keep", "#thread"])
+        self.assertEqual(code, 1)
+        self.assertIn("rejected", out)
+        self.assertEqual(self.repairs_module.load_extraction_repairs(), [])
+
+    def test_a_duplicate_name_is_refused(self):
+        self._run([
+            "repairs", "add", "--domain", "forum.test", "--keep", "#thread", "--name", "Dupe",
+        ])
+        code, out = self._run([
+            "repairs", "add", "--domain", "other.test", "--keep", "#main", "--name", "Dupe",
+        ])
+        self.assertEqual(code, 1)
+        self.assertIn("already exists", out)
+        self.assertEqual(len(self.repairs_module.load_extraction_repairs()), 1)
+
+    def test_preview_judges_an_unsaved_candidate_without_storing_it(self):
+        page = Path(self._tmp) / "thread.html"
+        page.write_text(FORUM, encoding="utf-8")
+
+        code, out = self._run([
+            "repairs", "preview", "--url", "https://forum.test/t/1", "--html", str(page),
+            "--keep", "#thread", "--drop", ".sidebar",
+        ])
+
+        self.assertEqual(code, 0, out)
+        self.assertIn("applied", out)
+        self.assertIn("favicon fetch", out)
+        self.assertEqual(
+            self.repairs_module.load_extraction_repairs(), [],
+            "preview must not save the candidate",
+        )
 
 
 if __name__ == "__main__":

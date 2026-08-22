@@ -1552,6 +1552,11 @@ _bop_completions() {
                 --help
                 --url
                 --html
+                --domain
+                --keep
+                --drop
+                --name
+                --max-length
                 --json
             )
             case "$prev" in
@@ -1563,6 +1568,21 @@ _bop_completions() {
                     return 0
                     return 0
                     ;;
+                --domain)
+                    return 0
+                    ;;
+                --keep)
+                    return 0
+                    ;;
+                --drop)
+                    return 0
+                    ;;
+                --name)
+                    return 0
+                    ;;
+                --max-length)
+                    return 0
+                    ;;
             esac
             if [[ "$cur" == -* ]]; then
                 _bop_complete_array "$cur" "${options[@]}"
@@ -1572,6 +1592,8 @@ _bop_completions() {
                 local -a values=(
                     list
                     preview
+                    add
+                    remove
                 )
                 _bop_complete_array "$cur" "${values[@]}"
                 return 0

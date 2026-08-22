@@ -361,6 +361,38 @@ extension Origin, a versioned header, strict size/source checks, and a second
 sanitization pass before atomic storage. Only embedded `data:` assets survive.
 Native messaging and offline category/tag suggestions remain on the roadmap.
 
+### Fixing sites the reader gets wrong
+
+The content extractor handles most pages well and a handful badly: a forum
+thread that keeps only the first post, a docs page where the sidebar drowns the
+body. An extraction repair fixes one site by naming the element that holds the
+article and the boilerplate to drop. It only ever re-reads HTML the app already
+fetched, so a repair cannot reach a new origin or run page script.
+
+Try a candidate before you keep it, using a page you have saved to disk:
+
+```bash
+bop repairs preview --url https://forum.example.com/t/123 --html thread.html \
+    --keep "div.thread" --drop "aside.sidebar"
+```
+
+That prints the default and repaired character counts side by side plus the
+first lines of the repaired text. When it looks right, save it:
+
+```bash
+bop repairs add --domain forum.example.com --keep "div.thread" \
+    --drop "aside.sidebar" --name "Forum thread"
+bop repairs list
+bop repairs remove --name "Forum thread"
+```
+
+`--domain` and `--drop` are repeatable. A repair applies to a domain and its
+subdomains. Selectors are ordinary CSS, capped in length, and the unbounded
+`:has()`, `:contains()`, and `:matches()` forms are refused. Repairs live in
+`extraction_repairs.json` in the data directory, and a repair whose selector
+matches nothing, produces almost no text, or exceeds its time budget leaves the
+default extraction untouched.
+
 ## Features
 
 ### Core Features

@@ -69,7 +69,7 @@ _bop() {
         'recovery-bundle:Create or restore a full-library backup'
         'updates:Manage update policy'
         'smart-collections:Manage smart collections'
-        'repairs:Inspect declarative extraction repairs'
+        'repairs:Manage declarative extraction repairs'
         'rules:Preview and apply declarative organization rules'
         'nl-query:Natural language query'
         '-h:show this help message and exit'
@@ -909,6 +909,8 @@ _bop() {
                         local -a values=(
                             list
                             preview
+                            add
+                            remove
                         )
                         _describe 'argument' values
                         return
@@ -920,6 +922,11 @@ _bop() {
                 '--help[show this help message and exit]' \
                 '--url[Page URL to preview a repair against]:url:' \
                 '--html[Local HTML file to preview a repair against]:html:_files' \
+                '--domain[Domain the repair applies to (repeatable)]:domain:' \
+                '--keep[Selector for the element holding the article body]:keep:' \
+                '--drop[Selector for boilerplate to remove (repeatable)]:drop:' \
+                '--name[Name of the repair to add or remove]:name:' \
+                '--max-length[Cap on repaired text length]:max_length:' \
                 '--json[Machine-readable output]'
             return
             ;;
