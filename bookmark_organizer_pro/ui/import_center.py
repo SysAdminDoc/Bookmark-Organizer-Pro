@@ -75,6 +75,23 @@ def build_import_sources(detected_browsers: Iterable[str] = ()) -> List[ImportSo
         _browser_source("edge", "edge" in detected),
         _browser_source("safari", False),
         ImportSource(
+            key="export-folder",
+            title=_("Folder of exports"),
+            description="Import a whole folder of accumulated exports in one pass.",
+            accepted_formats="Directory of .html, .json, .csv, .txt, or .opml exports",
+            privacy_note="Every file is read locally; nothing is uploaded.",
+            duplicate_policy=(
+                "Byte-identical files are skipped by digest, entries are merged on the "
+                "canonical URL keeping the newest date and longest title, then existing "
+                "library URLs are skipped."
+            ),
+            import_summary="A preview shows files, formats, merged entries, and conflicts before importing.",
+            next_action="Review merged categories, then run duplicate and tag checks.",
+            action_label="Choose Folder",
+            action_kind="service",
+            action_arg="export-folder",
+        ),
+        ImportSource(
             key="firefox-backup",
             title=_("Firefox bookmark backup"),
             description="Import Firefox bookmarkbackups JSON with folders and tags preserved.",

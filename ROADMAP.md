@@ -17,13 +17,6 @@ Added 2026-08-21 from RESEARCH.md (same date). IDs continue the R-series after R
 
 ### P1
 
-- [ ] P1 — R-109: Import a folder of bookmark exports as one deduplicated batch
-  Why: Real migrations arrive as piles of near-identical exports (2026-08-21 corpus: 1,113 files, 95 unique by SHA-256, 149,471 entries → 5,206 URLs); every desktop import path is single-file, and no competitor offers folder ingestion (Karakeep OOMs on large imports, linkding is one Netscape file at a time).
-  Evidence: `app_mixins/import_export.py` lines 499/522/841/894 (`askopenfilename`); `services/import_sessions.py`; `services/dup_hybrid.py` (URL normalization); https://github.com/karakeep-app/karakeep/issues/1748; https://github.com/sissbruecker/linkding/releases (v1.46.0 import dedup).
-  Touches: `app_mixins/import_export.py` (directory picker + batch flow), `services/import_sessions.py` (batch session model), `importers.py` format detection, `services/dup_hybrid.py` (shared normalized-URL key), Import Center UI, `cli.py import --directory`, `tests/test_core.py` fixtures with duplicate files.
-  Acceptance: Selecting a directory (desktop or `cli import <dir>`) hashes every file, skips byte-identical duplicates, auto-detects each unique file's importer, merges entries across files by the existing normalized-URL key keeping newest date and longest title, shows a preview (files, unique URLs, conflicts) before commit, commits in one transactional batch with a single safepoint, and a test with 6 files (3 duplicates, 2 formats) yields the expected unique count.
-  Complexity: L
-
 ### P2
 
 - [ ] P2 — R-110: Add Markwise CSV and generic column-mapped CSV importers

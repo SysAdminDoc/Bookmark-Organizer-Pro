@@ -189,6 +189,18 @@ class ImportSessionManager:
         if not session.get("safepoint"):
             safepoint = manager.create_safepoint(f"pre-import-{session_id[:8]}") or ""
             if not safepoint:
+                # A library that has never been written has no file to snapshot,
+                # which is the normal first-run migration case. Persist the
+                # current (empty) state so the safepoint is a real rollback
+                # target instead of refusing the import outright.
+                try:
+                    manager.save_bookmarks()
+                except Exception as exc:
+                    raise RuntimeError(
+                        "Import stopped because a rollback safepoint could not be created"
+                    ) from exc
+                safepoint = manager.create_safepoint(f"pre-import-{session_id[:8]}") or ""
+            if not safepoint:
                 raise RuntimeError("Import stopped because a rollback safepoint could not be created")
             self._update_session(session_id, lambda item: item.update(safepoint=safepoint) or item)
 

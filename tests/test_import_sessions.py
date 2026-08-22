@@ -7,6 +7,8 @@ import json
 import urllib.request
 from unittest.mock import patch
 
+import pytest
+
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.importers import GenericFileSessionImporter
 from bookmark_organizer_pro.services.import_sessions import ImportSessionManager
@@ -68,6 +70,56 @@ class _Importer:
 
 def _bookmark(url):
     return Bookmark(id=None, url=url, title=url)
+
+
+def test_first_import_into_an_unwritten_library_creates_a_real_safepoint(tmp_path):
+    """A never-saved library has no file to snapshot; that is the normal
+    first-run migration case and must not refuse the import."""
+
+    class _FreshManager(_Manager):
+        def __init__(self):
+            super().__init__()
+            self.saved = False
+
+        def create_safepoint(self, label):
+            if not self.saved:
+                return None  # StorageManager returns None when the file is absent
+            return super().create_safepoint(label)
+
+        def save_bookmarks(self):
+            self.saved = True
+
+    source = tmp_path / "source.json"
+    source.write_text("source-v1", encoding="utf-8")
+    importer = _Importer([_bookmark("https://fresh.example")])
+    manager = _FreshManager()
+    sessions = ImportSessionManager(tmp_path / "sessions.json")
+
+    report = sessions.run(manager, importer, source, source="fixture")
+
+    assert manager.saved, "an unwritten library should be persisted before the safepoint"
+    assert report.added == 1
+    assert report.safepoint, "the session must record a restorable safepoint"
+    assert manager.restore_backup(report.safepoint) is True
+
+
+def test_import_refuses_when_a_populated_library_cannot_be_snapshotted(tmp_path):
+    class _UnsnapshottableManager(_Manager):
+        def create_safepoint(self, label):
+            return None
+
+        def save_bookmarks(self):
+            return None
+
+    source = tmp_path / "source.json"
+    source.write_text("source-v1", encoding="utf-8")
+    importer = _Importer([_bookmark("https://guarded.example")])
+    manager = _UnsnapshottableManager()
+    sessions = ImportSessionManager(tmp_path / "sessions.json")
+
+    with pytest.raises(RuntimeError, match="rollback safepoint"):
+        sessions.run(manager, importer, source, source="fixture")
+    assert manager.bookmarks == {}
 
 
 def test_cancelled_import_resumes_without_duplicate_rows(tmp_path):

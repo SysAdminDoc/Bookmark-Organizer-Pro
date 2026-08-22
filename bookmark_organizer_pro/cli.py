@@ -119,8 +119,10 @@ class BookmarkCLI:
         p.add_argument("query", nargs="+", help="Search query")
         p.set_defaults(func=self._cmd_search)
 
-        p = sub.add_parser("import", help="Import bookmarks from file (HTML/JSON)")
-        p.add_argument("file", help="File path to import")
+        p = sub.add_parser("import", help="Import bookmarks from a file or a folder of exports")
+        p.add_argument("file", help="File or directory path to import")
+        p.add_argument("--dry-run", action="store_true",
+                       help="For a directory, show the batch plan without importing")
         p.set_defaults(func=self._cmd_import)
 
         p = sub.add_parser("migration", help="Preflight or apply a competitor export")
@@ -873,6 +875,9 @@ Examples:
             self._error(f"Error: File not found: {filepath}")
             return 1
 
+        if Path(filepath).is_dir():
+            return self._import_directory(filepath, dry_run=getattr(ns, "dry_run", False))
+
         lower_path = filepath.lower()
         if lower_path.endswith(".html") or lower_path.endswith(".htm"):
             added, dupes = self.bookmark_manager.import_html_file(filepath)
@@ -903,6 +908,40 @@ Examples:
             return 1
 
         print(f"✓ Imported {added} bookmarks ({dupes} duplicates skipped)")
+        return 0
+
+    def _import_directory(self, directory: str, *, dry_run: bool = False):
+        """Import every export in a folder as one deduplicated batch."""
+        from bookmark_organizer_pro.services.batch_import import BatchDirectoryImporter
+        from bookmark_organizer_pro.services.import_sessions import ImportSessionManager
+
+        importer = BatchDirectoryImporter()
+        plan = importer.plan(directory)
+        summary = plan.summary()
+
+        print(f"Scanned {summary['files']} file(s) in {directory}")
+        print(f"  {summary['unique_files']} unique, {summary['duplicate_files']} byte-identical duplicate(s) skipped")
+        for source in plan.unique_files:
+            print(f"    {Path(source.path).name}: {source.format}, {source.entries} entries")
+        for source in plan.unreadable_files:
+            print(f"    {Path(source.path).name}: skipped ({source.error})")
+        print(f"  {summary['parsed_entries']} entries merged to {summary['unique_urls']} unique URLs "
+              f"({summary['merged']} collapsed, {summary['conflicts']} field conflict(s))")
+
+        if not plan.bookmarks:
+            self._error("Nothing to import: no readable bookmarks were found")
+            return 1
+        if dry_run:
+            print("Dry run: no changes were made")
+            return 0
+
+        paths = [source.path for source in plan.unique_files]
+        report = ImportSessionManager().run(
+            self.bookmark_manager, importer, paths, source="batch-directory"
+        )
+        print(f"✓ Imported {report.added} bookmarks ({report.duplicates} already in library)")
+        if report.safepoint:
+            print(f"  restore safepoint {report.safepoint}")
         return 0
 
     def _cmd_export(self, ns: argparse.Namespace):

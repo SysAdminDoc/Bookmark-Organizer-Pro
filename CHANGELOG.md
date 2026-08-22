@@ -6,6 +6,17 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Added
 
+- Added folder import for the way migrations actually arrive: point the Import
+  Center (or `bop import <directory>`) at a folder of accumulated exports and
+  every file is hashed, byte-identical copies are skipped, each surviving file
+  gets its own importer by extension and content sniff, and entries are merged
+  across files on the canonical URL keeping the newest date and the longest
+  title. A preview reports files, formats, merged entries, and field conflicts
+  before anything is written, `--dry-run` stops after the preview, and the
+  whole batch commits through one durable session with a single rollback
+  safepoint. Netscape HTML, Firefox backups, JSON exports, CSV exports, plain
+  URL lists, and OPML are recognized.
+
 - Bounded AI tag suggestions so a library cannot fill with single-use tags. A
   new **Tag vocabulary** setting chooses between using only tags already in the
   library, preferring existing tags (default), or letting the model invent
@@ -16,6 +27,15 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   interstitials, and cookie consent walls) are detected from the title or
   extracted text and skipped before any model call, recording the reason in the
   job ledger.
+
+### Fixed
+
+- Fixed the first import into a library that has never been saved. The rollback
+  safepoint could not be created because no library file existed yet, so the
+  durable import session refused every import with "a rollback safepoint could
+  not be created" — exactly the first-run migration case. The session now
+  persists the empty library first so the safepoint is a real restore target,
+  and still refuses the import when a populated library cannot be snapshotted.
 
 - Declared Mozilla's data collection consent categories in the Firefox
   extension manifest: `bookmarksInfo` is required because every save transmits

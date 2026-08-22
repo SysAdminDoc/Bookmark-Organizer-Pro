@@ -9,7 +9,7 @@ _bop() {
         'add:Add a new bookmark'
         'delete:Delete a bookmark by ID'
         'search:Search bookmarks'
-        'import:Import bookmarks from file (HTML/JSON)'
+        'import:Import bookmarks from a file or a folder of exports'
         'migration:Preflight or apply a competitor export'
         'export:Export bookmarks to file'
         'categories:List all categories'
@@ -119,7 +119,8 @@ _bop() {
             fi
             _arguments -s \
                 '-h[show this help message and exit]' \
-                '--help[show this help message and exit]'
+                '--help[show this help message and exit]' \
+                '--dry-run[For a directory, show the batch plan without importing]'
             return
             ;;
         migration)

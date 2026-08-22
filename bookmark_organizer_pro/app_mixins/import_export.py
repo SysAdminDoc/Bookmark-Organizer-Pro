@@ -405,6 +405,7 @@ class ImportExportMixin:
                 "raindrop": self._import_service_raindrop,
                 "arc": self._import_service_arc,
                 "firefox-backup": self._import_service_firefox_backup,
+                "export-folder": self._import_export_folder,
             }.get(source.action_arg)
             if handler:
                 handler()
@@ -817,6 +818,65 @@ class ImportExportMixin:
                 buttons, text=_("Roll Back"), command=lambda: session_action("rollback"),
                 padx=12, pady=7,
             ).pack(side=tk.LEFT, padx=(0, 8))
+
+    def _import_export_folder(self):
+        """Import every export in a folder as one deduplicated batch."""
+        from tkinter import filedialog, messagebox
+        from bookmark_organizer_pro.services.batch_import import BatchDirectoryImporter
+
+        directory = filedialog.askdirectory(
+            title=_("Import a folder of bookmark exports"),
+            parent=self.root,
+            mustexist=True,
+        )
+        if not directory:
+            return
+
+        self._set_status(_("Scanning {folder} for bookmark exports…").format(folder=directory))
+        importer = BatchDirectoryImporter()
+        try:
+            plan = importer.plan(directory)
+        except Exception as exc:
+            self._set_status(_("Folder import failed"))
+            messagebox.showerror(_("Import"), str(exc), parent=self.root)
+            return
+
+        summary = plan.summary()
+        if not plan.bookmarks:
+            self._set_status(_("No bookmarks found in that folder"))
+            messagebox.showinfo(
+                _("Import"),
+                _("No readable bookmarks were found in {folder}.").format(folder=directory),
+                parent=self.root,
+            )
+            return
+
+        formats = sorted({source.format for source in plan.unique_files})
+        detail = _(
+            "{files} files scanned\n"
+            "{unique} unique, {duplicates} byte-identical duplicates skipped\n"
+            "Formats: {formats}\n\n"
+            "{entries} entries merged into {urls} unique bookmarks\n"
+            "{merged} collapsed, {conflicts} field conflicts, {unreadable} unreadable\n\n"
+            "Import these {urls} bookmarks?"
+        ).format(
+            files=summary["files"], unique=summary["unique_files"],
+            duplicates=summary["duplicate_files"], formats=", ".join(formats) or _("none"),
+            entries=summary["parsed_entries"], urls=summary["unique_urls"],
+            merged=summary["merged"], conflicts=summary["conflicts"],
+            unreadable=summary["unreadable_files"],
+        )
+        if not messagebox.askyesno(_("Import folder"), detail, parent=self.root):
+            self._set_status(_("Import cancelled before changes were made"))
+            return
+
+        self._begin_import_session(
+            _("folder"),
+            importer,
+            [source.path for source in plan.unique_files],
+            source="batch-directory",
+            next_action=_("Review the merged rows and resolve any reported losses."),
+        )
 
     def _import_service_pocket(self):
         from bookmark_organizer_pro.importers_extra import PocketExportImporter

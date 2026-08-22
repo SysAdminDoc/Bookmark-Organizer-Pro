@@ -162,6 +162,7 @@ _bop_completions() {
             local -a options=(
                 -h
                 --help
+                --dry-run
             )
             case "$prev" in
             esac

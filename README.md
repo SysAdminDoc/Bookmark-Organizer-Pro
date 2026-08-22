@@ -2,7 +2,7 @@
 
 A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **verified offline snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
 
-Executable product contract: 64 CLI subcommands, 34 MCP tools, 6 AI providers, 3 extension surfaces, 56 service modules, 44 UI modules, and 44 test files.
+Executable product contract: 64 CLI subcommands, 34 MCP tools, 6 AI providers, 3 extension surfaces, 57 service modules, 44 UI modules, and 45 test files.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
 ![Version](https://img.shields.io/badge/Version-v6.13.0-2dd4bf.svg)
@@ -281,6 +281,23 @@ field blank still sends that category through the shared save boundary. The Side
 Panel search announces its waiting, loading, result-count, no-match, and error
 states through a live region; its responsive layout remains usable at narrow
 200% zoom-equivalent widths.
+
+### Importing a folder of exports
+
+Years of bookmark exports usually pile up as one folder full of near-identical
+files. Choose **Folder of exports** in the Import Center, or run:
+
+```bash
+python -m bookmark_organizer_pro.cli import ~/Desktop/bookmarks --dry-run
+python -m bookmark_organizer_pro.cli import ~/Desktop/bookmarks
+```
+
+Every file is hashed, so byte-identical copies are read once. Each surviving
+file is matched to an importer by extension and content, and entries are merged
+across files on the same canonical URL the deduplicator uses, keeping the newest
+date and the longest title. The preview lists files, formats, merged entries,
+and field conflicts before anything is written; `--dry-run` stops there. The
+import itself runs as one durable session with a single rollback safepoint.
 
 The Firefox manifest declares Mozilla's data collection consent categories, which
 Firefox shows before install. Saving a bookmark always sends its URL, title, tags,
