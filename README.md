@@ -282,6 +282,43 @@ Panel search announces its waiting, loading, result-count, no-match, and error
 states through a live region; its responsive layout remains usable at narrow
 200% zoom-equivalent widths.
 
+### Migrating from another service
+
+Pocket shut down on 2025-07-08 and deleted exported data on 2025-11-12.
+Pinboard's domain lapsed on 2026-06-16 with its archiving already broken.
+Omnivore closed in November 2024. If you are carrying an export around from any
+of them, it imports here without an account, and nothing leaves your machine.
+
+Every path is the same three steps. Export from the old service, run the
+matching import, then check the reported counts against what you expected.
+Imports run as a durable session with a rollback safepoint, so a bad import can
+be undone from **Tools > Import Sessions** or `bop imports`.
+
+| Coming from | Export you need | Import with |
+|---|---|---|
+| Any browser | Bookmarks HTML | `bop import file.html`, or the Import Center browser cards |
+| Chrome, Firefox, Edge | Nothing, the local profile is detected | Import Center browser cards |
+| Firefox backups | `bookmarkbackups` .json or .jsonlz4 | `bop import-firefox-backup file.json` |
+| Pocket | HTML or JSON export | `bop import-pocket file.html` |
+| Pinboard | `format=json` export | `bop import-pinboard file.json` |
+| Omnivore | Export .zip or unpacked folder | `bop import-omnivore export.zip` |
+| Readwise Reader | CSV export | `bop import-readwise file.csv` |
+| Instapaper | CSV export | `bop import-instapaper file.csv` |
+| Wallabag | JSON export | `bop import-wallabag file.json` |
+| Matter | CSV export | `bop import-matter file.csv` |
+| Arc | StorableSidebar.json | `bop import-arc StorableSidebar.json` |
+| Reddit | saved.json | `bop import-reddit saved.json` |
+| Zotero | RDF export | `bop import-zotero file.rdf` |
+| Raindrop, Linkwarden, Karakeep | Service export | `bop migration preflight <service> file` |
+| Markwise, start.me, other CSV | Any CSV with a URL column | `bop import-csv file.csv` |
+| OneTab | Exported text list | `bop import file.txt` |
+| RSS subscriptions | OPML | `bop import file.opml` |
+
+Duplicate URLs are skipped on the canonical form of the URL, so `http` versus
+`https`, a `www.` prefix, a trailing slash, and tracking parameters all resolve
+to the same bookmark. If you have several exports piled up, import the whole
+folder at once instead of one file at a time.
+
 ### Importing a folder of exports
 
 Years of bookmark exports usually pile up as one folder full of near-identical

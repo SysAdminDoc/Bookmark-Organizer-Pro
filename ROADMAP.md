@@ -40,13 +40,6 @@ Added 2026-08-21 from RESEARCH.md (same date). IDs continue the R-series after R
   Acceptance: `lingua-language-detector` carries `<2.2; python_version<'3.12'` (or equivalent marker); trafilatura 2.2.x, lancedb 0.37.x, cryptography 50.x are locked; a new fixture set locks extraction output for 5 representative pages and passes after the bump; the vulnerability audit and full suite pass; release contract regenerates with the new SBOM count.
   Complexity: M
 
-- [ ] P2 — R-115: Add a migration guide for Pocket, Pinboard, Omnivore, Readwise, and Markwise refugees
-  Why: Pocket (dead 2025-07-08) and Pinboard (domain lapsed 2026-06-16) produced two waves of users actively searching for import paths; competitors captured them with dedicated landing pages, while BOP's README does not name its own Pocket/Pinboard importers.
-  Evidence: `README.md` (no migration section); `importers_extra.py` (`PocketExportImporter`, `PinboardJSONImporter`); https://en.wikipedia.org/wiki/Pocket_(service); https://michaelharley.net/posts/2026/06/16/dear-pinboard-im-breaking-up-with-you-its-me-and-its-you/; https://www.instapaper.com/pocket.
-  Touches: `README.md` (new "Migrating from…" section with importer matrix), `docs/`, GitHub repo description/topics.
-  Acceptance: README lists every importer with its source format, a 3-step path per source (export → import → verify counts), and links to the bulk-folder flow once R-109 lands; written in plain prose per the repo's documentation voice; packaging doc-drift test passes.
-  Complexity: S
-
 - [ ] P2 — R-116: Generate and validate MCP registry `server.json` metadata
   Why: The official MCP registry (API v0.1 frozen 2025-10, feeding GitHub's and PulseMCP's directories) is how MCP servers are discovered in 2026; Raindrop and Karakeep ship listed servers and BOP has no `server.json`.
   Evidence: repo grep (no `server.json`); https://modelcontextprotocol.io/registry/about; https://glama.ai/blog/2026-01-24-official-mcp-registry-serverjson-requirements; https://help.raindrop.io/integrations/mcp.
