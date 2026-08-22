@@ -89,6 +89,7 @@ _bop_completions() {
         recovery-bundle
         updates
         smart-collections
+        repairs
         rules
         nl-query
     )
@@ -1539,6 +1540,38 @@ _bop_completions() {
                     eval
                     create
                     update
+                )
+                _bop_complete_array "$cur" "${values[@]}"
+                return 0
+            fi
+            return 0
+            ;;
+        repairs)
+            local -a options=(
+                -h
+                --help
+                --url
+                --html
+                --json
+            )
+            case "$prev" in
+                --url)
+                    return 0
+                    ;;
+                --html)
+                    _bop_complete_files "$cur"
+                    return 0
+                    return 0
+                    ;;
+            esac
+            if [[ "$cur" == -* ]]; then
+                _bop_complete_array "$cur" "${options[@]}"
+                return 0
+            fi
+            if (( COMP_CWORD == 2 )); then
+                local -a values=(
+                    list
+                    preview
                 )
                 _bop_complete_array "$cur" "${values[@]}"
                 return 0

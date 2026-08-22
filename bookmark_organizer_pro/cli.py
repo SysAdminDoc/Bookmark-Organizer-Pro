@@ -509,6 +509,14 @@ class BookmarkCLI:
         )
         p.set_defaults(func=self._cmd_smart_collections)
 
+        p = sub.add_parser("repairs", help="Inspect declarative extraction repairs")
+        p.add_argument("action", nargs="?", default="list", choices=["list", "preview"],
+                       help="Action (default: list)")
+        p.add_argument("--url", help="Page URL to preview a repair against")
+        p.add_argument("--html", help="Local HTML file to preview a repair against")
+        p.add_argument("--json", action="store_true", dest="as_json", help="Machine-readable output")
+        p.set_defaults(func=self._cmd_extraction_repairs)
+
         p = sub.add_parser("rules", help="Preview and apply declarative organization rules")
         p.add_argument(
             "action", nargs="?", default="list",
@@ -647,6 +655,56 @@ Examples:
     # ──────────────────────────────────────────────────────────────────
     # Core command handlers
     # ──────────────────────────────────────────────────────────────────
+    def _cmd_extraction_repairs(self, ns: argparse.Namespace):
+        """List extraction repairs, or compare one against default output."""
+        from bookmark_organizer_pro.services.extraction_repairs import (
+            REPAIRS_FILE,
+            load_extraction_repairs,
+            repair_extraction,
+        )
+
+        repairs = load_extraction_repairs()
+        if ns.action == "list":
+            if ns.as_json:
+                print(json.dumps([r.to_dict() for r in repairs], indent=2, ensure_ascii=False))
+            elif not repairs:
+                print(f"No extraction repairs configured ({REPAIRS_FILE}).")
+            else:
+                for repair in repairs:
+                    print(f"{repair.name}: {', '.join(repair.domains)}")
+                    if repair.content_selector:
+                        print(f"  keep:   {repair.content_selector}")
+                    if repair.remove_selectors:
+                        print(f"  remove: {', '.join(repair.remove_selectors)}")
+            return 0
+
+        if not ns.url or not ns.html:
+            return self._usage_error("usage: repairs preview --url <url> --html <file>")
+        source = Path(ns.html)
+        if not source.is_file():
+            self._error(f"Error: File not found: {ns.html}")
+            return 1
+
+        html = source.read_text(encoding="utf-8", errors="replace")
+        from bookmark_organizer_pro.services.ingest import _bs4_fallback, _trafilatura_extract
+
+        default = (_trafilatura_extract(html, ns.url) or _bs4_fallback(html) or {}).get("text", "")
+        result = repair_extraction(ns.url, html, default, repairs=repairs)
+        if ns.as_json:
+            print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+            return 0
+        if not result.applied:
+            print(f"No repair applied: {result.reason or 'no rule matched this URL'}")
+            print(f"Default extraction: {len(default)} characters")
+            return 0
+        print(f"Repair '{result.rule_name}' applied")
+        print(f"  default:  {len(result.default_text)} characters")
+        print(f"  repaired: {len(result.text)} characters")
+        print("  first lines of repaired output:")
+        for line in result.text.splitlines()[:5]:
+            print(f"    {line[:110]}")
+        return 0
+
     def _cmd_organization_rules(self, ns: argparse.Namespace):
         """Inspect and run the bounded declarative organization-rules workflow."""
         from bookmark_organizer_pro.services.organization_rules import OrganizationRulesService

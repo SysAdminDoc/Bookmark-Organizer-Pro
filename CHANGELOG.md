@@ -4,6 +4,18 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Added declarative extraction repairs for the handful of sites a generic
+  extractor reads badly: a forum thread that keeps only the first post, a page
+  whose sidebar drowns the body. A repair names the element holding the article
+  and the boilerplate to drop, using the same allowlisted selectors the
+  structured templates use. It runs on HTML already fetched, so it cannot reach
+  a new origin or execute page script, and `bop repairs preview` compares
+  default against repaired output before anything is saved. A repair whose
+  selector matches nothing, produces almost no text, exceeds its time budget,
+  or fails validation leaves the default extraction untouched.
+
 ### Changed
 
 - Refreshed locked dependencies: trafilatura 2.2.0 (its extraction overhaul),

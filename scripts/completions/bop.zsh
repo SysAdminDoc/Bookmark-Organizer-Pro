@@ -69,6 +69,7 @@ _bop() {
         'recovery-bundle:Create or restore a full-library backup'
         'updates:Manage update policy'
         'smart-collections:Manage smart collections'
+        'repairs:Inspect declarative extraction repairs'
         'rules:Preview and apply declarative organization rules'
         'nl-query:Natural language query'
         '-h:show this help message and exit'
@@ -899,6 +900,27 @@ _bop() {
                 '--has-snapshot[]' \
                 '--no-has-snapshot[]' \
                 '--reader-state[Filter by persisted reader state]:reader_state:(unread in_progress finished)'
+            return
+            ;;
+        repairs)
+            if [[ "$words[CURRENT]" != -* ]]; then
+                case $CURRENT in
+                    2)
+                        local -a values=(
+                            list
+                            preview
+                        )
+                        _describe 'argument' values
+                        return
+                        ;;
+                esac
+            fi
+            _arguments -s \
+                '-h[show this help message and exit]' \
+                '--help[show this help message and exit]' \
+                '--url[Page URL to preview a repair against]:url:' \
+                '--html[Local HTML file to preview a repair against]:html:_files' \
+                '--json[Machine-readable output]'
             return
             ;;
         rules)

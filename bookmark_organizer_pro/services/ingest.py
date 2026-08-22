@@ -63,6 +63,7 @@ class IngestResult:
     success: bool = False
     error: str = ""
     structured_metadata: Dict[str, object] = field(default_factory=dict)
+    repair_rule: str = ""
 
     def apply_to(self, bookmark: Bookmark) -> bool:
         """Apply the ingest result to a Bookmark in place. Returns True if
@@ -312,6 +313,21 @@ class ContentIngestor:
             result.structured_metadata = structured.to_bookmark_payload()
 
         extracted = _trafilatura_extract(html, url) or _bs4_fallback(html)
+
+        # A site the default extractor reads badly can be corrected by a
+        # declarative, selector-only repair. It runs on the HTML already in
+        # hand, so it cannot fetch anything or execute page script.
+        if extracted is not None:
+            try:
+                from bookmark_organizer_pro.services.extraction_repairs import repair_extraction
+
+                repair = repair_extraction(url, html, extracted.get("text", ""))
+                if repair.applied:
+                    extracted = dict(extracted)
+                    extracted["text"] = repair.text
+                    result.repair_rule = repair.rule_name
+            except Exception as exc:  # never let a repair break ingestion
+                log.warning(f"Extraction repair skipped for {url}: {exc}")
         if not extracted:
             if result.structured_metadata:
                 result.content_type = structured.content_type or _detect_content_type_from_url(url)
