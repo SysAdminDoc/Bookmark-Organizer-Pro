@@ -911,6 +911,10 @@ class ToolsActionsMixin:
                 'Checked {value_0}/{value_1} - {value_2} broken',
                 value_0=done, value_1=total, value_2=broken,
             ))
+            # Checkpoint periodically so a crash mid-scan does not throw away
+            # every verdict gathered so far.
+            if done and done % 20 == 0:
+                self.bookmark_manager.save_bookmarks()
 
         def _on_progress(progress):
             self._post_to_ui(

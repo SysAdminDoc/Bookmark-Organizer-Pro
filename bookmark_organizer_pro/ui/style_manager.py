@@ -318,6 +318,10 @@ class StyleManager:
             ],
             foreground=[
                 ("disabled", colors.text_muted),
+                # Same reason as Primary: hover and press change the
+                # background, so the ink has to be recomputed for it.
+                ("pressed", readable_text_on(colors.status_error)),
+                ("active", readable_text_on(colors.status_error)),
             ]
         )
         

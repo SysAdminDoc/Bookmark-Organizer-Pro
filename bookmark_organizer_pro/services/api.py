@@ -1022,16 +1022,24 @@ class BookmarkAPI:
                                     resource_summary=capture.get('resources'),
                                 )
                                 bookmark_manager.save_bookmarks()
-                            except (ValueError, RuntimeError, OSError) as exc:
+                            except (ValueError, RuntimeError, OSError, sqlite3.Error) as exc:
                                 if archiver is not None:
                                     archiver.delete_snapshot(bookmark)
                                 bookmark_manager.delete_bookmark(bookmark.id)
-                                message = (
-                                    str(exc)
-                                    if isinstance(exc, ValueError)
-                                    else "Browser snapshot could not be stored"
+                                if isinstance(exc, ValueError):
+                                    # The capture itself is unusable, so
+                                    # retrying it would fail the same way.
+                                    self._send_json({"error": str(exc)}, 422)
+                                    return
+                                # Storage failed, not the capture. 422 would
+                                # tell the extension to discard the page it
+                                # just captured instead of queueing a retry.
+                                log.error(f"Browser snapshot save failed against storage: {exc}")
+                                self._send_json(
+                                    {"error": "Snapshot could not be stored; the save will be retried"},
+                                    503,
+                                    {"Retry-After": 5},
                                 )
-                                self._send_json({"error": message}, 422)
                                 return
                             response = asdict(bookmark)
                             response['browser_snapshot'] = report
@@ -1039,11 +1047,9 @@ class BookmarkAPI:
                     
                     except json.JSONDecodeError:
                         self._send_json({"error": "Invalid JSON"}, 400)
-                    except ValueError as exc:
-                        # The payload itself is unusable; retrying it verbatim
-                        # would fail the same way, so this stays a client error.
-                        log.info(f"Rejected bookmark payload: {exc}")
-                        self._send_json({"error": "Could not add bookmark"}, 400)
+                    # Storage errors are matched before ValueError because the
+                    # JSON storage layer raises ValueError for a corrupt
+                    # library, which is a server-side fault, not a bad request.
                     except (OSError, RuntimeError, sqlite3.Error) as exc:
                         # The request was fine and the library could not be
                         # written. Answering 400 would tell the extension the
@@ -1055,6 +1061,11 @@ class BookmarkAPI:
                             503,
                             {"Retry-After": 5},
                         )
+                    except ValueError as exc:
+                        # The payload itself is unusable; retrying it verbatim
+                        # would fail the same way, so this stays a client error.
+                        log.info(f"Rejected bookmark payload: {exc}")
+                        self._send_json({"error": "Could not add bookmark"}, 400)
                     except Exception:
                         log.exception("Unexpected failure while adding a bookmark")
                         self._send_json({"error": "Could not add bookmark"}, 500)

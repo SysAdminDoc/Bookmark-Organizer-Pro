@@ -912,10 +912,14 @@ class AppShellMixin:
             return changed, _("Metadata refreshed") if changed else _("Metadata was unavailable")
         if operation == "link_check":
             from bookmark_organizer_pro.link_checker import LinkChecker
+            from bookmark_organizer_pro.services.dead_link_scanner import apply_check_verdict
 
             valid, status = LinkChecker(max_workers=1)._check_url(bookmark)
-            bookmark.is_valid = valid
-            bookmark.http_status = status
+            if not apply_check_verdict(bookmark, valid, status):
+                return True, format_message(
+                    "Host is rate limiting us ({status}); the link was left unchanged",
+                    status=status or 0,
+                )
             return True, format_message("Link check completed ({status})", status=status or 0)
         if operation == "youtube_transcript":
             from bookmark_organizer_pro.services.youtube_transcript import YouTubeTranscriptService

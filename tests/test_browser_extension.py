@@ -1240,6 +1240,58 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
             finally:
                 api.stop()
 
+    def test_a_snapshot_save_that_fails_on_storage_is_also_retryable(self):
+        """The capture branch has its own handler; a storage failure there used
+        to answer 422, which the extension treats as unretryable."""
+        import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            origins_file = Path(tmp) / "approved_extension_origins.json"
+            api = main.BookmarkAPI(manager, port=0, extension_origins_file=origins_file)
+            try:
+                api.start()
+                token = self._api_token()
+                base_url = f"http://127.0.0.1:{api.port}"
+                origin = f"chrome-extension://{'c' * 32}"
+                status, _body = self._pair_extension(base_url, token, origin)
+                self.assertEqual(status, 200)
+
+                payload = {
+                    "url": "https://snapshot-storage.example.com/a",
+                    "title": "Capture",
+                    "browser_snapshot": {
+                        "html": "<html><body><p>Captured page body.</p></body></html>",
+                        "source_url": "https://snapshot-storage.example.com/a",
+                    },
+                }
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {token}",
+                    "Origin": origin,
+                    "X-BOP-Capture-Version": "1",
+                }
+                request = urllib.request.Request(
+                    f"{base_url}/bookmarks",
+                    data=json.dumps(payload).encode("utf-8"),
+                    headers=headers,
+                    method="POST",
+                )
+                with mock.patch.object(
+                    manager.storage, "save", side_effect=OSError("disk is full"),
+                ):
+                    try:
+                        with urllib.request.urlopen(request, timeout=5) as response:
+                            status, response_headers = response.status, response.headers
+                    except urllib.error.HTTPError as error:
+                        status, response_headers = error.code, error.headers
+
+                self.assertEqual(status, 503)
+                self.assertEqual(response_headers.get("Retry-After"), "5")
+                self.assertEqual(manager.get_all_bookmarks(), [])
+            finally:
+                api.stop()
+
     def test_authenticated_browser_snapshot_is_sanitized_and_stored(self):
         import main
 

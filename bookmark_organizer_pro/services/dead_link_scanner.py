@@ -52,6 +52,31 @@ RATE_LIMIT_STATUSES = frozenset({429, 503})
 
 MAX_RATE_LIMIT_RETRIES = 2
 MAX_BACKOFF_SECONDS = 30.0
+# Longest a cancelled scan should keep sleeping before it notices.
+CANCEL_POLL_SECONDS = 0.25
+
+
+def apply_check_verdict(bookmark: Bookmark, is_valid: bool, status_code: int, *,
+                        rate_limited: Optional[bool] = None,
+                        now: Optional[datetime] = None) -> bool:
+    """Record one link-check result, leaving `is_valid` alone for a rate limit.
+
+    A host answering 429/503, or one that never answered at all, has not told
+    us the link is dead. Writing `is_valid=False` there marks the bookmark
+    broken in `find_broken_links`, `is:broken`, the broken quick filter, and
+    the dashboard badge. Returns True when a real verdict was recorded.
+    """
+    stamp = (now or datetime.now()).isoformat()
+    if rate_limited is None:
+        rate_limited = status_code in RATE_LIMIT_STATUSES
+    bookmark.last_checked = stamp
+    bookmark.http_status = status_code
+    if rate_limited:
+        bookmark.custom_data["rate_limited_at"] = stamp
+        return False
+    bookmark.is_valid = is_valid
+    bookmark.custom_data.pop("rate_limited_at", None)
+    return True
 
 
 def _default_sleep(seconds: float) -> None:
@@ -114,17 +139,22 @@ class _HostGate:
         with self._lock:
             self._ready_at[host] = max(self._ready_at.get(host, 0.0), _time.monotonic() + seconds)
 
-    def acquire(self, host: str, sleep: Callable[[float], None]) -> threading.Semaphore:
+    def acquire(self, host: str, sleep: Callable[[float], None],
+                should_cancel: Optional[Callable[[], bool]] = None) -> threading.Semaphore:
         import time as _time
 
         slot = self._slot(host)
         slot.acquire()
         while True:
+            if should_cancel is not None and should_cancel():
+                return slot
             with self._lock:
                 wait = self._ready_at.get(host, 0.0) - _time.monotonic()
             if wait <= 0:
                 return slot
-            sleep(min(wait, MAX_BACKOFF_SECONDS))
+            # Sleep in short slices so a cancelled scan does not sit out a
+            # 30 second Retry-After before noticing.
+            sleep(min(wait, CANCEL_POLL_SECONDS))
 
 
 class DeadLinkScanner:
@@ -151,15 +181,24 @@ class DeadLinkScanner:
             record.url: record.to_dict() for record in self._load_records()
         }
 
-    def _check_with_backoff(self, bm: Bookmark):
+    def _check_with_backoff(self, bm: Bookmark,
+                            should_cancel: Optional[Callable[[], bool]] = None):
         """Check one URL, pausing for hosts that ask us to slow down.
 
         Returns (is_valid, status_code, rate_limited).
         """
+        def cancelled() -> bool:
+            if self._stop.is_set():
+                return True
+            return bool(should_cancel is not None and should_cancel())
+
         host = _host_of(bm.url)
+        status_code = 0
         for attempt in range(MAX_RATE_LIMIT_RETRIES + 1):
-            slot = self._gate.acquire(host, self._sleep)
+            slot = self._gate.acquire(host, self._sleep, cancelled)
             try:
+                if cancelled():
+                    return False, status_code, True
                 is_valid, status_code = self.checker._check_url(bm)
             finally:
                 slot.release()
@@ -167,9 +206,15 @@ class DeadLinkScanner:
                 return is_valid, status_code, False
             delay = _retry_after_seconds(bm.custom_data.get("retry_after", ""), attempt)
             self._gate.penalize(host, delay)
-            if attempt >= MAX_RATE_LIMIT_RETRIES or self._stop.is_set():
+            if attempt >= MAX_RATE_LIMIT_RETRIES or cancelled():
                 break
-            self._sleep(delay)
+            # Slice the wait so cancelling does not have to outlast a long
+            # Retry-After before the worker returns.
+            remaining = delay
+            while remaining > 0 and not cancelled():
+                step = min(remaining, CANCEL_POLL_SECONDS)
+                self._sleep(step)
+                remaining -= step
         return False, status_code, True
 
     # ---- single scan -------------------------------------------------------
@@ -179,9 +224,11 @@ class DeadLinkScanner:
                  should_cancel: Optional[Callable[[], bool]] = None) -> List[DeadLinkRecord]:
         """Scan every bookmark once, honouring per-host politeness.
 
-        ``should_cancel`` is polled between completed checks so an interactive
-        caller can stop a long scan; the bookmarks already checked keep their
-        verdicts and the partial results are still persisted.
+        ``should_cancel`` is polled between completed checks and inside the
+        per-host backoff, so an interactive caller can stop a long scan without
+        waiting out a Retry-After. Bookmarks already checked keep their
+        verdicts, the partial results are persisted, and the scan is not
+        recorded as a completed pass.
         """
         from concurrent.futures import ThreadPoolExecutor, as_completed
         bookmarks = list(self.get_bookmarks())
@@ -223,13 +270,15 @@ class DeadLinkScanner:
                     pass
             return records
 
-        now = datetime.now().isoformat()
+        started_at = datetime.now()
+        now = started_at.isoformat()
+        cancelled = False
         with ThreadPoolExecutor(max_workers=self.checker.max_workers) as ex:
-            futures = {ex.submit(self._check_with_backoff, bm): bm for bm in bookmarks}
+            futures = {
+                ex.submit(self._check_with_backoff, bm, should_cancel): bm
+                for bm in bookmarks
+            }
             for fut in as_completed(futures):
-                if should_cancel is not None and should_cancel():
-                    ex.shutdown(wait=False, cancel_futures=True)
-                    break
                 bm = futures[fut]
                 rate_limited = False
                 try:
@@ -238,18 +287,12 @@ class DeadLinkScanner:
                     is_valid, status_code = False, 0
                     log.debug(f"check failed for {bm.url}: {exc}")
                 with self._lock:
-                    bm.last_checked = now
-                    bm.http_status = status_code
+                    recorded = apply_check_verdict(
+                        bm, is_valid, status_code,
+                        rate_limited=rate_limited, now=started_at,
+                    )
                     redirect = str(bm.custom_data.get("redirect_url", "") or "")
-                    if rate_limited:
-                        # The host never gave a verdict. Writing is_valid=False
-                        # here would mark the bookmark broken everywhere it is
-                        # surfaced (find_broken_links, `is:broken`, the broken
-                        # quick filter), so the previous verdict stands.
-                        bm.custom_data["rate_limited_at"] = now
-                    else:
-                        bm.is_valid = is_valid
-                        bm.custom_data.pop("rate_limited_at", None)
+                    if recorded:
                         self._verdicts[bm.url] = {
                             "is_valid": is_valid, "status": status_code, "checked_at": now,
                         }
@@ -281,9 +324,19 @@ class DeadLinkScanner:
                         progress_callback(progress)
                     except Exception:
                         pass
+                # Checked AFTER the verdict is applied, so a cancelled scan
+                # keeps everything that had already finished rather than
+                # discarding it while its side effects stay on the bookmark.
+                if should_cancel is not None and should_cancel():
+                    cancelled = True
+                    ex.shutdown(wait=False, cancel_futures=True)
+                    break
 
-        with self._lock:
-            self._last_scan = datetime.now()
+        if not cancelled:
+            # A cancelled scan is partial, so recording it as the last full
+            # scan would let `only_unchecked_for_hours` skip the rest.
+            with self._lock:
+                self._last_scan = datetime.now()
         self._persist(records)
         if progress_callback:
             try:

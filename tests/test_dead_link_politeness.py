@@ -193,9 +193,39 @@ class TestDeadLinkPoliteness(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             scanner, _slept = _scanner(bookmarks, server, tmp, max_workers=1)
-            scanner.scan_now(should_cancel=lambda: True)
+            # Cancel only after the first result has been applied.
+            scanner.scan_now(should_cancel=lambda: scanner._progress.done >= 1)
 
         self.assertLess(scanner._progress.done, len(bookmarks))
+        self.assertGreaterEqual(scanner._progress.done, 1)
+        checked = [b for b in bookmarks if b.last_checked]
+        self.assertTrue(
+            checked, "a cancelled scan must keep the verdicts it already had",
+        )
+        for bookmark in checked:
+            self.assertEqual(bookmark.http_status, 200)
+        self.assertIsNone(
+            scanner._last_scan,
+            "a partial scan must not be recorded as a completed pass",
+        )
+
+    def test_cancelling_does_not_wait_out_a_long_retry_after(self):
+        """The backoff used to sleep the full Retry-After before noticing, so
+        cancelling a rate-limited scan froze the UI for minutes."""
+        bookmarks = [_bookmark(i, f"https://slow.test/{i}") for i in range(6)]
+        server = _FakeServer({b.url: [429] for b in bookmarks})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            scanner, slept = _scanner(bookmarks, server, tmp, max_workers=2)
+            scanner.scan_now(should_cancel=lambda: True)
+
+        # Every sleep is a short poll slice, never a whole Retry-After.
+        from bookmark_organizer_pro.services.dead_link_scanner import CANCEL_POLL_SECONDS
+
+        self.assertTrue(
+            all(delay <= CANCEL_POLL_SECONDS for delay in slept),
+            f"cancelled scan slept in long blocks: {sorted(set(slept))[-5:]}",
+        )
 
     def test_retry_after_parsing(self):
         self.assertEqual(_retry_after_seconds("5", 0), 5.0)

@@ -105,26 +105,52 @@ class TestThemeContrast(unittest.TestCase):
                     f"{key}: text_primary on selection is {ratio:.2f}",
                 )
 
-    def test_primary_button_recomputes_its_ink_for_hover_and_press(self):
-        """`Primary.TButton` swaps its background to `selected` when hovered or
-        pressed. Leaving the resting ink in place drops the label under AA on
-        most themes, so the foreground must be mapped for those states too."""
+    def test_buttons_recompute_their_ink_for_hover_and_press(self):
+        """A ttk button swaps its background when hovered or pressed. Leaving
+        the resting ink in place drops the label under AA on most themes, so
+        the foreground must be mapped for those states too."""
         for key, info in BUILT_IN_THEMES.items():
             colors = info.colors
-            mapping = _style_for(colors).maps.get("Primary.TButton", {})
-            foreground = dict(mapping.get("foreground", []))
-            with self.subTest(theme=key):
+            recorded = _style_for(colors).maps
+            for style, surface in (
+                ("Primary.TButton", colors.selected),
+                ("Danger.TButton", colors.status_error),
+            ):
+                foreground = dict(recorded.get(style, {}).get("foreground", []))
                 for state in ("pressed", "active"):
-                    self.assertIn(
-                        state, foreground,
-                        f"{key}: Primary.TButton must map its foreground for {state}",
-                    )
-                    ratio = contrast_ratio(foreground[state], colors.selected)
-                    self.assertGreaterEqual(
-                        ratio, AA_TEXT,
-                        f"{key}: {state} ink {foreground[state]} on selected "
-                        f"{colors.selected} is {ratio:.2f}",
-                    )
+                    with self.subTest(theme=key, style=style, state=state):
+                        self.assertIn(
+                            state, foreground,
+                            f"{key}: {style} must map its foreground for {state}",
+                        )
+                        ratio = contrast_ratio(foreground[state], surface)
+                        self.assertGreaterEqual(
+                            ratio, AA_TEXT,
+                            f"{key}: {style} {state} ink {foreground[state]} on "
+                            f"{surface} is {ratio:.2f}",
+                        )
+
+    def test_the_three_ink_levels_stay_visually_distinct(self):
+        """Contrast can always be won by bleaching every ink to one shade.
+        That trades an accessibility failure for an unreadable hierarchy, so
+        the ramp is asserted alongside the floor."""
+        minimum_step = 1.12
+        for key, info in BUILT_IN_THEMES.items():
+            colors = info.colors
+            primary, secondary, muted = (
+                colors.text_primary, colors.text_secondary, colors.text_muted,
+            )
+            with self.subTest(theme=key):
+                self.assertGreaterEqual(
+                    contrast_ratio(primary, secondary), minimum_step,
+                    f"{key}: text_primary {primary} and text_secondary {secondary} "
+                    "are the same shade",
+                )
+                self.assertGreaterEqual(
+                    contrast_ratio(secondary, muted), minimum_step,
+                    f"{key}: text_secondary {secondary} and text_muted {muted} "
+                    "are the same shade",
+                )
 
     def test_readable_text_on_picks_the_higher_contrast_ink(self):
         for key, info in BUILT_IN_THEMES.items():

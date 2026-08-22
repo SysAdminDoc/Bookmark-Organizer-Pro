@@ -1752,10 +1752,12 @@ Top Domains:
             return bool(metadata.get("title") or metadata.get("description")), "metadata refreshed"
         if record.job_type == "link_check":
             from bookmark_organizer_pro.link_checker import LinkChecker
+            from bookmark_organizer_pro.services.dead_link_scanner import apply_check_verdict
             valid, status = LinkChecker()._check_url(bookmark)
-            bookmark.is_valid = valid
-            bookmark.http_status = status
+            recorded = apply_check_verdict(bookmark, valid, status)
             self.bookmark_manager.save_bookmarks()
+            if not recorded:
+                return False, f"rate limited (HTTP {status}); left unchanged"
             return bool(status), f"HTTP {status}" if status else "no HTTP response"
         if record.job_type == "rss":
             from bookmark_organizer_pro.services.job_ledger import safe_domain
