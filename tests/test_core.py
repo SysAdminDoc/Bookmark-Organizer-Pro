@@ -2290,7 +2290,6 @@ class TestMainAppManagers(_LocalAPIServerMixin, unittest.TestCase):
     def test_bookmark_api_rejects_bad_post_bodies_and_duplicates(self):
         import urllib.error
         import urllib.request
-        import main
 
         def post_json(base_url, payload, token=None):
             headers = {"Content-Type": "application/json"}
@@ -2366,7 +2365,6 @@ class TestMainAppManagers(_LocalAPIServerMixin, unittest.TestCase):
     def test_bookmark_api_serves_opds_catalog(self):
         import urllib.error
         import urllib.request
-        import main
 
         def get_text(url, token=None):
             headers = {}
@@ -2709,7 +2707,6 @@ class TestRESTAPIEndpoints(_LocalAPIServerMixin, unittest.TestCase):
         return token
 
     def test_api_stats_endpoint(self):
-        import main
 
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
@@ -2724,7 +2721,6 @@ class TestRESTAPIEndpoints(_LocalAPIServerMixin, unittest.TestCase):
                 api.stop()
 
     def test_api_categories_endpoint(self):
-        import main
 
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
@@ -2739,7 +2735,6 @@ class TestRESTAPIEndpoints(_LocalAPIServerMixin, unittest.TestCase):
                 api.stop()
 
     def test_api_tags_endpoint(self):
-        import main
 
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
@@ -2754,7 +2749,6 @@ class TestRESTAPIEndpoints(_LocalAPIServerMixin, unittest.TestCase):
                 api.stop()
 
     def test_api_search_endpoint(self):
-        import main
 
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
@@ -2771,7 +2765,6 @@ class TestRESTAPIEndpoints(_LocalAPIServerMixin, unittest.TestCase):
 
     def test_api_invalid_search_conformance_corpus_returns_400(self):
         import urllib.parse
-        import main
         from tests import SEARCH_CONFORMANCE_CASES
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -2802,7 +2795,6 @@ class TestRESTAPIEndpoints(_LocalAPIServerMixin, unittest.TestCase):
                 api.stop()
 
     def test_api_get_single_bookmark(self):
-        import main
 
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
@@ -2817,7 +2809,6 @@ class TestRESTAPIEndpoints(_LocalAPIServerMixin, unittest.TestCase):
                 api.stop()
 
     def test_api_bookmarks_supports_pagination_and_filter_parity(self):
-        import main
 
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
@@ -2889,7 +2880,6 @@ class TestRESTAPIEndpoints(_LocalAPIServerMixin, unittest.TestCase):
                 api.stop()
 
     def test_api_digest_endpoint(self):
-        import main
 
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
@@ -2907,7 +2897,6 @@ class TestRESTAPIEndpoints(_LocalAPIServerMixin, unittest.TestCase):
 
     def test_api_options_returns_cors_headers(self):
         import urllib.request
-        import main
 
         with tempfile.TemporaryDirectory() as tmp:
             manager = self._make_manager(tmp)
@@ -2926,7 +2915,6 @@ class TestRESTAPIEndpoints(_LocalAPIServerMixin, unittest.TestCase):
                 api.stop()
 
     def test_api_enforces_named_read_write_and_extension_scopes(self):
-        import main
         from bookmark_organizer_pro.services.mcp_auth import (
             REST_EXTENSION_SCOPE,
             REST_READ_SCOPE,

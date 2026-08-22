@@ -884,6 +884,22 @@ class BookmarkAPI:
                 else:
                     self._send_json({"error": "Not found"}, 404)
             
+            def _has_snapshot(self, bookmark, bookmark_manager) -> bool:
+                """Whether this row already has a readable offline archive."""
+                from pathlib import Path
+
+                from bookmark_organizer_pro.services.snapshot import SnapshotArchiver
+
+                if not getattr(bookmark, "snapshot_path", ""):
+                    return False
+                try:
+                    snapshots_dir = Path(bookmark_manager.filepath).parent / "snapshots"
+                    return SnapshotArchiver(snapshots_dir=snapshots_dir).has_snapshot(bookmark)
+                except (OSError, ValueError):
+                    # An unreadable manifest is not something to overwrite on a
+                    # guess, so treat it as present and let the caller answer 409.
+                    return True
+
             def _store_capture(self, bookmark, capture, bookmark_manager, *, created):
                 """Archive ``capture`` against ``bookmark`` and persist the row.
 
@@ -898,6 +914,10 @@ class BookmarkAPI:
                 from bookmark_organizer_pro.services.snapshot import SnapshotArchiver
 
                 archiver = None
+                # Whatever archive this row already had is not this request's
+                # to remove. Deleting on failure regardless of that is how a
+                # failed attach used to destroy a good offline copy.
+                had_snapshot = bool(getattr(bookmark, "snapshot_path", ""))
                 try:
                     snapshots_dir = Path(bookmark_manager.filepath).parent / "snapshots"
                     archiver = SnapshotArchiver(snapshots_dir=snapshots_dir)
@@ -911,7 +931,7 @@ class BookmarkAPI:
                     bookmark_manager.save_bookmarks()
                     return report
                 except (ValueError, RuntimeError, OSError, sqlite3.Error) as exc:
-                    if archiver is not None:
+                    if archiver is not None and not had_snapshot:
                         with contextlib.suppress(Exception):
                             archiver.delete_snapshot(bookmark)
                     # True means nothing half-written is left behind: either
@@ -1057,16 +1077,24 @@ class BookmarkAPI:
                             self._send_json({"error": "Snapshot source URL does not match the request URL"}, 400)
                             return
                         existing = bookmark_manager.find_by_url(raw_url)
-                        if existing is not None and capture is None:
-                            self._send_json({"error": "Bookmark already exists"}, 409)
-                            return
                         if existing is not None:
-                            # A capture whose URL is already in the library
-                            # attaches to that row instead of colliding with
-                            # it. This is the retry path: an earlier attempt
+                            # A capture whose URL is already in the library can
+                            # attach to that row instead of colliding with it.
+                            # This is the retry path: an earlier attempt
                             # persisted the bookmark and then failed to write
-                            # the archive, and answering 409 here would make
-                            # the extension discard the page it captured.
+                            # the archive, and answering 409 would make the
+                            # extension discard the page it captured.
+                            #
+                            # Only a row with no archive qualifies. Attaching
+                            # over an existing one would let any caller replace
+                            # the saved copy of any bookmark just by knowing its
+                            # URL, and that is what 409 is for.
+                            attachable = capture is not None and not self._has_snapshot(
+                                existing, bookmark_manager
+                            )
+                            if not attachable:
+                                self._send_json({"error": "Bookmark already exists"}, 409)
+                                return
                             report = self._store_capture(
                                 existing, capture, bookmark_manager, created=False
                             )
@@ -1074,6 +1102,10 @@ class BookmarkAPI:
                                 return
                             response = asdict(existing)
                             response['browser_snapshot'] = report
+                            # The row is the user's, so the request's title,
+                            # tags, and notes are not written over it. Say so
+                            # rather than reporting this as a fresh save.
+                            response['attached_to_existing'] = True
                             self._send_json(response, 200)
                             return
 

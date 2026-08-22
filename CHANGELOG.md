@@ -38,8 +38,11 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   storage error, so the row survives; the retry used to collide with that row
   and get "Bookmark already exists", which the extension treats as final, so
   the captured page was thrown away. A retry that carries a snapshot now
-  attaches it to the bookmark already there and answers 200. A duplicate save
-  with no capture is still refused the same way it always was.
+  attaches it to the bookmark already there and answers 200. Only a bookmark
+  with no offline copy yet qualifies, so a capture can never replace one you
+  already have, and the title, tags, and notes on the saved row are left as
+  they are. The extension says so rather than reporting a fresh save. A
+  duplicate save with no capture is still refused the same way it always was.
 
 ## [v6.15.0] - 2026-08-22
 

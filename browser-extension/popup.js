@@ -162,10 +162,15 @@ async function saveBookmark() {
       setStatus(extensionMessage("queuedSave", [], "API unavailable. Save added to the retry journal."), "warning");
       await refreshPendingPanel();
     } else if (isSavedStatus(result.status)) {
+      // An attach keeps the title, tags, and notes already on the row, so it
+      // must not be reported as though this form's fields were saved.
+      const attached = result.body && result.body.attached_to_existing;
       const preserved = result.body && result.body.browser_snapshot;
-      setStatus(preserved
-        ? extensionMessage("savedWithOfflineCopy", [], "Saved with a sanitized offline copy. No cookies were sent.")
-        : extensionMessage("savedToLibrary", [], "Saved to your library."), "success");
+      setStatus(attached
+        ? extensionMessage("offlineCopyAddedToExisting", [], "Already in your library. Offline copy added; the saved details were kept.")
+        : preserved
+          ? extensionMessage("savedWithOfflineCopy", [], "Saved with a sanitized offline copy. No cookies were sent.")
+          : extensionMessage("savedToLibrary", [], "Saved to your library."), "success");
     } else if (result.status === 409) {
       setStatus(extensionMessage("alreadyInLibrary", [], "Already in your library."), "success");
     } else if (result.status === 401) {

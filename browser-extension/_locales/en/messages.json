@@ -1,159 +1,606 @@
 {
-  "extensionName": {"message": "Bookmark Organizer Pro"},
-  "extensionDescription": {"message": "Save the active tab to Bookmark Organizer Pro through the local API."},
-  "localFirstCapture": {"message": "Local-first capture"},
-  "savedLocally": {"message": "Saved locally"},
-  "currentPage": {"message": "Current page"},
-  "connection": {"message": "Connection"},
-  "localConnection": {"message": "Local connection"},
-  "credentialPrivacy": {"message": "Credentials stay in the extension vault and connect only to this device."},
-  "libraryCompanion": {"message": "Library companion"},
-  "library": {"message": "Library"},
-  "find": {"message": "Find"},
-  "commandDescription": {"message": "Save current tab to Bookmark Organizer Pro"},
-  "popupTitle": {"message": "Save to Bookmark Organizer Pro"},
-  "optionsTitle": {"message": "Bookmark Organizer Pro Options"},
-  "saveBookmark": {"message": "Save Bookmark"},
-  "loadingActiveTab": {"message": "Loading active tab..."},
-  "category": {"message": "Category"},
-  "categoryDefaultValue": {"message": "Default: Uncategorized / Needs Review", "description": "The effective default category shown beside a capture category field."},
-  "categoryBlankPlaceholder": {"message": "Use the default category", "description": "Placeholder for a blank capture category field."},
-  "categoryBlankHint": {"message": "Leave blank to use $CATEGORY$. A blank category is never saved.", "placeholders": {"category": {"content": "$1"}}},
-  "tags": {"message": "Tags"},
-  "tagsPlaceholder": {"message": "design, research, reading"},
-  "tagsHint": {"message": "Choose a suggestion or keep typing a new tag. Separate tags with commas."},
-  "tagSuggestions": {"message": "Tag suggestions"},
-  "tagSuggestionsCount": {"message": "$COUNT$ tag suggestions. Use Arrow Down to choose.", "placeholders": {"count": {"content": "$1"}}},
-  "tagSuggestionSelected": {"message": "Selected tag $TAG$.", "placeholders": {"tag": {"content": "$1"}}},
-  "tagSuggestionChosen": {"message": "Tag $TAG$ selected.", "placeholders": {"tag": {"content": "$1"}}},
-  "tagNoMatches": {"message": "No matching tags. Press Enter to keep a new tag."},
-  "tagsReadyToSave": {"message": "Tags are ready to save."},
-  "tagSuggestionsDismissed": {"message": "Tag suggestions dismissed."},
-  "notes": {"message": "Notes"},
-  "notesPlaceholder": {"message": "Add context you will want when rediscovering this page."},
-  "shortNotesPlaceholder": {"message": "Add context for future rediscovery."},
-  "readLater": {"message": "Read Later"},
-  "preserveSignedInPage": {"message": "Preserve this signed-in page"},
-  "captureHint": {"message": "Embeds sanitized same-site styles, images, and fonts (up to 4.5 MB). Scripts and forms are removed; cookies are never sent."},
-  "options": {"message": "Options"},
-  "zeroPendingSaves": {"message": "0 pending saves"},
-  "retry": {"message": "Retry"},
-  "clear": {"message": "Clear"},
-  "extensionSettings": {"message": "Extension settings"},
-  "localApi": {"message": "Local API"},
-  "connectDescription": {"message": "Connect the extension to the local Bookmark Organizer Pro API."},
-  "apiPort": {"message": "API port"},
-  "apiToken": {"message": "API token"},
-  "defaultCategory": {"message": "Default category"},
-  "defaultCategoryHint": {"message": "This named category is used whenever a capture leaves Category blank."},
-  "saveSettings": {"message": "Save Settings"},
-  "testApi": {"message": "Test API"},
-  "replacePairing": {"message": "Replace Pairing"},
-  "connecting": {"message": "Connecting..."},
-  "sidePanelSections": {"message": "Bookmark side panel sections"},
-  "recent": {"message": "Recent"},
-  "search": {"message": "Search"},
-  "add": {"message": "Add"},
-  "loadMore": {"message": "Load More"},
-  "rediscover": {"message": "Rediscover"},
-  "searchBookmarks": {"message": "Search bookmarks"},
-  "searchBookmarksPlaceholder": {"message": "Search bookmarks..."},
-  "readingList": {"message": "Reading List"},
-  "importReadingList": {"message": "Import from Chrome Reading List"},
-  "addTokenBeforeSaving": {"message": "Add the local API token in Options before saving."},
-  "alreadyInLibrary": {"message": "Already in your library."},
-  "apiUnavailable": {"message": "Cannot reach the local API. Start the app or run: bop api-server"},
-  "connected": {"message": "Connected"},
-  "connectedPaired": {"message": "Connected and paired with this extension."},
-  "connectedUnpaired": {"message": "Connected, but this extension is not paired. Save Settings to pair it."},
-  "importing": {"message": "Importing..."},
-  "invalidToken": {"message": "Invalid API token. Check Options."},
-  "loading": {"message": "Loading..."},
-  "noActiveTab": {"message": "No active tab"},
-  "noApiToken": {"message": "No API token"},
-  "openWebPage": {"message": "Open an HTTP/HTTPS page to save."},
-  "pageCannotBeSaved": {"message": "This page cannot be saved."},
-  "pairingReplaced": {"message": "Settings saved and pairing replaced."},
-  "readingListEmpty": {"message": "Reading list is empty."},
-  "sanitizingPage": {"message": "Sanitizing this page before upload..."},
-  "savedToLibrary": {"message": "Saved to your library."},
-  "savedWithOfflineCopy": {"message": "Saved with a sanitized offline copy. No cookies were sent."},
-  "saving": {"message": "Saving..."},
-  "serverInvalidToken": {"message": "Server reached but token is invalid."},
-  "settingsSavedPaired": {"message": "Settings saved and extension paired."},
-  "testing": {"message": "Testing..."},
-  "testingConnection": {"message": "Testing connection..."},
-  "unavailable": {"message": "Unavailable"},
-  "validPortRequired": {"message": "Enter a valid TCP port."},
-  "saveWithSelection": {"message": "Save to BOP with selection"},
-  "openSidePanel": {"message": "Open BOP Side Panel"},
-  "pendingSaveDetails": {"message": "Pending save details"},
-  "exportJson": {"message": "Export JSON"},
-  "undoClear": {"message": "Undo Clear"},
-  "untitledSave": {"message": "Untitled save"},
-  "unknownTime": {"message": "Unknown time"},
-  "unknownSource": {"message": "unknown"},
-  "retryPending": {"message": "retry pending"},
-  "pendingSavesRemain": {"message": "$COUNT$ pending saves remain", "placeholders": {"count": {"content": "$1"}}},
-  "pendingSavesResolved": {"message": "Pending saves resolved"},
-  "confirmClearPending": {"message": "Clear the pending save journal? You can undo this from the same panel."},
-  "clearedOnePendingSave": {"message": "Cleared 1 pending save"},
-  "clearedPendingSaves": {"message": "Cleared $COUNT$ pending saves", "placeholders": {"count": {"content": "$1"}}},
-  "restoredOnePendingSave": {"message": "Restored 1 pending save"},
-  "restoredPendingSaves": {"message": "Restored $COUNT$ pending saves", "placeholders": {"count": {"content": "$1"}}},
-  "oneBookmark": {"message": "1 bookmark"},
-  "bookmarkCount": {"message": "$COUNT$ bookmarks", "placeholders": {"count": {"content": "$1"}}},
-  "tokenRejected": {"message": "Token rejected"},
-  "disconnected": {"message": "Disconnected"},
-  "optionsOpenFailed": {"message": "Options could not be opened"},
-  "pendingRetryFailed": {"message": "Pending retry failed"},
-  "pendingClearFailed": {"message": "Pending queue could not be cleared"},
-  "pendingRestoreFailed": {"message": "Cleared saves could not be restored"},
-  "exportedOnePendingSave": {"message": "Exported 1 pending save"},
-  "exportedPendingSaves": {"message": "Exported $COUNT$ pending saves", "placeholders": {"count": {"content": "$1"}}},
-  "pendingExportFailed": {"message": "Pending saves could not be exported"},
-  "activeTabLoadFailed": {"message": "Could not load the active tab."},
-  "addTokenToConnect": {"message": "Add the local API token in Options to connect."},
-  "apiReturnedError": {"message": "The local API returned $STATUS$. Try again or check the app logs.", "placeholders": {"status": {"content": "$1"}}},
-  "apiUnavailableKeepSettings": {"message": "Cannot reach the local API. Start the app and try again. Previous settings were kept."},
-  "connectionTestFailed": {"message": "Connection test failed."},
-  "currentSettingsReadFailed": {"message": "Could not read the current settings. Nothing was changed."},
-  "noBookmarksYet": {"message": "No bookmarks yet. Save the current page from the Add tab."},
-  "noSaveablePage": {"message": "No saveable page."},
-  "noSearchResults": {"message": "No results for \"$QUERY$\".", "placeholders": {"query": {"content": "$1"}}},
-  "searchReady": {"message": "Enter a query to search bookmarks."},
-  "searchWaiting": {"message": "Waiting to search..."},
-  "searchLoading": {"message": "Searching bookmarks..."},
-  "searchResultOne": {"message": "1 bookmark found"},
-  "searchResultCount": {"message": "$COUNT$ bookmarks found", "placeholders": {"count": {"content": "$1"}}},
-  "searchNoMatches": {"message": "No bookmarks matched \"$QUERY$\".", "placeholders": {"query": {"content": "$1"}}},
-  "searchError": {"message": "Search could not be completed. Check the local API and try again."},
-  "searchResults": {"message": "Search results"},
-  "optionsLoadFailed": {"message": "Could not load options."},
-  "optionsSaveFailed": {"message": "Could not save options."},
-  "pairingConflict": {"message": "This API is paired with another extension ID. Use Replace Pairing to recover this install. Previous settings were kept."},
-  "pairingFailedKeepSettings": {"message": "$ERROR$ Previous settings were kept.", "placeholders": {"error": {"content": "$1"}}},
-  "pairingReplaceFailed": {"message": "Could not replace pairing."},
-  "pairingStorageFailed": {"message": "Pairing succeeded, but settings could not be stored or restored. Reopen Options before saving bookmarks."},
-  "pairingStorageFailedRestored": {"message": "Pairing succeeded, but settings could not be stored. Previous settings were restored."},
-  "queuedSave": {"message": "API unavailable. Save added to the retry journal."},
-  "readingListAccessFailed": {"message": "Could not access reading list."},
-  "readingListAlreadySaved": {"message": "; $COUNT$ already saved", "placeholders": {"count": {"content": "$1"}}},
-  "readingListFailed": {"message": "; $COUNT$ failed", "placeholders": {"count": {"content": "$1"}}},
-  "readingListImportSummary": {"message": "Imported $IMPORTED$ of $TOTAL$ reading list $ITEMS$$DETAIL$.", "placeholders": {"imported": {"content": "$1"}, "total": {"content": "$2"}, "items": {"content": "$3"}, "detail": {"content": "$4"}}},
-  "readingListItem": {"message": "item"},
-  "readingListItems": {"message": "items"},
-  "readingListQueued": {"message": "; $COUNT$ queued for retry", "placeholders": {"count": {"content": "$1"}}},
-  "readingListUnavailable": {"message": "Reading List API not available in this browser."},
-  "retriedPendingSaves": {"message": "Retried $ATTEMPTED$ pending saves; resolved $RESOLVED$.", "placeholders": {"attempted": {"content": "$1"}, "resolved": {"content": "$2"}}},
-  "saveFailed": {"message": "Save failed ($STATUS$).", "placeholders": {"status": {"content": "$1"}}},
-  "saveFailedGeneric": {"message": "Save failed."},
-  "serverInvalidTokenKeepSettings": {"message": "Server reached but token is invalid. Previous settings were kept."},
-  "tokenRejectedDetail": {"message": "The API token was rejected. Open Options and replace it."},
-  "typeQuery": {"message": "Type a query and press Go."},
-  "unexpectedResponse": {"message": "Unexpected response: $STATUS$", "placeholders": {"status": {"content": "$1"}}},
-  "validPortFirst": {"message": "Enter a valid TCP port first."},
-  "onePendingSave": {"message": "1 pending save"},
-  "pendingSavesCount": {"message": "$COUNT$ pending saves", "placeholders": {"count": {"content": "$1"}}},
-  "clearedSavesRestorable": {"message": "$COUNT$ cleared saves can be restored", "placeholders": {"count": {"content": "$1"}}}
+  "extensionName": {
+    "message": "Bookmark Organizer Pro"
+  },
+  "extensionDescription": {
+    "message": "Save the active tab to Bookmark Organizer Pro through the local API."
+  },
+  "localFirstCapture": {
+    "message": "Local-first capture"
+  },
+  "savedLocally": {
+    "message": "Saved locally"
+  },
+  "currentPage": {
+    "message": "Current page"
+  },
+  "connection": {
+    "message": "Connection"
+  },
+  "localConnection": {
+    "message": "Local connection"
+  },
+  "credentialPrivacy": {
+    "message": "Credentials stay in the extension vault and connect only to this device."
+  },
+  "libraryCompanion": {
+    "message": "Library companion"
+  },
+  "library": {
+    "message": "Library"
+  },
+  "find": {
+    "message": "Find"
+  },
+  "commandDescription": {
+    "message": "Save current tab to Bookmark Organizer Pro"
+  },
+  "popupTitle": {
+    "message": "Save to Bookmark Organizer Pro"
+  },
+  "optionsTitle": {
+    "message": "Bookmark Organizer Pro Options"
+  },
+  "saveBookmark": {
+    "message": "Save Bookmark"
+  },
+  "loadingActiveTab": {
+    "message": "Loading active tab..."
+  },
+  "category": {
+    "message": "Category"
+  },
+  "categoryDefaultValue": {
+    "message": "Default: Uncategorized / Needs Review",
+    "description": "The effective default category shown beside a capture category field."
+  },
+  "categoryBlankPlaceholder": {
+    "message": "Use the default category",
+    "description": "Placeholder for a blank capture category field."
+  },
+  "categoryBlankHint": {
+    "message": "Leave blank to use $CATEGORY$. A blank category is never saved.",
+    "placeholders": {
+      "category": {
+        "content": "$1"
+      }
+    }
+  },
+  "tags": {
+    "message": "Tags"
+  },
+  "tagsPlaceholder": {
+    "message": "design, research, reading"
+  },
+  "tagsHint": {
+    "message": "Choose a suggestion or keep typing a new tag. Separate tags with commas."
+  },
+  "tagSuggestions": {
+    "message": "Tag suggestions"
+  },
+  "tagSuggestionsCount": {
+    "message": "$COUNT$ tag suggestions. Use Arrow Down to choose.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "tagSuggestionSelected": {
+    "message": "Selected tag $TAG$.",
+    "placeholders": {
+      "tag": {
+        "content": "$1"
+      }
+    }
+  },
+  "tagSuggestionChosen": {
+    "message": "Tag $TAG$ selected.",
+    "placeholders": {
+      "tag": {
+        "content": "$1"
+      }
+    }
+  },
+  "tagNoMatches": {
+    "message": "No matching tags. Press Enter to keep a new tag."
+  },
+  "tagsReadyToSave": {
+    "message": "Tags are ready to save."
+  },
+  "tagSuggestionsDismissed": {
+    "message": "Tag suggestions dismissed."
+  },
+  "notes": {
+    "message": "Notes"
+  },
+  "notesPlaceholder": {
+    "message": "Add context you will want when rediscovering this page."
+  },
+  "shortNotesPlaceholder": {
+    "message": "Add context for future rediscovery."
+  },
+  "readLater": {
+    "message": "Read Later"
+  },
+  "preserveSignedInPage": {
+    "message": "Preserve this signed-in page"
+  },
+  "captureHint": {
+    "message": "Embeds sanitized same-site styles, images, and fonts (up to 4.5 MB). Scripts and forms are removed; cookies are never sent."
+  },
+  "options": {
+    "message": "Options"
+  },
+  "zeroPendingSaves": {
+    "message": "0 pending saves"
+  },
+  "retry": {
+    "message": "Retry"
+  },
+  "clear": {
+    "message": "Clear"
+  },
+  "extensionSettings": {
+    "message": "Extension settings"
+  },
+  "localApi": {
+    "message": "Local API"
+  },
+  "connectDescription": {
+    "message": "Connect the extension to the local Bookmark Organizer Pro API."
+  },
+  "apiPort": {
+    "message": "API port"
+  },
+  "apiToken": {
+    "message": "API token"
+  },
+  "defaultCategory": {
+    "message": "Default category"
+  },
+  "defaultCategoryHint": {
+    "message": "This named category is used whenever a capture leaves Category blank."
+  },
+  "saveSettings": {
+    "message": "Save Settings"
+  },
+  "testApi": {
+    "message": "Test API"
+  },
+  "replacePairing": {
+    "message": "Replace Pairing"
+  },
+  "connecting": {
+    "message": "Connecting..."
+  },
+  "sidePanelSections": {
+    "message": "Bookmark side panel sections"
+  },
+  "recent": {
+    "message": "Recent"
+  },
+  "search": {
+    "message": "Search"
+  },
+  "add": {
+    "message": "Add"
+  },
+  "loadMore": {
+    "message": "Load More"
+  },
+  "rediscover": {
+    "message": "Rediscover"
+  },
+  "searchBookmarks": {
+    "message": "Search bookmarks"
+  },
+  "searchBookmarksPlaceholder": {
+    "message": "Search bookmarks..."
+  },
+  "readingList": {
+    "message": "Reading List"
+  },
+  "importReadingList": {
+    "message": "Import from Chrome Reading List"
+  },
+  "addTokenBeforeSaving": {
+    "message": "Add the local API token in Options before saving."
+  },
+  "alreadyInLibrary": {
+    "message": "Already in your library."
+  },
+  "apiUnavailable": {
+    "message": "Cannot reach the local API. Start the app or run: bop api-server"
+  },
+  "connected": {
+    "message": "Connected"
+  },
+  "connectedPaired": {
+    "message": "Connected and paired with this extension."
+  },
+  "connectedUnpaired": {
+    "message": "Connected, but this extension is not paired. Save Settings to pair it."
+  },
+  "importing": {
+    "message": "Importing..."
+  },
+  "invalidToken": {
+    "message": "Invalid API token. Check Options."
+  },
+  "loading": {
+    "message": "Loading..."
+  },
+  "noActiveTab": {
+    "message": "No active tab"
+  },
+  "noApiToken": {
+    "message": "No API token"
+  },
+  "openWebPage": {
+    "message": "Open an HTTP/HTTPS page to save."
+  },
+  "pageCannotBeSaved": {
+    "message": "This page cannot be saved."
+  },
+  "pairingReplaced": {
+    "message": "Settings saved and pairing replaced."
+  },
+  "readingListEmpty": {
+    "message": "Reading list is empty."
+  },
+  "sanitizingPage": {
+    "message": "Sanitizing this page before upload..."
+  },
+  "savedToLibrary": {
+    "message": "Saved to your library."
+  },
+  "savedWithOfflineCopy": {
+    "message": "Saved with a sanitized offline copy. No cookies were sent."
+  },
+  "offlineCopyAddedToExisting": {
+    "message": "Already in your library. Offline copy added; the saved details were kept.",
+    "description": "Shown when a capture attaches to a bookmark that was already saved."
+  },
+  "saving": {
+    "message": "Saving..."
+  },
+  "serverInvalidToken": {
+    "message": "Server reached but token is invalid."
+  },
+  "settingsSavedPaired": {
+    "message": "Settings saved and extension paired."
+  },
+  "testing": {
+    "message": "Testing..."
+  },
+  "testingConnection": {
+    "message": "Testing connection..."
+  },
+  "unavailable": {
+    "message": "Unavailable"
+  },
+  "validPortRequired": {
+    "message": "Enter a valid TCP port."
+  },
+  "saveWithSelection": {
+    "message": "Save to BOP with selection"
+  },
+  "openSidePanel": {
+    "message": "Open BOP Side Panel"
+  },
+  "pendingSaveDetails": {
+    "message": "Pending save details"
+  },
+  "exportJson": {
+    "message": "Export JSON"
+  },
+  "undoClear": {
+    "message": "Undo Clear"
+  },
+  "untitledSave": {
+    "message": "Untitled save"
+  },
+  "unknownTime": {
+    "message": "Unknown time"
+  },
+  "unknownSource": {
+    "message": "unknown"
+  },
+  "retryPending": {
+    "message": "retry pending"
+  },
+  "pendingSavesRemain": {
+    "message": "$COUNT$ pending saves remain",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "pendingSavesResolved": {
+    "message": "Pending saves resolved"
+  },
+  "confirmClearPending": {
+    "message": "Clear the pending save journal? You can undo this from the same panel."
+  },
+  "clearedOnePendingSave": {
+    "message": "Cleared 1 pending save"
+  },
+  "clearedPendingSaves": {
+    "message": "Cleared $COUNT$ pending saves",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "restoredOnePendingSave": {
+    "message": "Restored 1 pending save"
+  },
+  "restoredPendingSaves": {
+    "message": "Restored $COUNT$ pending saves",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "oneBookmark": {
+    "message": "1 bookmark"
+  },
+  "bookmarkCount": {
+    "message": "$COUNT$ bookmarks",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "tokenRejected": {
+    "message": "Token rejected"
+  },
+  "disconnected": {
+    "message": "Disconnected"
+  },
+  "optionsOpenFailed": {
+    "message": "Options could not be opened"
+  },
+  "pendingRetryFailed": {
+    "message": "Pending retry failed"
+  },
+  "pendingClearFailed": {
+    "message": "Pending queue could not be cleared"
+  },
+  "pendingRestoreFailed": {
+    "message": "Cleared saves could not be restored"
+  },
+  "exportedOnePendingSave": {
+    "message": "Exported 1 pending save"
+  },
+  "exportedPendingSaves": {
+    "message": "Exported $COUNT$ pending saves",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "pendingExportFailed": {
+    "message": "Pending saves could not be exported"
+  },
+  "activeTabLoadFailed": {
+    "message": "Could not load the active tab."
+  },
+  "addTokenToConnect": {
+    "message": "Add the local API token in Options to connect."
+  },
+  "apiReturnedError": {
+    "message": "The local API returned $STATUS$. Try again or check the app logs.",
+    "placeholders": {
+      "status": {
+        "content": "$1"
+      }
+    }
+  },
+  "apiUnavailableKeepSettings": {
+    "message": "Cannot reach the local API. Start the app and try again. Previous settings were kept."
+  },
+  "connectionTestFailed": {
+    "message": "Connection test failed."
+  },
+  "currentSettingsReadFailed": {
+    "message": "Could not read the current settings. Nothing was changed."
+  },
+  "noBookmarksYet": {
+    "message": "No bookmarks yet. Save the current page from the Add tab."
+  },
+  "noSaveablePage": {
+    "message": "No saveable page."
+  },
+  "noSearchResults": {
+    "message": "No results for \"$QUERY$\".",
+    "placeholders": {
+      "query": {
+        "content": "$1"
+      }
+    }
+  },
+  "searchReady": {
+    "message": "Enter a query to search bookmarks."
+  },
+  "searchWaiting": {
+    "message": "Waiting to search..."
+  },
+  "searchLoading": {
+    "message": "Searching bookmarks..."
+  },
+  "searchResultOne": {
+    "message": "1 bookmark found"
+  },
+  "searchResultCount": {
+    "message": "$COUNT$ bookmarks found",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "searchNoMatches": {
+    "message": "No bookmarks matched \"$QUERY$\".",
+    "placeholders": {
+      "query": {
+        "content": "$1"
+      }
+    }
+  },
+  "searchError": {
+    "message": "Search could not be completed. Check the local API and try again."
+  },
+  "searchResults": {
+    "message": "Search results"
+  },
+  "optionsLoadFailed": {
+    "message": "Could not load options."
+  },
+  "optionsSaveFailed": {
+    "message": "Could not save options."
+  },
+  "pairingConflict": {
+    "message": "This API is paired with another extension ID. Use Replace Pairing to recover this install. Previous settings were kept."
+  },
+  "pairingFailedKeepSettings": {
+    "message": "$ERROR$ Previous settings were kept.",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "pairingReplaceFailed": {
+    "message": "Could not replace pairing."
+  },
+  "pairingStorageFailed": {
+    "message": "Pairing succeeded, but settings could not be stored or restored. Reopen Options before saving bookmarks."
+  },
+  "pairingStorageFailedRestored": {
+    "message": "Pairing succeeded, but settings could not be stored. Previous settings were restored."
+  },
+  "queuedSave": {
+    "message": "API unavailable. Save added to the retry journal."
+  },
+  "readingListAccessFailed": {
+    "message": "Could not access reading list."
+  },
+  "readingListAlreadySaved": {
+    "message": "; $COUNT$ already saved",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "readingListFailed": {
+    "message": "; $COUNT$ failed",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "readingListImportSummary": {
+    "message": "Imported $IMPORTED$ of $TOTAL$ reading list $ITEMS$$DETAIL$.",
+    "placeholders": {
+      "imported": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      },
+      "items": {
+        "content": "$3"
+      },
+      "detail": {
+        "content": "$4"
+      }
+    }
+  },
+  "readingListItem": {
+    "message": "item"
+  },
+  "readingListItems": {
+    "message": "items"
+  },
+  "readingListQueued": {
+    "message": "; $COUNT$ queued for retry",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "readingListUnavailable": {
+    "message": "Reading List API not available in this browser."
+  },
+  "retriedPendingSaves": {
+    "message": "Retried $ATTEMPTED$ pending saves; resolved $RESOLVED$.",
+    "placeholders": {
+      "attempted": {
+        "content": "$1"
+      },
+      "resolved": {
+        "content": "$2"
+      }
+    }
+  },
+  "saveFailed": {
+    "message": "Save failed ($STATUS$).",
+    "placeholders": {
+      "status": {
+        "content": "$1"
+      }
+    }
+  },
+  "saveFailedGeneric": {
+    "message": "Save failed."
+  },
+  "serverInvalidTokenKeepSettings": {
+    "message": "Server reached but token is invalid. Previous settings were kept."
+  },
+  "tokenRejectedDetail": {
+    "message": "The API token was rejected. Open Options and replace it."
+  },
+  "typeQuery": {
+    "message": "Type a query and press Go."
+  },
+  "unexpectedResponse": {
+    "message": "Unexpected response: $STATUS$",
+    "placeholders": {
+      "status": {
+        "content": "$1"
+      }
+    }
+  },
+  "validPortFirst": {
+    "message": "Enter a valid TCP port first."
+  },
+  "onePendingSave": {
+    "message": "1 pending save"
+  },
+  "pendingSavesCount": {
+    "message": "$COUNT$ pending saves",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "clearedSavesRestorable": {
+    "message": "$COUNT$ cleared saves can be restored",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  }
 }

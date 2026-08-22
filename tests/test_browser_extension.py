@@ -1570,6 +1570,170 @@ class TestBrowserExtensionApiRoundTrip(unittest.TestCase):
             finally:
                 api.stop()
 
+    def test_a_capture_never_overwrites_an_archive_that_is_already_there(self):
+        """The attach path answers 200 for a URL already in the library. Without
+        a guard, anyone holding a write token and a paired Origin could replace
+        the saved copy of any bookmark just by knowing its URL, and the first
+        version of this fix let them."""
+        import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            api = main.BookmarkAPI(
+                manager,
+                port=0,
+                extension_origins_file=Path(tmp) / "approved-origins.json",
+            )
+            try:
+                api.start()
+                token = self._api_token()
+                base_url = f"http://127.0.0.1:{api.port}"
+                origin = f"chrome-extension://{'f' * 32}"
+                self._pair_extension(base_url, token, origin)
+                capture_headers = {"Origin": origin, "X-BOP-Capture-Version": "1"}
+
+                url = "https://curated.example.com/page"
+                good = {
+                    "url": url,
+                    "title": "Curated",
+                    "browser_snapshot": {
+                        "html": "<html><body><p>The copy the user kept.</p></body></html>",
+                        "source_url": url,
+                    },
+                }
+                status, body = self._post_json(base_url, good, token, capture_headers)
+                self.assertEqual(status, 201, body)
+                kept = Path(body["snapshot_path"])
+                self.assertTrue(kept.exists())
+                original = kept.read_bytes()
+
+                attacker = dict(good, title="Replaced")
+                attacker["browser_snapshot"] = {
+                    "html": "<html><body><p>Replacement content.</p></body></html>",
+                    "source_url": url,
+                }
+                status, body = self._post_json(base_url, attacker, token, capture_headers)
+                self.assertEqual(status, 409, body)
+                self.assertEqual(kept.read_bytes(), original)
+                self.assertEqual(len(manager.get_all_bookmarks()), 1)
+                self.assertEqual(manager.get_all_bookmarks()[0].title, "Curated")
+            finally:
+                api.stop()
+
+    def test_a_failed_attach_leaves_the_existing_archive_alone(self):
+        """Cleaning up after a failed import must only remove what this request
+        wrote. Deleting unconditionally erased a good offline copy, and because
+        an unusable capture answers 422, the extension had nothing to retry."""
+        import main
+        from bookmark_organizer_pro.services import snapshot as snapshot_module
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            api = main.BookmarkAPI(
+                manager,
+                port=0,
+                extension_origins_file=Path(tmp) / "approved-origins.json",
+            )
+            try:
+                api.start()
+                token = self._api_token()
+                base_url = f"http://127.0.0.1:{api.port}"
+                origin = f"chrome-extension://{'g' * 32}"
+                self._pair_extension(base_url, token, origin)
+                capture_headers = {"Origin": origin, "X-BOP-Capture-Version": "1"}
+
+                url = "https://keepme.example.com/page"
+                payload = {
+                    "url": url,
+                    "title": "Keep me",
+                    "browser_snapshot": {
+                        "html": "<html><body><p>Worth keeping.</p></body></html>",
+                        "source_url": url,
+                    },
+                }
+                status, body = self._post_json(base_url, payload, token, capture_headers)
+                self.assertEqual(status, 201, body)
+                kept = Path(body["snapshot_path"])
+                original = kept.read_bytes()
+
+                # Reach the attach branch by clearing the guard, then fail the
+                # import. The archive on disk still belongs to the user.
+                with mock.patch.object(
+                    snapshot_module.SnapshotArchiver, "has_snapshot", return_value=False
+                ), mock.patch.object(
+                    snapshot_module.SnapshotArchiver,
+                    "import_browser_snapshot",
+                    side_effect=ValueError("Snapshot HTML is empty"),
+                ):
+                    status, body = self._post_json(
+                        base_url, payload, token, capture_headers
+                    )
+
+                self.assertEqual(status, 422, body)
+                self.assertTrue(kept.exists(), "the existing archive was deleted")
+                self.assertEqual(kept.read_bytes(), original)
+                self.assertEqual(len(manager.get_all_bookmarks()), 1)
+                self.assertTrue(manager.get_all_bookmarks()[0].snapshot_path)
+            finally:
+                api.stop()
+
+    def test_an_attach_says_the_saved_details_were_kept(self):
+        """The attach path does not write the request's title, tags, or notes
+        over the row that is already there, so the response has to say so and
+        every save surface has to report it differently from a fresh save."""
+        import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            api = main.BookmarkAPI(
+                manager,
+                port=0,
+                extension_origins_file=Path(tmp) / "approved-origins.json",
+            )
+            try:
+                api.start()
+                token = self._api_token()
+                base_url = f"http://127.0.0.1:{api.port}"
+                origin = f"chrome-extension://{'h' * 32}"
+                self._pair_extension(base_url, token, origin)
+
+                url = "https://plain.example.com/page"
+                status, body = self._post_json(
+                    base_url, {"url": url, "title": "Original", "tags": ["keep"]}, token
+                )
+                self.assertEqual(status, 201, body)
+
+                status, body = self._post_json(
+                    base_url,
+                    {
+                        "url": url,
+                        "title": "Ignored",
+                        "tags": ["ignored"],
+                        "browser_snapshot": {
+                            "html": "<html><body><p>Late capture.</p></body></html>",
+                            "source_url": url,
+                        },
+                    },
+                    token,
+                    {"Origin": origin, "X-BOP-Capture-Version": "1"},
+                )
+                self.assertEqual(status, 200, body)
+                self.assertTrue(body["attached_to_existing"])
+                self.assertEqual(body["title"], "Original")
+                self.assertEqual(body["tags"], ["keep"])
+                self.assertTrue(body["browser_snapshot"]["stored"])
+            finally:
+                api.stop()
+
+        for name in ("popup.js", "sidepanel.js"):
+            source = (EXT_DIR / name).read_text(encoding="utf-8")
+            self.assertIn("attached_to_existing", source, f"{name} reports an attach as a fresh save")
+            self.assertIn("offlineCopyAddedToExisting", source)
+        messages = json.loads(
+            (EXT_DIR / "_locales/en/messages.json").read_text(encoding="utf-8")
+        )
+        self.assertIn("offlineCopyAddedToExisting", messages)
+
     def test_authenticated_browser_snapshot_is_sanitized_and_stored(self):
         import main
 
