@@ -4,6 +4,19 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Reader highlights now resurface on estimated recall rather than SM-2 card
+  scheduling, which suits reading material: a highlight has no answer to grade,
+  so it returns when the chance of still remembering it falls to half. Choose
+  **Soon**, **Later**, or **Someday** per highlight (7, 14, and 28 day
+  half-lives) and up- or down-weight a source to see it more or less often.
+  Highlights scheduled by the previous algorithm keep their history and their
+  cadence: the old interval seeds the half-life and the old next-review date is
+  honoured, so nothing jumps forward or backward on upgrade. The 0-5 review
+  API used by the CLI and MCP still works and now stretches or collapses the
+  half-life instead of an interval.
+
 ### Added
 
 - Hybrid search accepts an offset, so long result sets page without re-ranking

@@ -14,9 +14,9 @@ import tempfile
 import threading
 import uuid
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Mapping, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 from urllib.parse import urlsplit, urlunsplit
 
 from bookmark_organizer_pro import constants as app_constants
@@ -195,6 +195,83 @@ def _markdown_quote(text: str) -> List[str]:
     return [f"> {line}" if line else ">" for line in lines]
 
 
+# Readwise's Daily Review resurfaces on recall probability rather than card
+# grading, because a highlight has no answer to score. Soon/Later/Someday are
+# the reader-facing choice; the numbers are the half-lives behind them.
+REVIEW_PACES = {"soon": 7.0, "later": 14.0, "someday": 28.0}
+DEFAULT_HALF_LIFE_DAYS = REVIEW_PACES["later"]
+MIN_HALF_LIFE_DAYS = 1.0
+MAX_HALF_LIFE_DAYS = 365.0
+RECALL_DUE_THRESHOLD = 0.5
+
+
+def _clean_half_life(value: Any) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    if number <= 0:
+        return 0.0
+    return max(MIN_HALF_LIFE_DAYS, min(MAX_HALF_LIFE_DAYS, number))
+
+
+def _clean_weight(value: Any) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 1.0
+    return max(0.25, min(4.0, number))
+
+
+def _parse_review_time(value: Any) -> Optional[datetime]:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    for candidate in (text, text.replace("Z", "+00:00")):
+        try:
+            parsed = datetime.fromisoformat(candidate)
+        except ValueError:
+            continue
+        return parsed.replace(tzinfo=None) if parsed.tzinfo is not None else parsed
+    try:
+        return datetime.strptime(text[:10], "%Y-%m-%d")
+    except ValueError:
+        return None
+
+
+def _last_surfaced_at(highlight: "ReaderHighlight") -> Optional[datetime]:
+    """When this highlight was last put in front of the reader, or None.
+
+    None means never, which is always due. A record written by the previous
+    SM-2 scheduler has no such timestamp, so it is reconstructed from that
+    scheduler's own next-review date and interval and the old cadence carries
+    over intact.
+    """
+    direct = _parse_review_time(getattr(highlight, "sr_last_seen", ""))
+    if direct is not None:
+        return direct
+    legacy_due = _parse_review_time(getattr(highlight, "sr_next_review", ""))
+    interval = max(0, int(getattr(highlight, "sr_interval", 0) or 0))
+    if legacy_due is not None and interval:
+        return legacy_due - timedelta(days=interval)
+    return None
+
+
+def _effective_half_life(highlight: "ReaderHighlight") -> float:
+    """Half-life in days, migrating an SM-2 record on first use.
+
+    Older highlights carry only an SM-2 interval and ease. That interval is
+    already an estimate of how long recall lasts, so it seeds the half-life
+    directly and no review history is lost.
+    """
+    stored = _clean_half_life(getattr(highlight, "sr_half_life", 0.0))
+    if not stored:
+        legacy_interval = max(0, int(getattr(highlight, "sr_interval", 0) or 0))
+        stored = _clean_half_life(legacy_interval) if legacy_interval else DEFAULT_HALF_LIFE_DAYS
+    weight = _clean_weight(getattr(highlight, "sr_weight", 1.0))
+    return max(MIN_HALF_LIFE_DAYS, min(MAX_HALF_LIFE_DAYS, stored * weight))
+
+
 @dataclass
 class ReaderHighlight:
     """A selected text range with optional reader notes."""
@@ -220,6 +297,12 @@ class ReaderHighlight:
     sr_repetitions: int = 0
     sr_ease: float = 2.5
     sr_next_review: str = ""
+    # Resurfacing state. Highlights are not flashcards: there is no right
+    # answer to grade, so recall decays with time and a highlight comes back
+    # when the estimated chance of remembering it falls to half.
+    sr_half_life: float = 0.0
+    sr_last_seen: str = ""
+    sr_weight: float = 1.0
 
     @property
     def color_hex(self) -> str:
@@ -285,6 +368,9 @@ class ReaderHighlight:
             sr_repetitions=_clean_int(data.get("sr_repetitions")),
             sr_ease=float(data.get("sr_ease", 2.5) or 2.5),
             sr_next_review=str(data.get("sr_next_review") or ""),
+            sr_half_life=_clean_half_life(data.get("sr_half_life")),
+            sr_last_seen=str(data.get("sr_last_seen") or ""),
+            sr_weight=_clean_weight(data.get("sr_weight")),
         )
 
 
@@ -727,42 +813,96 @@ class ReaderAnnotationStore:
             self._save()
             return True
 
-    def due_for_review(self, today: Optional[datetime] = None) -> List[ReaderHighlight]:
-        """Return highlights whose next review date is today or earlier."""
-        today = today or datetime.now()
-        today_iso = today.date().isoformat()
-        with self._lock:
-            due = []
-            for h in self._highlights.values():
-                if not h.sr_next_review:
-                    due.append(h)
-                elif h.sr_next_review <= today_iso:
-                    due.append(h)
-        return sorted(deepcopy(due), key=lambda h: (h.sr_next_review or "", h.created_at))
+    def recall_probability(self, highlight: ReaderHighlight, now: Optional[datetime] = None) -> float:
+        """Estimated chance the reader still remembers this highlight."""
+        now = now or datetime.now()
+        seen = _last_surfaced_at(highlight)
+        if seen is None:
+            # Never surfaced, so there is nothing to have forgotten yet and the
+            # highlight is due on its first pass.
+            return 0.0
+        half_life = _effective_half_life(highlight)
+        elapsed_days = max(0.0, (now - seen).total_seconds() / 86400.0)
+        return 2.0 ** (-elapsed_days / half_life) if half_life > 0 else 0.0
 
-    def record_review(self, highlight_id: str, quality: int) -> bool:
-        """Record a review using SM-2 algorithm. quality: 0-5 (0=fail, 5=perfect)."""
+    def due_for_review(self, today: Optional[datetime] = None) -> List[ReaderHighlight]:
+        """Return highlights whose recall has decayed to even odds or worse.
+
+        A highlight never surfaced before is always due; after that it comes
+        back when the estimated chance of recall reaches 50 percent, which is
+        what the half-life encodes.
+        """
+        now = today or datetime.now()
+        with self._lock:
+            due = [
+                h for h in self._highlights.values()
+                if self.recall_probability(h, now) <= RECALL_DUE_THRESHOLD
+            ]
+            ranked = sorted(
+                deepcopy(due),
+                key=lambda h: (self.recall_probability(h, now), h.created_at),
+            )
+        return ranked
+
+    def set_review_pace(self, highlight_id: str, pace: str) -> bool:
+        """Choose how often a highlight resurfaces: soon, later, or someday."""
+        key = str(pace or "").strip().lower()
+        if key not in REVIEW_PACES:
+            raise ValueError(f"Unknown review pace {pace!r}; choose from {', '.join(REVIEW_PACES)}")
+        with self._lock:
+            highlight = self._highlights.get(str(highlight_id))
+            if highlight is None:
+                return False
+            highlight.sr_half_life = float(REVIEW_PACES[key])
+            if not highlight.sr_last_seen:
+                highlight.sr_last_seen = _now()
+            highlight.modified_at = _now()
+            self._save()
+            return True
+
+    def set_source_weight(self, highlight_id: str, weight: float) -> bool:
+        """Up- or down-weight one highlight's source, as Readwise's review does.
+
+        A weight above 1 stretches the half-life so the highlight returns less
+        often; below 1 brings it back sooner.
+        """
+        with self._lock:
+            highlight = self._highlights.get(str(highlight_id))
+            if highlight is None:
+                return False
+            highlight.sr_weight = _clean_weight(weight)
+            highlight.modified_at = _now()
+            self._save()
+            return True
+
+    def record_review(self, highlight_id: str, quality: int, now: Optional[datetime] = None) -> bool:
+        """Record that a highlight was resurfaced. quality: 0-5, kept for compatibility.
+
+        The 0-5 scale predates this scheduler and is still accepted by the CLI
+        and MCP tools. It now adjusts the half-life instead of an SM-2 interval:
+        a confident recall stretches it, a failed one collapses it.
+        """
         quality = max(0, min(5, int(quality)))
+        stamp = now or datetime.now()
         with self._lock:
             h = self._highlights.get(str(highlight_id))
             if h is None:
                 return False
-            if quality < 3:
-                h.sr_repetitions = 0
-                h.sr_interval = 1
-            else:
-                if h.sr_repetitions == 0:
-                    h.sr_interval = 1
-                elif h.sr_repetitions == 1:
-                    h.sr_interval = 6
-                else:
-                    h.sr_interval = max(1, round(h.sr_interval * h.sr_ease))
-                h.sr_repetitions += 1
-                h.sr_ease = max(1.3, h.sr_ease + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
-            from datetime import timedelta
 
-            next_date = datetime.now() + timedelta(days=h.sr_interval)
-            h.sr_next_review = next_date.date().isoformat()
+            half_life = _effective_half_life(h) / max(0.1, h.sr_weight or 1.0)
+            if quality < 3:
+                half_life = MIN_HALF_LIFE_DAYS
+                h.sr_repetitions = 0
+            else:
+                # 3 holds the pace, 4 and 5 stretch it progressively.
+                half_life = min(MAX_HALF_LIFE_DAYS, half_life * (1.0 + 0.5 * (quality - 3)))
+                h.sr_repetitions += 1
+
+            h.sr_half_life = max(MIN_HALF_LIFE_DAYS, half_life)
+            h.sr_last_seen = stamp.isoformat()
+            # Legacy fields stay coherent so an older reader still sees a date.
+            h.sr_interval = max(1, round(_effective_half_life(h)))
+            h.sr_next_review = (stamp + timedelta(days=h.sr_interval)).date().isoformat()
             h.modified_at = _now()
             self._save()
             return True

@@ -2873,54 +2873,133 @@ class TestSpacedRepetition(_IsolatedTestBase):
         )
         return store, h
 
+    # These tests previously asserted SM-2's own mechanics (interval 1, then 6,
+    # ease-factor drift). That scheduler was replaced by recall-probability
+    # resurfacing, which fits reading material: a highlight has no answer to
+    # grade, so it returns when the estimated chance of recall reaches half.
+    # The 0-5 quality API is kept, so those calls are still exercised below.
+
     def test_new_highlight_is_due_for_review(self):
         store, h = self._make_store_with_highlight()
         due = store.due_for_review()
         self.assertEqual(len(due), 1)
         self.assertEqual(due[0].id, h.id)
 
-    def test_quality_below_3_resets_interval(self):
+    def test_quality_below_3_brings_a_highlight_back_quickly(self):
+        from datetime import datetime, timedelta
+
         store, h = self._make_store_with_highlight()
-        store.record_review(h.id, quality=2)
+        now = datetime(2026, 1, 1, 12, 0, 0)
+        store.record_review(h.id, quality=2, now=now)
+
+        self.assertEqual(store.get(h.id).sr_repetitions, 0)
+        self.assertEqual(store.due_for_review(now + timedelta(hours=1)), [])
+        due = store.due_for_review(now + timedelta(days=2))
+        self.assertEqual([item.id for item in due], [h.id])
+
+    def test_confident_recall_stretches_the_interval(self):
+        from datetime import datetime, timedelta
+
+        store, h = self._make_store_with_highlight()
+        now = datetime(2026, 1, 1, 12, 0, 0)
+        store.record_review(h.id, quality=5, now=now)
+        first = store.get(h.id).sr_half_life
+
+        store.record_review(h.id, quality=5, now=now + timedelta(days=1))
+        second = store.get(h.id).sr_half_life
+
+        self.assertGreater(second, first)
+        self.assertEqual(store.get(h.id).sr_repetitions, 2)
+
+    def test_a_highlight_resurfaces_when_recall_reaches_half(self):
+        from datetime import datetime, timedelta
+
+        store, h = self._make_store_with_highlight()
+        now = datetime(2026, 1, 1, 12, 0, 0)
+        store.set_review_pace(h.id, "later")          # 14 day half-life
+        store.record_review(h.id, quality=3, now=now)
+
         reloaded = store.get(h.id)
-        self.assertEqual(reloaded.sr_interval, 1)
-        self.assertEqual(reloaded.sr_repetitions, 0)
+        self.assertAlmostEqual(store.recall_probability(reloaded, now), 1.0, places=3)
+        halfway = now + timedelta(days=14)
+        self.assertAlmostEqual(store.recall_probability(reloaded, halfway), 0.5, places=2)
 
-    def test_quality_3_sets_interval_1(self):
-        store, h = self._make_store_with_highlight()
-        store.record_review(h.id, quality=3)
-        reloaded = store.get(h.id)
-        self.assertEqual(reloaded.sr_interval, 1)
-        self.assertEqual(reloaded.sr_repetitions, 1)
+        self.assertEqual(store.due_for_review(now + timedelta(days=13)), [])
+        self.assertEqual([item.id for item in store.due_for_review(halfway)], [h.id])
 
-    def test_quality_4_second_review_sets_interval_6(self):
-        store, h = self._make_store_with_highlight()
-        store.record_review(h.id, quality=4)
-        store.record_review(h.id, quality=4)
-        reloaded = store.get(h.id)
-        self.assertEqual(reloaded.sr_interval, 6)
-        self.assertEqual(reloaded.sr_repetitions, 2)
+    def test_review_pace_maps_to_documented_half_lives(self):
+        from bookmark_organizer_pro.services.reader_annotations import REVIEW_PACES
 
-    def test_quality_5_third_review_grows_interval(self):
+        self.assertEqual(REVIEW_PACES, {"soon": 7.0, "later": 14.0, "someday": 28.0})
         store, h = self._make_store_with_highlight()
-        store.record_review(h.id, quality=5)
-        store.record_review(h.id, quality=5)
-        store.record_review(h.id, quality=5)
-        reloaded = store.get(h.id)
-        self.assertGreater(reloaded.sr_interval, 6)
-        self.assertEqual(reloaded.sr_repetitions, 3)
+        for pace, expected in REVIEW_PACES.items():
+            with self.subTest(pace=pace):
+                store.set_review_pace(h.id, pace)
+                self.assertEqual(store.get(h.id).sr_half_life, expected)
+        with self.assertRaises(ValueError):
+            store.set_review_pace(h.id, "eventually")
 
-    def test_ease_factor_adjusts(self):
-        store, h = self._make_store_with_highlight()
-        initial_ease = store.get(h.id).sr_ease
-        store.record_review(h.id, quality=5)
-        self.assertGreater(store.get(h.id).sr_ease, initial_ease)
+    def test_a_down_weighted_source_resurfaces_later(self):
+        from datetime import datetime, timedelta
 
-    def test_ease_factor_floor(self):
         store, h = self._make_store_with_highlight()
-        for _ in range(10):
-            store.record_review(h.id, quality=0)
-        self.assertGreaterEqual(store.get(h.id).sr_ease, 1.3)
+        now = datetime(2026, 1, 1, 12, 0, 0)
+        store.set_review_pace(h.id, "soon")           # 7 day half-life
+        store.record_review(h.id, quality=3, now=now)
+        baseline = store.recall_probability(store.get(h.id), now + timedelta(days=7))
+
+        store.set_source_weight(h.id, 2.0)            # half as often
+        stretched = store.recall_probability(store.get(h.id), now + timedelta(days=7))
+
+        self.assertAlmostEqual(baseline, 0.5, places=2)
+        self.assertGreater(stretched, baseline)
+        self.assertEqual(store.due_for_review(now + timedelta(days=7)), [])
+        self.assertEqual(
+            [item.id for item in store.due_for_review(now + timedelta(days=14))], [h.id]
+        )
+
+    def test_existing_sm2_records_migrate_without_losing_history(self):
+        from datetime import datetime, timedelta
+
+        from bookmark_organizer_pro.services.reader_annotations import ReaderAnnotationStore
+
+        store, h = self._make_store_with_highlight()
+        now = datetime(2026, 1, 1, 12, 0, 0)
+        # Simulate a highlight written by the previous SM-2 scheduler.
+        legacy = store.get(h.id)
+        legacy.sr_interval = 6
+        legacy.sr_repetitions = 3
+        legacy.sr_ease = 2.6
+        legacy.sr_next_review = "2026-01-05"
+        legacy.sr_last_seen = ""
+        legacy.sr_half_life = 0.0
+        store._highlights[h.id] = legacy
+        store._save()
+
+        reopened = ReaderAnnotationStore(self.filepath)
+        migrated = reopened.get(h.id)
+
+        # Nothing from the old record is discarded.
+        self.assertEqual(migrated.sr_repetitions, 3)
+        self.assertEqual(migrated.sr_ease, 2.6)
+        self.assertEqual(migrated.sr_interval, 6)
+        # The old interval seeds the half-life and the old next-review date is
+        # honoured, so the previous cadence carries over: recall reaches half
+        # exactly when SM-2 would have scheduled the next review.
+        legacy_due = datetime(2026, 1, 5)
+        self.assertAlmostEqual(
+            reopened.recall_probability(migrated, legacy_due), 0.5, places=2
+        )
+        self.assertEqual(reopened.due_for_review(legacy_due - timedelta(days=2)), [])
+        self.assertEqual([i.id for i in reopened.due_for_review(legacy_due)], [h.id])
+
+    def test_quality_is_clamped_and_unknown_ids_are_refused(self):
+        store, h = self._make_store_with_highlight()
+        self.assertTrue(store.record_review(h.id, quality=99))
+        self.assertTrue(store.record_review(h.id, quality=-5))
+        self.assertFalse(store.record_review("no-such-highlight", quality=4))
+        self.assertFalse(store.set_review_pace("no-such-highlight", "soon"))
+        self.assertFalse(store.set_source_weight("no-such-highlight", 2.0))
 
     def test_reviewed_item_not_due_until_next_date(self):
         store, h = self._make_store_with_highlight()

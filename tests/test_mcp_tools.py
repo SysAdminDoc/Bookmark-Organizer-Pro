@@ -414,8 +414,13 @@ class TestReaderMCPTools(MCPToolTestBase):
         reviewed = self.ms.t_record_reader_review(highlight.id, 4)
         self.assertTrue(reviewed["reviewed"])
         self.assertEqual(reviewed["quality"], 4)
-        self.assertEqual(store.get(highlight.id).sr_interval, 1)
-        self.assertTrue(store.get(highlight.id).sr_next_review)
+        # sr_interval no longer encodes SM-2's fixed 1/6/growth ladder; the
+        # scheduler is recall-probability based, so what matters is that the
+        # review was recorded and a next appearance is scheduled.
+        reviewed_highlight = store.get(highlight.id)
+        self.assertGreater(reviewed_highlight.sr_interval, 0)
+        self.assertTrue(reviewed_highlight.sr_last_seen)
+        self.assertTrue(reviewed_highlight.sr_next_review)
 
     def test_reader_highlight_relink_tool_repairs_orphan_without_losing_metadata(self):
         bookmark, store = self._install_reader_services()
@@ -446,7 +451,10 @@ class TestReaderMCPTools(MCPToolTestBase):
         persisted = store.get(highlight.id)
         self.assertEqual(persisted.text, "replacement passage")
         self.assertEqual(persisted.note, "Preserved note")
-        self.assertEqual(persisted.sr_interval, 1)
+        # Relinking must not reset review state. The exact interval belongs to
+        # the scheduler, so assert the state survived rather than its value.
+        self.assertGreater(persisted.sr_interval, 0)
+        self.assertTrue(persisted.sr_last_seen)
         self.assertEqual(persisted.anchor_history[-1]["action"], "manual-relink")
 
     def test_due_reader_reviews_and_due_filter(self):
