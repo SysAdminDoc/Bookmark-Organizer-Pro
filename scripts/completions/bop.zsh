@@ -260,7 +260,9 @@ _bop() {
         hybrid)
             _arguments -s \
                 '-h[show this help message and exit]' \
-                '--help[show this help message and exit]'
+                '--help[show this help message and exit]' \
+                '--limit[Results per page (default: 15)]:limit:' \
+                '--offset[Skip this many results]:offset:'
             return
             ;;
         summarize)

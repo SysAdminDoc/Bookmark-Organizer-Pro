@@ -200,6 +200,8 @@ class BookmarkCLI:
 
         p = sub.add_parser("hybrid", help="Hybrid keyword + semantic (RRF) search")
         p.add_argument("query", nargs="+", help="Search query")
+        p.add_argument("--limit", type=int, default=15, help="Results per page (default: 15)")
+        p.add_argument("--offset", type=int, default=0, help="Skip this many results")
         p.set_defaults(func=self._cmd_hybrid)
 
         p = sub.add_parser("summarize", help="AI summary with inline citations")
@@ -1449,7 +1451,9 @@ Top Domains:
         from bookmark_organizer_pro.services.hybrid_search import HybridSearch
         hs = HybridSearch(self._vector_store())
         results = hs.search(self.bookmark_manager.get_all_bookmarks(),
-                            " ".join(ns.query), limit=15)
+                            " ".join(ns.query),
+                            limit=max(1, int(ns.limit)),
+                            offset=max(0, int(ns.offset)))
         for r in results:
             tag = "K+S" if r.semantic_rank is not None else "K"
             print(f"[{r.bookmark.id}] {r.bookmark.title[:60]}  "

@@ -701,13 +701,14 @@ def t_semantic_search(query: str, k: int = 10) -> List[Dict]:
     return out
 
 
-def t_hybrid_search(query: str, limit: int = 25) -> List[Dict]:
+def t_hybrid_search(query: str, limit: int = 25, offset: int = 0) -> List[Dict]:
     query = _sanitize_str(query, 1000)
     limit = _clamp_limit(limit, 25)
+    offset = _clamp_offset(offset)
     s = _services()
     bms = s.bookmark_manager.get_all_bookmarks()
     out = []
-    for r in s.hybrid.search(bms, query, limit=limit):
+    for r in s.hybrid.search(bms, query, limit=limit, offset=offset):
         d = _bm_to_dict(r.bookmark)
         d["score"] = r.score
         d["snippet"] = r.snippet
@@ -729,8 +730,13 @@ def t_add_bookmark(url: str, title: str = "", category: str = "",
         d = _bm_to_dict(existing)
         d["already_exists"] = True
         return d
+    # An MCP client may be relaying untrusted page content, so bound the
+    # stored strings the way the REST surface already does.
     bm = s.bookmark_manager.add_bookmark_clean(
-        url=url, title=title, category=category, tags=tags or [],
+        url=url,
+        title=_sanitize_str(title, 500),
+        category=_sanitize_str(category, 200),
+        tags=[t for t in (_sanitize_str(tag, 200) for tag in (tags or [])[:100]) if t],
     )
     if bm:
         d = _bm_to_dict(bm)
@@ -1431,13 +1437,13 @@ def t_update_bookmark(bookmark_id: int, title: str = "", category: str = "",
     if not bm:
         return {"error": "Bookmark not found"}
     if title:
-        bm.title = title.strip()[:500]
+        bm.title = _sanitize_str(title, 500)
     if category:
-        bm.category = category.strip()
+        bm.category = _sanitize_str(category, 200)
     if notes:
-        bm.notes = notes.strip()[:5000]
+        bm.notes = _sanitize_str(notes, 5000)
     if description:
-        bm.description = description.strip()[:2000]
+        bm.description = _sanitize_str(description, 2000)
     s.bookmark_manager.save_bookmarks()
     return _bm_to_dict(bm)
 

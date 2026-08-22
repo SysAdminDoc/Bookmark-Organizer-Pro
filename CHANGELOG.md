@@ -29,6 +29,16 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Changed
 
+- Hybrid search paging is reachable at last. `bop hybrid` takes `--limit` and
+  `--offset`, and the MCP `hybrid_search` tool takes an offset, so long result
+  sets can be walked a page at a time. Semantic and full-text candidates now
+  scale with the requested page, so a later page no longer quietly falls back
+  to keyword-only ranking.
+
+- Removed the cross-encoder re-ranking path and its `enable_reranker` setting.
+  No caller ever enabled it, so the setting did nothing, and the code would
+  have downloaded a 90 MB model on first use.
+
 - Duplicate detection no longer re-reads the whole library on every save. Each
   lookup used to normalize every stored URL in turn, which on a 50,000 bookmark
   library took about 0.4 seconds and ran twice per save from the extension or

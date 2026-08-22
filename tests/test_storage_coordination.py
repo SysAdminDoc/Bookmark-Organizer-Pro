@@ -196,7 +196,9 @@ def test_production_settings_consumers_use_the_shared_store():
         "ui/treeview.py": "SettingsStore",
         "services/favicons.py": "SettingsStore",
         "app_mixins/lifecycle.py": "load_settings",
-        "services/hybrid_search.py": "load_settings",
+        # services/hybrid_search.py used to appear here for the `enable_reranker`
+        # lookup. That setting was only read by dead code and both are gone, so
+        # the module no longer reads settings at all.
         "services/web_tools.py": "load_settings",
     }
     for relative, boundary in expected_boundaries.items():

@@ -1118,5 +1118,68 @@ class TestMCPResources(MCPToolTestBase):
         self.assertEqual(data["highlights"][0]["bookmark"]["title"], "Resource Reader")
 
 
+class TestMCPStringBounds(MCPToolTestBase):
+    """An MCP client may relay untrusted page content, so stored strings are
+    bounded the way the REST surface already bounds them."""
+
+    def test_add_bookmark_caps_title_category_and_tags(self):
+        added = self.ms.t_add_bookmark(
+            url="https://bounds-add.example.com",
+            title="t" * 10_000,
+            category="c" * 10_000,
+            tags=["g" * 10_000] + [f"tag{i}" for i in range(200)],
+        )
+
+        self.assertEqual(len(added["title"]), 500)
+        self.assertLessEqual(len(added["category"]), 200)
+        self.assertLessEqual(len(added["tags"]), 100)
+        for tag in added["tags"]:
+            self.assertLessEqual(len(tag), 200)
+
+    def test_update_bookmark_caps_every_stored_field(self):
+        added = self.ms.t_add_bookmark(
+            url="https://bounds-update.example.com", title="Bounded",
+        )
+        updated = self.ms.t_update_bookmark(
+            added["id"],
+            title="t" * 10_000,
+            category="c" * 10_000,
+            notes="n" * 20_000,
+            description="d" * 10_000,
+        )
+
+        self.assertEqual(len(updated["title"]), 500)
+        self.assertLessEqual(len(updated["category"]), 200)
+        stored = self.ms._services().bookmark_manager.get_bookmark(added["id"])
+        self.assertEqual(len(stored.notes), 5_000)
+        self.assertEqual(len(stored.description), 2_000)
+
+
+class TestHybridSearchPaging(MCPToolTestBase):
+    """Paging was implemented in the service but no surface passed an offset."""
+
+    def test_offset_continues_the_first_page(self):
+        for index in range(8):
+            self.ms.t_add_bookmark(
+                url=f"https://paging{index}.example.com",
+                title=f"Paging marker {index}",
+            )
+
+        first = self.ms.t_hybrid_search("Paging marker", limit=3)
+        second = self.ms.t_hybrid_search("Paging marker", limit=3, offset=3)
+        full = self.ms.t_hybrid_search("Paging marker", limit=6)
+
+        self.assertEqual(len(first), 3)
+        self.assertEqual(
+            [row["id"] for row in first] + [row["id"] for row in second],
+            [row["id"] for row in full],
+            "page 2 must continue page 1, not be cut from a different ordering",
+        )
+        self.assertFalse(
+            {row["id"] for row in first} & {row["id"] for row in second},
+            "pages must not overlap",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

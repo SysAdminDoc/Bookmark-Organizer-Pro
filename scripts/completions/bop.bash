@@ -437,8 +437,16 @@ _bop_completions() {
             local -a options=(
                 -h
                 --help
+                --limit
+                --offset
             )
             case "$prev" in
+                --limit)
+                    return 0
+                    ;;
+                --offset)
+                    return 0
+                    ;;
             esac
             if [[ "$cur" == -* ]]; then
                 _bop_complete_array "$cur" "${options[@]}"

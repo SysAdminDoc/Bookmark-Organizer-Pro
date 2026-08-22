@@ -206,6 +206,8 @@ complete -c bop -n "__fish_seen_subcommand_from semantic" -s h -d "show this hel
 complete -c bop -n "__fish_seen_subcommand_from semantic" -l help -d "show this help message and exit"
 complete -c bop -n "__fish_seen_subcommand_from hybrid" -s h -d "show this help message and exit"
 complete -c bop -n "__fish_seen_subcommand_from hybrid" -l help -d "show this help message and exit"
+complete -c bop -n "__fish_seen_subcommand_from hybrid" -l limit -d "Results per page (default: 15)" -r
+complete -c bop -n "__fish_seen_subcommand_from hybrid" -l offset -d "Skip this many results" -r
 complete -c bop -n "__fish_seen_subcommand_from summarize" -s h -d "show this help message and exit"
 complete -c bop -n "__fish_seen_subcommand_from summarize" -l help -d "show this help message and exit"
 complete -c bop -n "__fish_seen_subcommand_from chat" -s h -d "show this help message and exit"

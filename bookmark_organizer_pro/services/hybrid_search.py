@@ -8,14 +8,11 @@ local VectorStore for semantic ranking, then merges the two with RRF
 from __future__ import annotations
 
 import math
-import threading
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, List, Optional, Sequence
 
-from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.models import Bookmark
-from bookmark_organizer_pro.services.settings_store import load_settings
 from bookmark_organizer_pro.search import SearchEngine
 from bookmark_organizer_pro.services.vector_store import (
     VectorStore,
@@ -30,45 +27,6 @@ class HybridResult:
     keyword_rank: Optional[int] = None
     semantic_rank: Optional[int] = None
     snippet: str = ""
-
-
-_cross_encoder = None
-_cross_encoder_tried = False
-_cross_encoder_lock = threading.Lock()
-
-
-def _try_rerank(query: str, texts: List[str]) -> Optional[List[float]]:
-    """Attempt cross-encoder re-ranking. Returns scores or None if unavailable.
-
-    Only loads the model when ``enable_reranker`` is true in settings.json.
-    The model (~90 MB) is downloaded on first use.
-    """
-    global _cross_encoder, _cross_encoder_tried
-    if _cross_encoder_tried and _cross_encoder is None:
-        return None
-    try:
-        try:
-            settings = load_settings()
-        except (OSError, TypeError, ValueError):
-            settings = {}
-        if not settings.get("enable_reranker", False):
-            log.info("Cross-encoder re-ranking skipped (enable_reranker not set in settings)")
-            _cross_encoder_tried = True
-            return None
-        if _cross_encoder is None:
-            with _cross_encoder_lock:
-                if _cross_encoder is None:
-                    log.info("Downloading cross-encoder model (~90 MB) for re-ranking...")
-                    from sentence_transformers import CrossEncoder
-                    _cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
-                    _cross_encoder_tried = True
-                    log.info("Cross-encoder model loaded")
-        pairs = [(query, t) for t in texts]
-        scores = _cross_encoder.predict(pairs)
-        return [float(s) for s in scores]
-    except Exception:
-        _cross_encoder_tried = True
-        return None
 
 
 class HybridSearch:
@@ -99,7 +57,6 @@ class HybridSearch:
     def search(self, bookmarks: Sequence[Bookmark], query: str,
                limit: int = 50, semantic_k: int = 50,
                time_weight: float = 0.0,
-               rerank: bool = False,
                offset: int = 0) -> List[HybridResult]:
         """Rank bookmarks by fusing keyword, semantic, and full-text results.
 
@@ -112,6 +69,9 @@ class HybridSearch:
             return []
         offset = max(0, int(offset or 0))
         window = limit + offset
+        # Semantic and full-text candidates must cover the whole window, or a
+        # page past the default k silently degrades to keyword-only ranking.
+        semantic_k = max(semantic_k, window)
 
         keyword_hits = self.keyword_engine.search(list(bookmarks), query)
         keyword_ids = [bm.id for bm, _ in keyword_hits]
@@ -160,16 +120,6 @@ class HybridSearch:
                 snippet=snippet_map.get(bid, ""),
             ))
         results.sort(key=lambda r: r.score, reverse=True)
-        results = results[:window]
-
-        if rerank and results:
-            texts = [r.snippet or r.bookmark.title for r in results]
-            rerank_scores = _try_rerank(query, texts)
-            if rerank_scores:
-                for r, rs in zip(results, rerank_scores):
-                    r.score = rs
-                results.sort(key=lambda r: r.score, reverse=True)
-
-        # Reranking must finish before paging, or page 2 would be cut from a
+        # Ranking must finish before paging, or page 2 would be cut from a
         # different ordering than page 1.
         return results[offset:offset + limit]
