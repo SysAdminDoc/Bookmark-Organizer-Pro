@@ -378,16 +378,15 @@ class HighlightsWorkspaceDialog(tk.Toplevel):
         selected = self._selected_records()
         if not selected:
             return "break"
-        if not messagebox.askyesno(
-            _("Delete highlights"),
-            format_message("Delete {count} selected? Undo will be available.", count=pluralize(len(selected), "highlight")),
-            parent=self,
-        ):
-            return "break"
+        # Deleting is immediate: `_undo_delete` restores the exact ids below and
+        # the Undo button takes focus, so a modal asking first added nothing.
         self._deleted = self.workspace.delete_many([item.id for item in selected])
         self._refresh(offset=self.page.offset if self.page else 0)
         self.status.configure(
-            text=format_message("Deleted {count}.", count=pluralize(len(self._deleted), "highlight")),
+            text=format_message(
+                "Deleted {count}. Undo is available.",
+                count=pluralize(len(self._deleted), "highlight"),
+            ),
         )
         self.undo_button.focus_set()
         return "break"

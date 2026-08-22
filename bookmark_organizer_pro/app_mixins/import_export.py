@@ -250,12 +250,17 @@ class ImportExportMixin:
                 "success" if added > 0 else "info"
             )
 
-    def _confirm_import_preflight(self, label, preflight) -> bool:
-        """Require an explicit apply decision after showing source fidelity."""
-        from tkinter import messagebox
+    def _report_import_preflight(self, label, preflight) -> None:
+        """Announce what the source holds, then let the import run.
 
-        fields = "\n".join(
-            _("{field}: {count} of {total} source rows").format(
+        This used to be a modal asking permission to apply. Every import runs
+        inside a durable session whose result summary carries the same loss
+        counts and a Roll Back button, so the modal only delayed work the user
+        had already asked for. Field coverage goes to the log, where it is
+        useful when a source turns out to be lossy.
+        """
+        fields = "; ".join(
+            _("{field}: {count} of {total}").format(
                 field=field.title(), count=count, total=preflight.total,
             )
             for field, count in preflight.field_coverage.items()
@@ -263,18 +268,21 @@ class ImportExportMixin:
         causes = "; ".join(
             f"{cause} ({count})" for cause, count in preflight.causes.items()
         ) or _("None detected")
-        message = _(
-            "Source: {source}\nValid bookmarks: {total}\nParse losses: {losses}\n\n"
-            "Field coverage\n{fields}\n\nLoss details: {causes}\n\n"
-            "Missing fields remain blank or use the library default. Apply this import?"
-        ).format(
-            source=label,
-            total=preflight.total,
-            losses=preflight.losses,
-            fields=fields,
-            causes=causes,
+        log.info(
+            f"Import preflight for {label}: {preflight.total} valid, "
+            f"{preflight.losses} losses; coverage {fields}; causes {causes}"
         )
-        return bool(messagebox.askokcancel(_("Import Preflight"), message, parent=self.root))
+        headline = _("Importing {total} from {source}; {losses} parse losses").format(
+            total=pluralize(preflight.total, "bookmark"),
+            source=label,
+            losses=preflight.losses,
+        )
+        self._set_status(headline)
+        if preflight.losses:
+            self._show_toast(
+                _("{headline}. Causes: {causes}").format(headline=headline, causes=causes),
+                "info",
+            )
 
     def _begin_import_session(
         self, label, importer, source_paths, *, source: str, next_action: str
@@ -288,10 +296,7 @@ class ImportExportMixin:
         self._set_status(_("Inspecting {source} before import…").format(source=label))
 
         def prepared(preflight):
-            if not self._confirm_import_preflight(label, preflight):
-                self.import_area.set_importing(False)
-                self._set_status(_("Import cancelled before changes were made"))
-                return
+            self._report_import_preflight(label, preflight)
 
             cancelled = threading.Event()
             activity = LiveWorkflowDialog(
@@ -868,9 +873,22 @@ class ImportExportMixin:
             merged=summary["merged"], conflicts=summary["conflicts"],
             unreadable=summary["unreadable_files"],
         )
-        if not messagebox.askyesno(_("Import folder"), detail, parent=self.root):
-            self._set_status(_("Import cancelled before changes were made"))
-            return
+        # No confirmation here: `detail` is the scan result the user asked for,
+        # and the session that follows keeps a rollback safepoint reachable from
+        # the import summary. Report the scan and get on with the import.
+        log.info(f"Batch folder import plan: {detail}")
+        self._set_status(_("Importing {urls} from {files} scanned files").format(
+            urls=pluralize(summary["unique_urls"], "bookmark"),
+            files=summary["files"],
+        ))
+        self._show_toast(
+            _("{urls} merged from {entries}; {duplicates} duplicate files skipped").format(
+                urls=pluralize(summary["unique_urls"], "unique bookmark"),
+                entries=pluralize(summary["parsed_entries"], "entry"),
+                duplicates=summary["duplicate_files"],
+            ),
+            "info",
+        )
 
         self._begin_import_session(
             _("folder"),

@@ -6,6 +6,16 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Changed
 
+- Actions you can undo no longer stop to ask first. Deleting highlights,
+  deleting an organization rule, applying rules over a conflict, and both
+  import paths now just run, and say what they did. Highlights and rule runs
+  keep their Undo button, a deleted rule gets a Restore button next to Delete,
+  and every import still ends on the summary with Roll Back. Replace or merge
+  on a rules import moved out of a popup and into a checkbox in the dialog.
+  Four prompts stay: installing Ollama, sharing domains with a favicon proxy,
+  and rotating or revoking a credential. Those change something that cannot be
+  taken back.
+
 - The rest of the desktop copy now says "1 bookmark" and "5 bookmarks" instead
   of "1 bookmark(s)". v6.15.0 fixed four dialogs; this covers the Tools menu,
   bulk selection toasts, the dashboard badges, the tag editor, and Reader View.

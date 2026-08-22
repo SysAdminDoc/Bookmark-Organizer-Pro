@@ -7,6 +7,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from bookmark_organizer_pro.i18n import _, format_message
+from bookmark_organizer_pro.logging_config import log
 from bookmark_organizer_pro.services.organization_rules import (
     ALLOWED_ACTIONS,
     ALLOWED_FIELDS,
@@ -256,6 +257,7 @@ class OrganizationRulesDialog(tk.Toplevel):
         self.bookmark_manager = bookmark_manager
         self.service = OrganizationRulesService(bookmark_manager)
         self.preview: OrganizationPreview | None = None
+        self._deleted_rule: OrganizationRule | None = None
         self.title(_("Organization rules"))
         apply_screen_aware_geometry(self, 1120, 760)
         self.minsize(860, 600)
@@ -297,8 +299,18 @@ class OrganizationRulesDialog(tk.Toplevel):
         self.delete_button = self._button(rule_toolbar, _("Delete"), self._delete_rule, "danger")
         self.enable_button = self._button(rule_toolbar, _("Enable"), lambda: self._set_enabled(True))
         self.disable_button = self._button(rule_toolbar, _("Disable"), lambda: self._set_enabled(False))
+        self.restore_button = self._button(rule_toolbar, _("Restore"), self._restore_rule)
+        self.restore_button.set_state("disabled")
         self._button(rule_toolbar, _("Import"), self._import_rules)
         self._button(rule_toolbar, _("Export"), self._export_rules)
+        # Replace or merge is a choice about the import, not a confirmation of
+        # it, so it lives here as a control instead of a modal at click time.
+        self.replace_on_import_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            rule_toolbar,
+            text=_("Replace on import"),
+            variable=self.replace_on_import_var,
+        ).pack(side=tk.LEFT, padx=(10, 0))
         self.rules_tree = ttk.Treeview(rule_frame, columns=("enabled", "name", "conditions", "actions"), show="headings", selectmode="browse", height=7)
         for column, label, width in (
             ("enabled", _("Enabled"), 100), ("name", _("Name"), 190),
@@ -374,11 +386,7 @@ class OrganizationRulesDialog(tk.Toplevel):
         ]
         if len(suggestions) > len(shown):
             lines.append(format_message("and {count} more", count=len(suggestions) - len(shown)))
-        lines.append("")
-        lines.append(_("Save these rules? Nothing is applied until you run Preview."))
-
-        if not messagebox.askyesno(_("Suggest rules"), "\n".join(lines), parent=self):
-            return
+        log.info("Suggested organization rules: " + " | ".join(lines))
 
         from bookmark_organizer_pro.services.organization_rules import MAX_RULES
 
@@ -461,12 +469,35 @@ class OrganizationRulesDialog(tk.Toplevel):
         rule = self._selected_rule()
         if not rule:
             return "break"
-        if not messagebox.askyesno(_("Delete rule"), format_message("Delete rule '{name}'?", name=rule.name), parent=self):
-            return "break"
+        # Deleted immediately and held in `_deleted_rule` so Restore can put it
+        # back. That is cheaper for the user than a modal on every delete.
         self.service.remove_rule(rule.rule_id)
+        self._deleted_rule = rule
+        self.restore_button.set_state("normal")
         self.preview = None
         self.apply_button.set_state("disabled")
         self._refresh_rules()
+        self.preview_status.configure(
+            text=format_message("Deleted rule '{name}'. Restore is available.", name=rule.name),
+        )
+        return "break"
+
+    def _restore_rule(self):
+        """Put the last deleted rule back, exactly as it was."""
+        rule = self._deleted_rule
+        if rule is None:
+            return "break"
+        self._deleted_rule = None
+        self.restore_button.set_state("disabled")
+        try:
+            self.service.add_rule(rule)
+        except (OSError, ValueError) as exc:
+            messagebox.showerror(_("Rule not restored"), str(exc), parent=self)
+            return "break"
+        self._refresh_rules()
+        self.preview_status.configure(
+            text=format_message("Restored rule '{name}'.", name=rule.name),
+        )
         return "break"
 
     def _set_enabled(self, enabled: bool) -> None:
@@ -517,17 +548,23 @@ class OrganizationRulesDialog(tk.Toplevel):
             self._preview_rules()
         if self.preview is None or not self.preview.changes:
             return
-        if self.preview.conflicts and not messagebox.askyesno(
-            _("Apply organization rules"),
-            format_message("{count} will be skipped. Apply the remaining changes?", count=pluralize(self.preview.conflict_count, "conflict")),
-            parent=self,
-        ):
-            return
+        # Conflicts are visible in the preview table and the run below is
+        # undoable, so the skipped count is reported rather than asked about.
+        skipped = self.preview.conflict_count if self.preview.conflicts else 0
         report = self.service.apply(self.preview)
         self.preview = None
         self.apply_button.set_state("disabled")
         self.undo_button.set_state("normal" if report.undo_available else "disabled")
-        self.preview_status.configure(text=format_message("Run {status}: {count} changed.", status=report.status, count=pluralize(report.affected_count, "bookmark")))
+        summary = format_message(
+            "Run {status}: {count} changed.",
+            status=report.status,
+            count=pluralize(report.affected_count, "bookmark"),
+        )
+        if skipped:
+            summary += " " + format_message(
+                "{count} skipped.", count=pluralize(skipped, "conflict"),
+            )
+        self.preview_status.configure(text=summary)
         self._refresh_rules()
 
     def _undo_last(self) -> None:
@@ -540,7 +577,7 @@ class OrganizationRulesDialog(tk.Toplevel):
         path = filedialog.askopenfilename(parent=self, title=_("Import organization rules"), filetypes=[(_("JSON files"), "*.json"), (_("All files"), "*")])
         if not path:
             return
-        replace = messagebox.askyesno(_("Replace rules"), _("Replace the current rules with this import? Choose No to merge."), parent=self)
+        replace = bool(self.replace_on_import_var.get())
         try:
             count = self.service.import_rules(path, replace=replace)
         except (OSError, ValueError) as exc:
