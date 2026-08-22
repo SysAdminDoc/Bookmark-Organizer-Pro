@@ -6,6 +6,11 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Added
 
+- Added an Omnivore importer for the export archive as downloaded: a zip, an
+  unpacked folder, or a single `metadata_*.json` file. Entries are merged
+  across every metadata batch with repeated URLs collapsed, labels become tags,
+  and archived items land outside the Read Later queue.
+
 - Added a CSV importer that works with any export carrying a URL column.
   Headers are matched case-insensitively against known aliases, so Markwise
   (`Title,URL,Main Category,Sub Category,Added At`), start.me, and Pinboard CSV

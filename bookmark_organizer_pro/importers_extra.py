@@ -388,6 +388,120 @@ class MatterImporter:
 
 
 # ---------------------------------------------------------------------------
+class OmnivoreImporter:
+    """Omnivore export: a directory or zip of ``metadata_*.json`` files.
+
+    Omnivore shut down in November 2024 and its export became a common
+    migration format, so accept the archive as downloaded rather than asking
+    people to merge the per-batch metadata files by hand. Each file holds a
+    list of entries with url, title, labels, savedAt, and a state field.
+    """
+
+    def __init__(self):
+        self.stats = SessionImportStats()
+
+    @staticmethod
+    def _iter_documents(path: Path) -> Iterator[Tuple[str, object]]:
+        if path.is_dir():
+            for candidate in sorted(path.rglob("metadata_*.json")):
+                try:
+                    yield candidate.name, json.loads(candidate.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    continue
+            return
+        if path.suffix.lower() == ".zip":
+            import zipfile
+
+            try:
+                with zipfile.ZipFile(path) as archive:
+                    names = [n for n in archive.namelist()
+                             if n.endswith(".json") and "metadata_" in Path(n).name]
+                    for name in sorted(names):
+                        try:
+                            yield name, json.loads(archive.read(name).decode("utf-8"))
+                        except (KeyError, ValueError, UnicodeDecodeError):
+                            continue
+            except (OSError, zipfile.BadZipFile):
+                return
+            return
+        try:
+            yield path.name, json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return
+
+    @staticmethod
+    def metadata_files(directory: str) -> List[str]:
+        """List the metadata files inside an unpacked export directory."""
+        root = Path(directory)
+        if not root.is_dir():
+            return []
+        return [str(p) for p in sorted(root.rglob("metadata_*.json"))]
+
+    def from_paths(self, paths: List[str]) -> Iterator[Bookmark]:
+        return self._collect([Path(p) for p in paths])
+
+    def from_path(self, path: str) -> Iterator[Bookmark]:
+        return self._collect([Path(path)])
+
+    def _collect(self, sources: List[Path]) -> Iterator[Bookmark]:
+        out: List[Bookmark] = []
+        seen: set = set()
+        for source in sources:
+            if not source.exists():
+                continue
+            self._collect_one(source, out, seen)
+        return iter(out)
+
+    def _collect_one(self, source: Path, out: List[Bookmark], seen: set) -> None:
+        for _name, document in self._iter_documents(source):
+            entries = document if isinstance(document, list) else []
+            if isinstance(document, dict):
+                for key in ("items", "data", "articles"):
+                    if isinstance(document.get(key), list):
+                        entries = document[key]
+                        break
+            for item in entries:
+                if not isinstance(item, dict):
+                    continue
+                url = str(item.get("url") or "").strip()
+                if not url or not url.startswith(("http://", "https://")):
+                    if url:
+                        self.stats.record("entry URL was not http(s)")
+                    continue
+                if url in seen:
+                    continue
+                seen.add(url)
+                labels = []
+                for label in (item.get("labels") or []):
+                    if isinstance(label, dict):
+                        name = str(label.get("name") or "").strip()
+                    else:
+                        name = str(label or "").strip()
+                    if name:
+                        labels.append(name)
+                state = str(item.get("state") or "").strip().upper()
+                try:
+                    bookmark = Bookmark(
+                        id=None,
+                        url=url,
+                        title=str(item.get("title") or url),
+                        description=str(item.get("description") or ""),
+                        notes=str(item.get("note") or ""),
+                        tags=labels,
+                        add_date=_ts(item.get("savedAt") or item.get("createdAt")),
+                        source_file="omnivore",
+                    )
+                except ValueError as exc:
+                    self.stats.record(f"invalid entry: {str(exc)[:120]}")
+                    continue
+                if state in {"SUCCEEDED", "SAVED", "ACTIVE", ""}:
+                    bookmark.read_later = True
+                if state == "ARCHIVED":
+                    bookmark.read_later = False
+                out.append(bookmark)
+
+
+# ---------------------------------------------------------------------------
 class WallabagJSONImporter:
     """Wallabag JSON export.
 

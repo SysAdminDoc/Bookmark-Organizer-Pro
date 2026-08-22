@@ -46,6 +46,7 @@ _bop() {
         'import-zotero:Import Zotero RDF export'
         'import-wallabag:Import Wallabag JSON export'
         'import-arc:Import Arc Browser StorableSidebar.json'
+        'import-omnivore:Import an Omnivore export (zip, folder, or metadata JSON)'
         'import-csv:Import any CSV export with a URL column'
         'import-browser:Import bookmarks from Chrome/Firefox/Edge/Brave profiles'
         'zip-export:Per-bookmark or whole-collection ZIP export'
@@ -520,6 +521,20 @@ _bop() {
             return
             ;;
         import-arc)
+            if [[ "$words[CURRENT]" != -* ]]; then
+                case $CURRENT in
+                    2)
+                        _files
+                        return
+                        ;;
+                esac
+            fi
+            _arguments -s \
+                '-h[show this help message and exit]' \
+                '--help[show this help message and exit]'
+            return
+            ;;
+        import-omnivore)
             if [[ "$words[CURRENT]" != -* ]]; then
                 case $CURRENT in
                     2)

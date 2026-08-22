@@ -66,6 +66,7 @@ _bop_completions() {
         import-zotero
         import-wallabag
         import-arc
+        import-omnivore
         import-csv
         import-browser
         zip-export
@@ -814,6 +815,23 @@ _bop_completions() {
             return 0
             ;;
         import-arc)
+            local -a options=(
+                -h
+                --help
+            )
+            case "$prev" in
+            esac
+            if [[ "$cur" == -* ]]; then
+                _bop_complete_array "$cur" "${options[@]}"
+                return 0
+            fi
+            if (( COMP_CWORD == 2 )); then
+                _bop_complete_files "$cur"
+                return 0
+            fi
+            return 0
+            ;;
+        import-omnivore)
             local -a options=(
                 -h
                 --help

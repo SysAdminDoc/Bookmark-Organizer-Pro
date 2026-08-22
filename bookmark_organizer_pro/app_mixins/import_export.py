@@ -407,6 +407,7 @@ class ImportExportMixin:
                 "firefox-backup": self._import_service_firefox_backup,
                 "export-folder": self._import_export_folder,
                 "csv": self._import_service_csv,
+                "omnivore": self._import_service_omnivore,
             }.get(source.action_arg)
             if handler:
                 handler()
@@ -883,6 +884,12 @@ class ImportExportMixin:
         from bookmark_organizer_pro.importers_extra import PocketExportImporter
         self._import_service_file(PocketExportImporter, "Pocket",
                                   [("Pocket Export", "*.html *.json"), ("All", "*.*")])
+
+    def _import_service_omnivore(self):
+        from bookmark_organizer_pro.importers_extra import OmnivoreImporter
+        self._import_service_file(
+            OmnivoreImporter, "Omnivore",
+            [("Omnivore export", "*.zip *.json"), ("All", "*.*")])
 
     def _import_service_csv(self):
         from bookmark_organizer_pro.importers_extra import MappedCSVImporter

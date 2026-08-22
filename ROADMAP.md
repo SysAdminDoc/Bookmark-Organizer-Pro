@@ -19,13 +19,6 @@ Added 2026-08-21 from RESEARCH.md (same date). IDs continue the R-series after R
 
 ### P2
 
-- [ ] P2 — R-111: Add an Omnivore export importer
-  Why: Omnivore's JSON export became the migration lingua franca after its 2024-11 shutdown; Karakeep, Linkwarden, and Readeck all import it, and BOP's 21 importers do not.
-  Evidence: `importers.py`/`importers_extra.py` class list (no Omnivore); https://docs.karakeep.app/using-karakeep/import/; https://github.com/linkwarden/linkwarden/issues/808; Readeck CHANGELOG 0.15.x.
-  Touches: `importers_extra.py`, Import Center, `cli.py`, tests with a fixture zip of `metadata_*.json`.
-  Acceptance: A zip or directory of Omnivore `metadata_*.json` files imports URL, title, labels as tags, saved/archived state as read-later/read, and dates; a fixture test imports 3 entries including one archived item.
-  Complexity: S
-
 - [ ] P2 — R-112: Suggest organization rules from the existing library
   Why: The pattern engine cannot ship personal domains (8.7% of the 2026-08-21 corpus stayed uncategorized for that reason), the rule engine from R-104 only applies rules users write by hand, and the derivation logic already exists as a dev script.
   Evidence: `scripts/add_user_domains.py`; `services/organization_rules.py`; `core/pattern_engine.py`; https://linkding.link/auto-tagging/ (rule preview UX); https://github.com/karakeep-app/karakeep/releases (v0.33.1 suggestions from similar bookmarks).

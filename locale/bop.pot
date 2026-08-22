@@ -230,7 +230,7 @@ msgstr ""
 msgid "Accepted {count} suggested tags"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/import_center.py:342
+#: bookmark_organizer_pro/ui/import_center.py:355
 msgid "Accepts"
 msgstr ""
 
@@ -362,7 +362,7 @@ msgstr ""
 msgid "Advanced syntax with filters and highlighting"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:526
+#: bookmark_organizer_pro/app_mixins/import_export.py:527
 msgid "All"
 msgstr ""
 
@@ -450,7 +450,7 @@ msgstr ""
 msgid "Apply"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:600
+#: bookmark_organizer_pro/app_mixins/import_export.py:601
 msgid "Apply Migration"
 msgstr ""
 
@@ -471,7 +471,7 @@ msgstr ""
 msgid "Apply selected"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/import_center.py:135
+#: bookmark_organizer_pro/ui/import_center.py:148
 msgid "Arc Browser sidebar"
 msgstr ""
 
@@ -709,7 +709,7 @@ msgstr ""
 msgid "CSV"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/import_center.py:79
+#: bookmark_organizer_pro/ui/import_center.py:92
 msgid "CSV export"
 msgstr ""
 
@@ -717,7 +717,7 @@ msgstr ""
 #: bookmark_organizer_pro/app_mixins/ai_titles.py:272
 #: bookmark_organizer_pro/app_mixins/categories.py:208
 #: bookmark_organizer_pro/app_mixins/import_export.py:213
-#: bookmark_organizer_pro/app_mixins/import_export.py:491
+#: bookmark_organizer_pro/app_mixins/import_export.py:492
 #: bookmark_organizer_pro/app_mixins/tools.py:321
 #: bookmark_organizer_pro/ui/about.py:581
 #: bookmark_organizer_pro/ui/dependencies.py:183
@@ -896,7 +896,7 @@ msgstr ""
 msgid "Choose a saved highlight before editing its note."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/import_center.py:257
+#: bookmark_organizer_pro/ui/import_center.py:270
 msgid "Choose a source to start a private, local migration. Existing links are protected from duplicates."
 msgstr ""
 
@@ -932,7 +932,7 @@ msgstr ""
 msgid "Choose one row to see notes, saved state, and quick actions."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:443
+#: bookmark_organizer_pro/app_mixins/import_export.py:444
 msgid "Choose the exact profile to import"
 msgstr ""
 
@@ -948,11 +948,11 @@ msgstr ""
 msgid "Choose {value_0}"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/import_center.py:200
+#: bookmark_organizer_pro/ui/import_center.py:213
 msgid "Chrome Reading List"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:977
+#: bookmark_organizer_pro/app_mixins/import_export.py:984
 msgid "Chrome Reading List import runs from the browser extension side panel. Start the local API, open the extension side panel, choose Add, then select Reading List."
 msgstr ""
 
@@ -1022,9 +1022,9 @@ msgid "Cleared {count} snapshot failure report(s)"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_menu_data.py:257
-#: bookmark_organizer_pro/app_mixins/import_export.py:602
-#: bookmark_organizer_pro/app_mixins/import_export.py:705
-#: bookmark_organizer_pro/app_mixins/import_export.py:806
+#: bookmark_organizer_pro/app_mixins/import_export.py:603
+#: bookmark_organizer_pro/app_mixins/import_export.py:706
+#: bookmark_organizer_pro/app_mixins/import_export.py:807
 #: bookmark_organizer_pro/app_mixins/tools.py:573
 #: bookmark_organizer_pro/ui/about.py:160
 #: bookmark_organizer_pro/ui/cleanup_review.py:214
@@ -1037,7 +1037,7 @@ msgstr ""
 msgid "Close"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/import_center.py:293
+#: bookmark_organizer_pro/ui/import_center.py:306
 msgid "Close Import Center"
 msgstr ""
 
@@ -1496,7 +1496,7 @@ msgstr ""
 msgid "E-book"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:634
+#: bookmark_organizer_pro/app_mixins/import_export.py:635
 msgid "Each session keeps its row checkpoints and original rollback safepoint."
 msgstr ""
 
@@ -1668,7 +1668,7 @@ msgstr ""
 msgid "Export failed"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:526
+#: bookmark_organizer_pro/app_mixins/import_export.py:527
 msgid "Export file"
 msgstr ""
 
@@ -1850,7 +1850,7 @@ msgstr ""
 msgid "Finished"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/import_center.py:109
+#: bookmark_organizer_pro/ui/import_center.py:122
 msgid "Firefox bookmark backup"
 msgstr ""
 
@@ -1881,11 +1881,11 @@ msgstr ""
 msgid "Focus rail"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:841
+#: bookmark_organizer_pro/app_mixins/import_export.py:842
 msgid "Folder import failed"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/import_center.py:92
+#: bookmark_organizer_pro/ui/import_center.py:105
 msgid "Folder of exports"
 msgstr ""
 
@@ -2015,8 +2015,8 @@ msgid "Icons {completed}/{total}"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:276
-#: bookmark_organizer_pro/app_mixins/import_export.py:842
-#: bookmark_organizer_pro/app_mixins/import_export.py:849
+#: bookmark_organizer_pro/app_mixins/import_export.py:843
+#: bookmark_organizer_pro/app_mixins/import_export.py:850
 #: bookmark_organizer_pro/ui/components.py:330
 #: bookmark_organizer_pro/ui/components.py:357
 #: bookmark_organizer_pro/ui/organization_rules.py:300
@@ -2031,8 +2031,8 @@ msgstr ""
 msgid "Import Categories File"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/import_center.py:229
-#: bookmark_organizer_pro/ui/import_center.py:249
+#: bookmark_organizer_pro/ui/import_center.py:242
+#: bookmark_organizer_pro/ui/import_center.py:262
 msgid "Import Center"
 msgstr ""
 
@@ -2049,7 +2049,7 @@ msgstr ""
 msgid "Import Failed"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:908
+#: bookmark_organizer_pro/app_mixins/import_export.py:915
 msgid "Import Firefox Bookmark Backup"
 msgstr ""
 
@@ -2062,11 +2062,11 @@ msgstr ""
 msgid "Import Preflight"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:489
+#: bookmark_organizer_pro/app_mixins/import_export.py:490
 msgid "Import Selected Profile"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:720
+#: bookmark_organizer_pro/app_mixins/import_export.py:721
 msgid "Import Summary"
 msgstr ""
 
@@ -2075,7 +2075,7 @@ msgstr ""
 msgid "Import Theme"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:829
+#: bookmark_organizer_pro/app_mixins/import_export.py:830
 msgid "Import a folder of bookmark exports"
 msgstr ""
 
@@ -2084,7 +2084,7 @@ msgid "Import bookmarks"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/import_export.py:293
-#: bookmark_organizer_pro/app_mixins/import_export.py:871
+#: bookmark_organizer_pro/app_mixins/import_export.py:872
 msgid "Import cancelled before changes were made"
 msgstr ""
 
@@ -2092,11 +2092,11 @@ msgstr ""
 msgid "Import failed"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:870
+#: bookmark_organizer_pro/app_mixins/import_export.py:871
 msgid "Import folder"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:961
+#: bookmark_organizer_pro/app_mixins/import_export.py:968
 msgid "Import from Zotero"
 msgstr ""
 
@@ -2104,7 +2104,7 @@ msgstr ""
 msgid "Import from a browser, service, or bookmark file"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:502
+#: bookmark_organizer_pro/app_mixins/import_export.py:503
 msgid "Import from {source}"
 msgstr ""
 
@@ -2137,7 +2137,7 @@ msgstr ""
 msgid "Import preflight failed"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:779
+#: bookmark_organizer_pro/app_mixins/import_export.py:780
 msgid "Import session {status}: {added} added, {failed} failed, {losses} losses."
 msgstr ""
 
@@ -2239,7 +2239,7 @@ msgstr ""
 msgid "Included Data"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:621
+#: bookmark_organizer_pro/app_mixins/import_export.py:622
 msgid "Incomplete Imports"
 msgstr ""
 
@@ -2319,7 +2319,7 @@ msgstr ""
 msgid "JSON files"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/import_center.py:161
+#: bookmark_organizer_pro/ui/import_center.py:174
 msgid "Karakeep export"
 msgstr ""
 
@@ -2427,7 +2427,7 @@ msgstr ""
 msgid "Link checking is unavailable"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/import_center.py:148
+#: bookmark_organizer_pro/ui/import_center.py:161
 msgid "Linkwarden export"
 msgstr ""
 
@@ -2562,11 +2562,11 @@ msgstr ""
 msgid "Migration Failed"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:550
+#: bookmark_organizer_pro/app_mixins/import_export.py:551
 msgid "Migration Preflight"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:538
+#: bookmark_organizer_pro/app_mixins/import_export.py:539
 msgid "Migration preflight failed: {error}"
 msgstr ""
 
@@ -2711,11 +2711,11 @@ msgstr ""
 msgid "Next best action"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/import_center.py:346
+#: bookmark_organizer_pro/ui/import_center.py:359
 msgid "Next step"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:752
+#: bookmark_organizer_pro/app_mixins/import_export.py:753
 msgid "Next: {action}"
 msgstr ""
 
@@ -2776,7 +2776,7 @@ msgstr ""
 msgid "No bookmarks could be restored"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:847
+#: bookmark_organizer_pro/app_mixins/import_export.py:848
 msgid "No bookmarks found in that folder"
 msgstr ""
 
@@ -2869,11 +2869,11 @@ msgstr ""
 msgid "No notes yet. Edit this bookmark to add context for your future self."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:450
+#: bookmark_organizer_pro/app_mixins/import_export.py:451
 msgid "No profile is selected automatically. The source is preflighted before changes."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:850
+#: bookmark_organizer_pro/app_mixins/import_export.py:851
 msgid "No readable bookmarks were found in {folder}."
 msgstr ""
 
@@ -2903,16 +2903,16 @@ msgstr ""
 msgid "No tags to clear"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:428
+#: bookmark_organizer_pro/app_mixins/import_export.py:429
 msgid "No {browser} profiles found"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:547
+#: bookmark_organizer_pro/app_mixins/import_export.py:548
 msgid "None"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/import_export.py:265
-#: bookmark_organizer_pro/app_mixins/import_export.py:544
+#: bookmark_organizer_pro/app_mixins/import_export.py:545
 msgid "None detected"
 msgstr ""
 
@@ -2993,6 +2993,10 @@ msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:176
 msgid "Ollama Local"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/import_center.py:79
+msgid "Omnivore export"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:538
@@ -3211,7 +3215,7 @@ msgstr ""
 msgid "Please keep the app open while files are processed."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/import_center.py:122
+#: bookmark_organizer_pro/ui/import_center.py:135
 msgid "Pocket export"
 msgstr ""
 
@@ -3219,7 +3223,7 @@ msgstr ""
 msgid "Prefer existing tags"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:525
+#: bookmark_organizer_pro/app_mixins/import_export.py:526
 msgid "Preflight {source} Migration"
 msgstr ""
 
@@ -3348,7 +3352,7 @@ msgstr ""
 msgid "REST API — read only"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/import_center.py:174
+#: bookmark_organizer_pro/ui/import_center.py:187
 msgid "Raindrop CSV"
 msgstr ""
 
@@ -3423,7 +3427,7 @@ msgstr ""
 msgid "Reading progress"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/import_center.py:187
+#: bookmark_organizer_pro/ui/import_center.py:200
 msgid "Readwise-compatible CSV"
 msgstr ""
 
@@ -3661,7 +3665,7 @@ msgstr ""
 msgid "Restore last safepoint"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:595
+#: bookmark_organizer_pro/app_mixins/import_export.py:596
 msgid "Restore point: {name}"
 msgstr ""
 
@@ -3703,15 +3707,15 @@ msgstr ""
 msgid "Results below this confidence retry with the failover provider"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:814
+#: bookmark_organizer_pro/app_mixins/import_export.py:815
 msgid "Resume"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:703
+#: bookmark_organizer_pro/app_mixins/import_export.py:704
 msgid "Resume / Retry"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:627
+#: bookmark_organizer_pro/app_mixins/import_export.py:628
 msgid "Resume or recover incomplete imports"
 msgstr ""
 
@@ -3724,7 +3728,7 @@ msgstr ""
 msgid "Retry"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:809
+#: bookmark_organizer_pro/app_mixins/import_export.py:810
 msgid "Retry Failed"
 msgstr ""
 
@@ -3764,11 +3768,11 @@ msgstr ""
 msgid "Review"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:800
+#: bookmark_organizer_pro/app_mixins/import_export.py:801
 msgid "Review Library"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:484
+#: bookmark_organizer_pro/app_mixins/import_export.py:485
 msgid "Review browser folders, then run duplicate and tag cleanup."
 msgstr ""
 
@@ -3780,11 +3784,11 @@ msgstr ""
 msgid "Review imported categories, then run duplicate and tag cleanup."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:924
+#: bookmark_organizer_pro/app_mixins/import_export.py:931
 msgid "Review imported folders, then run tag cleanup."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:972
+#: bookmark_organizer_pro/app_mixins/import_export.py:979
 msgid "Review imported references and export notes if needed."
 msgstr ""
 
@@ -3796,15 +3800,15 @@ msgstr ""
 msgid "Review the exact files before saving"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:515
+#: bookmark_organizer_pro/app_mixins/import_export.py:516
 msgid "Review the imported rows and resolve any reported losses."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:879
+#: bookmark_organizer_pro/app_mixins/import_export.py:880
 msgid "Review the merged rows and resolve any reported losses."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:690
+#: bookmark_organizer_pro/app_mixins/import_export.py:691
 msgid "Review the resumed session diagnostics."
 msgstr ""
 
@@ -3841,11 +3845,11 @@ msgstr ""
 msgid "Revoke selected"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:819
+#: bookmark_organizer_pro/app_mixins/import_export.py:820
 msgid "Roll Back"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:707
+#: bookmark_organizer_pro/app_mixins/import_export.py:708
 msgid "Roll Back Selected"
 msgstr ""
 
@@ -3956,7 +3960,7 @@ msgstr ""
 msgid "Scanning for duplicates (URL + SimHash + semantic)..."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:836
+#: bookmark_organizer_pro/app_mixins/import_export.py:837
 msgid "Scanning {folder} for bookmark exports…"
 msgstr ""
 
@@ -4189,7 +4193,7 @@ msgstr ""
 msgid "Select the replacement passage in the reader first."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:436
+#: bookmark_organizer_pro/app_mixins/import_export.py:437
 msgid "Select {browser} Profile"
 msgstr ""
 
@@ -4690,7 +4694,7 @@ msgstr ""
 msgid "This does not appear to be a learned-pattern export."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:420
+#: bookmark_organizer_pro/app_mixins/import_export.py:421
 msgid "This import path is not available yet."
 msgstr ""
 
@@ -5070,7 +5074,7 @@ msgstr ""
 msgid "finished"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:875
+#: bookmark_organizer_pro/app_mixins/import_export.py:876
 msgid "folder"
 msgstr ""
 
@@ -5087,7 +5091,7 @@ msgid "new"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/import_export.py:335
-#: bookmark_organizer_pro/app_mixins/import_export.py:865
+#: bookmark_organizer_pro/app_mixins/import_export.py:866
 msgid "none"
 msgstr ""
 
@@ -5131,7 +5135,7 @@ msgstr ""
 msgid "{added} added · {duplicates} skipped"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:739
+#: bookmark_organizer_pro/app_mixins/import_export.py:740
 msgid "{added} imported. {dupes} duplicates skipped."
 msgstr ""
 
@@ -5171,7 +5175,7 @@ msgstr ""
 msgid "{count} matching highlight(s)"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/import_center.py:288
+#: bookmark_organizer_pro/ui/import_center.py:301
 msgid "{count} migration paths • Files stay on this device"
 msgstr ""
 
@@ -5195,7 +5199,7 @@ msgstr ""
 msgid "{field}: {count} of {total} source rows"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:856
+#: bookmark_organizer_pro/app_mixins/import_export.py:857
 msgid "{files} files scanned\n{unique} unique, {duplicates} byte-identical duplicates skipped\nFormats: {formats}\n\n{entries} entries merged into {urls} unique bookmarks\n{merged} collapsed, {conflicts} field conflicts, {unreadable} unreadable\n\nImport these {urls} bookmarks?"
 msgstr ""
 
@@ -5235,19 +5239,19 @@ msgstr ""
 msgid "{size} bytes"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:726
+#: bookmark_organizer_pro/app_mixins/import_export.py:727
 msgid "{source} Import Complete"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:728
+#: bookmark_organizer_pro/app_mixins/import_export.py:729
 msgid "{source} Import Needs Attention"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:556
+#: bookmark_organizer_pro/app_mixins/import_export.py:557
 msgid "{source} migration preflight"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:652
+#: bookmark_organizer_pro/app_mixins/import_export.py:653
 msgid "{source} · {status} · {added}/{total} added · {failed} failed · {pending} pending"
 msgstr ""
 
@@ -5271,7 +5275,7 @@ msgstr ""
 msgid "{total} bookmarks · {pinned} pinned · {read_later} read later"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/import_export.py:561
+#: bookmark_organizer_pro/app_mixins/import_export.py:562
 msgid "{total} source records\n{ready} ready to import\n{duplicates} duplicates\n{invalid} invalid records\n\nTransformed: {transformed}\n\nUnsupported: {unsupported}"
 msgstr ""
 
@@ -5355,7 +5359,7 @@ msgstr ""
 msgid "{value_0}%"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/import_center.py:353
+#: bookmark_organizer_pro/ui/import_center.py:366
 msgid "{value_0}:"
 msgstr ""
 

@@ -275,6 +275,7 @@ class BookmarkCLI:
             "import-zotero": "import-zotero <path_to_zotero_export.rdf>",
             "import-wallabag": "import-wallabag <path_to_wallabag_export.json>",
             "import-arc": "import-arc <path_to_StorableSidebar.json>",
+            "import-omnivore": "import-omnivore <export.zip|directory|metadata_0.json>",
         }
         for name, helptext in [
             ("import-pocket", "Import Pocket export (HTML or JSON)"),
@@ -287,6 +288,7 @@ class BookmarkCLI:
             ("import-zotero", "Import Zotero RDF export"),
             ("import-wallabag", "Import Wallabag JSON export"),
             ("import-arc", "Import Arc Browser StorableSidebar.json"),
+            ("import-omnivore", "Import an Omnivore export (zip, folder, or metadata JSON)"),
         ]:
             p = sub.add_parser(name, help=helptext)
             p.add_argument("file", nargs="?", help="File to import")
@@ -1685,6 +1687,30 @@ Top Domains:
             f"Firefox backup import: {added} added, {dupes} duplicates skipped, "
             f"{importer.stats.skipped} invalid/missing URL skipped"
         )
+        self._print_import_session(importer)
+
+    def _cmd_import_omnivore(self, ns: argparse.Namespace):
+        if not ns.file:
+            return self._usage_error(f"usage: {ns._usage_hint}")
+        from bookmark_organizer_pro.importers_extra import OmnivoreImporter, import_into
+        from bookmark_organizer_pro.services.import_sessions import ImportSessionManager
+
+        importer = OmnivoreImporter()
+        if Path(ns.file).is_dir():
+            # The durable session tracks files, so expand an unpacked export.
+            files = OmnivoreImporter.metadata_files(ns.file)
+            if not files:
+                self._error(f"No metadata_*.json files found in {ns.file}")
+                return 1
+            report = ImportSessionManager().run(
+                self.bookmark_manager, importer, files, source="omnivore"
+            )
+            print(f"+{report.added} ({report.duplicates} duplicates skipped)")
+            importer.last_session_report = report
+            self._print_import_session(importer)
+            return 0
+        added, dupes = import_into(self.bookmark_manager, importer, ns.file)
+        print(f"+{added} ({dupes} duplicates skipped)")
         self._print_import_session(importer)
 
     def _cmd_import_csv(self, ns: argparse.Namespace):
