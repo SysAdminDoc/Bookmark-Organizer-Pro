@@ -215,6 +215,11 @@ AI_PROVIDERS = {
 }
 
 
+# How tightly AI tag suggestions are bound to tags the library already uses.
+# Unconstrained generation is what produces thousands of single-use tags.
+TAG_VOCABULARY_MODES = ("existing-only", "prefer-existing", "free")
+
+
 class AIConfigManager:
     """Manages AI provider configuration."""
 
@@ -293,6 +298,14 @@ class AIConfigManager:
         self._config["batch_size"] = self._bounded_int(
             self._config.get("batch_size"), 20, 5, 50
         )
+
+        mode = str(self._config.get("tag_vocabulary_mode", "prefer-existing")).strip().lower()
+        if mode not in TAG_VOCABULARY_MODES:
+            mode = "prefer-existing"
+        self._config["tag_vocabulary_mode"] = mode
+        self._config["max_suggested_tags"] = self._bounded_int(
+            self._config.get("max_suggested_tags"), 3, 1, 5
+        )
         self._config["requests_per_minute"] = self._bounded_int(
             self._config.get("requests_per_minute"), 30, 1, 120
         )
@@ -360,6 +373,14 @@ class AIConfigManager:
 
     def get_suggest_tags(self) -> bool:
         return self._config.get("suggest_tags", True)
+
+    def get_tag_vocabulary_mode(self) -> str:
+        """How strictly tag suggestions are bound to the library's own tags."""
+        mode = str(self._config.get("tag_vocabulary_mode", "prefer-existing")).strip().lower()
+        return mode if mode in TAG_VOCABULARY_MODES else "prefer-existing"
+
+    def get_max_suggested_tags(self) -> int:
+        return self._bounded_int(self._config.get("max_suggested_tags"), 3, 1, 5)
 
     def get_api_key(self, provider: str = None) -> str:
         provider = provider or self.get_provider()
@@ -469,6 +490,15 @@ class AIConfigManager:
 
     def set_suggest_tags(self, v):
         self._config["suggest_tags"] = bool(v)
+        self.save_config()
+
+    def set_tag_vocabulary_mode(self, v):
+        mode = str(v or "").strip().lower()
+        self._config["tag_vocabulary_mode"] = mode if mode in TAG_VOCABULARY_MODES else "prefer-existing"
+        self.save_config()
+
+    def set_max_suggested_tags(self, v):
+        self._config["max_suggested_tags"] = self._bounded_int(v, 3, 1, 5)
         self.save_config()
 
     def is_configured(self) -> bool:

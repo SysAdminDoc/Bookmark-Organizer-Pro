@@ -18,6 +18,7 @@ from bookmark_organizer_pro.utils import safe_float
 from bookmark_organizer_pro.utils.safe import sanitize_for_prompt
 from bookmark_organizer_pro.utils.runtime import atomic_json_write as _atomic_json_write
 from bookmark_organizer_pro.services.ai_audit_log import log_batch_result
+from bookmark_organizer_pro.services.tag_linter import _slug as normalize_tag
 from bookmark_organizer_pro.services.ai_operation import (
     AIBudget,
     AIBudgetExceeded,
@@ -291,15 +292,96 @@ class AITagSuggester:
 
     _MAX_CACHE = 2048
 
+    # Pages that never carry useful topical tags. Tagging them is how a library
+    # fills up with "403", "cloudflare", and "accept-cookies" tags.
+    _UNTAGGABLE_PATTERNS = (
+        (re.compile(r"\b(?:40[13489]|429|50[023])\b(?!\s*[-\w])"), "http-error-page"),
+        (re.compile(r"\berror\s+(?:40[13489]|429|50[023])\b"), "http-error-page"),
+        (re.compile(r"\b(?:page\s+not\s+found|not\s+found|forbidden|access\s+denied)\b"), "http-error-page"),
+        (re.compile(r"\b(?:sign\s*in|log\s*in|login|sign\s*up)\b.*\b(?:to\s+continue|required)\b"), "login-wall"),
+        (re.compile(r"\b(?:please\s+(?:sign|log)\s*in|authentication\s+required)\b"), "login-wall"),
+        (re.compile(r"\b(?:captcha|recaptcha|hcaptcha)\b"), "captcha"),
+        (re.compile(r"\b(?:are\s+you\s+(?:a\s+)?(?:human|robot)|verify\s+you\s+are\s+(?:a\s+)?human)\b"), "captcha"),
+        (re.compile(r"\b(?:just\s+a\s+moment|checking\s+your\s+browser|enable\s+javascript\s+and\s+cookies)\b"), "captcha"),
+        (re.compile(r"\b(?:accept\s+(?:all\s+)?cookies|cookie\s+(?:policy|consent|preferences)|we\s+use\s+cookies)\b"), "cookie-wall"),
+    )
+
     def __init__(self, ai_config: AIConfigManager):
         self.ai_config = ai_config
         self._cache: Dict[str, List[str]] = {}
+
+    @classmethod
+    def untaggable_reason(cls, *texts: Optional[str]) -> Optional[str]:
+        """Return why a page cannot carry topical tags, or None when it can."""
+        haystack = " ".join(str(t) for t in texts if t).lower()
+        if not haystack.strip():
+            return None
+        for pattern, reason in cls._UNTAGGABLE_PATTERNS:
+            if pattern.search(haystack):
+                return reason
+        return None
+
+    def _vocabulary(self, existing_tags: Optional[List[str]]) -> List[str]:
+        seen: Dict[str, None] = {}
+        for tag in existing_tags or []:
+            slug = normalize_tag(str(tag))
+            if slug:
+                seen.setdefault(slug, None)
+        return list(seen)
+
+    def _build_prompt(self, bookmark: Bookmark, vocabulary: List[str], mode: str, limit: int) -> str:
+        # A capped, vocabulary-anchored prompt. Asking for tags that must NOT
+        # duplicate existing ones guarantees a new tag on every bookmark.
+        shown = vocabulary[:200]
+        if mode == "existing-only" and shown:
+            instruction = (
+                f"Choose at most {limit} tags for this bookmark, using ONLY tags from the "
+                f"allowed list. Never invent a tag. Return an empty array if none apply."
+            )
+        elif mode == "existing-only":
+            instruction = "Return an empty array: no tags exist yet and new tags are not allowed."
+        elif mode == "prefer-existing" and shown:
+            instruction = (
+                f"Choose at most {limit} tags for this bookmark. Strongly prefer reusing tags "
+                f"from the existing list; only invent a tag when nothing existing fits."
+            )
+        else:
+            instruction = f"Suggest at most {limit} tags for this bookmark."
+        vocabulary_block = (
+            "Existing tags: " + json.dumps(shown) if shown else "Existing tags: none yet"
+        )
+        return f"""{instruction}
+Tags must be lowercase, one or two words, and describe the content, topic, or purpose.
+
+{vocabulary_block}
+
+URL: {sanitize_for_prompt(bookmark.url, 500)}
+Title: {sanitize_for_prompt(bookmark.title, 200)}
+Domain: {sanitize_for_prompt(bookmark.domain, 100)}
+Notes: {sanitize_for_prompt(bookmark.notes[:200] if bookmark.notes else 'None', 200)}
+
+Return only a JSON array of tag strings: ["tag1", "tag2", ...]"""
+
+    def _finalize(self, tags: List[str], vocabulary: List[str], mode: str, limit: int) -> List[str]:
+        allowed = set(vocabulary)
+        result: List[str] = []
+        for raw in tags:
+            slug = normalize_tag(str(raw))
+            if not slug or slug in result:
+                continue
+            if mode == "existing-only" and slug not in allowed:
+                continue
+            result.append(slug)
+            if len(result) >= limit:
+                break
+        return result
 
     def suggest_tags(
         self,
         bookmark: Bookmark,
         existing_tags: List[str] = None,
         *,
+        page_text: Optional[str] = None,
         operation: AIOperation | None = None,
         cancel_token: AICancellationToken | None = None,
         budget: AIBudget | None = None,
@@ -308,6 +390,9 @@ class AITagSuggester:
         """Get AI-suggested tags for a bookmark"""
         provider = getattr(self.ai_config, "get_provider", lambda: "")
         backend = provider() if callable(provider) else ""
+        mode = self.ai_config.get_tag_vocabulary_mode()
+        limit = self.ai_config.get_max_suggested_tags()
+        vocabulary = self._vocabulary(existing_tags)
         with operation_scope(
             "tag_suggestion",
             operation=operation,
@@ -319,26 +404,20 @@ class AITagSuggester:
             url_or_domain=getattr(bookmark, "domain", ""),
         ) as owned_operation:
             owned_operation.check()
-            cache_key = f"{bookmark.url}:{bookmark.title}"
 
+            suppressed = self.untaggable_reason(bookmark.title, page_text)
+            if suppressed:
+                owned_operation.fail(f"tagging skipped: {suppressed}", retryable=False)
+                log.info(f"Skipped tag suggestion for {bookmark.url}: {suppressed}")
+                return []
+
+            cache_key = f"{mode}:{limit}:{bookmark.url}:{bookmark.title}"
             if cache_key in self._cache:
                 return self._cache[cache_key]
 
             try:
                 client = create_ai_client(self.ai_config)
-                prompt = f"""Suggest 5-7 relevant tags for this bookmark.
-Tags should be:
-- Single words or short phrases
-- Lowercase
-- Descriptive of content, topic, or purpose
-- Not duplicate existing tags: {existing_tags or []}
-
-URL: {sanitize_for_prompt(bookmark.url, 500)}
-Title: {sanitize_for_prompt(bookmark.title, 200)}
-Domain: {sanitize_for_prompt(bookmark.domain, 100)}
-Notes: {sanitize_for_prompt(bookmark.notes[:200] if bookmark.notes else 'None', 200)}
-
-Return only a JSON array of tag strings: ["tag1", "tag2", ...]"""
+                prompt = self._build_prompt(bookmark, vocabulary, mode, limit)
                 response_text = call_ai(
                     client.complete,
                     prompt,
@@ -349,13 +428,11 @@ Return only a JSON array of tag strings: ["tag1", "tag2", ...]"""
                 )
                 owned_operation.check()
                 if response_text:
-                    import re as _re
-                    arr_match = _re.search(r'\[[\s\S]*?\]', response_text)
+                    arr_match = re.search(r'\[[\s\S]*?\]', response_text)
                     if arr_match:
-                        import json as _json
-                        tags = _json.loads(arr_match.group())
+                        tags = json.loads(arr_match.group())
                         if isinstance(tags, list):
-                            cleaned = [str(t).strip().lower() for t in tags if str(t).strip()][:7]
+                            cleaned = self._finalize(tags, vocabulary, mode, limit)
                             if len(self._cache) >= self._MAX_CACHE:
                                 try:
                                     self._cache.pop(next(iter(self._cache)))
@@ -370,7 +447,9 @@ Return only a JSON array of tag strings: ["tag1", "tag2", ...]"""
                 log.warning(f"AI tag suggestion failed for {bookmark.url}: {e}")
 
             # Fallback: generate from content
-            return self._generate_fallback_tags(bookmark)
+            return self._finalize(
+                self._generate_fallback_tags(bookmark), vocabulary, mode, limit
+            )
     
     def _generate_fallback_tags(self, bookmark: Bookmark) -> List[str]:
         """Generate tags without AI"""

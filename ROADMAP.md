@@ -17,13 +17,6 @@ Added 2026-08-21 from RESEARCH.md (same date). IDs continue the R-series after R
 
 ### P1
 
-- [ ] P1 — R-108: Constrain AI tag suggestions to a bounded vocabulary with page-state suppression
-  Why: `suggest_tags` asks the model for 5–7 tags that must not duplicate existing tags, which is the exact recipe behind Karakeep's 12.7K-tag sprawl and Linkwarden's 836-tags-for-592-links reports; both projects now ship constrained modes and tag caps.
-  Evidence: `bookmark_organizer_pro/services/ai_tools.py` line 329 prompt; https://github.com/karakeep-app/karakeep/issues/1266; https://github.com/karakeep-app/karakeep/issues/529; https://github.com/karakeep-app/karakeep/issues/1892; https://github.com/linkwarden/linkwarden/issues/1597; https://github.com/linkwarden/docs/blob/main/docs/Usage/ai-tagging.md (predefined/existing/auto modes).
-  Touches: `services/ai_tools.py::TagSuggester.suggest_tags`, `services/tag_linter.py` (reuse normalization), AI settings mixin (`app_mixins/ai_settings.py`), MCP/CLI tag-suggestion entry points, `tests/test_services.py`.
-  Acceptance: A persisted setting selects `existing-only`, `prefer-existing` (default), or `free`; the prompt is built from the library's tag vocabulary with a configurable cap (default 3, max 5); suggestions are normalized through the tag linter before return; bookmarks whose extracted text or title matches error/login/CAPTCHA/cookie-wall signatures return no tags with a ledger reason; tests cover each mode, the cap, and suppression with a fake client.
-  Complexity: M
-
 - [ ] P1 — R-109: Import a folder of bookmark exports as one deduplicated batch
   Why: Real migrations arrive as piles of near-identical exports (2026-08-21 corpus: 1,113 files, 95 unique by SHA-256, 149,471 entries → 5,206 URLs); every desktop import path is single-file, and no competitor offers folder ingestion (Karakeep OOMs on large imports, linkding is one Netscape file at a time).
   Evidence: `app_mixins/import_export.py` lines 499/522/841/894 (`askopenfilename`); `services/import_sessions.py`; `services/dup_hybrid.py` (URL normalization); https://github.com/karakeep-app/karakeep/issues/1748; https://github.com/sissbruecker/linkding/releases (v1.46.0 import dedup).

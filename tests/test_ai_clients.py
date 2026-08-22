@@ -572,5 +572,118 @@ class TestDefaultCategoriesAsset(unittest.TestCase):
         self.assertEqual(dups, [], f"domain rules in multiple categories: {dups[:10]}")
 
 
+class TestTagVocabularyConstraint(unittest.TestCase):
+    """Bounded tag suggestion: vocabulary mode, cap, normalization, suppression."""
+
+    def _suggester(self, response: str, *, mode="prefer-existing", limit=3):
+        from bookmark_organizer_pro.services.ai_tools import AITagSuggester
+
+        config = SimpleNamespace(
+            get_provider=lambda: "google",
+            get_tag_vocabulary_mode=lambda: mode,
+            get_max_suggested_tags=lambda: limit,
+        )
+        suggester = AITagSuggester(config)
+        captured = {}
+
+        def fake_call_ai(_fn, prompt, **_kwargs):
+            captured["prompt"] = prompt
+            return response
+
+        return suggester, captured, fake_call_ai
+
+    def _bookmark(self, title="Deep Learning Basics", url="https://example.com/dl"):
+        from bookmark_organizer_pro.models import Bookmark
+
+        return Bookmark(id=1, url=url, title=title)
+
+    def _run(self, suggester, fake_call_ai, bookmark, existing, **kwargs):
+        with patch("bookmark_organizer_pro.services.ai_tools.create_ai_client",
+                   return_value=MagicMock()), \
+             patch("bookmark_organizer_pro.services.ai_tools.call_ai", fake_call_ai):
+            return suggester.suggest_tags(bookmark, existing, **kwargs)
+
+    def test_existing_only_drops_invented_tags(self):
+        suggester, _cap, fake = self._suggester('["python", "brand-new-tag"]', mode="existing-only")
+        tags = self._run(suggester, fake, self._bookmark(), ["python", "ml"])
+        self.assertEqual(tags, ["python"])
+
+    def test_prefer_existing_keeps_new_tags(self):
+        suggester, captured, fake = self._suggester('["python", "brand-new-tag"]')
+        tags = self._run(suggester, fake, self._bookmark(), ["python", "ml"])
+        self.assertEqual(tags, ["python", "brand-new-tag"])
+        self.assertIn("prefer reusing tags", captured["prompt"])
+        self.assertIn('"python"', captured["prompt"])
+
+    def test_free_mode_ignores_vocabulary_constraint(self):
+        suggester, captured, fake = self._suggester('["alpha", "beta"]', mode="free")
+        tags = self._run(suggester, fake, self._bookmark(), ["python"])
+        self.assertEqual(tags, ["alpha", "beta"])
+        self.assertNotIn("prefer reusing tags", captured["prompt"])
+
+    def test_cap_limits_returned_tags(self):
+        suggester, captured, fake = self._suggester('["a1", "b2", "c3", "d4", "e5"]', limit=2)
+        tags = self._run(suggester, fake, self._bookmark(), [])
+        self.assertEqual(tags, ["a1", "b2"])
+        self.assertIn("at most 2 tags", captured["prompt"])
+
+    def test_suggestions_are_normalized_and_deduplicated(self):
+        # Normalization runs through the tag linter, so separators collapse and
+        # canonical aliases apply ("ai" -> "artificial-intelligence").
+        suggester, _cap, fake = self._suggester('["  Machine Learning ", "machine learning", "AI"]')
+        tags = self._run(suggester, fake, self._bookmark(), [])
+        self.assertEqual(tags, ["machine-learning", "artificial-intelligence"])
+
+    def test_untaggable_pages_are_suppressed_with_a_ledger_reason(self):
+        from bookmark_organizer_pro.services.ai_tools import AITagSuggester
+
+        cases = {
+            "404 Page Not Found": "http-error-page",
+            "Sign in to continue": "login-wall",
+            "Just a moment...": "captcha",
+            "We use cookies to improve your experience": "cookie-wall",
+        }
+        for title, reason in cases.items():
+            with self.subTest(title=title):
+                self.assertEqual(AITagSuggester.untaggable_reason(title), reason)
+
+        # Real content is not suppressed, including titles that merely mention a number.
+        self.assertIsNone(AITagSuggester.untaggable_reason("Deep Learning Basics"))
+        self.assertIsNone(AITagSuggester.untaggable_reason("Top 500 albums of all time"))
+
+        suggester, captured, fake = self._suggester('["should", "not", "happen"]')
+        tags = self._run(suggester, fake, self._bookmark(title="403 Forbidden"), ["python"])
+        self.assertEqual(tags, [])
+        self.assertNotIn("prompt", captured, "suppressed pages must not reach the model")
+
+    def test_extracted_page_text_can_trigger_suppression(self):
+        suggester, captured, fake = self._suggester('["x"]')
+        tags = self._run(
+            suggester, fake, self._bookmark(),
+            ["python"],
+            page_text="Please verify you are a human before continuing.",
+        )
+        self.assertEqual(tags, [])
+        self.assertNotIn("prompt", captured)
+
+    def test_config_bounds_mode_and_cap(self):
+        from bookmark_organizer_pro.ai import AIConfigManager
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config = AIConfigManager(Path(tmp) / "ai.json")
+            self.assertEqual(config.get_tag_vocabulary_mode(), "prefer-existing")
+            self.assertEqual(config.get_max_suggested_tags(), 3)
+
+            config.set_tag_vocabulary_mode("existing-only")
+            config.set_max_suggested_tags(9)
+            self.assertEqual(config.get_tag_vocabulary_mode(), "existing-only")
+            self.assertEqual(config.get_max_suggested_tags(), 5)
+
+            config.set_tag_vocabulary_mode("nonsense")
+            config.set_max_suggested_tags(0)
+            self.assertEqual(config.get_tag_vocabulary_mode(), "prefer-existing")
+            self.assertEqual(config.get_max_suggested_tags(), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

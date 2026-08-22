@@ -200,7 +200,7 @@ msgstr ""
 msgid "AI title suggestions could not be completed.\n\n{value_0}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:562
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:594
 msgid "API Key Required"
 msgstr ""
 
@@ -543,7 +543,7 @@ msgstr ""
 msgid "Assistant settings need attention"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:622
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:660
 msgid "Assistant settings saved"
 msgstr ""
 
@@ -709,7 +709,7 @@ msgstr ""
 msgid "CSV"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:625
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:663
 #: bookmark_organizer_pro/app_mixins/ai_titles.py:272
 #: bookmark_organizer_pro/app_mixins/categories.py:208
 #: bookmark_organizer_pro/app_mixins/import_export.py:213
@@ -1109,12 +1109,12 @@ msgstr ""
 msgid "Conflicts"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:584
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:586
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:616
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:618
 msgid "Connection Failed"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:582
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:614
 msgid "Connection Successful"
 msgstr ""
 
@@ -1575,7 +1575,7 @@ msgstr ""
 msgid "Enter a valid snapshot interval."
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:563
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:595
 msgid "Enter an API key for {provider} before testing."
 msgstr ""
 
@@ -2350,6 +2350,10 @@ msgstr ""
 msgid "Legend"
 msgstr ""
 
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:540
+msgid "Let the model invent tags"
+msgstr ""
+
 #: bookmark_organizer_pro/app_mixins/app_shell.py:512
 #: bookmark_organizer_pro/app_mixins/bookmarks.py:152
 #: bookmark_organizer_pro/app_mixins/dashboard.py:125
@@ -2496,6 +2500,10 @@ msgstr ""
 
 #: bookmark_organizer_pro/ui/organization_rules.py:323
 msgid "Matched rules"
+msgstr ""
+
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:549
+msgid "Max tags per bookmark"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/workflow_detail_panel.py:90
@@ -2956,6 +2964,10 @@ msgstr ""
 msgid "Ollama Local"
 msgstr ""
 
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:538
+msgid "Only tags already in my library"
+msgstr ""
+
 #: bookmark_organizer_pro/app_mixins/dashboard.py:184
 #: bookmark_organizer_pro/ui/workflow_detail_panel.py:224
 msgid "Open"
@@ -3170,6 +3182,10 @@ msgstr ""
 
 #: bookmark_organizer_pro/ui/import_center.py:92
 msgid "Pocket export"
+msgstr ""
+
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:539
+msgid "Prefer existing tags"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/import_export.py:523
@@ -3709,6 +3725,10 @@ msgstr ""
 msgid "Retrying {operation}…"
 msgstr ""
 
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:558
+msgid "Reusing existing tags keeps the library searchable. Unbounded tagging creates thousands of single-use tags."
+msgstr ""
+
 #: bookmark_organizer_pro/ui/highlights_workspace.py:149
 msgid "Review"
 msgstr ""
@@ -3858,7 +3878,7 @@ msgstr ""
 msgid "Save Bundle…"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:624
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:662
 #: bookmark_organizer_pro/app_mixins/tools.py:325
 msgid "Save Settings"
 msgstr ""
@@ -4455,6 +4475,10 @@ msgstr ""
 msgid "Tag lint: applied {count} merge(s); restore available from Tools"
 msgstr ""
 
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:533
+msgid "Tag vocabulary"
+msgstr ""
+
 #: bookmark_organizer_pro/app_mixins/dashboard.py:333
 msgid "Tagged"
 msgstr ""
@@ -4478,7 +4502,7 @@ msgstr ""
 msgid "Tertiary Background"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/ai_settings.py:596
+#: bookmark_organizer_pro/app_mixins/ai_settings.py:628
 msgid "Test Provider"
 msgstr ""
 

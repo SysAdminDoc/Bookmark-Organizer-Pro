@@ -6,7 +6,7 @@ import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from bookmark_organizer_pro.ai import AI_PROVIDERS, create_ai_client
+from bookmark_organizer_pro.ai import AI_PROVIDERS, TAG_VOCABULARY_MODES, create_ai_client
 from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.services.ollama_manager import (
     OLLAMA_DEFAULT_URL,
@@ -529,6 +529,38 @@ class AiSettingsMixin:
         rate_var = tk.IntVar(value=self.ai_config.get_rate_limit())
         ttk.Spinbox(settings_frame, from_=1, to=120, textvariable=rate_var, width=8).grid(row=1, column=1, padx=10, pady=4)
 
+        tk.Label(
+            settings_frame, text=_("Tag vocabulary"), bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.small(),
+        ).grid(row=2, column=0, sticky="w", pady=4)
+
+        vocabulary_labels = {
+            "existing-only": _("Only tags already in my library"),
+            "prefer-existing": _("Prefer existing tags"),
+            "free": _("Let the model invent tags"),
+        }
+        vocabulary_var = tk.StringVar(value=vocabulary_labels[self.ai_config.get_tag_vocabulary_mode()])
+        ttk.Combobox(
+            settings_frame, textvariable=vocabulary_var, width=30, state="readonly",
+            values=[vocabulary_labels[m] for m in TAG_VOCABULARY_MODES],
+        ).grid(row=2, column=1, padx=10, pady=4, sticky="w")
+
+        tk.Label(
+            settings_frame, text=_("Max tags per bookmark"), bg=theme.bg_primary,
+            fg=theme.text_primary, font=FONTS.small(),
+        ).grid(row=3, column=0, sticky="w", pady=4)
+
+        max_tags_var = tk.IntVar(value=self.ai_config.get_max_suggested_tags())
+        ttk.Spinbox(settings_frame, from_=1, to=5, textvariable=max_tags_var, width=8).grid(row=3, column=1, padx=10, pady=4)
+
+        tk.Label(
+            body,
+            text=_("Reusing existing tags keeps the library searchable. Unbounded tagging "
+                   "creates thousands of single-use tags."),
+            bg=theme.bg_primary, fg=theme.text_muted,
+            font=FONTS.small(), wraplength=590, justify=tk.LEFT,
+        ).pack(anchor="w", pady=(0, 6))
+
         # ── Provider change handler ──
         def on_provider_change(*_):
             provider = provider_var.get()
@@ -608,6 +640,12 @@ class AiSettingsMixin:
             self.ai_config.set_api_key(provider_var.get(), api_key_var.get())
             self.ai_config.set_batch_size(batch_var.get())
             self.ai_config.set_rate_limit(rate_var.get())
+            selected_label = vocabulary_var.get()
+            for mode, label in vocabulary_labels.items():
+                if label == selected_label:
+                    self.ai_config.set_tag_vocabulary_mode(mode)
+                    break
+            self.ai_config.set_max_suggested_tags(max_tags_var.get())
             if provider_var.get() == "ollama":
                 url = ollama_url_var.get().strip().rstrip("/")
                 if url:

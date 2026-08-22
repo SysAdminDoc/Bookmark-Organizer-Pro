@@ -6,6 +6,17 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Added
 
+- Bounded AI tag suggestions so a library cannot fill with single-use tags. A
+  new **Tag vocabulary** setting chooses between using only tags already in the
+  library, preferring existing tags (default), or letting the model invent
+  freely, and a **Max tags per bookmark** setting caps every suggestion between
+  1 and 5 (default 3). Suggestions are normalized through the tag linter, so
+  separators and canonical aliases collapse instead of creating near-duplicates.
+  Pages that cannot carry topical tags (HTTP error pages, login walls, CAPTCHA
+  interstitials, and cookie consent walls) are detected from the title or
+  extracted text and skipped before any model call, recording the reason in the
+  job ledger.
+
 - Declared Mozilla's data collection consent categories in the Firefox
   extension manifest: `bookmarksInfo` is required because every save transmits
   URL, title, tags, and notes to the local API, and `websiteContent` is
