@@ -78,12 +78,36 @@ class TestBookmarkModel(unittest.TestCase):
         self.assertTrue(bm.id.bit_length() <= 64)  # 8-byte ID
 
     def test_round_trip_serialization(self):
-        bm = Bookmark(id=42, url="https://test.com", title="Test", tags=["a", "b"])
+        bm = Bookmark(
+            id=42,
+            url="https://test.com",
+            title="Test",
+            tags=["a", "b"],
+            is_archived=True,
+            deleted_at="2026-08-23T12:30:00+00:00",
+        )
         d = bm.to_dict()
         bm2 = Bookmark.from_dict(d)
         self.assertEqual(bm.id, bm2.id)
         self.assertEqual(bm.url, bm2.url)
         self.assertEqual(bm.tags, bm2.tags)
+        self.assertTrue(bm2.is_archived)
+        self.assertTrue(bm2.is_deleted)
+        self.assertEqual(bm2.deleted_at, "2026-08-23T12:30:00+00:00")
+
+    def test_legacy_trash_timestamp_migrates_without_reusing_archive_state(self):
+        bookmark = Bookmark.from_dict({
+            "id": 7,
+            "url": "https://legacy-trash.example",
+            "title": "Legacy Trash",
+            "is_archived": True,
+            "custom_data": {"_deleted_at": "2025-01-02T03:04:05"},
+        })
+
+        self.assertTrue(bookmark.is_deleted)
+        self.assertEqual(bookmark.deleted_at, "2025-01-02T03:04:05")
+        self.assertTrue(bookmark.is_archived)
+        self.assertNotIn("_deleted_at", bookmark.custom_data)
 
     def test_from_dict_empty_url_raises(self):
         with self.assertRaises(ValueError):
@@ -2709,6 +2733,63 @@ class TestRESTAPIEndpoints(_LocalAPIServerMixin, unittest.TestCase):
             finally:
                 api.stop()
 
+    def test_api_delete_routes_through_list_restore_and_verified_trash_purge(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            manager.add_bookmark(
+                Bookmark(
+                    id=71,
+                    url="https://example.com/rest-trash",
+                    title="REST Trash",
+                    is_archived=True,
+                )
+            )
+            api = self._start_api(manager, tmp)
+            try:
+                token = self._get_token()
+                base = f"http://127.0.0.1:{api.port}"
+
+                status, body = self._request_json(
+                    base,
+                    "/bookmarks/71",
+                    token=token,
+                    method="DELETE",
+                )
+                self.assertEqual(status, 200)
+                self.assertTrue(body["moved_to_trash"])
+                self.assertIsNone(manager.get_bookmark(71))
+
+                status, body = self._get_json(base, "/trash", token)
+                self.assertEqual(status, 200)
+                self.assertEqual(body["count"], 1)
+                self.assertEqual(body["bookmarks"][0]["id"], 71)
+                self.assertTrue(body["bookmarks"][0]["is_archived"])
+                self.assertTrue(body["bookmarks"][0]["deleted_at"])
+
+                status, body = self._request_json(
+                    base,
+                    "/trash/71/restore",
+                    token=token,
+                    method="POST",
+                )
+                self.assertEqual(status, 200)
+                self.assertEqual(body["restored"], 71)
+                self.assertTrue(manager.get_bookmark(71).is_archived)
+
+                self._request_json(base, "/bookmarks/71", token=token, method="DELETE")
+                status, body = self._request_json(
+                    base,
+                    "/trash/71",
+                    token=token,
+                    method="DELETE",
+                )
+                self.assertEqual(status, 200)
+                self.assertEqual(body["purged_ids"], [71])
+                self.assertTrue(Path(body["recovery_bundle"]).is_file())
+                self.assertIsNone(manager.get_bookmark(71, include_deleted=True))
+            finally:
+                api.stop()
+
     def test_api_bookmarks_supports_pagination_and_filter_parity(self):
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -3738,7 +3819,7 @@ class TestNormalizedURLIndex(unittest.TestCase):
         self.manager = main.BookmarkManager(
             CategoryManager(filepath=root / "categories.json"),
             main.TagManager(filepath=root / "tags.json"),
-            filepath=root / "bookmarks.json",
+            filepath=root / "master_bookmarks.json",
         )
 
     def _scan(self, url):
@@ -3838,13 +3919,41 @@ class TestNormalizedURLIndex(unittest.TestCase):
 
     def test_emptying_the_trash_clears_its_index_entries(self):
         bookmark = self.manager.add_bookmark_clean(url="https://trash.test/a", title="Trash")
-        bookmark.is_archived = True
-        bookmark.custom_data["_deleted_at"] = datetime.now().isoformat()
-        self.manager.save_bookmarks()
-        self.manager.empty_trash()
+        self.assertTrue(self.manager.delete_bookmark(bookmark.id))
+        self.assertEqual(self.manager.empty_trash(), 1)
 
         self.assertIsNone(self.manager.find_by_url("https://trash.test/a"))
+        self.assertIsNone(self.manager.get_bookmark(bookmark.id, include_deleted=True))
         self._assert_matches_scan("https://trash.test/a")
+
+    def test_trash_hides_records_across_restart_and_preserves_archive_state(self):
+        live = self.manager.add_bookmark_clean(url="https://trash.test/live", title="Live")
+        archived = self.manager.add_bookmark_clean(
+            url="https://trash.test/archived",
+            title="Archived",
+            is_archived=True,
+        )
+
+        self.assertTrue(self.manager.delete_bookmark(live.id))
+        self.assertTrue(self.manager.delete_bookmark(archived.id))
+        self.assertEqual(self.manager.get_all_bookmarks(), [])
+        self.assertEqual({item.id for item in self.manager.get_trash()}, {live.id, archived.id})
+
+        import main
+        root = Path(self._tmp)
+        restarted = main.BookmarkManager(
+            CategoryManager(filepath=root / "categories.json"),
+            main.TagManager(filepath=root / "tags.json"),
+            filepath=root / "master_bookmarks.json",
+        )
+        self.assertEqual(restarted.get_all_bookmarks(), [])
+        self.assertIsNone(restarted.get_bookmark(live.id))
+        self.assertTrue(restarted.get_bookmark(live.id, include_deleted=True).is_deleted)
+
+        self.assertTrue(restarted.restore_from_trash(live.id))
+        self.assertTrue(restarted.restore_from_trash(archived.id))
+        self.assertFalse(restarted.get_bookmark(live.id).is_archived)
+        self.assertTrue(restarted.get_bookmark(archived.id).is_archived)
 
     def test_a_reloaded_library_rebuilds_the_index(self):
         self.manager.add_bookmark_clean(url="https://reload.test/a", title="Reload")

@@ -4,6 +4,18 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ## Next release
 
+### Added
+
+- Deletion now has one persistent Trash contract in the desktop app, command
+  line, REST API, and MCP server. A deleted bookmark gets its own timestamp and
+  disappears from normal views, while its archive state, saved pages, extracted
+  text, highlights, and reading progress stay unchanged through restart and
+  restore.
+- Trash purge first creates and verifies a full recovery bundle containing the
+  selected records and every owned artifact. A bundle or coverage failure stops
+  the purge before anything is unlinked. The desktop does this work in the
+  background and shows the verified bundle path when it finishes.
+
 ### Fixed
 
 - Startup now checks every required Python import before loading the application

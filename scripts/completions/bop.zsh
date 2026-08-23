@@ -7,7 +7,8 @@ _bop() {
     local -a commands=(
         'list:List bookmarks (optionally filter by category)'
         'add:Add a new bookmark'
-        'delete:Delete a bookmark by ID'
+        'delete:Move a bookmark to Trash by ID'
+        'trash:List, restore, or permanently purge Trash'
         'search:Search bookmarks'
         'import:Import bookmarks from a file or a folder of exports'
         'migration:Preflight or apply a competitor export'
@@ -100,9 +101,28 @@ _bop() {
             _arguments -s \
                 '-h[show this help message and exit]' \
                 '--help[show this help message and exit]' \
-                '--force[Skip confirmation]' \
-                '-y[Skip confirmation]' \
-                '--yes[Skip confirmation]'
+                '--force[==SUPPRESS==]' \
+                '-y[==SUPPRESS==]' \
+                '--yes[==SUPPRESS==]'
+            return
+            ;;
+        trash)
+            if [[ "$words[CURRENT]" != -* ]]; then
+                case $CURRENT in
+                    2)
+                        local -a values=(
+                            list
+                            restore
+                            purge
+                        )
+                        _describe 'argument' values
+                        return
+                        ;;
+                esac
+            fi
+            _arguments -s \
+                '-h[show this help message and exit]' \
+                '--help[show this help message and exit]'
             return
             ;;
         search)

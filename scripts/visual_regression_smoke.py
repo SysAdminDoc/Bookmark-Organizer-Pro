@@ -78,6 +78,7 @@ DESKTOP_SURFACES = (
     "desktop-import-center",
     "desktop-cleanup-review",
     "desktop-read-later-queue",
+    "desktop-trash-workspace-1280x720",
     "desktop-snapshot-failures-sidebar",
     "desktop-export-dialog",
     "desktop-reader-view",
@@ -910,6 +911,8 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
     from bookmark_organizer_pro.app import FinalBookmarkOrganizerApp
     from bookmark_organizer_pro.app_mixins.import_export import ImportProgressModal
     from bookmark_organizer_pro.constants import APP_DIR, ensure_directories
+    from bookmark_organizer_pro.core import CategoryManager
+    from bookmark_organizer_pro.managers import BookmarkManager, TagManager
     from bookmark_organizer_pro.models import Bookmark
     from bookmark_organizer_pro.services.mcp_auth import (
         MCP_READ_SCOPE,
@@ -925,6 +928,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
     from bookmark_organizer_pro.ui.dependencies import DependencyCheckDialog
     from bookmark_organizer_pro.ui.read_later_queue import ReadLaterQueueDialog
     from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog
+    from bookmark_organizer_pro.ui.trash import TrashDialog
     from bookmark_organizer_pro.ui.highlights_workspace import HighlightsWorkspaceDialog
     from bookmark_organizer_pro.ui.organization_rules import OrganizationRulesDialog
     from bookmark_organizer_pro.services.organization_rules import OrganizationRule, OrganizationRulesService
@@ -1433,6 +1437,67 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
             )
         )
         destroy_window(read_later_dialog)
+
+        trash_root = data_dir / "visual-trash-library"
+        trash_root.mkdir(parents=True, exist_ok=True)
+        trash_manager = BookmarkManager(
+            CategoryManager(filepath=trash_root / "categories.json"),
+            TagManager(filepath=trash_root / "tags.json"),
+            filepath=trash_root / "master_bookmarks.json",
+        )
+        archived_trash = trash_manager.add_bookmark(
+            Bookmark(
+                id=701,
+                url="https://example.com/archived-trash-fixture",
+                title="Archived research fixture",
+                category="Research",
+                is_archived=True,
+            )
+        )
+        active_trash = trash_manager.add_bookmark(
+            Bookmark(
+                id=702,
+                url="https://example.com/active-trash-fixture",
+                title="Active reading fixture",
+                category="Reading",
+            )
+        )
+        trash_manager.move_to_trash(archived_trash.id)
+        trash_manager.move_to_trash(active_trash.id)
+        trash_dialog = TrashDialog(root, trash_manager, on_change=lambda: None)
+        apply_screen_aware_geometry(
+            trash_dialog, 860, 570, screen_width=1280, screen_height=720,
+        )
+        trash_dialog.update()
+        _prepare_background_window(trash_dialog)
+        assert_actionable_controls_inside(trash_dialog)
+        assert_named_controls_visible(
+            trash_dialog,
+            ("Restore Selected", "Purge Selected", "Purge All", "Close"),
+        )
+        assert_widget_inside(trash_dialog, trash_dialog.footer, "trash footer")
+        assert_widgets_do_not_overlap(
+            trash_dialog.body,
+            trash_dialog.footer,
+            "trash body/footer",
+        )
+        results.append(
+            capture_tk_window(
+                trash_dialog,
+                output_dir,
+                "desktop-trash-workspace-1280x720",
+                (
+                    "Trash",
+                    "Archived research fixture",
+                    "Archived",
+                    "Restore Selected",
+                    "Purge Selected",
+                    "Purge All",
+                    "Close",
+                ),
+            )
+        )
+        destroy_window(trash_dialog)
 
         export_dialog = SelectiveExportDialog(root, app.bookmark_manager)
         results.append(

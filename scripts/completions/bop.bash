@@ -28,6 +28,7 @@ _bop_completions() {
         list
         add
         delete
+        trash
         search
         import
         migration
@@ -144,6 +145,28 @@ _bop_completions() {
             esac
             if [[ "$cur" == -* ]]; then
                 _bop_complete_array "$cur" "${options[@]}"
+                return 0
+            fi
+            return 0
+            ;;
+        trash)
+            local -a options=(
+                -h
+                --help
+            )
+            case "$prev" in
+            esac
+            if [[ "$cur" == -* ]]; then
+                _bop_complete_array "$cur" "${options[@]}"
+                return 0
+            fi
+            if (( COMP_CWORD == 2 )); then
+                local -a values=(
+                    list
+                    restore
+                    purge
+                )
+                _bop_complete_array "$cur" "${values[@]}"
                 return 0
             fi
             return 0

@@ -112,9 +112,8 @@ class BookmarkCrudMixin:
 
         count = len(self.selected_bookmarks)
 
-        # No confirmation prompt by design — delete is immediate. The operation
-        # is undoable (Edit menu / Ctrl+Z) and a session safepoint + rolling
-        # backups protect against accidents (see StorageManager safepoints).
+        # Delete is immediate and recoverable through persistent Trash. Session
+        # undo remains a faster path for an accidental action.
         cmd = DeleteBookmarksCommand(self.bookmark_manager, list(self.selected_bookmarks))
         self.command_stack.execute(cmd)
 
@@ -122,7 +121,7 @@ class BookmarkCrudMixin:
         self._refresh_all()
         self._update_selection_bar()
         self._show_toast(format_plural(
-            "Deleted {count} bookmark. Undo is available from Edit.",
-            "Deleted {count} bookmarks. Undo is available from Edit.",
+            "Moved {count} bookmark to Trash. Undo is available from Edit.",
+            "Moved {count} bookmarks to Trash. Undo is available from Edit.",
             count, count=count,
         ), "info")

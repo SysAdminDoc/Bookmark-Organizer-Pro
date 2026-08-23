@@ -4,7 +4,9 @@ from pathlib import Path
 
 from bookmark_organizer_pro.ui.dependencies import DependencyCheckDialog
 from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog
+from bookmark_organizer_pro.ui.trash import build_trash_rows
 from bookmark_organizer_pro.ui.window_geometry import fit_window_geometry
+from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.reader_annotations import ReaderAnnotationStore
 
 
@@ -19,6 +21,38 @@ def test_dialog_geometry_fits_supported_laptop_viewport():
     assert geometry.y >= 24
     assert geometry.x + geometry.width <= 1280 - 24
     assert geometry.y + geometry.height <= 720 - 24
+
+
+def test_trash_rows_keep_deletion_and_archive_as_independent_state():
+    rows = build_trash_rows([
+        Bookmark(
+            id=17,
+            url="https://example.com/archived-trash",
+            title="Archived trash",
+            is_archived=True,
+            deleted_at="2026-08-23T10:20:30+00:00",
+        ),
+        Bookmark(
+            id=18,
+            url="https://example.com/live",
+            title="Live",
+        ),
+    ])
+
+    assert len(rows) == 1
+    assert rows[0].bookmark_id == 17
+    assert rows[0].archive_state == "Archived"
+    assert rows[0].deleted_at == "2026-08-23 10:20"
+
+
+def test_trash_purge_ui_is_immediate_and_runs_bundle_work_off_the_ui_thread():
+    source = (ROOT / "bookmark_organizer_pro/ui/trash.py").read_text(encoding="utf-8")
+
+    assert "messagebox" not in source
+    assert "threading.Thread" in source
+    assert "daemon=True" in source
+    assert "self.bookmark_manager.purge_trash" in source
+    assert "Creating and verifying a full recovery bundle" in source
 
 
 def test_mouse_only_labels_use_shared_keyboard_activation():

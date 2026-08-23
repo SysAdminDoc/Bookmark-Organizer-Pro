@@ -8,7 +8,12 @@ from pathlib import Path
 
 import bookmark_organizer_pro.services.recovery_bundle as recovery_bundle_module
 from bookmark_organizer_pro.cli import BookmarkCLI
+from bookmark_organizer_pro.core import CategoryManager
 from bookmark_organizer_pro.core.sqlite_storage import SQLiteStorageManager
+from bookmark_organizer_pro.managers import BookmarkManager, TagManager
+from bookmark_organizer_pro.models import Bookmark
+from bookmark_organizer_pro.services.reader_annotations import ReaderAnnotationStore
+from bookmark_organizer_pro.services.reader_progress import ReaderProgressStore
 from bookmark_organizer_pro.services.recovery_bundle import (
     INDEX_NAME,
     MANIFEST_NAME,
@@ -16,7 +21,9 @@ from bookmark_organizer_pro.services.recovery_bundle import (
     create_recovery_bundle,
     restore_recovery_bundle,
     validate_recovery_bundle,
+    verify_recovery_bundle_coverage,
 )
+from bookmark_organizer_pro.services.snapshot_history import SnapshotHistoryStore
 
 
 def _write_library(root: Path, *, title: str = "Original") -> None:
@@ -291,3 +298,223 @@ def test_cli_recovery_bundle_restore_is_dry_run_unless_apply_is_present():
     assert dry_run.action == "restore"
     assert not dry_run.apply
     assert apply.apply
+
+
+def _make_bookmark_manager(root: Path) -> BookmarkManager:
+    return BookmarkManager(
+        CategoryManager(filepath=root / "categories.json"),
+        TagManager(filepath=root / "tags.json"),
+        filepath=root / "master_bookmarks.json",
+    )
+
+
+def test_trash_purge_bundle_restores_record_and_every_owned_artifact(tmp_path):
+    root = tmp_path / "library"
+    root.mkdir()
+    snapshots = root / "snapshots"
+    extracted = root / "extracted"
+    transcripts = root / "transcripts"
+    screenshots = root / "screenshots"
+    for directory in (snapshots, extracted, transcripts, screenshots):
+        directory.mkdir()
+    snapshot = snapshots / "41.html"
+    snapshot_manifest = snapshots / "41.snapshot.json"
+    extracted_text = extracted / "41.txt"
+    transcript = transcripts / "41-en.txt"
+    screenshot = screenshots / "41.png"
+    snapshot.write_text("<html>saved article</html>", encoding="utf-8")
+    snapshot_manifest.write_text('{"artifact_name":"41.html"}', encoding="utf-8")
+    extracted_text.write_text("Alpha selected passage omega", encoding="utf-8")
+    transcript.write_text("Transcript text", encoding="utf-8")
+    screenshot.write_bytes(b"PNG fixture")
+
+    manager = _make_bookmark_manager(root)
+    bookmark = Bookmark(
+        id=41,
+        url="https://example.com/trash-contract",
+        title="Trash contract",
+        is_archived=True,
+        snapshot_path=str(snapshot),
+        extracted_text_path=str(extracted_text),
+        youtube_transcript_path=str(transcript),
+        screenshot_path=str(screenshot),
+    )
+    manager.add_bookmark(bookmark)
+    progress = manager.reader_progress_store.save(
+        bookmark.id,
+        extracted_text.read_text(encoding="utf-8"),
+        12,
+        state="in_progress",
+    ).progress
+    annotations = ReaderAnnotationStore(root / "reader_annotations.json")
+    highlight = annotations.add_from_text(
+        bookmark.id,
+        extracted_text.read_text(encoding="utf-8"),
+        6,
+        14,
+        note="Preserve this note",
+    )
+    history = SnapshotHistoryStore(snapshots)
+    version = history.record(
+        bookmark.id,
+        snapshot,
+        source_url=bookmark.url,
+        backend="fixture",
+    )
+
+    assert manager.delete_bookmark(bookmark.id)
+    restarted = _make_bookmark_manager(root)
+    trashed = restarted.get_bookmark(bookmark.id, include_deleted=True)
+    assert trashed is not None and trashed.is_deleted and trashed.is_archived
+    assert restarted.get_bookmark(bookmark.id) is None
+    assert Path(trashed.snapshot_path).is_file()
+    assert Path(trashed.extracted_text_path).is_file()
+    assert Path(trashed.youtube_transcript_path).is_file()
+    assert Path(trashed.screenshot_path).is_file()
+    assert ReaderProgressStore(root / "reader_progress.json").get(bookmark.id) == progress
+    assert ReaderAnnotationStore(root / "reader_annotations.json").list_for_bookmark(bookmark.id)[0].id == highlight.id
+    assert SnapshotHistoryStore(snapshots).list_versions(bookmark.id)[0].version_id == version.version_id
+
+    result = restarted.purge_trash([bookmark.id])
+
+    assert result.success, result.errors
+    assert result.purged_ids == (bookmark.id,)
+    bundle = Path(result.recovery_bundle)
+    assert bundle.is_file()
+    report = verify_recovery_bundle_coverage(
+        bundle,
+        bookmark_ids=[bookmark.id],
+        relative_paths=[
+            "snapshots/41.html",
+            "snapshots/41.snapshot.json",
+            Path(version.path).relative_to(root).as_posix(),
+            "extracted/41.txt",
+            "transcripts/41-en.txt",
+            "screenshots/41.png",
+            "reader_annotations.json",
+            "reader_progress.json",
+            "snapshot_history.json",
+        ],
+    )
+    assert report.valid
+    assert restarted.get_bookmark(bookmark.id, include_deleted=True) is None
+    for path in (snapshot, snapshot_manifest, extracted_text, transcript, screenshot, Path(version.path)):
+        assert not path.exists()
+    assert ReaderProgressStore(root / "reader_progress.json").get(bookmark.id) is None
+    assert ReaderAnnotationStore(root / "reader_annotations.json").list_for_bookmark(bookmark.id) == []
+    assert SnapshotHistoryStore(snapshots).list_versions(bookmark.id) == []
+
+    restored = tmp_path / "restored"
+    restore_result = restore_recovery_bundle(bundle, data_dir=restored, dry_run=False)
+    assert restore_result.applied
+    restored_manager = _make_bookmark_manager(restored)
+    restored_bookmark = restored_manager.get_bookmark(bookmark.id, include_deleted=True)
+    assert restored_bookmark is not None and restored_bookmark.is_deleted
+    assert restored_bookmark.is_archived
+    assert Path(restored_bookmark.snapshot_path).is_file()
+    assert Path(restored_bookmark.extracted_text_path).is_file()
+    assert Path(restored_bookmark.youtube_transcript_path).is_file()
+    assert Path(restored_bookmark.screenshot_path).is_file()
+    assert ReaderProgressStore(restored / "reader_progress.json").get(bookmark.id) == progress
+    assert ReaderAnnotationStore(restored / "reader_annotations.json").list_for_bookmark(bookmark.id)[0].id == highlight.id
+    assert SnapshotHistoryStore(restored / "snapshots").list_versions(bookmark.id)[0].version_id == version.version_id
+
+
+def test_trash_purge_bundle_failure_leaves_records_and_artifacts_untouched(tmp_path):
+    root = tmp_path / "library"
+    root.mkdir()
+    extracted = root / "extracted"
+    extracted.mkdir()
+    artifact = extracted / "9.txt"
+    artifact.write_text("keep me", encoding="utf-8")
+    manager = _make_bookmark_manager(root)
+    bookmark = manager.add_bookmark(
+        Bookmark(
+            id=9,
+            url="https://example.com/keep-trash",
+            title="Keep trash",
+            extracted_text_path=str(artifact),
+        )
+    )
+    manager.delete_bookmark(bookmark.id)
+
+    def fail_bundle(*_args, **_kwargs):
+        raise OSError("simulated full disk")
+
+    result = manager.purge_trash(
+        [bookmark.id],
+        recovery_bundle_factory=fail_bundle,
+    )
+
+    assert not result.success
+    assert result.purged_ids == ()
+    assert result.failed_ids == (bookmark.id,)
+    assert "simulated full disk" in result.errors[0]
+    assert artifact.read_text(encoding="utf-8") == "keep me"
+    assert manager.get_bookmark(bookmark.id, include_deleted=True).is_deleted
+
+
+def test_trash_purge_coverage_failure_keeps_records_and_artifacts(tmp_path):
+    root = tmp_path / "library"
+    root.mkdir()
+    snapshots = root / "snapshots"
+    snapshots.mkdir()
+    artifact = snapshots / "12.html"
+    artifact.write_text("saved copy", encoding="utf-8")
+    manager = _make_bookmark_manager(root)
+    bookmark = manager.add_bookmark(
+        Bookmark(
+            id=12,
+            url="https://example.com/reject-incomplete-recovery",
+            title="Reject incomplete recovery",
+            snapshot_path=str(artifact),
+        )
+    )
+    manager.move_to_trash(bookmark.id)
+
+    def reject_coverage(*_args, **_kwargs):
+        raise ValueError("simulated missing artifact coverage")
+
+    result = manager.purge_trash(
+        [bookmark.id],
+        recovery_coverage_verifier=reject_coverage,
+    )
+
+    assert not result.success
+    assert result.purged_ids == ()
+    assert result.failed_ids == (bookmark.id,)
+    assert "missing artifact coverage" in result.errors[0]
+    assert Path(result.recovery_bundle).is_file()
+    assert artifact.read_text(encoding="utf-8") == "saved copy"
+    assert manager.get_bookmark(bookmark.id, include_deleted=True).is_deleted
+
+
+def test_sqlite_trash_purge_verifies_the_stored_record(tmp_path):
+    root = tmp_path / "sqlite-library"
+    root.mkdir()
+    manager = BookmarkManager(
+        CategoryManager(filepath=root / "categories.json"),
+        TagManager(filepath=root / "tags.json"),
+        filepath=root / "master_bookmarks.sqlite",
+        storage_backend="sqlite",
+    )
+    bookmark = manager.add_bookmark(
+        Bookmark(
+            id=22,
+            url="https://example.com/sqlite-trash",
+            title="SQLite trash",
+        )
+    )
+    manager.move_to_trash(bookmark.id)
+
+    result = manager.purge_trash([bookmark.id])
+
+    assert result.success, result.errors
+    assert result.purged_ids == (bookmark.id,)
+    report = verify_recovery_bundle_coverage(
+        result.recovery_bundle,
+        bookmark_ids=[bookmark.id],
+    )
+    assert report.valid
+    assert report.storage_backend == "sqlite"
+    assert manager.get_bookmark(bookmark.id, include_deleted=True) is None

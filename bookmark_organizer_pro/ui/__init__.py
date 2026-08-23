@@ -60,6 +60,7 @@ from .quick_add import (
     prepare_quick_add_payload,
 )
 from .read_later_queue import ReadLaterQueueDialog, ReadLaterQueueRow, build_read_later_rows
+from .trash import TrashDialog, TrashRow, build_trash_rows
 from .graph_view import GraphViewDialog
 from .highlights_workspace import HighlightsWorkspaceDialog
 from .organization_rules import OrganizationRuleEditorDialog, OrganizationRulesDialog
@@ -161,6 +162,9 @@ __all__ = [
     "ReadLaterQueueDialog",
     "ReadLaterQueueRow",
     "build_read_later_rows",
+    "TrashDialog",
+    "TrashRow",
+    "build_trash_rows",
     "GraphViewDialog",
     "HighlightsWorkspaceDialog",
     "OrganizationRuleEditorDialog",

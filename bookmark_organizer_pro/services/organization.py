@@ -407,7 +407,7 @@ class FrequentlyUsedManager:
         
         bookmarks_with_visits = []
         
-        for bm in self.bookmark_manager.bookmarks.values():
+        for bm in self.bookmark_manager.get_all_bookmarks():
             if bm.visit_count > 0:
                 # Check if visited recently
                 if bm.last_visited:

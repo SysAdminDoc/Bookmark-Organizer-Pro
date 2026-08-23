@@ -1,6 +1,7 @@
 """CLI dispatch routing and subcommand smoke tests."""
 
 import os
+import re
 import sys
 import tempfile
 import shutil
@@ -65,6 +66,33 @@ class TestCLIDispatch(CLITestBase):
     def test_help_command(self):
         out = self._run(["help"])
         self.assertIn("Usage", out)
+
+    def test_delete_and_trash_commands_list_restore_and_recovery_backed_purge(self):
+        added = self._run([
+            "add",
+            "https://cli-trash-contract.example/item",
+            "CLI Trash Contract",
+        ])
+        bookmark_id = re.search(r"ID: (\d+)", added).group(1)
+
+        deleted = self._run(["delete", bookmark_id])
+        self.assertIn("Moved to Trash: CLI Trash Contract", deleted)
+        self.assertNotIn("[y/N]", deleted)
+        self.assertNotIn("Cancelled", deleted)
+        self.assertNotIn("CLI Trash Contract", self._run(["list", "--all"]))
+        trash = self._run(["trash", "list"])
+        self.assertIn(f"[{bookmark_id}] CLI Trash Contract", trash)
+        self.assertIn("not archived", trash)
+
+        restored = self._run(["trash", "restore", bookmark_id])
+        self.assertIn(f"Restored bookmark {bookmark_id}", restored)
+        self.assertIn("CLI Trash Contract", self._run(["list", "--all"]))
+
+        self._run(["delete", bookmark_id])
+        purged = self._run(["trash", "purge", bookmark_id])
+        self.assertIn("Recovery bundle:", purged)
+        self.assertIn("Permanently purged 1 bookmark", purged)
+        self.assertIn("Trash is empty", self._run(["trash", "list"]))
 
     def test_updates_status_command(self):
         out = self._run(["updates", "status"])

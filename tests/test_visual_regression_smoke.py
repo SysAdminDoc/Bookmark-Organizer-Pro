@@ -21,6 +21,7 @@ def test_visual_smoke_surface_matrix_covers_required_desktop_and_extension_views
         "desktop-import-center",
         "desktop-cleanup-review",
         "desktop-read-later-queue",
+        "desktop-trash-workspace-1280x720",
         "desktop-snapshot-failures-sidebar",
         "desktop-export-dialog",
         "desktop-reader-view",

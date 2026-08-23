@@ -56,7 +56,7 @@ from .commands import (
     AddBookmarksCommand, BulkCategorizeCommand, Command, CommandStack,
     DeleteBookmarksCommand, MoveBookmarksCommand, TagBookmarksCommand,
 )
-from .managers import BookmarkManager, TagManager
+from .managers import BookmarkManager, TagManager, TrashPurgeResult
 from .services import (
     AIBatchProcessor, AICostTracker, AIIconSuggester, AISummarizer, AITagSuggester,
     BackupScheduler, BookmarkAPI, CategoryColorManager, Collection, CollectionManager,
@@ -164,7 +164,7 @@ __all__ = [
     # Core managers
     "PatternEngine", "StorageManager", "SQLiteStorageManager", "migrate_json_to_sqlite", "CategoryManager",
     "CATEGORY_ICONS", "get_category_icon",
-    "BookmarkManager", "TagManager",
+    "BookmarkManager", "TagManager", "TrashPurgeResult",
     # Commands
     "AddBookmarksCommand", "BulkCategorizeCommand", "Command", "CommandStack",
     "DeleteBookmarksCommand", "MoveBookmarksCommand", "TagBookmarksCommand",

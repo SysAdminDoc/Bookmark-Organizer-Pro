@@ -1,8 +1,8 @@
 # Bookmark Organizer Pro
 
-A powerful, professional-grade bookmark manager with AI-powered categorization, multi-theme support, advanced organization, **local semantic search**, **MCP server integration**, **verified offline snapshots**, **research-trail flows**, and **citation-aware AI summaries**.
+Bookmark Organizer Pro is a local-first desktop bookmark and research manager. It keeps browser saves, offline copies, highlights, and search indexes on your machine, with optional AI and MCP access when you choose to enable them.
 
-Executable product contract: 67 CLI subcommands, 34 MCP tools, 6 AI providers, 3 extension surfaces, 59 service modules, 44 UI modules, and 53 test files.
+Executable product contract: 68 CLI subcommands, 37 MCP tools, 6 AI providers, 3 extension surfaces, 59 service modules, 45 UI modules, and 53 test files.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
 ![Version](https://img.shields.io/badge/Version-v6.16.0-2dd4bf.svg)
@@ -59,7 +59,7 @@ and can be removed without changing the original bookmark or extracted page text
 ### Local API authentication
 
 The bounded-concurrency local REST API requires `Authorization: Bearer <token>` for bookmark data
-endpoints, including `/bookmarks`, `/search`, `/stats`, `/categories`, `/tags`,
+endpoints, including `/bookmarks`, `/trash`, `/search`, `/stats`, `/categories`, `/tags`,
 `/digest`, `/opds`, and `/opds2`. The root endpoint only reports API metadata.
 Browser-extension requests additionally require an approved extension Origin.
 Saving extension settings performs the authenticated first pairing; a reinstalled
@@ -158,6 +158,12 @@ python -m bookmark_organizer_pro.cli hybrid "python async tutorials"
 
 # Capture a bookmark as a verified offline artifact
 python -m bookmark_organizer_pro.cli snapshot 12345
+
+# Move a bookmark to Trash, then list, restore, or recovery-purge it
+python -m bookmark_organizer_pro.cli delete 12345
+python -m bookmark_organizer_pro.cli trash list
+python -m bookmark_organizer_pro.cli trash restore 12345
+python -m bookmark_organizer_pro.cli trash purge 12345
 
 # Extract site-specific structured fields from supported pages
 python -m bookmark_organizer_pro.cli ingest --templates extraction_templates.json 12345
@@ -430,7 +436,7 @@ default extraction untouched.
 - **Scheduled Snapshots**: Persisted bookmark schedules with lifecycle recovery, pause controls, and bounded retry backoff
 - **Export Options**: HTML, JSON, CSV, OPML, XBEL, Markdown formats
 - **Structured Metadata Templates**: Safe JSON/YAML extraction templates capture fields for GitHub, docs, papers, videos, and store pages into bookmark metadata
-- **Soft Delete / Trash**: Recoverable deletion with trash management
+- **Persistent Trash**: Desktop, CLI, REST, and MCP deletions record a separate deletion time while saved pages, extracted text, highlights, progress, and archive state stay intact. Restore is immediate. Purge removes records and owned artifacts only after a complete recovery bundle has been created and verified.
 - **URL Validation**: Check for broken links with concurrent checking
 - **Snapshot Failure Recovery**: Backend attempt reports with retry and clear actions for failed preservation runs
 - **Content-Aware Offline Copies**: Verified HTML, PDF, and raster-image artifacts with digest-bound manifests, format-preserving export, and safe local opening
@@ -922,7 +928,7 @@ Contributions are welcome! Please:
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT License. See LICENSE for details.
 
 ## Acknowledgments
 
@@ -1001,8 +1007,8 @@ The spec file already excludes unnecessary packages. For smaller builds:
 ### Icon Files
 
 The distribution includes these icon files:
-- `assets/bookmark_organizer.ico` - Windows executable icon
-- `assets/bookmark_organizer.png` - Cross-platform icon (256x256)
+- `assets/bookmark_organizer.ico`: Windows executable icon
+- `assets/bookmark_organizer.png`: Cross-platform icon (256x256)
 
 ### Code Signing (Optional)
 

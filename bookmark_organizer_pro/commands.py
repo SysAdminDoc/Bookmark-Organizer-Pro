@@ -158,7 +158,7 @@ class MoveBookmarksCommand(Command):
 
 
 class DeleteBookmarksCommand(Command):
-    """Command to delete bookmarks"""
+    """Command to move bookmarks to persistent trash."""
     
     def __init__(self, manager, bookmark_ids: List[int]):
         self.manager = manager
@@ -167,22 +167,19 @@ class DeleteBookmarksCommand(Command):
     
     def execute(self):
         self.deleted_bookmarks = {}
-        for bid in self.ids:
-            bm = self.manager.bookmarks.get(bid)
-            if bm:
-                # Store a copy (not a reference) so undo restores correct state
-                self.deleted_bookmarks[bid] = Bookmark.from_dict(bm.to_dict())
-                del self.manager.bookmarks[bid]
-        self.manager.save_bookmarks()
+        with self.manager.batch():
+            for bid in self.ids:
+                bm = self.manager.get_bookmark(bid)
+                if bm and self.manager.move_to_trash(bid):
+                    self.deleted_bookmarks[bid] = Bookmark.from_dict(bm.to_dict())
 
     def undo(self):
-        for bid, bm in self.deleted_bookmarks.items():
-            if bid not in self.manager.bookmarks:
-                self.manager.bookmarks[bid] = bm
-        self.manager.save_bookmarks()
+        with self.manager.batch():
+            for bid in self.deleted_bookmarks:
+                self.manager.restore_from_trash(bid)
 
     def description(self) -> str:
-        return f"Delete {pluralize(len(self.ids), 'bookmark')}"
+        return f"Move {pluralize(len(self.ids), 'bookmark')} to Trash"
 
 
 class AddBookmarksCommand(Command):

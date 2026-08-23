@@ -626,6 +626,9 @@ class BookmarkAPI:
                     return "/"
                 if path_parts[0] == "bookmarks" and len(path_parts) > 1:
                     return "/bookmarks/:id"
+                if path_parts[0] == "trash" and len(path_parts) > 1:
+                    suffix = f"/{path_parts[2]}" if len(path_parts) > 2 else ""
+                    return f"/trash/:id{suffix}"
                 if path_parts[0] == "imports" and len(path_parts) > 1:
                     suffix = f"/{path_parts[2]}" if len(path_parts) > 2 else ""
                     return f"/imports/:id{suffix}"
@@ -643,6 +646,10 @@ class BookmarkAPI:
                             "GET /bookmarks/:id",
                             "POST /bookmarks",
                             "DELETE /bookmarks/:id",
+                            "GET /trash",
+                            "POST /trash/:id/restore",
+                            "DELETE /trash/:id",
+                            "DELETE /trash",
                             "GET /categories",
                             "GET /tags",
                             "GET /stats",
@@ -749,7 +756,17 @@ class BookmarkAPI:
                     self._send_json(json.loads(body))
                     return
 
-                if path_parts[0] == 'bookmarks':
+                if path_parts[0] == 'trash':
+                    if len(path_parts) != 1:
+                        self._send_json({"error": "Not found"}, 404)
+                        return
+                    trash = bookmark_manager.get_trash()
+                    self._send_json({
+                        "count": len(trash),
+                        "bookmarks": [asdict(bookmark) for bookmark in trash],
+                    })
+
+                elif path_parts[0] == 'bookmarks':
                     if len(path_parts) > 1:
                         # Get single bookmark
                         try:
@@ -954,7 +971,7 @@ class BookmarkAPI:
                         # write fails too. Letting it raise skipped the 503
                         # below and left a half-created bookmark persisted.
                         try:
-                            bookmark_manager.delete_bookmark(bookmark.id)
+                            bookmark_manager.discard_uncommitted_bookmark(bookmark.id)
                         except Exception as rollback_error:
                             rolled_back = False
                             log.error(
@@ -1016,6 +1033,22 @@ class BookmarkAPI:
                     return
 
                 if not self._check_browser_origin(discard_body=True):
+                    return
+
+                if (
+                    len(path_parts) == 3
+                    and path_parts[0] == 'trash'
+                    and path_parts[2] == 'restore'
+                ):
+                    try:
+                        bookmark_id = int(path_parts[1])
+                    except ValueError:
+                        self._send_json({"error": "Invalid ID"}, 400)
+                        return
+                    if bookmark_manager.restore_from_trash(bookmark_id):
+                        self._send_json({"success": True, "restored": bookmark_id})
+                    else:
+                        self._send_json({"error": "Trashed bookmark not found or URL conflicts"}, 404)
                     return
 
                 if path_parts and path_parts[0] == 'imports' and len(path_parts) == 3:
@@ -1204,11 +1237,27 @@ class BookmarkAPI:
                     try:
                         bm_id = int(path_parts[1])
                         if bookmark_manager.delete_bookmark(bm_id):
-                            self._send_json({"success": True, "deleted": bm_id})
+                            self._send_json({
+                                "success": True,
+                                "deleted": bm_id,
+                                "moved_to_trash": True,
+                            })
                         else:
                             self._send_json({"error": "Not found"}, 404)
-                    except Exception:
+                    except (TypeError, ValueError):
                         self._send_json({"error": "Invalid ID"}, 400)
+                elif path_parts and path_parts[0] == 'trash' and len(path_parts) <= 2:
+                    try:
+                        bookmark_ids = None if len(path_parts) == 1 else [int(path_parts[1])]
+                    except (TypeError, ValueError):
+                        self._send_json({"error": "Invalid ID"}, 400)
+                        return
+                    result = bookmark_manager.purge_trash(bookmark_ids)
+                    if result.success:
+                        self._send_json(result.to_dict())
+                    else:
+                        status = 404 if not result.recovery_bundle else 503
+                        self._send_json(result.to_dict(), status)
                 else:
                     self._send_json({"error": "Not found"}, 404)
             

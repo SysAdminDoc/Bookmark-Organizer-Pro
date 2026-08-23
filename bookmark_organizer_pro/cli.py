@@ -110,10 +110,15 @@ class BookmarkCLI:
         p.add_argument("title", nargs="*", help="Bookmark title")
         p.set_defaults(func=self._cmd_add)
 
-        p = sub.add_parser("delete", help="Delete a bookmark by ID")
+        p = sub.add_parser("delete", help="Move a bookmark to Trash by ID")
         p.add_argument("bookmark_id", type=int, help="Bookmark ID")
-        p.add_argument("--force", "-y", "--yes", action="store_true", help="Skip confirmation")
+        p.add_argument("--force", "-y", "--yes", action="store_true", help=argparse.SUPPRESS)
         p.set_defaults(func=self._cmd_delete)
+
+        p = sub.add_parser("trash", help="List, restore, or permanently purge Trash")
+        p.add_argument("action", choices=["list", "restore", "purge"])
+        p.add_argument("target", nargs="?", help="Bookmark ID, or 'all' for purge")
+        p.set_defaults(func=self._cmd_trash)
 
         p = sub.add_parser("search", help="Search bookmarks")
         p.add_argument("query", nargs="+", help="Search query")
@@ -590,7 +595,8 @@ Usage: python main.py [command] [options]
 Commands:
   list [category]        List bookmarks (optionally filter by category)
   add <url> [title]      Add a new bookmark
-  delete <id>            Delete a bookmark by ID
+  delete <id>            Move a bookmark to Trash by ID
+  trash <action> [id]    List, restore, or recovery-backed purge Trash
   search <query>         Search bookmarks
   import <file>          Import bookmarks from file (HTML/JSON/Firefox JSONLZ4)
   migration <preflight|apply> <linkwarden|karakeep|raindrop|readwise> <file>
@@ -957,24 +963,65 @@ Examples:
         return 0
 
     def _cmd_delete(self, ns: argparse.Namespace):
-        """Delete a bookmark (prompts for confirmation unless --force/-y)."""
+        """Move a bookmark to persistent Trash without prompting."""
         bm_id = ns.bookmark_id
         bookmark = self.bookmark_manager.get_bookmark(bm_id)
         if not bookmark:
             self._error(f"Error: Bookmark with ID {bm_id} not found")
             return 1
 
-        if not ns.force:
-            try:
-                answer = input(f"Delete [{bm_id}] {bookmark.title[:60]}? [y/N] ").strip().lower()
-            except EOFError:
-                answer = ""
-            if answer not in ("y", "yes"):
-                print("Cancelled")
-                return 0
+        if not self.bookmark_manager.delete_bookmark(bm_id):
+            return self._failure(f"Error: Bookmark with ID {bm_id} could not be moved to Trash")
+        print(f"✓ Moved to Trash: {bookmark.title}")
+        return 0
 
-        self.bookmark_manager.delete_bookmark(bm_id)
-        print(f"✓ Deleted: {bookmark.title}")
+    def _cmd_trash(self, ns: argparse.Namespace):
+        """List, restore, or permanently purge trashed bookmarks."""
+        action = ns.action
+        target = str(ns.target or "").strip().lower()
+        if action == "list":
+            if target:
+                return self._usage_error("trash list does not accept a bookmark ID")
+            bookmarks = self.bookmark_manager.get_trash()
+            if not bookmarks:
+                print("Trash is empty")
+                return 0
+            print(f"Trash ({len(bookmarks)}):")
+            for bookmark in bookmarks:
+                archive_state = "archived" if bookmark.is_archived else "not archived"
+                print(
+                    f"  [{bookmark.id}] {bookmark.title[:60]} | "
+                    f"deleted {bookmark.deleted_at} | {archive_state}"
+                )
+            return 0
+        if not target:
+            return self._usage_error(f"trash {action} requires a bookmark ID")
+        if action == "restore":
+            if target == "all":
+                return self._usage_error("trash restore requires one bookmark ID")
+            try:
+                bookmark_id = int(target)
+            except ValueError:
+                return self._usage_error("trash restore requires a numeric bookmark ID")
+            if not self.bookmark_manager.restore_from_trash(bookmark_id):
+                return self._failure(f"Trashed bookmark {bookmark_id} could not be restored")
+            print(f"✓ Restored bookmark {bookmark_id} from Trash")
+            return 0
+        if target == "all":
+            bookmark_ids = None
+        else:
+            try:
+                bookmark_ids = [int(target)]
+            except ValueError:
+                return self._usage_error("trash purge requires a numeric bookmark ID or 'all'")
+        result = self.bookmark_manager.purge_trash(bookmark_ids)
+        if result.recovery_bundle:
+            print(f"Recovery bundle: {result.recovery_bundle}")
+        if not result.success:
+            for error in result.errors or ("No bookmarks were purged",):
+                self._error(f"Trash purge failed: {error}")
+            return 1
+        print(f"✓ Permanently purged {pluralize(result.purged_count, 'bookmark')} from Trash")
         return 0
 
     def _cmd_search(self, ns: argparse.Namespace):

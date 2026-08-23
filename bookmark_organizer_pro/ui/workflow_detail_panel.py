@@ -470,7 +470,7 @@ class BookmarkDetailPanel(tk.Frame, ThemedWidget):
             )
         menu.add_command(label=_("Edit bookmark"), command=self._edit_bookmark)
         menu.add_separator()
-        menu.add_command(label=_("Delete bookmark…"), command=self._delete_bookmark)
+        menu.add_command(label=_("Move bookmark to Trash"), command=self._delete_bookmark)
         button = self.more_button
         menu.tk_popup(button.winfo_rootx(), button.winfo_rooty() + button.winfo_height() + 3)
 

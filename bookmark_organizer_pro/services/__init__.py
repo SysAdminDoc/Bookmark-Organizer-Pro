@@ -154,6 +154,7 @@ from .recovery_bundle import (
     create_recovery_bundle,
     restore_recovery_bundle,
     validate_recovery_bundle,
+    verify_recovery_bundle_coverage,
 )
 from .rss_feeds import (
     AI_MODES as RSS_AI_MODES,
@@ -262,6 +263,7 @@ __all__ = [
     "normalize_timeout", "save_transcript",
     "BundleReport", "RestoreResult", "create_recovery_bundle",
     "restore_recovery_bundle", "validate_recovery_bundle",
+    "verify_recovery_bundle_coverage",
     "RSS_AI_MODES", "FeedConfig", "FeedIngestor", "FeedItem",
     "FeedRegistry", "parse_feed",
     "SnapshotArchiver", "SnapshotBackendAttempt", "SnapshotFailureRecord",

@@ -6,13 +6,6 @@ Actionable incomplete work only. Historical and completed material belongs in `C
 
 ### P0
 
-- [ ] P0: R-152: Route all bookmark deletion through a persistent trash contract
-  Why: The README promises recoverable trash, but desktop, CLI, REST, MCP, and maintenance paths permanently remove records while isolated trash helpers are unused and conflate deletion with archive state.
-  Evidence: `README.md:433`; `bookmark_organizer_pro/commands.py:160`; `bookmark_organizer_pro/cli.py:976`; `bookmark_organizer_pro/services/api.py:1206`; `bookmark_organizer_pro/mcp_server.py:1424`; `bookmark_organizer_pro/managers/bookmarks.py:943`
-  Touches: bookmark model and manager, commands, desktop CRUD and trash workspace, CLI, REST, MCP, search filters, snapshots, reader annotations, progress, tests
-  Acceptance: Delete from every public surface records an independent deletion timestamp, hides the bookmark from normal views, preserves its snapshots, extracted text, highlights, and progress across restart, and exposes list, restore, and explicit purge operations; archive state survives trash and restore unchanged; purge creates and verifies a complete recovery bundle for the records and owned artifacts before unlinking them, and never treats a bookmark-only safepoint as artifact recovery; cross-surface, restart, restore, and purge-failure tests pass.
-  Complexity: L
-
 - [ ] P0: R-153: Make background extension captures lossless and outcome-visible
   Why: The retry journal silently drops the oldest saves after 50 entries, and context-menu saves ignore success, queue, and failure outcomes.
   Evidence: `browser-extension/shared.js:696`; `browser-extension/background.js:122`; `browser-extension/popup.js:203`; `browser-extension/sidepanel.js:612`; community offline-failure signal at https://www.reddit.com/r/selfhosted/comments/1raq3b0/selfhosted_bookmark_manager_with_android_app_that/

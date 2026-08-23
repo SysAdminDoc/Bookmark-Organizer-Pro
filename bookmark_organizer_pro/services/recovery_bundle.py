@@ -13,7 +13,7 @@ from contextlib import closing
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Iterable
 
 from bookmark_organizer_pro import constants as app_constants
 
@@ -56,7 +56,7 @@ LIBRARY_FILES = (
     "import_sessions.json",
     "reader_progress.json",
 )
-LIBRARY_DIRS = ("snapshots", "extracted", "transcripts", "ai_snapshots")
+LIBRARY_DIRS = ("snapshots", "extracted", "transcripts", "screenshots", "ai_snapshots")
 
 
 @dataclass(frozen=True)
@@ -210,7 +210,12 @@ def _portable_path_index(data_dir: Path) -> list[dict[str, str]]:
     for item in items if isinstance(items, list) else []:
         if not isinstance(item, dict):
             continue
-        for field_name in ("snapshot_path", "extracted_text_path", "youtube_transcript_path"):
+        for field_name in (
+            "snapshot_path",
+            "extracted_text_path",
+            "youtube_transcript_path",
+            "screenshot_path",
+        ):
             value = item.get(field_name)
             if not value:
                 continue
@@ -420,6 +425,68 @@ def validate_recovery_bundle(bundle_path: str | Path) -> BundleReport:
     )
 
 
+def _bundled_bookmark_ids(bundle_path: str | Path, backend: str) -> set[int]:
+    """Read bookmark identities from an already validated bundle."""
+
+    member = f"{PAYLOAD_PREFIX}/{_backend_filename(backend)}"
+    with zipfile.ZipFile(Path(bundle_path).expanduser(), "r") as archive:
+        if backend == "json":
+            document = json.loads(archive.read(member))
+            rows = (
+                document
+                if isinstance(document, list)
+                else document.get("data", [])
+                if isinstance(document, dict)
+                else []
+            )
+            return {
+                int(item["id"])
+                for item in rows if isinstance(item, dict) and item.get("id") is not None
+            }
+        with tempfile.TemporaryDirectory(prefix="bop-bundle-coverage-") as temp:
+            database = Path(temp) / "library.sqlite"
+            with archive.open(member, "r") as source, database.open("wb") as destination:
+                shutil.copyfileobj(source, destination, length=1024 * 1024)
+            with closing(sqlite3.connect(database)) as connection:
+                return {
+                    int(row[0])
+                    for row in connection.execute("SELECT id FROM bookmarks").fetchall()
+                }
+
+
+def verify_recovery_bundle_coverage(
+    bundle_path: str | Path,
+    *,
+    bookmark_ids: Iterable[int] = (),
+    relative_paths: Iterable[str] = (),
+) -> BundleReport:
+    """Require a valid bundle to contain named records and owned artifacts."""
+
+    report = validate_recovery_bundle(bundle_path)
+    if not report.valid:
+        raise ValueError("Recovery bundle validation failed: " + "; ".join(report.errors))
+    required_ids = {int(value) for value in bookmark_ids}
+    bundled_ids = _bundled_bookmark_ids(bundle_path, report.storage_backend)
+    missing_ids = sorted(required_ids - bundled_ids)
+    if missing_ids:
+        raise ValueError(
+            "Recovery bundle is missing bookmark records: "
+            + ", ".join(str(value) for value in missing_ids)
+        )
+    required_paths: set[str] = set()
+    for value in relative_paths:
+        candidate = _safe_relative(str(value).replace("\\", "/"))
+        if candidate is None:
+            raise ValueError(f"Recovery coverage path is unsafe: {value}")
+        required_paths.add(candidate.as_posix())
+    missing_paths = sorted(required_paths - set(report.contents))
+    if missing_paths:
+        raise ValueError(
+            "Recovery bundle is missing owned artifacts: " + ", ".join(missing_paths)
+        )
+    return report
+
+
 def _rewrite_portable_paths(staging: Path, target: Path, index: dict[str, Any]) -> None:
     history_path = staging / "snapshot_history.json"
     if history_path.is_file():
@@ -432,7 +499,16 @@ def _rewrite_portable_paths(staging: Path, target: Path, index: dict[str, Any]) 
     if json_path.is_file():
         raw = json.loads(json_path.read_text(encoding="utf-8"))
         items = raw if isinstance(raw, list) else raw.get("data", [])
-        lookup = {(str(item.get("id", "")), field): item for item in items if isinstance(item, dict) for field in ("snapshot_path", "extracted_text_path", "youtube_transcript_path")}
+        lookup = {
+            (str(item.get("id", "")), field): item
+            for item in items if isinstance(item, dict)
+            for field in (
+                "snapshot_path",
+                "extracted_text_path",
+                "youtube_transcript_path",
+                "screenshot_path",
+            )
+        }
         for rewrite in rewrites:
             relative = rewrite.get("relative_path", "")
             if _safe_relative(relative) is None:
@@ -449,7 +525,12 @@ def _rewrite_portable_paths(staging: Path, target: Path, index: dict[str, Any]) 
             for bookmark_id, encoded in rows:
                 payload = json.loads(encoded)
                 changed = False
-                for field_name in ("snapshot_path", "extracted_text_path", "youtube_transcript_path"):
+                for field_name in (
+                    "snapshot_path",
+                    "extracted_text_path",
+                    "youtube_transcript_path",
+                    "screenshot_path",
+                ):
                     relative = rewrite_lookup.get((str(bookmark_id), field_name))
                     if relative and _safe_relative(relative) is not None:
                         payload[field_name] = str((target / relative).resolve())

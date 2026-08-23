@@ -49,7 +49,8 @@ class Bookmark:
         favicon_path / favicon_url / icon: Favicon storage
         is_valid: Whether URL validation passed
         is_pinned / is_archived: Status flags
-        custom_data: Free-form metadata (e.g., redirect_url, _deleted_at)
+        deleted_at: Independent trash timestamp; empty for live bookmarks
+        custom_data: Free-form metadata (e.g., redirect_url)
     """
 
     id: Optional[int]
@@ -77,6 +78,7 @@ class Bookmark:
     http_status: int = 0
     is_pinned: bool = False
     is_archived: bool = False
+    deleted_at: str = ""
     reading_time: int = 0
     word_count: int = 0
     language: str = ""
@@ -133,6 +135,8 @@ class Bookmark:
         self.reader_progress_updated_at = str(self.reader_progress_updated_at or "")[:40]
         if not isinstance(self.custom_data, dict):
             self.custom_data = {}
+        legacy_deleted_at = str(self.custom_data.pop("_deleted_at", "") or "")
+        self.deleted_at = str(self.deleted_at or legacy_deleted_at)[:40]
 
     @property
     def domain(self) -> str:
@@ -145,6 +149,11 @@ class Bookmark:
     @property
     def display_title(self) -> str:
         return self.title[:100] if self.title else self.url[:50]
+
+    @property
+    def is_deleted(self) -> bool:
+        """Whether this bookmark is in persistent trash."""
+        return bool(self.deleted_at or self.custom_data.get("_deleted_at"))
 
     @property
     def full_category_path(self) -> str:
@@ -233,7 +242,8 @@ class Bookmark:
             "ai_tags": list(self.ai_tags), "source_file": self.source_file,
             "last_checked": self.last_checked, "is_valid": self.is_valid,
             "http_status": self.http_status, "is_pinned": self.is_pinned,
-            "is_archived": self.is_archived, "reading_time": self.reading_time,
+            "is_archived": self.is_archived, "deleted_at": self.deleted_at,
+            "reading_time": self.reading_time,
             "word_count": self.word_count, "language": self.language,
             "read_later": self.read_later,
             "read_later_position": self.read_later_position,
@@ -339,6 +349,7 @@ class Bookmark:
             http_status=safe_int(d.get("http_status", 0)),
             is_pinned=safe_bool(d.get("is_pinned", False)),
             is_archived=safe_bool(d.get("is_archived", False)),
+            deleted_at=str(d.get("deleted_at") or "")[:40],
             reading_time=safe_int(d.get("reading_time", 0)),
             word_count=safe_int(d.get("word_count", 0)),
             language=str(d.get("language") or ""),

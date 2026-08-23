@@ -13,9 +13,10 @@ import tempfile
 import threading
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 try:
     from bs4 import BeautifulSoup
@@ -45,6 +46,36 @@ from bookmark_organizer_pro.utils import (
 from bookmark_organizer_pro.utils.runtime import csv_safe_cell as _csv_safe_cell
 
 from .tags import TagManager
+
+
+@dataclass(frozen=True)
+class TrashPurgeResult:
+    """Outcome of one recovery-backed permanent trash purge."""
+
+    requested_ids: tuple[int, ...] = ()
+    purged_ids: tuple[int, ...] = ()
+    failed_ids: tuple[int, ...] = ()
+    recovery_bundle: str = ""
+    errors: tuple[str, ...] = ()
+
+    @property
+    def success(self) -> bool:
+        return bool(self.requested_ids) and not self.failed_ids and not self.errors
+
+    @property
+    def purged_count(self) -> int:
+        return len(self.purged_ids)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "success": self.success,
+            "requested_ids": list(self.requested_ids),
+            "purged_ids": list(self.purged_ids),
+            "failed_ids": list(self.failed_ids),
+            "purged_count": self.purged_count,
+            "recovery_bundle": self.recovery_bundle,
+            "errors": list(self.errors),
+        }
 
 
 class BookmarkManager:
@@ -184,8 +215,10 @@ class BookmarkManager:
         index: Dict[str, List[int]] = {}
         keys: Dict[int, str] = {}
         rank: Dict[int, int] = {}
-        for position, (bookmark_id, bookmark) in enumerate(self.bookmarks.items()):
-            rank[bookmark_id] = position
+        for bookmark_id, bookmark in self.bookmarks.items():
+            if bookmark.is_deleted:
+                continue
+            rank[bookmark_id] = len(rank)
             key = normalize_url(bookmark.url)
             if key:
                 index.setdefault(key, []).append(bookmark_id)
@@ -215,6 +248,12 @@ class BookmarkManager:
         if not self._url_index_ready:
             return
         bookmark_id = bookmark.id
+        if bookmark.is_deleted:
+            previous = self._url_key.get(bookmark_id)
+            if previous is not None:
+                self._drop_index_entry(bookmark_id, previous)
+            self._url_rank.pop(bookmark_id, None)
+            return
         key = normalize_url(bookmark.url)
         previous = self._url_key.get(bookmark_id)
         if previous == key:
@@ -257,7 +296,7 @@ class BookmarkManager:
             self._rebuild_url_index()
         for bookmark_id in self._url_index.get(normalized, []):
             bookmark = self.bookmarks.get(bookmark_id)
-            if bookmark is not None:
+            if bookmark is not None and not bookmark.is_deleted:
                 return bookmark
         return None
 
@@ -554,6 +593,8 @@ class BookmarkManager:
                 bookmark_id = identity_key if identity_key is not None else requested_id
                 if bookmark_id is None or bookmark_id not in self.bookmarks:
                     return None
+                if self.bookmarks[bookmark_id].is_deleted:
+                    return None
                 updated = copy.deepcopy(bookmark)
                 updated.id = bookmark_id
                 updated.modified_at = datetime.now().isoformat()
@@ -569,7 +610,7 @@ class BookmarkManager:
             return None
         with self._lock:
             bm = self.bookmarks.get(bookmark_id)
-            if bm:
+            if bm and not bm.is_deleted:
                 if "id" in kwargs:
                     requested_id = self._coerce_bookmark_id(kwargs["id"])
                     if requested_id != bookmark_id:
@@ -584,7 +625,11 @@ class BookmarkManager:
         return bm
     
     def delete_bookmark(self, bookmark_id: int) -> bool:
-        """Delete a bookmark"""
+        """Move a live bookmark to persistent trash without touching artifacts."""
+        return self.move_to_trash(bookmark_id)
+
+    def discard_uncommitted_bookmark(self, bookmark_id: int) -> bool:
+        """Remove a row created by a failed transaction before it became user data."""
         if self._batch_depth == 0:
             self._sync_before_write()
         bookmark_id = self._coerce_bookmark_id(bookmark_id)
@@ -603,12 +648,29 @@ class BookmarkManager:
                 return True
         return False
     
-    def get_bookmark(self, bookmark_id: int) -> Optional[Bookmark]:
-        """Get a bookmark by ID"""
+    def get_bookmark(
+        self,
+        bookmark_id: int,
+        *,
+        include_deleted: bool = False,
+    ) -> Optional[Bookmark]:
+        """Get a bookmark by ID, hiding persistent trash by default."""
+        return self.get_bookmark_record(bookmark_id, include_deleted=include_deleted)
+
+    def get_bookmark_record(
+        self,
+        bookmark_id: int,
+        *,
+        include_deleted: bool = False,
+    ) -> Optional[Bookmark]:
+        """Get one bookmark record, optionally including persistent trash."""
         bookmark_id = self._coerce_bookmark_id(bookmark_id)
         if bookmark_id is None:
             return None
-        return self.bookmarks.get(bookmark_id)
+        bookmark = self.bookmarks.get(bookmark_id)
+        if bookmark is None or (bookmark.is_deleted and not include_deleted):
+            return None
+        return bookmark
     
     def import_html_file(self, filepath: str, source_name: str = "") -> Tuple[int, int]:
         """Import bookmarks from HTML file"""
@@ -734,7 +796,7 @@ class BookmarkManager:
         return [bm for bm in self._iter_snapshot()
                 if any(tag_lower == str(t).lower() for t in bm.tags)]
     
-    def _iter_snapshot(self) -> List[Bookmark]:
+    def _iter_snapshot(self, *, include_deleted: bool = False) -> List[Bookmark]:
         """Return a thread-safe snapshot for read-only iteration.
 
         Readers must never iterate ``self.bookmarks`` directly: a concurrent
@@ -743,11 +805,14 @@ class BookmarkManager:
         yield a torn view. Snapshotting the values under the lock avoids both.
         """
         with self._lock:
-            return list(self.bookmarks.values())
+            values = list(self.bookmarks.values())
+        if include_deleted:
+            return values
+        return [bookmark for bookmark in values if not bookmark.is_deleted]
 
-    def get_all_bookmarks(self) -> List[Bookmark]:
-        """Get all bookmarks"""
-        return self._iter_snapshot()
+    def get_all_bookmarks(self, *, include_deleted: bool = False) -> List[Bookmark]:
+        """Get live bookmarks, or every persisted record when explicitly requested."""
+        return self._iter_snapshot(include_deleted=include_deleted)
 
     def get_pinned_bookmarks(self) -> List[Bookmark]:
         """Get pinned bookmarks"""
@@ -869,7 +934,7 @@ class BookmarkManager:
                 self.bookmarks[keeper.id] = keeper
 
                 for bm in bm_list[1:]:
-                    self.bookmarks.pop(bm.id, None)
+                    self._trash_bookmark_locked(bm)
                 # The keeper's URL can change during the merge, so rebuild
                 # rather than trying to patch each entry.
                 self._invalidate_url_index()
@@ -939,72 +1004,292 @@ class BookmarkManager:
             return None
         return wayback_save(bm.url)
     
-    # ── Soft Delete / Trash (inspired by LinkAce) ─────────────────────────
-    def soft_delete_bookmark(self, bookmark_id: int) -> bool:
-        """Move a bookmark to trash instead of permanent deletion.
-
-        Sets is_archived=True and adds a '_deleted_at' timestamp to custom_data.
-        Use restore_from_trash() to recover, or empty_trash() to purge.
-        """
-        self._ensure_storage_writable()
-        with self._lock:
-            bm = self.bookmarks.get(bookmark_id)
-            if not bm:
-                return False
-            bm.is_archived = True
-            bm.custom_data['_deleted_at'] = datetime.now().isoformat()
-            bm.modified_at = datetime.now().isoformat()
-            snapshot = list(self.bookmarks.values())
-            self._save_snapshot(snapshot)
+    # ── Persistent trash ---------------------------------------------------
+    def _trash_bookmark_locked(self, bookmark: Bookmark) -> bool:
+        if bookmark.is_deleted:
+            return False
+        now = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+        bookmark.deleted_at = now
+        bookmark.custom_data.pop("_deleted_at", None)
+        bookmark.modified_at = now
+        self._unindex_bookmark(int(bookmark.id))
         return True
 
-    def restore_from_trash(self, bookmark_id: int) -> bool:
-        """Restore a bookmark from trash."""
-        self._ensure_storage_writable()
+    def move_to_trash(self, bookmark_id: int) -> bool:
+        """Persist a deletion timestamp while preserving state and artifacts."""
+        if self._batch_depth == 0:
+            self._sync_before_write()
+        bookmark_id = self._coerce_bookmark_id(bookmark_id)
+        if bookmark_id is None:
+            return False
         with self._lock:
-            bm = self.bookmarks.get(bookmark_id)
-            if not bm:
+            bookmark = self.bookmarks.get(bookmark_id)
+            if bookmark is None or not self._trash_bookmark_locked(bookmark):
                 return False
-            bm.is_archived = False
-            bm.custom_data.pop('_deleted_at', None)
-            bm.modified_at = datetime.now().isoformat()
-            snapshot = list(self.bookmarks.values())
-            self._save_snapshot(snapshot)
+            self._save_snapshot(list(self.bookmarks.values()))
+        return True
+
+    def soft_delete_bookmark(self, bookmark_id: int) -> bool:
+        """Compatibility alias for the persistent trash contract."""
+        return self.move_to_trash(bookmark_id)
+
+    def restore_from_trash(self, bookmark_id: int) -> bool:
+        """Restore one trashed bookmark without changing its archive state."""
+        if self._batch_depth == 0:
+            self._sync_before_write()
+        bookmark_id = self._coerce_bookmark_id(bookmark_id)
+        if bookmark_id is None:
+            return False
+        with self._lock:
+            bookmark = self.bookmarks.get(bookmark_id)
+            if bookmark is None or not bookmark.is_deleted:
+                return False
+            normalized = normalize_url(bookmark.url)
+            existing = self._lookup_by_normalized_url(normalized)
+            if existing is not None and existing.id != bookmark_id:
+                return False
+            bookmark.deleted_at = ""
+            bookmark.custom_data.pop("_deleted_at", None)
+            bookmark.modified_at = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+            self._index_bookmark(bookmark)
+            self._save_snapshot(list(self.bookmarks.values()))
         return True
 
     def get_trash(self) -> List[Bookmark]:
-        """Get all bookmarks in the trash."""
-        return [bm for bm in self._iter_snapshot()
-                if bm.is_archived and '_deleted_at' in bm.custom_data]
+        """Return trashed records newest first."""
+        trashed = [
+            bookmark
+            for bookmark in self._iter_snapshot(include_deleted=True)
+            if bookmark.is_deleted
+        ]
+        return sorted(trashed, key=lambda item: (item.deleted_at, int(item.id)), reverse=True)
+
+    def _owned_artifact_paths(self, bookmark: Bookmark, root: Path) -> tuple[Path, ...]:
+        """Resolve every existing local artifact owned by one bookmark."""
+        root = root.resolve()
+        candidates: set[Path] = set()
+        for field_name in (
+            "snapshot_path",
+            "extracted_text_path",
+            "youtube_transcript_path",
+            "screenshot_path",
+        ):
+            value = str(getattr(bookmark, field_name, "") or "").strip()
+            if value:
+                candidates.add(Path(value).expanduser())
+        snapshots_root = root / "snapshots"
+        bookmark_id = str(int(bookmark.id))
+        if snapshots_root.is_dir():
+            candidates.update(path for path in snapshots_root.glob(f"{bookmark_id}.*") if path.is_file())
+            history_root = snapshots_root / bookmark_id
+            if history_root.is_dir():
+                candidates.update(path for path in history_root.rglob("*") if path.is_file())
+        resolved: set[Path] = set()
+        for candidate in candidates:
+            try:
+                path = candidate.resolve(strict=False)
+                if not path.exists():
+                    continue
+                if not path.is_file() or not path.is_relative_to(root):
+                    raise ValueError(f"owned artifact is outside local library storage: {candidate}")
+            except (OSError, RuntimeError) as exc:
+                raise ValueError(f"owned artifact path cannot be verified: {candidate}: {exc}") from exc
+            resolved.add(path)
+        return tuple(sorted(resolved, key=lambda path: path.as_posix()))
+
+    def purge_trash(
+        self,
+        bookmark_ids: Iterable[int] | None = None,
+        *,
+        recovery_dir: str | Path | None = None,
+        recovery_bundle_factory: Callable | None = None,
+        recovery_coverage_verifier: Callable | None = None,
+    ) -> TrashPurgeResult:
+        """Permanently purge trash only after a complete bundle is verified."""
+        if self._batch_depth:
+            raise RuntimeError("Trash cannot be purged inside a bookmark batch")
+        self._sync_before_write()
+        with self._lock:
+            trash = {int(bookmark.id): bookmark for bookmark in self.get_trash()}
+            if bookmark_ids is None:
+                requested = tuple(trash)
+            else:
+                normalized = {
+                    value
+                    for raw in bookmark_ids
+                    if (value := self._coerce_bookmark_id(raw)) is not None
+                }
+                requested = tuple(sorted(normalized))
+            targets = {bookmark_id: trash[bookmark_id] for bookmark_id in requested if bookmark_id in trash}
+            missing = tuple(sorted(set(requested) - set(targets)))
+            if not targets:
+                errors = ("No matching trashed bookmarks were found",) if requested else ()
+                return TrashPurgeResult(
+                    requested_ids=requested,
+                    failed_ids=missing,
+                    errors=errors,
+                )
+
+            root = self.filepath.parent.resolve()
+            try:
+                artifacts = {
+                    bookmark_id: self._owned_artifact_paths(bookmark, root)
+                    for bookmark_id, bookmark in targets.items()
+                }
+            except ValueError as exc:
+                return TrashPurgeResult(
+                    requested_ids=requested,
+                    failed_ids=tuple(sorted(targets)),
+                    errors=(str(exc),),
+                )
+
+            remaining_references: set[Path] = set()
+            for bookmark in self.bookmarks.values():
+                if int(bookmark.id) in targets:
+                    continue
+                for field_name in (
+                    "snapshot_path",
+                    "extracted_text_path",
+                    "youtube_transcript_path",
+                    "screenshot_path",
+                ):
+                    value = str(getattr(bookmark, field_name, "") or "").strip()
+                    if not value:
+                        continue
+                    try:
+                        remaining_references.add(Path(value).expanduser().resolve(strict=False))
+                    except (OSError, RuntimeError):
+                        continue
+            artifacts = {
+                bookmark_id: tuple(path for path in paths if path not in remaining_references)
+                for bookmark_id, paths in artifacts.items()
+            }
+            coverage_paths = {
+                path.relative_to(root).as_posix()
+                for paths in artifacts.values()
+                for path in paths
+            }
+            for sidecar in (
+                "reader_annotations.json",
+                "reader_progress.json",
+                "snapshot_history.json",
+                "snapshot_failures.json",
+            ):
+                if (root / sidecar).is_file():
+                    coverage_paths.add(sidecar)
+
+            if recovery_bundle_factory is None or recovery_coverage_verifier is None:
+                from bookmark_organizer_pro.services.recovery_bundle import (
+                    create_recovery_bundle,
+                    verify_recovery_bundle_coverage,
+                )
+
+                recovery_bundle_factory = recovery_bundle_factory or create_recovery_bundle
+                recovery_coverage_verifier = (
+                    recovery_coverage_verifier or verify_recovery_bundle_coverage
+                )
+            destination_root = Path(recovery_dir) if recovery_dir is not None else root / "backups" / "trash"
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
+            destination = destination_root / f"trash_purge_{stamp}.zip"
+            try:
+                destination_root.mkdir(parents=True, exist_ok=True)
+                bundle = Path(recovery_bundle_factory(destination, data_dir=root)).resolve()
+                recovery_coverage_verifier(
+                    bundle,
+                    bookmark_ids=targets,
+                    relative_paths=coverage_paths,
+                )
+            except Exception as exc:
+                return TrashPurgeResult(
+                    requested_ids=requested,
+                    failed_ids=tuple(sorted(set(targets) | set(missing))),
+                    recovery_bundle=str(destination) if destination.is_file() else "",
+                    errors=(f"Recovery bundle verification failed: {exc}",),
+                )
+
+            from bookmark_organizer_pro.services.reader_annotations import ReaderAnnotationStore
+            from bookmark_organizer_pro.services.snapshot import SnapshotFailureStore
+            from bookmark_organizer_pro.services.snapshot_history import SnapshotHistoryStore
+
+            annotations_path = root / "reader_annotations.json"
+            progress_path = root / "reader_progress.json"
+            history_path = root / "snapshot_history.json"
+            failures_path = root / "snapshot_failures.json"
+            try:
+                annotations = (
+                    ReaderAnnotationStore(annotations_path)
+                    if annotations_path.is_file()
+                    else None
+                )
+                history = (
+                    SnapshotHistoryStore(root / "snapshots")
+                    if history_path.is_file()
+                    else None
+                )
+                failures = (
+                    SnapshotFailureStore(failures_path)
+                    if failures_path.is_file()
+                    else None
+                )
+            except Exception as exc:
+                return TrashPurgeResult(
+                    requested_ids=requested,
+                    failed_ids=tuple(sorted(set(targets) | set(missing))),
+                    recovery_bundle=str(bundle),
+                    errors=(f"Trash metadata could not be opened safely: {exc}",),
+                )
+            purged: list[int] = []
+            failed: list[int] = list(missing)
+            errors: list[str] = []
+            for bookmark_id, bookmark in targets.items():
+                try:
+                    for path in artifacts[bookmark_id]:
+                        path.unlink(missing_ok=True)
+                    if annotations is not None:
+                        annotations.delete_for_bookmark(bookmark_id)
+                    if progress_path.is_file():
+                        self.reader_progress_store.reset(bookmark_id)
+                    if history is not None:
+                        history.clear_bookmark(bookmark_id)
+                    if failures is not None:
+                        failures.clear_for_bookmark(bookmark)
+                except Exception as exc:
+                    failed.append(bookmark_id)
+                    errors.append(f"Bookmark {bookmark_id} artifact purge failed: {exc}")
+                    continue
+                self.bookmarks.pop(bookmark_id, None)
+                self._unindex_bookmark(bookmark_id)
+                purged.append(bookmark_id)
+            if purged:
+                try:
+                    self._save_snapshot(list(self.bookmarks.values()))
+                except Exception as exc:
+                    failed.extend(purged)
+                    errors.append(f"Purged bookmark records could not be committed: {exc}")
+                    purged = []
+            return TrashPurgeResult(
+                requested_ids=requested,
+                purged_ids=tuple(sorted(purged)),
+                failed_ids=tuple(sorted(set(failed))),
+                recovery_bundle=str(bundle),
+                errors=tuple(errors),
+            )
 
     def empty_trash(self) -> int:
-        """Permanently delete all bookmarks in the trash."""
-        self._ensure_storage_writable()
-        with self._lock:
-            trash_ids = [bm.id for bm in self.bookmarks.values()
-                         if bm.is_archived and '_deleted_at' in bm.custom_data]
-            for bid in trash_ids:
-                self.bookmarks.pop(bid, None)
-                self._unindex_bookmark(bid)
-            if trash_ids:
-                snapshot = list(self.bookmarks.values())
-                self._save_snapshot(snapshot)
-                for bookmark_id in trash_ids:
-                    try:
-                        self.reader_progress_store.reset(bookmark_id)
-                    except Exception as exc:
-                        log.warning("Could not remove reader progress for %s: %s", bookmark_id, exc)
-        return len(trash_ids)
+        """Compatibility wrapper around recovery-backed purge-all."""
+        return self.purge_trash().purged_count
 
     # ── Random Bookmark Rediscovery (inspired by Buku) ──────────────────
     def get_random_bookmark(self, exclude_trash: bool = True) -> Optional[Bookmark]:
         """Get a random bookmark for rediscovery.
 
-        Excludes archived/trashed bookmarks by default.
+        Trash is always hidden; archived bookmarks are excluded by default.
         """
         import random
-        candidates = [bm for bm in self._iter_snapshot()
-                      if not (exclude_trash and bm.is_archived)]
+        candidates = [
+            bm for bm in self._iter_snapshot()
+            if not (exclude_trash and bm.is_archived)
+        ]
         return random.choice(candidates) if candidates else None
 
     # ── Batch Metadata Refresh (inspired by Buku's multi-threaded refresh) ──
@@ -1023,7 +1308,7 @@ class BookmarkManager:
             max_workers = 5
 
         if bookmark_ids is None:
-            targets = list(self.bookmarks.values())
+            targets = self._iter_snapshot()
         else:
             normalized_ids = []
             for bid in bookmark_ids:
@@ -1031,7 +1316,11 @@ class BookmarkManager:
                     normalized_ids.append(int(bid))
                 except (TypeError, ValueError):
                     continue
-            targets = [self.bookmarks[bid] for bid in normalized_ids if bid in self.bookmarks]
+            targets = [
+                self.bookmarks[bid]
+                for bid in normalized_ids
+                if bid in self.bookmarks and not self.bookmarks[bid].is_deleted
+            ]
 
         if not targets:
             return 0
@@ -1124,7 +1413,7 @@ class BookmarkManager:
             )
             if bm.read_later and bm.read_later_position == 0:
                 from bookmark_organizer_pro.services.read_later import ReadLaterQueue
-                ReadLaterQueue.enqueue(bm, all_bookmarks=self.bookmarks.values())
+                ReadLaterQueue.enqueue(bm, all_bookmarks=self._iter_snapshot())
             return self.add_bookmark(bm)
 
     def find_broken_links(self) -> List[Bookmark]:
@@ -1163,6 +1452,8 @@ class BookmarkManager:
         with self._lock:
             cleaned = 0
             for bm in self.bookmarks.values():
+                if bm.is_deleted:
+                    continue
                 clean_url = bm.clean_url()
                 if clean_url != bm.url:
                     bm.url = clean_url
@@ -1193,6 +1484,8 @@ class BookmarkManager:
         with self._lock:
             count = 0
             for bm in self.bookmarks.values():
+                if bm.is_deleted:
+                    continue
                 existing_tags = list(bm.tags)
                 if any(str(tag).lower() == source_key for tag in existing_tags):
                     bm.tags = [tag for tag in existing_tags if str(tag).lower() != source_key]

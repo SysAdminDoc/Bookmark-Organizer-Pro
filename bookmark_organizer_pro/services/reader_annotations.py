@@ -695,6 +695,21 @@ class ReaderAnnotationStore:
             items = deepcopy([item for item in self._highlights.values() if item.bookmark_id == bid])
         return sorted(items, key=lambda item: (item.char_start, item.created_at))
 
+    def delete_for_bookmark(self, bookmark_id: int) -> int:
+        """Delete every highlight owned by one permanently purged bookmark."""
+        bid = int(bookmark_id)
+        with self._lock:
+            removed = [
+                highlight_id
+                for highlight_id, item in self._highlights.items()
+                if item.bookmark_id == bid
+            ]
+            for highlight_id in removed:
+                self._highlights.pop(highlight_id, None)
+            if removed:
+                self._save()
+        return len(removed)
+
     def reconcile_for_bookmark(
         self,
         bookmark_id: int,

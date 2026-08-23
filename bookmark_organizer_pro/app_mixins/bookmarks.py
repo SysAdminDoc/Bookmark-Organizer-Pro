@@ -148,7 +148,7 @@ class BookmarkViewMixin:
         else:
             bookmarks.sort(key=lambda b: (not b.is_pinned, b.title.lower()))
 
-        if self.count_label and not bookmarks and not self.bookmark_manager.bookmarks:
+        if self.count_label and not bookmarks and not self.bookmark_manager.get_all_bookmarks():
             self.count_label.configure(text=_("Library"))
             if getattr(self, 'library_context_label', None):
                 self.library_context_label.configure(text=_("Ready for your first save"))

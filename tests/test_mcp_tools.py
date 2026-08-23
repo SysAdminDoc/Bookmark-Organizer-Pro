@@ -82,6 +82,38 @@ class TestGetBookmark(MCPToolTestBase):
         self.assertIn("get-test.example.com", result["url"])
 
 
+class TestPersistentTrash(MCPToolTestBase):
+    def test_delete_list_restore_and_verified_purge_share_one_contract(self):
+        added = self.ms.t_add_bookmark(
+            url="https://mcp-trash-contract.example/item",
+            title="MCP Trash Contract",
+        )
+        bookmark_id = added["id"]
+
+        deleted = self.ms.t_delete_bookmark(bookmark_id)
+        self.assertTrue(deleted["moved_to_trash"])
+        self.assertIsNone(self.ms.t_get_bookmark(bookmark_id))
+        trash = self.ms.t_list_trash()
+        self.assertIn(bookmark_id, {item["id"] for item in trash["bookmarks"]})
+        self.assertTrue(next(
+            item["deleted_at"] for item in trash["bookmarks"]
+            if item["id"] == bookmark_id
+        ))
+
+        restored = self.ms.t_restore_from_trash(bookmark_id)
+        self.assertTrue(restored["restored"])
+        self.assertEqual(self.ms.t_get_bookmark(bookmark_id)["id"], bookmark_id)
+
+        self.ms.t_delete_bookmark(bookmark_id)
+        purged = self.ms.t_purge_from_trash(bookmark_id)
+        self.assertTrue(purged["success"], purged["errors"])
+        self.assertEqual(purged["purged_ids"], [bookmark_id])
+        self.assertTrue(Path(purged["recovery_bundle"]).is_file())
+        self.assertNotIn(bookmark_id, {
+            item["id"] for item in self.ms.t_list_trash()["bookmarks"]
+        })
+
+
 class TestYouTubeTranscript(MCPToolTestBase):
     def test_not_found_is_explicit(self):
         result = self.ms.t_youtube_transcript(999999999)
@@ -596,6 +628,9 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
         self.assertTrue(tools["list_bookmarks"]["annotations"]["readOnlyHint"])
         self.assertFalse(tools["delete_bookmark"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["delete_bookmark"]["annotations"]["destructiveHint"])
+        self.assertTrue(tools["list_trash"]["annotations"]["readOnlyHint"])
+        self.assertFalse(tools["restore_from_trash"]["annotations"]["readOnlyHint"])
+        self.assertTrue(tools["purge_from_trash"]["annotations"]["destructiveHint"])
         self.assertTrue(tools["list_reader_highlights"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["list_due_reader_reviews"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["export_reader_highlights"]["annotations"]["readOnlyHint"])
@@ -641,6 +676,9 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
         self.assertTrue(tools["list_bookmarks"]["annotations"]["readOnlyHint"])
         self.assertFalse(tools["delete_bookmark"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["delete_bookmark"]["annotations"]["destructiveHint"])
+        self.assertTrue(tools["list_trash"]["annotations"]["readOnlyHint"])
+        self.assertFalse(tools["restore_from_trash"]["annotations"]["readOnlyHint"])
+        self.assertTrue(tools["purge_from_trash"]["annotations"]["destructiveHint"])
         self.assertTrue(tools["list_reader_highlights"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["list_due_reader_reviews"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["export_reader_highlights"]["annotations"]["readOnlyHint"])

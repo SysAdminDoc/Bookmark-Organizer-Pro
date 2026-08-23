@@ -46,6 +46,7 @@ from bookmark_organizer_pro.ui.management_dialogs import (
 )
 from bookmark_organizer_pro.ui.read_later_queue import ReadLaterQueueDialog
 from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog
+from bookmark_organizer_pro.ui.trash import TrashDialog
 from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable
 from bookmark_organizer_pro.ui.treeview import (
                 accessible_list_mode_enabled,
@@ -64,6 +65,14 @@ from bookmark_organizer_pro.ui.widgets import (
 
 class ToolsActionsMixin:
     """Tools menu, maintenance, and utility actions used by the app coordinator."""
+
+    def _show_trash(self):
+        """Open the persistent Trash workspace."""
+        TrashDialog(
+            self.root,
+            self.bookmark_manager,
+            on_change=self._refresh_all,
+        )
 
     def _show_settings_menu(self):
         """Show settings dropdown from the gear button."""

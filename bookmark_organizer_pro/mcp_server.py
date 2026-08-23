@@ -103,6 +103,8 @@ def _bm_to_dict(bm: Bookmark) -> Dict[str, Any]:
         "language": bm.language,
         "reading_time": bm.reading_time,
         "is_pinned": bm.is_pinned,
+        "is_archived": bm.is_archived,
+        "deleted_at": bm.deleted_at,
         "is_valid": bm.is_valid,
         "snapshot_path": bm.snapshot_path,
         "snapshot_mime_type": bm.snapshot_mime_type,
@@ -251,12 +253,13 @@ MCP_READ_ONLY_TOOLS = {
     "semantic_search", "hybrid_search", "list_tags", "list_categories",
     "get_extracted_text", "daily_digest", "list_dead_links",
     "list_flows", "get_flow", "list_snapshots",
+    "list_trash",
     "list_reader_highlights", "list_due_reader_reviews", "export_reader_highlights",
     "chat_with_collection", "chat_with_collection_stream", "summarize_bookmark",
 }
 
 MCP_DESTRUCTIVE_TOOLS = {
-    "delete_bookmark", "update_bookmark", "toggle_pin",
+    "delete_bookmark", "purge_from_trash", "update_bookmark", "toggle_pin",
     "mark_read_later", "add_tags", "remove_tags",
     "youtube_transcript",
 }
@@ -1427,7 +1430,38 @@ def t_delete_bookmark(bookmark_id: int) -> Dict:
     if not bm:
         return {"error": "Bookmark not found"}
     s.bookmark_manager.delete_bookmark(int(bookmark_id))
-    return {"deleted": True, "bookmark_id": bookmark_id}
+    return {
+        "deleted": True,
+        "moved_to_trash": True,
+        "bookmark_id": bookmark_id,
+    }
+
+
+def t_list_trash(limit: int = 100) -> Dict:
+    s = _services()
+    try:
+        bounded = max(1, min(500, int(limit)))
+    except (TypeError, ValueError):
+        bounded = 100
+    trash = s.bookmark_manager.get_trash()
+    return {
+        "count": len(trash),
+        "bookmarks": [_bm_to_dict(bookmark) for bookmark in trash[:bounded]],
+    }
+
+
+def t_restore_from_trash(bookmark_id: int) -> Dict:
+    s = _services()
+    bookmark_id = int(bookmark_id)
+    if not s.bookmark_manager.restore_from_trash(bookmark_id):
+        return {"error": "Trashed bookmark not found or URL conflicts"}
+    return {"restored": True, "bookmark_id": bookmark_id}
+
+
+def t_purge_from_trash(bookmark_id: int) -> Dict:
+    s = _services()
+    result = s.bookmark_manager.purge_trash([int(bookmark_id)])
+    return result.to_dict()
 
 
 def t_update_bookmark(bookmark_id: int, title: str = "", category: str = "",
@@ -1766,11 +1800,37 @@ TOOLS = [
          },
      }),
     ("delete_bookmark", t_delete_bookmark,
-     "Permanently delete a bookmark by ID.",
+     "Move a bookmark to persistent Trash by ID.",
      {
          "type": "object",
          "properties": {
              "bookmark_id": {"type": "integer", "description": "The bookmark ID to delete"},
+         },
+         "required": ["bookmark_id"],
+     }),
+    ("list_trash", t_list_trash,
+     "List bookmarks in persistent Trash, newest deletion first.",
+     {
+         "type": "object",
+         "properties": {
+             "limit": {"type": "integer", "description": "Maximum rows to return", "default": 100},
+         },
+     }),
+    ("restore_from_trash", t_restore_from_trash,
+     "Restore one bookmark from Trash without changing its archive state.",
+     {
+         "type": "object",
+         "properties": {
+             "bookmark_id": {"type": "integer", "description": "Trashed bookmark ID"},
+         },
+         "required": ["bookmark_id"],
+     }),
+    ("purge_from_trash", t_purge_from_trash,
+     "Permanently purge one trashed bookmark after creating and verifying a recovery bundle.",
+     {
+         "type": "object",
+         "properties": {
+             "bookmark_id": {"type": "integer", "description": "Trashed bookmark ID"},
          },
          "required": ["bookmark_id"],
      }),
@@ -2086,9 +2146,21 @@ def _build_fastmcp_server():
     def list_snapshots(limit: int = 50) -> list[dict]:
         return t_list_snapshots(limit)
 
-    @tool("delete_bookmark", "Permanently delete a bookmark by ID.")
+    @tool("delete_bookmark", "Move a bookmark to persistent Trash by ID.")
     def delete_bookmark(bookmark_id: int) -> dict:
         return t_delete_bookmark(bookmark_id)
+
+    @tool("list_trash", "List bookmarks in persistent Trash.")
+    def list_trash(limit: int = 100) -> dict:
+        return t_list_trash(limit)
+
+    @tool("restore_from_trash", "Restore one bookmark from Trash.")
+    def restore_from_trash(bookmark_id: int) -> dict:
+        return t_restore_from_trash(bookmark_id)
+
+    @tool("purge_from_trash", "Permanently purge one trashed bookmark after verified recovery.")
+    def purge_from_trash(bookmark_id: int) -> dict:
+        return t_purge_from_trash(bookmark_id)
 
     @tool("update_bookmark", "Update a bookmark's title, category, notes, or description.")
     def update_bookmark(bookmark_id: int, title: str = "", category: str = "",
