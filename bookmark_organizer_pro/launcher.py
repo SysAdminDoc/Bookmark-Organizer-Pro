@@ -117,14 +117,14 @@ def main(argv: Sequence[str] | None = None):
         # Initialize style manager
         style_manager.initialize(root)
 
-        # Check and install dependencies
+        # Confirm the generated bootstrap contract still resolves before UI construction.
         dep_ok = check_and_install_dependencies(root)
         if not dep_ok:
-            log.warning("User cancelled dependency installation")
+            log.warning("Dependency repair is required before launch")
             root.destroy()
             return
 
-        # Import dependencies after check
+        # Bind desktop dependencies after the non-importing bootstrap check.
         import_dependencies()
 
         root.deiconify()  # Show window

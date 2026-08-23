@@ -25,9 +25,23 @@ LOCK = ROOT / "pylock.toml"
 CLAIMS = ROOT / "packaging" / "product_claims.json"
 MCP_SERVER_JSON = ROOT / "packaging" / "server.json"
 RELEASE_MANIFEST = ROOT / "packaging" / "release_manifest.json"
+BOOTSTRAP_MANIFEST = ROOT / "bookmark_organizer_pro" / "bootstrap_dependencies.json"
 BUILD_METADATA = ROOT / "build" / "release_metadata"
 RELEASE_EXTRAS = ("ai", "encryption", "mcp", "sunvalley", "themedetect")
 INSTALL_LINE = ".[" + ",".join(RELEASE_EXTRAS) + "]"
+BOOTSTRAP_MANIFEST_SCHEMA = "bookmark-organizer-pro/bootstrap-dependencies"
+BOOTSTRAP_IMPORT_NAMES = {
+    "beautifulsoup4": "bs4",
+    "requests": "requests",
+    "idna": "idna",
+    "pillow": "PIL",
+    "defusedxml": "defusedxml",
+    "tksheet": "tksheet",
+    "urllib3": "urllib3",
+    "lxml": "lxml",
+    "lz4": "lz4",
+    "regex": "regex",
+}
 
 
 class ContractError(RuntimeError):
@@ -40,6 +54,63 @@ def _dependency_name(requirement: str) -> str:
 
 def _lock_data() -> dict:
     return tomllib.loads(LOCK.read_text(encoding="utf-8"))
+
+
+def bootstrap_manifest_document(project_data: dict | None = None) -> dict:
+    """Build the stdlib bootstrap manifest from required project dependencies."""
+    data = project_data or tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+    project = data["project"]
+    dependencies = list(project.get("dependencies", []))
+    dependency_names = {_dependency_name(requirement) for requirement in dependencies}
+    missing_mappings = sorted(dependency_names - set(BOOTSTRAP_IMPORT_NAMES))
+    stale_mappings = sorted(set(BOOTSTRAP_IMPORT_NAMES) - dependency_names)
+    if missing_mappings or stale_mappings:
+        details = []
+        if missing_mappings:
+            details.append("missing import mappings: " + ", ".join(missing_mappings))
+        if stale_mappings:
+            details.append("stale import mappings: " + ", ".join(stale_mappings))
+        raise ContractError("Bootstrap dependency mapping drift: " + "; ".join(details))
+    return {
+        "schema": BOOTSTRAP_MANIFEST_SCHEMA,
+        "version": 1,
+        "project_version": str(project["version"]),
+        "dependencies": [
+            {
+                "distribution": _dependency_name(requirement),
+                "import_name": BOOTSTRAP_IMPORT_NAMES[_dependency_name(requirement)],
+                "requirement": requirement,
+            }
+            for requirement in dependencies
+        ],
+    }
+
+
+def write_bootstrap_manifest() -> Path:
+    """Regenerate the checked-in manifest from ``pyproject.toml``."""
+    document = bootstrap_manifest_document()
+    BOOTSTRAP_MANIFEST.write_text(
+        json.dumps(document, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    return BOOTSTRAP_MANIFEST
+
+
+def validate_bootstrap_manifest(project_data: dict | None = None) -> int:
+    """Fail when the generated bootstrap manifest drifts from pyproject."""
+    expected = bootstrap_manifest_document(project_data)
+    try:
+        actual = json.loads(BOOTSTRAP_MANIFEST.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ContractError(
+            "Bootstrap dependency manifest is missing or invalid; run with --update-bootstrap-manifest"
+        ) from exc
+    if actual != expected:
+        raise ContractError(
+            "Bootstrap dependency manifest drift; run with --update-bootstrap-manifest"
+        )
+    return len(expected["dependencies"])
 
 
 def locked_versions(lock_data: dict | None = None) -> dict[str, str]:
@@ -55,6 +126,7 @@ def locked_versions(lock_data: dict | None = None) -> dict[str, str]:
 def validate_dependency_contract() -> dict[str, int]:
     data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
     project = data["project"]
+    bootstrap_dependencies = validate_bootstrap_manifest(data)
     extras = project.get("optional-dependencies", {})
     release_manifest = json.loads(RELEASE_MANIFEST.read_text(encoding="utf-8"))
     if release_manifest.get("schema_version") != 2:
@@ -143,6 +215,7 @@ def validate_dependency_contract() -> dict[str, int]:
             f"Module ownership drift: manifest={sorted(ownership)}, package={sorted(package_dirs)}"
         )
     return {
+        "bootstrap_dependencies": bootstrap_dependencies,
         "direct_dependencies": len({_dependency_name(item) for item in direct}),
         "locked_dependencies": len(packages),
     }
@@ -474,12 +547,15 @@ def update_lock() -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--update-lock", action="store_true")
+    parser.add_argument("--update-bootstrap-manifest", action="store_true")
     parser.add_argument("--prepare-build-metadata", type=Path)
     parser.add_argument("--write-locked-requirements", type=Path)
     args = parser.parse_args(argv)
     try:
         if args.update_lock:
             update_lock()
+        if args.update_bootstrap_manifest:
+            write_bootstrap_manifest()
         report = validate_dependency_contract()
         report.update(validate_product_claims())
         report["mcp_server_name"] = validate_mcp_server_json()["name"]

@@ -6,6 +6,13 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Fixed
 
+- Startup now checks every required Python import before loading the application
+  package. If the environment is incomplete, the error names each missing
+  import and gives a reinstall command for that exact Python interpreter.
+  Packaged builds direct users to the complete signed release instead.
+- The dependency setup screen no longer runs pip or any other installer inside
+  the application. It reports the missing components and shows repair guidance,
+  so source and packaged builds never change their own runtime environment.
 - Annotation CSV exports now protect every selected field from spreadsheet
   formula execution, including rendered tag and anchor-history lists. JSON and
   Markdown annotation exports are unchanged.

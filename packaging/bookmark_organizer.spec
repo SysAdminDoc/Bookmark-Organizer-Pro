@@ -163,6 +163,11 @@ if not default_categories.is_file():
     raise FileNotFoundError(f"required runtime asset is missing: {default_categories}")
 datas.append((str(default_categories), "bookmark_organizer_pro/core"))
 
+bootstrap_manifest = ROOT_DIR / "bookmark_organizer_pro" / "bootstrap_dependencies.json"
+if not bootstrap_manifest.is_file():
+    raise FileNotFoundError(f"required runtime asset is missing: {bootstrap_manifest}")
+datas.append((str(bootstrap_manifest), "bookmark_organizer_pro"))
+
 for metadata_name in ("release_manifest.json", "pylock.toml", "build_identity.json", "sbom.cdx.json"):
     metadata_path = BUILD_METADATA / metadata_name
     if not metadata_path.is_file():

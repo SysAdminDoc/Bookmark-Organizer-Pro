@@ -55,6 +55,9 @@ all = [
 bop = "bookmark_organizer_pro.cli:main"
 bop-mcp = "bookmark_organizer_pro.mcp_server:main"
 
+[tool.setuptools]
+py-modules = ["bootstrap_dependencies"]
+
 [tool.setuptools.packages.find]
 include = ["bookmark_organizer_pro*"]
 

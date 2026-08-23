@@ -465,31 +465,43 @@ default extraction untouched.
 git clone https://github.com/SysAdminDoc/Bookmark-Organizer-Pro.git
 cd Bookmark-Organizer-Pro
 
+# Install the application and its required dependencies
+python -m pip install .
+
 # Run the application
 python main.py
 ```
 
 On first run, the application will:
-1. Check for required dependencies
-2. Offer to install missing packages when running from Python; packaged builds instead provide deterministic reinstall guidance
+1. Check every required import before loading application code
+2. Show an exact environment-matched repair command if the installation is incomplete
 3. Create the data directory at `~/.bookmark_organizer/`
 
 ### Dependencies
 
-**Required** (auto-installed):
-- `beautifulsoup4` - HTML parsing for bookmark import
-- `requests` - HTTP requests for favicon downloads
-- `tksheet` - virtualized Tk table for large bookmark lists
+**Required** (installed by pip):
+- `beautifulsoup4` for HTML parsing
+- `requests`, `idna`, and `urllib3` for HTTP operations
+- `Pillow` for image processing
+- `defusedxml` and `lxml` for XML and HTML processing
+- `tksheet` for the desktop bookmark table
+- `lz4` for Firefox JSONLZ4 bookmark backups
+- `regex` for categorization and text processing
 
 **Optional** (recommended):
-- `Pillow` - Image processing for favicons and screenshots
-- `lz4` - Firefox JSONLZ4 bookmark-backup import
+- AI, encryption, MCP, Sun Valley theme, and system theme detection extras
 
 ### Manual Installation
 
 ```bash
-pip install beautifulsoup4 requests tksheet "Pillow>=12.3.0" "lz4>=4.4.5,<5"
+# Required application dependencies
+python -m pip install .
+
+# Required dependencies plus recommended optional features
+python -m pip install ".[all]"
 ```
+
+Bookmark Organizer Pro never starts pip or another installer at runtime.
 
 ## Usage
 
@@ -704,9 +716,13 @@ write incrementally instead.
 
 #### "Module not found" errors
 ```bash
-# Reinstall dependencies
-pip install --upgrade beautifulsoup4 requests "Pillow>=12.3.0"
+# Reinstall the application into the Python environment used to launch it
+python -m pip install --upgrade --force-reinstall .
 ```
+
+The startup preflight prints the exact interpreter and install target to use.
+For a packaged build, reinstall the complete signed release from the Releases
+page.
 
 #### Favicons not loading
 1. Check internet connection

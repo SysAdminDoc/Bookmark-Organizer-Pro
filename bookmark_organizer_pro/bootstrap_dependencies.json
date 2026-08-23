@@ -1,0 +1,57 @@
+{
+  "schema": "bookmark-organizer-pro/bootstrap-dependencies",
+  "version": 1,
+  "project_version": "6.16.0",
+  "dependencies": [
+    {
+      "distribution": "beautifulsoup4",
+      "import_name": "bs4",
+      "requirement": "beautifulsoup4>=4.12"
+    },
+    {
+      "distribution": "requests",
+      "import_name": "requests",
+      "requirement": "requests>=2.34.2"
+    },
+    {
+      "distribution": "idna",
+      "import_name": "idna",
+      "requirement": "idna>=3.15.0"
+    },
+    {
+      "distribution": "pillow",
+      "import_name": "PIL",
+      "requirement": "Pillow>=12.3.0"
+    },
+    {
+      "distribution": "defusedxml",
+      "import_name": "defusedxml",
+      "requirement": "defusedxml>=0.7"
+    },
+    {
+      "distribution": "tksheet",
+      "import_name": "tksheet",
+      "requirement": "tksheet>=7.6,<8"
+    },
+    {
+      "distribution": "urllib3",
+      "import_name": "urllib3",
+      "requirement": "urllib3>=2.7.0"
+    },
+    {
+      "distribution": "lxml",
+      "import_name": "lxml",
+      "requirement": "lxml>=6.1.1"
+    },
+    {
+      "distribution": "lz4",
+      "import_name": "lz4",
+      "requirement": "lz4>=4.4.5,<5"
+    },
+    {
+      "distribution": "regex",
+      "import_name": "regex",
+      "requirement": "regex>=2024.11.6"
+    }
+  ]
+}

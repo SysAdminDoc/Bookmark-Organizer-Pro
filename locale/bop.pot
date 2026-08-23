@@ -65,8 +65,6 @@ msgid ", {count} via failover"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/cleanup_review.py:263
-#: bookmark_organizer_pro/ui/dependencies.py:103
-#: bookmark_organizer_pro/ui/dependencies.py:131
 msgid "- {value_0}"
 msgstr ""
 
@@ -704,8 +702,7 @@ msgstr ""
 #: bookmark_organizer_pro/app_mixins/import_export.py:506
 #: bookmark_organizer_pro/app_mixins/tools.py:322
 #: bookmark_organizer_pro/ui/about.py:581
-#: bookmark_organizer_pro/ui/dependencies.py:183
-#: bookmark_organizer_pro/ui/dependencies.py:227
+#: bookmark_organizer_pro/ui/dependencies.py:81
 #: bookmark_organizer_pro/ui/management_dialogs.py:530
 #: bookmark_organizer_pro/ui/management_dialogs.py:1070
 #: bookmark_organizer_pro/ui/organization_rules.py:130
@@ -731,10 +728,6 @@ msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:303
 msgid "Cancelling installation and removing the download…"
-msgstr ""
-
-#: bookmark_organizer_pro/ui/dependencies.py:284
-msgid "Cancelling installer safely..."
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:302
@@ -1011,7 +1004,7 @@ msgstr ""
 #: bookmark_organizer_pro/app_mixins/tools.py:585
 #: bookmark_organizer_pro/ui/about.py:160
 #: bookmark_organizer_pro/ui/cleanup_review.py:214
-#: bookmark_organizer_pro/ui/dependencies.py:250
+#: bookmark_organizer_pro/ui/dependencies.py:81
 #: bookmark_organizer_pro/ui/management_dialogs.py:138
 #: bookmark_organizer_pro/ui/management_dialogs.py:868
 #: bookmark_organizer_pro/ui/read_later_queue.py:148
@@ -1125,7 +1118,7 @@ msgstr ""
 msgid "Content-private support bundle preview"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/dependencies.py:173
+#: bookmark_organizer_pro/ui/dependencies.py:71
 msgid "Continue Without Optional"
 msgstr ""
 
@@ -2193,17 +2186,9 @@ msgstr ""
 msgid "Inspecting {source} before import…"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/dependencies.py:160
-msgid "Install All"
-msgstr ""
-
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:206
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:343
 msgid "Install Ollama"
-msgstr ""
-
-#: bookmark_organizer_pro/ui/dependencies.py:67
-msgid "Install required packages now, or continue with optional features disabled."
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:349
@@ -2212,10 +2197,6 @@ msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:307
 msgid "Install verified Ollama?"
-msgstr ""
-
-#: bookmark_organizer_pro/ui/dependencies.py:259
-msgid "Installation complete."
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/ai_settings.py:256
@@ -3071,11 +3052,11 @@ msgstr ""
 msgid "Opt-in site icons with same-origin-first fetching and named proxy consent"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/dependencies.py:112
+#: bookmark_organizer_pro/ui/dependencies.py:125
 msgid "Optional Packages"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/dependencies.py:124
+#: bookmark_organizer_pro/ui/dependencies.py:137
 msgid "Optional: {value_0}"
 msgstr ""
 
@@ -3545,11 +3526,11 @@ msgstr ""
 msgid "Replace all rules on import"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/dependencies.py:84
+#: bookmark_organizer_pro/ui/dependencies.py:95
 msgid "Required Packages"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/dependencies.py:96
+#: bookmark_organizer_pro/ui/dependencies.py:107
 msgid "Required: {value_0}"
 msgstr ""
 
@@ -3651,17 +3632,12 @@ msgstr ""
 msgid "Resume the saved reader position for this bookmark."
 msgstr ""
 
-#: bookmark_organizer_pro/ui/dependencies.py:269
 #: bookmark_organizer_pro/ui/workflow_detail_panel.py:349
 msgid "Retry"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/import_export.py:824
 msgid "Retry Failed"
-msgstr ""
-
-#: bookmark_organizer_pro/ui/dependencies.py:253
-msgid "Retry Remaining"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:970
@@ -4154,7 +4130,7 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/dependencies.py:58
+#: bookmark_organizer_pro/ui/dependencies.py:48
 msgid "Setup Check"
 msgstr ""
 
@@ -4282,10 +4258,6 @@ msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/tools.py:1387
 msgid "Snapshot retry complete: {success} fixed, {failed} still failing, {skipped} missing"
-msgstr ""
-
-#: bookmark_organizer_pro/ui/dependencies.py:265
-msgid "Some installations failed. Check your internet connection."
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/selection.py:166
@@ -5168,6 +5140,11 @@ msgstr ""
 msgid "{value_0:.0%}"
 msgstr ""
 
+#: bookmark_organizer_pro/ui/dependencies.py:114
+#: bookmark_organizer_pro/ui/dependencies.py:144
+msgid "{value_0}"
+msgstr ""
+
 #: bookmark_organizer_pro/app_mixins/app_shell.py:1045
 msgid "{value_0}  ·  {value_1}"
 msgstr ""
@@ -5178,10 +5155,6 @@ msgstr ""
 
 #: bookmark_organizer_pro/ui/workflow_selective_export.py:196
 msgid "{value_0} ({value_1})"
-msgstr ""
-
-#: bookmark_organizer_pro/ui/dependencies.py:35
-msgid "{value_0} - Setup Check"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/live_workflow.py:389
@@ -5241,6 +5214,10 @@ msgstr ""
 
 #: bookmark_organizer_pro/ui/live_workflow.py:125
 msgid "{value_0}: Live"
+msgstr ""
+
+#: bookmark_organizer_pro/ui/dependencies.py:28
+msgid "{value_0}: Setup Check"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:972

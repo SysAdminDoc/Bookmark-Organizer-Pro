@@ -5,7 +5,6 @@ import copy
 import json
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 import threading
@@ -14,7 +13,7 @@ import tokenize
 import unittest
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 # Ensure package is importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1436,9 +1435,9 @@ class TestDependencyManager(unittest.TestCase):
     def test_install_package_rejects_unknown_dependencies_without_pip(self):
         manager = DependencyManager()
 
-        with patch("bookmark_organizer_pro.utils.dependencies.subprocess.run") as run_mock:
+        with patch("subprocess.Popen") as popen_mock:
             self.assertFalse(manager.install_package("not-a-known-package"))
-            run_mock.assert_not_called()
+            popen_mock.assert_not_called()
 
         self.assertIn("not-a-known-package", manager.install_errors)
 
@@ -1448,68 +1447,33 @@ class TestDependencyManager(unittest.TestCase):
 
         with (
             patch("bookmark_organizer_pro.utils.dependencies.is_frozen_runtime", return_value=True),
-            patch("bookmark_organizer_pro.utils.dependencies.subprocess.run") as run_mock,
+            patch("subprocess.Popen") as popen_mock,
         ):
-            self.assertFalse(manager.install_package("Pillow", progress.append))
+            self.assertFalse(manager.install_package("pillow", progress.append))
 
-        run_mock.assert_not_called()
-        self.assertEqual(progress, [manager.install_errors["Pillow"]])
-        self.assertEqual(
-            manager.install_errors["Pillow"],
-            "Missing packaged component: Pillow. This packaged build cannot install Python "
-            "components at runtime. Reinstall Bookmark Organizer Pro from the complete release package.",
-        )
+        popen_mock.assert_not_called()
+        self.assertEqual(progress, [manager.install_errors["pillow"]])
+        self.assertIn("PIL", manager.install_errors["pillow"])
+        self.assertIn("complete signed release", manager.install_errors["pillow"])
+        self.assertIn("/releases/latest", manager.install_errors["pillow"])
+        self.assertNotIn(" -m pip ", manager.install_errors["pillow"])
 
-    def test_install_package_source_runtime_retains_pip_path(self):
+    def test_install_package_source_runtime_returns_exact_external_command_without_running_it(self):
         manager = DependencyManager()
-        process = Mock(returncode=0)
-        process.communicate.return_value = ("", "")
 
         with (
             patch("bookmark_organizer_pro.utils.dependencies.is_frozen_runtime", return_value=False),
-            patch("bookmark_organizer_pro.utils.dependencies.subprocess.Popen", return_value=process) as popen_mock,
+            patch("subprocess.Popen") as popen_mock,
         ):
-            self.assertTrue(manager.install_package("Pillow"))
+            self.assertFalse(manager.install_package("pillow"))
 
-        popen_mock.assert_called_once_with(
-            [sys.executable, "-m", "pip", "install", "Pillow", "--quiet"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        process.communicate.assert_called_once_with(timeout=120)
+        popen_mock.assert_not_called()
+        guidance = manager.install_errors["pillow"]
+        self.assertIn(sys.executable, guidance)
+        self.assertIn("-m pip install --upgrade --force-reinstall", guidance)
+        self.assertIn(str(Path(__file__).resolve().parents[1]), guidance)
 
-    def test_cancel_stops_active_installer_and_prevents_next_package(self):
-        class BlockingProcess:
-            def __init__(self):
-                self.returncode = None
-                self.terminated = False
-                self.killed = False
-                self.done = threading.Event()
-
-            def communicate(self, timeout=None):
-                if not self.done.wait(timeout=2):
-                    raise subprocess.TimeoutExpired("pip", timeout)
-                return ("", "cancelled")
-
-            def poll(self):
-                return self.returncode
-
-            def terminate(self):
-                self.terminated = True
-                self.returncode = -15
-                self.done.set()
-
-            def kill(self):
-                self.killed = True
-                self.returncode = -9
-                self.done.set()
-
-            def wait(self, timeout=None):
-                if not self.done.wait(timeout=timeout):
-                    raise subprocess.TimeoutExpired("pip", timeout)
-                return self.returncode
-
+    def test_install_all_missing_reports_every_failure_without_attempting_mutation(self):
         manager = DependencyManager()
         manager.REQUIRED_PACKAGES = {
             "first": {"import_name": "first", "required": True, "description": "first"},
@@ -1517,54 +1481,15 @@ class TestDependencyManager(unittest.TestCase):
         }
         manager.OPTIONAL_PACKAGES = {}
         manager.missing_required = ["first", "second"]
-        process = BlockingProcess()
-        started = threading.Event()
-        calls = []
 
-        def start_process(*args, **kwargs):
-            calls.append((args, kwargs))
-            started.set()
-            return process
-
-        results = []
-        with patch("bookmark_organizer_pro.utils.dependencies.subprocess.Popen", side_effect=start_process):
-            worker = threading.Thread(target=lambda: results.append(manager.install_all_missing()))
-            worker.start()
-            self.assertTrue(started.wait(timeout=2))
-            self.assertTrue(manager.cancel_installation())
-            worker.join(timeout=2)
-
-        self.assertFalse(worker.is_alive())
-        self.assertEqual(results, [False])
-        self.assertTrue(process.terminated)
-        self.assertEqual(len(calls), 1)
-        self.assertTrue(manager.last_install_report.cancelled)
-        self.assertEqual(manager.last_install_report.installed, ())
-        self.assertEqual(manager.last_install_report.skipped, ("second",))
-        self.assertIn("Installed before cancellation: none", manager.last_install_report.summary())
-
-    def test_cancel_after_one_mutation_reports_change_and_skips_remainder(self):
-        manager = DependencyManager()
-        manager.REQUIRED_PACKAGES = {
-            "first": {"import_name": "first", "required": True, "description": "first"},
-            "second": {"import_name": "second", "required": True, "description": "second"},
-        }
-        manager.OPTIONAL_PACKAGES = {}
-        manager.missing_required = ["first", "second"]
-        calls = []
-
-        def install(package, progress_callback=None):
-            calls.append(package)
-            manager.cancel_installation()
-            return True
-
-        with patch.object(manager, "install_package", side_effect=install):
+        with patch.object(manager, "install_package") as install_mock:
             self.assertFalse(manager.install_all_missing())
 
-        self.assertEqual(calls, ["first"])
-        self.assertEqual(manager.last_install_report.installed, ("first",))
-        self.assertEqual(manager.last_install_report.skipped, ("second",))
-        self.assertIn("Installed before cancellation: first", manager.last_install_report.summary())
+        install_mock.assert_not_called()
+        self.assertFalse(manager.runtime_install_supported)
+        self.assertEqual(manager.last_install_report.installed, ())
+        self.assertEqual(manager.last_install_report.failed, ("first", "second"))
+        self.assertEqual(manager.last_install_report.skipped, ())
 
 
 class _LocalAPIServerMixin(SharedExtensionRegistryGuard):

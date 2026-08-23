@@ -34,6 +34,10 @@ if __name__ == "__main__" and any(arg in {"--version", "-V"} for arg in sys.argv
             pass
     raise SystemExit(0)
 
+from bootstrap_dependencies import preflight_or_exit as _preflight_or_exit
+
+_preflight_or_exit()
+
 if __name__ == "__main__" and "--release-contract" in sys.argv[1:]:
     from bookmark_organizer_pro.release_contract import build_runtime_contract, write_runtime_contract
 

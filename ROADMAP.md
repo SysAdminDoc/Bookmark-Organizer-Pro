@@ -6,13 +6,6 @@ Actionable incomplete work only. Historical and completed material belongs in `C
 
 ### P0
 
-- [ ] P0: R-151: Detect missing required dependencies before importing application packages
-  Why: The documented first-run path crashes on a missing package such as `regex` before it can explain how to repair the installation.
-  Evidence: Repro on 2026-08-23 with `python -c "import bookmark_organizer_pro.constants"`; `main.py:58`; `bookmark_organizer_pro/__init__.py:14`; `bookmark_organizer_pro/core/__init__.py`; `bookmark_organizer_pro/utils/dependencies.py:38`; `pyproject.toml:15`
-  Touches: `main.py`, a stdlib-only bootstrap manifest, `bookmark_organizer_pro/launcher.py`, package facades, dependency documentation, launcher and packaging tests
-  Acceptance: Before any application-package import, a stdlib-only preflight checks an auto-generated manifest that is contract-tested against required `pyproject.toml` dependencies; a missing package exits with its import name plus exact environment-matched reinstall instructions; neither source nor frozen builds invoke pip or another installer at runtime; frozen output directs users to the complete signed release; subprocess tests remove each required import in turn.
-  Complexity: M
-
 - [ ] P0: R-152: Route all bookmark deletion through a persistent trash contract
   Why: The README promises recoverable trash, but desktop, CLI, REST, MCP, and maintenance paths permanently remove records while isolated trash helpers are unused and conflate deletion with archive state.
   Evidence: `README.md:433`; `bookmark_organizer_pro/commands.py:160`; `bookmark_organizer_pro/cli.py:976`; `bookmark_organizer_pro/services/api.py:1206`; `bookmark_organizer_pro/mcp_server.py:1424`; `bookmark_organizer_pro/managers/bookmarks.py:943`

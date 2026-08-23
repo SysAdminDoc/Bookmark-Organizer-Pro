@@ -71,8 +71,7 @@ DESKTOP_SURFACES = (
     "desktop-bookmark-editor-1280x720",
     "desktop-about-1280x720",
     "desktop-support-bundle-preview",
-    "desktop-dependency-setup-1280x720",
-    "desktop-dependency-cancelling-1280x720",
+    "desktop-dependency-repair-1280x720",
     "desktop-assistant-settings",
     "desktop-access-credentials",
     "desktop-import-progress",
@@ -1061,29 +1060,29 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
 
         dependencies = DependencyManager()
         dependencies.check_all()
+        dependencies.missing_required = ["regex"]
         dependency_dialog = DependencyCheckDialog(root, dependencies)
         apply_screen_aware_geometry(
-            dependency_dialog, 500, 400, screen_width=1280, screen_height=720,
+            dependency_dialog, 640, 500, screen_width=1280, screen_height=720,
         )
-        dependency_dialog.update()
+        _prepare_background_window(dependency_dialog)
         assert_actionable_controls_inside(dependency_dialog)
-        results.append(
-            capture_tk_window(
-                dependency_dialog,
-                output_dir,
-                "desktop-dependency-setup-1280x720",
-                ("Setup Check", "Continue"),
-            )
+        assert_named_controls_visible(
+            dependency_dialog,
+            ("Setup Check", "Required: regex", "exact Python environment", "Close"),
         )
-        dependency_dialog._installing = True
-        dependency_dialog._on_cancel()
-        dependency_dialog.update()
+        assert_widget_inside(dependency_dialog, dependency_dialog.footer, "dependency dialog footer")
+        assert_widgets_do_not_overlap(
+            dependency_dialog.content,
+            dependency_dialog.footer,
+            "dependency dialog body/footer",
+        )
         results.append(
             capture_tk_window(
                 dependency_dialog,
                 output_dir,
-                "desktop-dependency-cancelling-1280x720",
-                ("Setup Check", "Cancelling installer safely"),
+                "desktop-dependency-repair-1280x720",
+                ("Setup Check", "Required: regex", "exact Python environment", "Close"),
             )
         )
         dependency_dialog.destroy()

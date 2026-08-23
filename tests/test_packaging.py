@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import copy
 import importlib.util
 import json
@@ -213,6 +214,118 @@ class TestNuitkaBuildHelper(unittest.TestCase):
         ]
         self.assertEqual(install_lines, [module.INSTALL_LINE])
 
+    def test_bootstrap_manifest_matches_every_required_pyproject_dependency(self):
+        module = _load_package_contract_audit()
+        checked_in = json.loads(module.BOOTSTRAP_MANIFEST.read_text(encoding="utf-8"))
+        project_data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+        self.assertEqual(checked_in, module.bootstrap_manifest_document())
+        self.assertEqual(module.validate_bootstrap_manifest(), 10)
+        self.assertEqual(
+            {entry["import_name"] for entry in checked_in["dependencies"]},
+            {"bs4", "requests", "idna", "PIL", "defusedxml", "tksheet", "urllib3", "lxml", "lz4", "regex"},
+        )
+        self.assertEqual(project_data["tool"]["setuptools"]["py-modules"], ["bootstrap_dependencies"])
+        self.assertIn(
+            "**/*.json",
+            project_data["tool"]["setuptools"]["package-data"]["bookmark_organizer_pro"],
+        )
+
+    def test_bootstrap_module_imports_only_the_standard_library(self):
+        tree = ast.parse((ROOT / "bootstrap_dependencies.py").read_text(encoding="utf-8"))
+        imported_roots = set()
+        process_calls = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imported_roots.update(alias.name.split(".", 1)[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imported_roots.add(node.module.split(".", 1)[0])
+            elif (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "subprocess"
+            ):
+                process_calls.add(node.func.attr)
+
+        self.assertLessEqual(imported_roots, set(sys.stdlib_module_names) | {"__future__"})
+        self.assertEqual(process_calls, {"list2cmdline"})
+
+    def test_main_preflight_reports_each_missing_import_before_package_import(self):
+        module = _load_package_contract_audit()
+        manifest = module.bootstrap_manifest_document()
+        probe = """
+import importlib.util
+import runpy
+import sys
+
+target = sys.argv[1]
+original_find_spec = importlib.util.find_spec
+
+class ApplicationImportGuard:
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == "bookmark_organizer_pro" or fullname.startswith("bookmark_organizer_pro."):
+            raise RuntimeError("application package imported before dependency preflight")
+        return None
+
+sys.meta_path.insert(0, ApplicationImportGuard())
+importlib.util.find_spec = lambda name, package=None: (
+    None if name == target else original_find_spec(name, package)
+)
+runpy.run_path(sys.argv[2], run_name="__main__")
+"""
+        for dependency in manifest["dependencies"]:
+            import_name = dependency["import_name"]
+            result = subprocess.run(
+                [sys.executable, "-c", probe, import_name, str(ROOT / "main.py")],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+            with self.subTest(import_name=import_name):
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn(import_name, result.stderr)
+                self.assertIn(sys.executable, result.stderr)
+                self.assertIn("-m pip install --upgrade --force-reinstall", result.stderr)
+                self.assertIn(str(ROOT), result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+
+    def test_frozen_bootstrap_guidance_uses_complete_signed_release(self):
+        from bootstrap_dependencies import COMPLETE_RELEASE_URL, repair_message
+
+        message = repair_message(("regex",), frozen=True)
+
+        self.assertIn("regex", message)
+        self.assertIn("complete signed release", message)
+        self.assertIn(COMPLETE_RELEASE_URL, message)
+        self.assertNotIn(" -m pip ", message)
+
+    def test_package_facade_runs_preflight_before_eager_internal_imports(self):
+        probe = """
+import importlib.util
+import sys
+
+original_find_spec = importlib.util.find_spec
+importlib.util.find_spec = lambda name, package=None: (
+    None if name == "regex" else original_find_spec(name, package)
+)
+import bookmark_organizer_pro.constants
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", probe],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("regex", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
     def test_release_lock_renders_hash_required_install_input(self):
         module = _load_package_contract_audit()
 
@@ -251,6 +364,7 @@ class TestNuitkaBuildHelper(unittest.TestCase):
         self.assertIn("runtime_hooks=[str(RUNTIME_HOOK_MP)]", spec_text)
         self.assertIn("multiprocessing.freeze_support()", hook_text)
         self.assertIn('"bookmark_organizer_pro/core"', spec_text)
+        self.assertIn('"bootstrap_dependencies.json"', spec_text)
         self.assertIn('"release"', spec_text)
 
 

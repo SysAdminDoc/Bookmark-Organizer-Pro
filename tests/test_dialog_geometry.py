@@ -1,13 +1,10 @@
 """Dialog geometry and keyboard-accessibility contracts."""
 
 from pathlib import Path
-import threading
-from types import SimpleNamespace
 
 from bookmark_organizer_pro.ui.dependencies import DependencyCheckDialog
 from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog
 from bookmark_organizer_pro.ui.window_geometry import fit_window_geometry
-from bookmark_organizer_pro.utils.dependencies import DependencyInstallReport
 from bookmark_organizer_pro.services.reader_annotations import ReaderAnnotationStore
 
 
@@ -45,17 +42,18 @@ def test_bookmark_editor_uses_scrollable_body_and_fixed_footer():
     assert "btn_frame = tk.Frame(self" in source
 
 
-def test_dependency_dialog_waits_for_real_installer_cancellation():
+def test_dependency_dialog_is_guidance_only_and_cannot_start_an_installer():
     source = (ROOT / "bookmark_organizer_pro/ui/dependencies.py").read_text(encoding="utf-8")
     manager_source = (ROOT / "bookmark_organizer_pro/utils/dependencies.py").read_text(encoding="utf-8")
 
-    assert 'text=_("Cancelling installer safely...")' in source
-    assert "self.dep_manager.cancel_installation()" in source
-    assert "DependencyInstallReport" in source
-    assert "self._post_ui" in source
-    assert "subprocess.Popen" in manager_source
-    assert "process.terminate()" in manager_source
-    assert "process.kill()" in manager_source
+    assert "self.dep_manager.repair_guidance()" in source
+    assert 'text=_("Close")' in source
+    assert "self.footer.pack(fill=tk.X, side=tk.BOTTOM)" in source
+    assert source.index("self.footer.pack") < source.index("self.content.pack")
+    assert "Install All" not in source
+    assert "install_all_missing" not in source
+    assert "subprocess.Popen" not in manager_source
+    assert "runtime_install_supported" in manager_source
 
 
 class _Control:
@@ -108,52 +106,16 @@ class _ListControl:
         self.focused = True
 
 
-def test_dependency_dialog_cancel_stays_visible_until_worker_finishes():
-    cancelled = threading.Event()
+def test_dependency_dialog_close_is_immediate_and_non_mutating():
     dialog = object.__new__(DependencyCheckDialog)
     dialog.result = True
-    dialog._installing = True
-    dialog._cancel_requested = False
-    dialog.progress_label = _Control()
-    dialog.cancel_btn = _Control()
-    dialog._theme = SimpleNamespace(accent_warning="warning")
-    dialog.dep_manager = SimpleNamespace(cancel_installation=lambda: cancelled.set())
-    dialog._post_ui = lambda callback: callback()
     destroyed = []
     dialog.destroy = lambda: destroyed.append(True)
 
     dialog._on_cancel()
 
-    assert cancelled.wait(timeout=2)
-    assert destroyed == []
+    assert destroyed == [True]
     assert dialog.result is False
-    assert dialog._cancel_requested is True
-    assert dialog.progress_label.config["text"] == "Cancelling installer safely..."
-
-
-def test_dependency_dialog_reports_completed_mutations_after_cancel():
-    dialog = object.__new__(DependencyCheckDialog)
-    dialog._installing = True
-    dialog.progress_bar = _Control()
-    dialog.progress_label = _Control()
-    dialog.cancel_btn = _Control()
-    dialog.install_btn = _Control()
-    dialog.skip_btn = _Control()
-    dialog._theme = SimpleNamespace(accent_warning="warning", accent_success="success", accent_error="error")
-    report = DependencyInstallReport(
-        success=False,
-        cancelled=True,
-        installed=("Pillow",),
-        skipped=("requests",),
-    )
-
-    dialog._installation_complete(False, report)
-
-    assert dialog._installing is False
-    assert "Installed before cancellation: Pillow" in dialog.progress_label.config["text"]
-    assert dialog.cancel_btn.text == "Close"
-    assert dialog.install_btn.text == "Retry Remaining"
-    assert dialog.install_btn.state == "normal"
 
 
 def test_reader_delete_exposes_focusable_one_step_undo(tmp_path):
