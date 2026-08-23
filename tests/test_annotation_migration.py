@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import io
 import json
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from bookmark_organizer_pro.services.migration import apply_migration, preflight
 from bookmark_organizer_pro.services.reader_annotations import (
     ANNOTATION_EXPORT_SCHEMA,
     AnnotationExportTemplate,
+    DEFAULT_ANNOTATION_FIELDS,
     LEGACY_ANNOTATION_EXPORT_SCHEMA,
     ReaderAnnotationStore,
     ReaderHighlight,
@@ -254,6 +256,61 @@ def test_annotation_custom_field_template_round_trips(tmp_path: Path, output_for
     assert rows[0]["document_url"] == "https://example.com/paper"
     assert rows[0]["highlight_text"] == "Evidence"
     assert rows[0]["highlight_tags"] == (["claim"] if output_format == "json" else "claim")
+
+
+@pytest.mark.parametrize("danger", ["=1+1", "+1", "-1", "@SUM", "\tx", "\rx", "|cmd"])
+def test_annotation_csv_neutralizes_every_exported_cell(danger: str):
+    list_fields = {"document_tags", "highlight_tags", "highlight_anchor_history"}
+    record = {
+        field: [danger] if field in list_fields else danger
+        for field in DEFAULT_ANNOTATION_FIELDS
+    }
+
+    rendered = render_annotation_export(
+        [record],
+        AnnotationExportTemplate(format="csv"),
+    )
+    row = next(csv.DictReader(io.StringIO(rendered)))
+
+    assert set(row) == set(DEFAULT_ANNOTATION_FIELDS)
+    assert all(row[field] == f"'{danger}" for field in DEFAULT_ANNOTATION_FIELDS)
+
+
+def test_annotation_csv_hardening_does_not_change_json_or_markdown():
+    record = annotation_export_records(
+        [_bookmark()],
+        [_highlight("h1", "2026-03-01T00:00:00+00:00")],
+    )[0]
+    record["document_title"] = "=Document"
+    record["highlight_text"] = "+Evidence"
+
+    json_template = AnnotationExportTemplate(
+        format="json",
+        fields=("document_title", "highlight_text"),
+    )
+    assert render_annotation_export([record], json_template) == (
+        json.dumps(
+            {
+                "schema": ANNOTATION_EXPORT_SCHEMA,
+                "records": [
+                    {
+                        "document_title": "=Document",
+                        "highlight_text": "+Evidence",
+                    }
+                ],
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+        + "\n"
+    )
+
+    markdown_template = AnnotationExportTemplate(
+        format="markdown",
+        document_header="{document_title}",
+        highlight="{highlight_text}",
+    )
+    assert render_annotation_export([record], markdown_template) == "=Document\n\n+Evidence\n"
 
 
 def test_markdown_template_uses_document_highlight_and_review_fields(tmp_path: Path):

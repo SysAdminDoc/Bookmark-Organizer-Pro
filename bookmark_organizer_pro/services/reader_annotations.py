@@ -26,6 +26,7 @@ from bookmark_organizer_pro.services.atomic_document_store import (
     AtomicDocumentStore,
     require_list_document,
 )
+from bookmark_organizer_pro.utils.runtime import csv_safe_cell
 
 
 HIGHLIGHT_COLORS = {
@@ -1150,7 +1151,8 @@ def render_annotation_export(records: Sequence[Mapping], template: AnnotationExp
             row = {}
             for field_name in template.fields:
                 value = record.get(field_name, "")
-                row[field_name] = ", ".join(map(str, value)) if isinstance(value, list) else value
+                rendered = ", ".join(map(str, value)) if isinstance(value, list) else value
+                row[field_name] = csv_safe_cell(rendered)
             writer.writerow(row)
         return stream.getvalue()
 

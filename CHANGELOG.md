@@ -2,6 +2,14 @@
 
 All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
+## Next release
+
+### Fixed
+
+- Annotation CSV exports now protect every selected field from spreadsheet
+  formula execution, including rendered tag and anchor-history lists. JSON and
+  Markdown annotation exports are unchanged.
+
 ## [v6.16.0] - 2026-08-22
 
 ### Fixed

@@ -622,6 +622,8 @@ pinned download-and-verify commands; it never pipes a remote script to a shell.
   included in logs or support bundles.
 - New encrypted stores use versioned Argon2id parameters authenticated with the ciphertext. Legacy PBKDF2 v1/v2 stores and recovery keys remain readable; rotation creates and verifies a byte-exact backup before upgrading.
 - Imports, exports, settings, and category files are written defensively with atomic writes where supported.
+- Bookmark and annotation CSV exports prefix formula-like cells so opening an
+  exported file in a spreadsheet cannot execute bookmark-controlled content.
 - Annotations, flows, feeds, smart collections, jobs, and MCP verifier records use checksummed, revisioned atomic documents with recovery backups and cross-process write coordination.
 - Site icons are disabled on fresh profiles. Enabling them uses cached icons and
   the bookmarked site’s own `/favicon.ico` or `/favicon.png` first; Google or

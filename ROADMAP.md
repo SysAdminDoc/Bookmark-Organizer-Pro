@@ -6,13 +6,6 @@ Actionable incomplete work only. Historical and completed material belongs in `C
 
 ### P0
 
-- [ ] P0: R-150: Neutralize spreadsheet formulas in every annotation CSV field
-  Why: Annotation exports currently let bookmark-controlled values become executable spreadsheet formulas.
-  Evidence: `bookmark_organizer_pro/services/reader_annotations.py:1143`; safe comparison paths in `bookmark_organizer_pro/managers/bookmarks.py:1274` and `bookmark_organizer_pro/ui/workflow_selective_export.py:355`; https://github.com/Kovah/LinkAce/releases/tag/v2.6.1
-  Touches: `bookmark_organizer_pro/services/reader_annotations.py`, `bookmark_organizer_pro/utils/runtime.py`, `tests/test_annotation_migration.py`
-  Acceptance: Every scalar and list-rendered annotation CSV cell passes through `csv_safe_cell`; fixtures beginning with `=`, `+`, `-`, `@`, tab, carriage return, and `|` are prefixed safely in every exported user-controlled column; JSON and Markdown exports remain byte-compatible.
-  Complexity: S
-
 - [ ] P0: R-151: Detect missing required dependencies before importing application packages
   Why: The documented first-run path crashes on a missing package such as `regex` before it can explain how to repair the installation.
   Evidence: Repro on 2026-08-23 with `python -c "import bookmark_organizer_pro.constants"`; `main.py:58`; `bookmark_organizer_pro/__init__.py:14`; `bookmark_organizer_pro/core/__init__.py`; `bookmark_organizer_pro/utils/dependencies.py:38`; `pyproject.toml:15`
