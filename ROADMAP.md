@@ -58,13 +58,6 @@ Actionable incomplete work only. Historical and completed material belongs in `C
   Acceptance: Clear acts immediately, reports the count, and exposes Restore in the same panel; restore preserves entry order and retry metadata after worker restart; no confirmation API or `confirmed` flag remains; popup and side-panel parity tests pass.
   Complexity: S
 
-- [ ] P1: R-160: Replace deprecated LanceDB table discovery
-  Why: The clean functional suite still emits 58 deprecation warnings from one `table_names()` call.
-  Evidence: `bookmark_organizer_pro/services/vector_store.py:184`; 2026-08-23 pytest output; current API https://lancedb.github.io/lancedb/python/python/
-  Touches: `bookmark_organizer_pro/services/vector_store.py`, vector-store fakes and tests, dependency compatibility notes
-  Acceptance: Current LanceDB uses `list_tables()` without a warning; the supported older-version fallback is explicit and tested; legacy-generation detection is unchanged; the full suite emits no LanceDB table-discovery deprecation warning.
-  Complexity: S
-
 - [ ] P1: R-161: Add revision-bound paragraph paging for MCP extracted content
   Why: `get_extracted_text` can return an entire article or transcript in one tool response, with no way to resume safely after recapture.
   Evidence: `bookmark_organizer_pro/mcp_server.py:762`; Karakeep 0.33.1 https://github.com/karakeep-app/karakeep/releases/tag/v0.33.1
@@ -223,13 +216,6 @@ Actionable incomplete work only. Historical and completed material belongs in `C
   Touches: `pyproject.toml` `requires-python`, `packaging/release_manifest.json`, `packaging/bookmark_organizer.spec`, `packaging/nuitka_build.py`, `scripts/build_release.py`, `scripts/release_artifact_smoke.py`, README support matrix, `tests/test_packaging.py`
   Acceptance: The full suite, the ruff gate, and the offscreen desktop smoke pass on a 3.14.7 or later interpreter; a frozen artifact built against that interpreter launches and reports its version through the release artifact smoke, proving the Tk 9 DLL set is collected; `requires-python` and the supported-environment list drop 3.10 and add 3.14; a test asserts no supported environment is past its upstream end-of-life date; if the Tk 9 frozen build fails, 3.14 stays out of the matrix and the exact failure is recorded in `Roadmap_Blocked.md` rather than silently omitted.
   Complexity: M
-
-- [ ] P1: R-190: Guard the in-range LanceDB break before a lock regeneration takes it
-  Why: lancedb 0.38.0 sits inside the declared range but makes table existence manifest-authoritative and requires pydantic v2, so a routine lock refresh can change vector-store behavior with no version-bound signal.
-  Evidence: lancedb 0.38.0 published 2026-08-31; `pyproject.toml` declares `lancedb>=0.37,<1.0` and `pylock.toml` locks 0.37.1; the deprecated call this interacts with is `bookmark_organizer_pro/services/vector_store.py:184`, which open item R-160 replaces
-  Touches: `pyproject.toml`, `pylock.toml`, `bookmark_organizer_pro/services/vector_store.py`, `tests/test_vector_store.py`, the vector index contract and rebuild path
-  Acceptance: The declared range is narrowed to the versions actually exercised, or 0.38.0 is adopted deliberately with index contract, table discovery, and generation rebuild tested against it; a test asserts the installed LanceDB version is inside the tested range and fails loudly outside it rather than degrading; create, open, missing-table, and rebuild paths pass on whichever version is chosen; lands with or after R-160 so table discovery is fixed once.
-  Complexity: S
 
 ### P2
 

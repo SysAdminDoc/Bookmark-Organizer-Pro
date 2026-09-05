@@ -4070,3 +4070,84 @@ def test_highlight_workspace_filters_paginates_and_exports_without_source_reads(
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLanceTableDiscovery(unittest.TestCase):
+    """R-160: prefer the current API, keep the older one as a stated fallback."""
+
+    def test_the_current_api_is_used_when_present(self):
+        from bookmark_organizer_pro.services.vector_store import _lance_table_names
+
+        calls = []
+
+        class Modern:
+            def list_tables(self):
+                calls.append("list_tables")
+                return ["bookmarks"]
+
+            def table_names(self):
+                calls.append("table_names")
+                return ["bookmarks"]
+
+        self.assertEqual(["bookmarks"], _lance_table_names(Modern()))
+        self.assertEqual(["list_tables"], calls)
+
+    def test_the_deprecated_api_still_answers_an_older_connection(self):
+        from bookmark_organizer_pro.services.vector_store import _lance_table_names
+
+        class Legacy:
+            def table_names(self):
+                return ["bookmarks"]
+
+        self.assertEqual(["bookmarks"], _lance_table_names(Legacy()))
+
+    def test_a_connection_that_answers_neither_reports_no_tables(self):
+        from bookmark_organizer_pro.services.vector_store import _lance_table_names
+
+        self.assertEqual([], _lance_table_names(object()))
+
+    def test_a_failing_lister_falls_through_instead_of_raising(self):
+        from bookmark_organizer_pro.services.vector_store import _lance_table_names
+
+        class Broken:
+            def list_tables(self):
+                raise RuntimeError("connection lost")
+
+            def table_names(self):
+                return ["bookmarks"]
+
+        self.assertEqual(["bookmarks"], _lance_table_names(Broken()))
+
+
+class TestLanceDBSupportedRange(unittest.TestCase):
+    """R-190: 0.38.0 is inside the declared range but changes behaviour."""
+
+    def test_the_installed_lancedb_is_inside_the_range_the_tests_exercise(self):
+        import tomllib
+
+        try:
+            import importlib.metadata as metadata
+
+            installed = metadata.version("lancedb")
+        except Exception:
+            self.skipTest("lancedb is not installed")
+
+        root = Path(__file__).resolve().parents[1]
+        declared = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+        requirement = next(
+            item for item in declared["project"]["optional-dependencies"]["ai"]
+            if item.startswith("lancedb")
+        )
+
+        floor = requirement.split(">=")[1].split(",")[0]
+        ceiling = requirement.split("<")[-1]
+        parsed = tuple(int(part) for part in installed.split(".")[:3])
+        self.assertGreaterEqual(parsed, tuple(int(p) for p in floor.split(".")))
+        self.assertLess(
+            parsed[:2],
+            tuple(int(p) for p in ceiling.split(".")[:2]),
+            f"lancedb {installed} is outside the tested range {requirement}; "
+            "0.38.0 made table existence manifest-authoritative and requires "
+            "pydantic v2, so the vector-store paths need re-checking before the "
+            "range moves",
+        )

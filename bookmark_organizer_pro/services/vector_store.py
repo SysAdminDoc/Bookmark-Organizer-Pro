@@ -44,6 +44,25 @@ def _try_import(name: str):
         return None
 
 
+def _lance_table_names(database) -> list:
+    """List a LanceDB connection's tables across both API generations.
+
+    `table_names()` is deprecated in favour of `list_tables()`. Preferring the
+    current name keeps the suite free of the deprecation warning it emitted on
+    every connection, and the older name stays as an explicit fallback for the
+    lower end of the supported range rather than an accident.
+    """
+    for attribute in ("list_tables", "table_names"):
+        lister = getattr(database, attribute, None)
+        if lister is None:
+            continue
+        try:
+            return list(lister())
+        except Exception as exc:
+            log.debug(f"LanceDB {attribute}() failed: {exc}")
+    return []
+
+
 def _cosine(a: List[float], b: List[float]) -> float:
     if not a or not b or len(a) != len(b):
         return 0.0
@@ -180,10 +199,7 @@ class VectorStore:
                 self._backend = "lancedb"
                 self._manifest = self._load_manifest_file()
                 if self._manifest is None:
-                    try:
-                        self._legacy_detected = "bookmarks" in self._lance_db.table_names()
-                    except Exception:
-                        self._legacy_detected = False
+                    self._legacy_detected = "bookmarks" in _lance_table_names(self._lance_db)
                 log.info("Vector store: LanceDB")
                 return
             except Exception as exc:

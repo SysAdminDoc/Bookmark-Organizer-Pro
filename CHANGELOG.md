@@ -44,6 +44,12 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   time to cover the rest. `bop dups` takes `--category` and `--json`.
 - The desktop duplicate scan now covers the collection you have selected rather
   than always scanning the whole library.
+- The vector store uses the current LanceDB call for listing tables. The old
+  one still works as a fallback for older installs, but it printed a
+  deprecation warning on every connection.
+- Pinned LanceDB to the versions the tests actually cover. A routine lock
+  refresh had already pulled in a newer release that changes how table
+  existence is decided, without anything flagging it.
 - Translations can now actually load. The app only ever looked for message
   catalogs in a folder that exists in a source checkout, and no build shipped
   that folder, so a finished translation would have had nowhere to load from

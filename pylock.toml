@@ -614,14 +614,14 @@ sha256 = "502016bda999b102e35ddf45a6fb2c2b957a07f4b86d67fce23a190c52e7b0db"
 
 [[packages]]
 name = "lancedb"
-version = "0.38.0"
+version = "0.37.1"
 
 [[packages.wheels]]
-name = "lancedb-0.38.0-cp310-abi3-win_amd64.whl"
-url = "https://files.pythonhosted.org/packages/0f/4d/a1e7febf279c15afdf8102d9458b5457be02b2173a17d2a472f83f9034a6/lancedb-0.38.0-cp310-abi3-win_amd64.whl"
+name = "lancedb-0.37.1-cp310-abi3-win_amd64.whl"
+url = "https://files.pythonhosted.org/packages/42/55/65c69307373b7f05dea38465b7d3836c86390f0ebc79b5c56d2c0919f229/lancedb-0.37.1-cp310-abi3-win_amd64.whl"
 
 [packages.wheels.hashes]
-sha256 = "6e99b98c10ebfb68f36fff5d159246ce4ef5ee686d49c9298a3fc88f754a470d"
+sha256 = "488eca15361dfc34439500c9e2607c4fb2b8bf190fa1003bd54b1d6eb40e0316"
 
 [[packages]]
 name = "lingua-language-detector"

@@ -32,7 +32,7 @@ ai = [
     "lingua-language-detector>=2.0,<2.2; python_version < '3.12'",
     "lingua-language-detector>=2.0; python_version >= '3.12'",
     "fastembed>=0.4,<1.0",
-    "lancedb>=0.37,<1.0",
+    "lancedb>=0.37,<0.38",
 ]
 encryption = ["cryptography>=50.0.0"]
 mcp = ["mcp>=1.29.1,<2.0", "fastmcp>=3.4.1,<4.0"]
