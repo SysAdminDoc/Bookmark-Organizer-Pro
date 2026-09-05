@@ -245,6 +245,7 @@ class ImportCenterDialog(tk.Toplevel):
         self.minsize(760, 520)
         self.transient(parent)
         self.grab_set()
+        self.focus_set()
         apply_window_chrome(self)
 
         self._build(intro)

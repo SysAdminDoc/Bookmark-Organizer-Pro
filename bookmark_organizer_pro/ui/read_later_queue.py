@@ -65,6 +65,7 @@ class ReadLaterQueueDialog(tk.Toplevel):
         self.minsize(680, 480)
         self.transient(parent)
         self.grab_set()
+        self.focus_set()
         apply_window_chrome(self)
 
         self._build()

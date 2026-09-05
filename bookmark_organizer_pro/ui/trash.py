@@ -79,9 +79,12 @@ class TrashDialog(tk.Toplevel):
         self.transient(parent)
         self.grab_set()
         apply_window_chrome(self)
+        self.bind("<Escape>", lambda _event: self.destroy())
+        self.protocol("WM_DELETE_WINDOW", self.destroy)
 
         self._build()
         self._refresh_rows()
+        self.focus_set()
 
     def _build(self) -> None:
         theme = self._theme

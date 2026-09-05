@@ -1,3 +1,4 @@
+import ast
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -265,3 +266,132 @@ def test_organization_rules_workspace_exposes_preview_and_keyboard_actions():
         assert sequence in workspace_source
     assert "OrganizationRulesService" in workspace_source
     assert "OrganizationRuleEditorDialog" in workspace_source
+
+
+# ── R-184: the modal dialog keyboard contract ────────────────────────────────
+#
+# A Toplevel that calls grab_set() takes the pointer and the keyboard. Every one
+# of them must also be dismissible and reachable from the keyboard alone, or a
+# keyboard user can open it and be stuck. The convention was followed by most
+# dialogs and enforced by nothing, so the Trash workspace shipped without it.
+
+MODAL_SOURCE_DIRS = ("ui", "app_mixins")
+MODAL_REQUIREMENTS = {
+    "transient": "call transient(parent) so the dialog stays with its owner",
+    "escape": "bind <Escape> to the cancel or close path",
+    "focus": "place initial focus inside the dialog",
+}
+# WM_DELETE_WINDOW is deliberately not required. Tk already destroys a
+# Toplevel when its close button is used, so demanding a handler everywhere
+# would add inert boilerplate to every dialog. What matters is that a dialog
+# which DOES guard its close does not let Escape walk around the guard, which
+# test_escape_routes_through_an_existing_close_guard checks instead.
+
+
+def _modal_scopes(tree: ast.AST):
+    """Yield every function or class body that makes a window modal.
+
+    A dialog is built either inside one function or in a Toplevel subclass's
+    __init__ plus its helpers, so the enclosing scope is the unit that has to
+    satisfy the contract. Class bodies subsume their methods for that reason.
+    """
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        if isinstance(node, ast.ClassDef):
+            scope_source = node
+        else:
+            scope_source = node
+        calls = {
+            child.func.attr
+            for child in ast.walk(scope_source)
+            if isinstance(child, ast.Call) and isinstance(child.func, ast.Attribute)
+        }
+        if "grab_set" in calls:
+            yield node, scope_source, calls
+
+
+def _scope_satisfies(scope_source, calls) -> set:
+    """Return the contract requirements this scope does not meet."""
+    literals = {
+        child.value
+        for child in ast.walk(scope_source)
+        if isinstance(child, ast.Constant) and isinstance(child.value, str)
+    }
+    missing = set()
+    if "transient" not in calls:
+        missing.add("transient")
+    if "<Escape>" not in literals:
+        missing.add("escape")
+    if not ({"focus_set", "focus_force"} & calls):
+        missing.add("focus")
+    return missing
+
+
+def _modal_contract_violations(root: Path) -> list:
+    violations = []
+    for directory in MODAL_SOURCE_DIRS:
+        for source in sorted((root / "bookmark_organizer_pro" / directory).rglob("*.py")):
+            tree = ast.parse(source.read_text(encoding="utf-8"))
+            reported = set()
+            for node, scope_source, calls in _modal_scopes(tree):
+                # A class body already covers its methods; skip the inner one.
+                if isinstance(node, ast.ClassDef):
+                    reported.update(
+                        child.name for child in ast.walk(node)
+                        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    )
+                elif node.name in reported:
+                    continue
+                missing = _scope_satisfies(scope_source, calls)
+                if missing:
+                    relative = source.relative_to(root).as_posix()
+                    violations.append((relative, node.name, sorted(missing)))
+    return violations
+
+
+def test_every_modal_dialog_can_be_dismissed_from_the_keyboard():
+    violations = _modal_contract_violations(Path(__file__).resolve().parents[1])
+
+    assert not violations, "\n".join(
+        f"{path}:{scope} is modal but does not "
+        + "; ".join(MODAL_REQUIREMENTS[name] for name in missing)
+        for path, scope, missing in violations
+    )
+
+
+def test_escape_routes_through_an_existing_close_guard():
+    """A guarded close must not be bypassable with a keystroke.
+
+    live_workflow asks a running job to cancel rather than tearing the window
+    down, so its Escape has to reach the same handler its close button does.
+    """
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "bookmark_organizer_pro" / "ui" / "live_workflow.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'dialog.protocol("WM_DELETE_WINDOW", self._on_close_request)' in source
+    assert 'dialog.bind("<Escape>", lambda _event: self._on_close_request())' in source
+
+
+def test_the_modal_contract_gate_reports_a_dialog_that_breaks_it(tmp_path: Path):
+    """Prove the gate fails, so a green run means something."""
+    package = tmp_path / "bookmark_organizer_pro" / "ui"
+    package.mkdir(parents=True)
+    (tmp_path / "bookmark_organizer_pro" / "app_mixins").mkdir(parents=True)
+    (package / "leaky.py").write_text(
+        "import tkinter as tk\n"
+        "\n"
+        "def show(parent):\n"
+        "    dialog = tk.Toplevel(parent)\n"
+        "    dialog.transient(parent)\n"
+        "    dialog.grab_set()\n"
+        "    dialog.focus_set()\n"
+        "    dialog.protocol('WM_DELETE_WINDOW', dialog.destroy)\n",
+        encoding="utf-8",
+    )
+
+    violations = _modal_contract_violations(tmp_path)
+
+    assert violations == [("bookmark_organizer_pro/ui/leaky.py", "show", ["escape"])]

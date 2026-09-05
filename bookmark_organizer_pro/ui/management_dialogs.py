@@ -51,6 +51,7 @@ class CategoryManagementDialog(tk.Toplevel):
         self.minsize(520, 520)
         self.transient(parent)
         self.grab_set()
+        self.focus_set()
         apply_window_chrome(self)
         
         # Header
@@ -278,6 +279,7 @@ class CategoryManagementDialog(tk.Toplevel):
         dialog.geometry("350x150")
         dialog.transient(self)
         dialog.grab_set()
+        dialog.focus_set()
         apply_window_chrome(dialog)
         
         tk.Label(
@@ -452,6 +454,7 @@ class CustomFaviconDialog(tk.Toplevel):
         self.geometry("450x350")
         self.transient(parent)
         self.grab_set()
+        self.focus_set()
         apply_window_chrome(self)
         
         # Header
@@ -666,6 +669,7 @@ class CredentialSecurityDialog(tk.Toplevel):
         self.minsize(860, 600)
         self.transient(parent)
         self.grab_set()
+        self.focus_set()
         apply_window_chrome(self)
 
         header = tk.Frame(
@@ -977,6 +981,7 @@ class CredentialSecurityDialog(tk.Toplevel):
         form.resizable(False, False)
         form.transient(self)
         form.grab_set()
+        form.focus_set()
         apply_window_chrome(form)
 
         content = tk.Frame(
@@ -1092,6 +1097,7 @@ class CredentialSecurityDialog(tk.Toplevel):
         dialog.resizable(False, False)
         dialog.transient(self)
         dialog.grab_set()
+        dialog.focus_set()
         apply_window_chrome(dialog)
 
         content = tk.Frame(

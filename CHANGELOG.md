@@ -44,6 +44,11 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   time to cover the rest. `bop dups` takes `--category` and `--json`.
 - The desktop duplicate scan now covers the collection you have selected rather
   than always scanning the whole library.
+- Every dialog that takes over the window can now be closed with Escape and
+  starts with the keyboard already inside it. The Trash window, the assistant
+  activity window and the rename prompt could be opened and not dismissed
+  without a mouse. Escape on the live workflow window asks the running job to
+  cancel, the same as its close button, rather than closing over the top of it.
 - `bop mcp-status` reports which MCP transport the server would use. If FastMCP
   is installed but cannot be used, the server now says so with a warning naming
   the reason and what the fallback loses, instead of quietly starting on the

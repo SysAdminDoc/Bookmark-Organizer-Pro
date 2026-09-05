@@ -199,6 +199,9 @@ class AiMenuDataMixin:
         dialog.geometry("400x350")
         dialog.transient(self.root)
         dialog.grab_set()
+        dialog.bind("<Escape>", lambda _event: dialog.destroy())
+        dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
+        dialog.focus_set()
         
         # Center
         dialog.update_idletasks()

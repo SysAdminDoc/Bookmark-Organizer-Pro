@@ -157,6 +157,7 @@ Respond with ONLY valid JSON in this exact format:
         dialog.geometry("700x500")
         dialog.transient(self.root)
         dialog.grab_set()
+        dialog.focus_set()
         apply_window_chrome(dialog)
         
         # Center

@@ -162,6 +162,15 @@ Actionable incomplete work only. Historical and completed material belongs in `C
 
 ## Research-Driven Additions (2026-09-04)
 
+### P0
+
+- [ ] P0: R-202: Keep the visual smoke off the user's screen
+  Why: The smoke maps real Tk windows onto the active display instead of capturing them offscreen. Running it interrupts whatever the user is doing, which is the one thing the capture design exists to avoid, and it contradicts what the README already claims the smoke does.
+  Evidence: `scripts/visual_regression_smoke.py:189` `_prepare_background_window` docstring says "Map a Windows Tk window offscreen without activating or taskbar noise", and `:160` `_background_position` places windows left of the virtual desktop, but `:203-208` returns early for any window where `IsWindowVisible(hwnd)` is already true, so a surface that maps itself before the helper runs is never repositioned and stays on the visible desktop; `:1042` calls `about.deiconify()` with no reposition; README states the smoke "captures Windows desktop surfaces offscreen without activating them"; reported by the maintainer on 2026-09-05 while a `--surface desktop` run was in progress
+  Touches: `scripts/visual_regression_smoke.py`, `tests/test_visual_regression_smoke.py`, README capture claim
+  Acceptance: Every captured window is positioned outside the virtual desktop bounds before it is shown, including windows already visible when the helper runs and every explicit `deiconify()` path; a test asserts that for each captured surface the recorded window rectangle lies wholly outside `_virtual_desktop_bounds()`, and is proved by removing the reposition for the already-visible branch and watching it fail; no capture path activates a window or takes foreground focus; a full `--surface desktop` run leaves the foreground window unchanged from before the run.
+  Complexity: M
+
 ### P1
 
 - [ ] P1: R-180: Bound and cheapen the table population path
@@ -186,13 +195,6 @@ Actionable incomplete work only. Historical and completed material belongs in `C
   Touches: `bookmark_organizer_pro/logging_config.py`, `main.py`, `bookmark_organizer_pro/desktop_bootstrap.py`, `bookmark_organizer_pro/app.py`, `bookmark_organizer_pro/services/local_state.py`, `bookmark_organizer_pro/ui/about.py`, `tests/test_core.py`
   Acceptance: `Tk.report_callback_exception`, `sys.excepthook`, and `threading.excepthook` all route to one handler that writes a timestamped crash file beside the log with the traceback, thread name, app version, and interpreter, then shows a non-blocking notice offering to open the file; the crash file is never rotated away by ordinary logging and is always included whole in a support bundle regardless of log tail sampling; `faulthandler` is enabled to the same directory so a hard interpreter fault leaves a record; redaction applies to the crash file on the same terms as the log; a test raises inside a Tk callback and inside a worker thread and asserts a crash file exists with both tracebacks.
   Complexity: M
-
-- [ ] P1: R-184: Enforce the modal dialog keyboard contract as a gate
-  Why: The convention is followed by roughly a dozen dialogs and nothing asserts it, so the Trash workspace added on 2026-08-23 shipped modal with no Escape binding and no initial focus, leaving a keyboard user able to open it and not close it.
-  Evidence: `bookmark_organizer_pro/ui/trash.py:57` `TrashDialog` calls `grab_set()` at `:80` and is closable only through the Close button at `:111`; `bookmark_organizer_pro/app_mixins/ai_menu_data.py:196-256` is modal without Escape; `bookmark_organizer_pro/ui/live_workflow.py:129-130` is modal without Escape though it registers a close protocol at `:199`; `tests/test_accessibility_contracts.py` asserts extension labels, graph navigation, wheel bindings, and three workspaces but no dialog contract
-  Touches: `bookmark_organizer_pro/ui/trash.py`, `bookmark_organizer_pro/app_mixins/ai_menu_data.py`, `bookmark_organizer_pro/ui/live_workflow.py`, a shared modal helper in `bookmark_organizer_pro/ui/components.py`, `tests/test_accessibility_contracts.py`
-  Acceptance: Every Toplevel that calls `grab_set()` also calls `transient()`, binds `<Escape>` to its cancel or close path, sets initial focus on a control inside the dialog, and registers a `WM_DELETE_WINDOW` handler; a contract test enumerates modal Toplevels across `ui/` and `app_mixins/` and fails naming any that miss a requirement; the test is proved by removing one Escape binding and watching it fail; Escape on a dialog with unsaved edits routes through the same guard as its Cancel button rather than discarding silently.
-  Complexity: S
 
 - [ ] P1: R-185: Route plurals, dates, and sorting through the locale
   Why: A parallel English-only pluralizer is called from more than fifteen desktop sites and its output is never wrapped for translation, so the POT gate cannot see it and those strings can never be translated. Dates are always formatted in English and the table sorts by codepoint order, so accented, German, and CJK titles land out of position.

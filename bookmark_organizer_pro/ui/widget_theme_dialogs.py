@@ -71,6 +71,7 @@ class ThemeCreatorDialog(tk.Toplevel, ThemedWidget):
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
         self.grab_set()
+        self.focus_set()
         self.bind("<Escape>", lambda e: self.destroy())
 
         apply_window_chrome(self)
@@ -434,6 +435,7 @@ class ThemeSelectorDialog(tk.Toplevel, ThemedWidget):
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
         self.grab_set()
+        self.focus_set()
 
         apply_window_chrome(self)
         self.bind("<Escape>", lambda _event: self.destroy())

@@ -32,6 +32,7 @@ class AiSettingsMixin:
         dialog.minsize(600, 620)
         dialog.transient(self.root)
         dialog.grab_set()
+        dialog.focus_set()
         apply_window_chrome(dialog)
 
         dialog.update_idletasks()

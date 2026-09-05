@@ -111,7 +111,11 @@ class CommandPalette(tk.Toplevel, ThemedWidget):
         self.search_entry.bind("<Up>", self._move_up)
         self.search_entry.bind("<Down>", self._move_down)
         self.bind("<FocusOut>", lambda e: self.after(150, self._check_focus_lost))
+        # Escape reaches the palette itself as well as its entry, so the key
+        # works wherever focus has moved inside it.
+        self.bind("<Escape>", lambda e: self.destroy())
 
+        self.transient(parent)
         self.grab_set()
 
     def _check_focus_lost(self):

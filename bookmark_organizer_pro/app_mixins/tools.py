@@ -255,6 +255,7 @@ class ToolsActionsMixin:
         dialog.minsize(520, 360)
         dialog.transient(self.root)
         dialog.grab_set()
+        dialog.focus_set()
         apply_window_chrome(dialog)
 
         header = tk.Frame(dialog, bg=theme.bg_dark, padx=20, pady=16)

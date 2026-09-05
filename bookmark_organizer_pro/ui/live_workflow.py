@@ -197,6 +197,10 @@ class LiveWorkflowDialog:
                                      command=self.close)  # shown only when complete
 
         dialog.protocol("WM_DELETE_WINDOW", self._on_close_request)
+        # Escape goes through the same guard as the window close button, so a
+        # running workflow is asked to cancel rather than torn down.
+        dialog.bind("<Escape>", lambda _event: self._on_close_request())
+        dialog.focus_set()
 
     # ── Lifecycle ────────────────────────────────────────────────────────
     def run(self, worker: Callable[[], None]):

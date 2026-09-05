@@ -50,6 +50,7 @@ class SelectiveExportDialog(tk.Toplevel, ThemedWidget):
         self.configure(bg=theme.bg_primary)
         self.transient(parent)
         self.grab_set()
+        self.focus_set()
         
         apply_window_chrome(self)
         

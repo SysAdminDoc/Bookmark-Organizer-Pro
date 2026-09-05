@@ -34,6 +34,7 @@ class DependencyCheckDialog(tk.Toplevel):
 
         self.transient(parent)
         self.grab_set()
+        self.focus_set()
         self.bind("<Escape>", lambda e: self._on_cancel())
 
         self._create_ui(theme)
