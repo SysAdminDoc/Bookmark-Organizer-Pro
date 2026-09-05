@@ -90,7 +90,10 @@ python -m bookmark_organizer_pro.i18n --check
 The smoke writes screenshots to a temporary directory, captures Windows desktop
 surfaces offscreen without activating them, exercises dark/light desktop and
 MV3 extension surfaces, and fails on blank captures, missing
-critical text, extension console errors, or horizontal overflow. Install
+critical text, extension console errors, or horizontal overflow. It checks the
+offscreen claim rather than asserting it: every window is positioned outside the
+virtual desktop before it is shown, each one is verified to be there, and a run
+that changed which window has focus fails. Install
 Playwright browsers once with `python -m playwright install chromium firefox`
 if an extension smoke reports a missing browser runtime.
 The accessibility smoke verifies extension labels, status regions, tab roles,

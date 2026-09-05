@@ -126,15 +126,6 @@ Actionable incomplete work only. Historical and completed material belongs in `C
 
 ## Research-Driven Additions (2026-09-04)
 
-### P0
-
-- [ ] P0: R-202: Keep the visual smoke off the user's screen
-  Why: The smoke maps real Tk windows onto the active display instead of capturing them offscreen. Running it interrupts whatever the user is doing, which is the one thing the capture design exists to avoid, and it contradicts what the README already claims the smoke does.
-  Evidence: `scripts/visual_regression_smoke.py:189` `_prepare_background_window` docstring says "Map a Windows Tk window offscreen without activating or taskbar noise", and `:160` `_background_position` places windows left of the virtual desktop, but `:203-208` returns early for any window where `IsWindowVisible(hwnd)` is already true, so a surface that maps itself before the helper runs is never repositioned and stays on the visible desktop; `:1042` calls `about.deiconify()` with no reposition; README states the smoke "captures Windows desktop surfaces offscreen without activating them"; reported by the maintainer on 2026-09-05 while a `--surface desktop` run was in progress
-  Touches: `scripts/visual_regression_smoke.py`, `tests/test_visual_regression_smoke.py`, README capture claim
-  Acceptance: Every captured window is positioned outside the virtual desktop bounds before it is shown, including windows already visible when the helper runs and every explicit `deiconify()` path; a test asserts that for each captured surface the recorded window rectangle lies wholly outside `_virtual_desktop_bounds()`, and is proved by removing the reposition for the already-visible branch and watching it fail; no capture path activates a window or takes foreground focus; a full `--surface desktop` run leaves the foreground window unchanged from before the run.
-  Complexity: M
-
 ### P1
 
 - [ ] P1: R-180: Bound and cheapen the table population path

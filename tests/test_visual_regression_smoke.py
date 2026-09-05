@@ -2,6 +2,7 @@ import inspect
 from pathlib import Path
 import threading
 import types
+from unittest import mock
 import unittest
 
 from PIL import Image
@@ -293,3 +294,186 @@ class TestThemeActivationIsChecked(unittest.TestCase):
         # The helper itself is the one place allowed to call set_theme.
         self.assertEqual(1, source.count("theme_manager.set_theme("))
         self.assertIn("def _apply_theme(theme_manager", source)
+
+
+class _FakeUser32:
+    """Records the Win32 calls the capture path makes.
+
+    The offscreen contract is the thing under test, so it is exercised through
+    a fake rather than by mapping a real window: a regression here is exactly
+    what puts a window on the user's screen.
+    """
+
+    # Virtual desktop the fake reports: one 1920x1080 monitor at the origin.
+    METRICS = {76: 0, 77: 0, 78: 1920, 79: 1080}
+
+    def __init__(self, *, already_visible=False):
+        self.already_visible = already_visible
+        self.set_window_pos_calls = []
+        self.show_window_calls = []
+        self.placed = None
+        self._visible = already_visible
+
+    # ── queries ──
+    def GetSystemMetrics(self, index):
+        return self.METRICS[index]
+
+    def GetAncestor(self, hwnd, _flag):
+        return hwnd
+
+    def IsWindowVisible(self, _hwnd):
+        return 1 if self._visible else 0
+
+    def GetForegroundWindow(self):
+        return 4242
+
+    def GetWindowLongW(self, _hwnd, _index):
+        return 0
+
+    def GetWindowRect(self, _hwnd, pointer):
+        rect = pointer._obj
+        left, top, width, height = self.placed
+        rect.left, rect.top = left, top
+        rect.right, rect.bottom = left + width, top + height
+        return 1
+
+    # ── mutations ──
+    def SetWindowLongW(self, _hwnd, _index, _style):
+        return 1
+
+    def SetWindowPos(self, hwnd, insert_after, x, y, width, height, flags):
+        self.set_window_pos_calls.append((hwnd, insert_after, x, y, width, height, flags))
+        self.placed = (x, y, width, height)
+        return 1
+
+    def ShowWindow(self, hwnd, command):
+        self.show_window_calls.append((hwnd, command))
+        self._visible = True
+        return 1
+
+    def RedrawWindow(self, *_args):
+        return 1
+
+    def UpdateWindow(self, _hwnd):
+        return 1
+
+
+class _FakeWindow:
+    """The narrow slice of a Tk window the capture path touches."""
+
+    def __init__(self, hwnd=1001):
+        self._hwnd = hwnd
+        self.master = None
+        self.updates = 0
+
+    def winfo_id(self):
+        return self._hwnd
+
+    def update_idletasks(self):
+        self.updates += 1
+
+    def update(self):
+        self.updates += 1
+
+    def minsize(self):
+        return (240, 180)
+
+    def winfo_width(self):
+        return 800
+
+    def winfo_height(self):
+        return 600
+
+    def winfo_reqwidth(self):
+        return 800
+
+    def winfo_reqheight(self):
+        return 600
+
+    def attributes(self, *_args):
+        return None
+
+
+class TestCaptureStaysOffTheUsersScreen(unittest.TestCase):
+    """R-202: a run must never put a window on the visible desktop."""
+
+    def _prepare(self, *, already_visible):
+        fake = _FakeUser32(already_visible=already_visible)
+        with mock.patch.object(smoke.os, "name", "nt"), \
+             mock.patch.object(smoke, "_user32", return_value=fake):
+            hwnd = smoke._prepare_background_window(_FakeWindow())
+        return fake, hwnd
+
+    def test_a_hidden_window_is_positioned_outside_the_desktop(self):
+        fake, _hwnd = self._prepare(already_visible=False)
+
+        self.assertTrue(fake.set_window_pos_calls, "window was never positioned")
+        x, y, width, height = fake.placed
+        self.assertTrue(
+            smoke._rect_is_offscreen(
+                (x, y, x + width, y + height), (0, 0, 1920, 1080)
+            ),
+            f"placed at {fake.placed}, which is on the visible desktop",
+        )
+
+    def test_a_window_that_is_already_visible_is_still_moved(self):
+        """The defect: an early return left these on the user's screen."""
+        fake, _hwnd = self._prepare(already_visible=True)
+
+        self.assertTrue(
+            fake.set_window_pos_calls,
+            "an already-visible window was shown without being moved offscreen",
+        )
+        x, y, width, height = fake.placed
+        self.assertTrue(
+            smoke._rect_is_offscreen((x, y, x + width, y + height), (0, 0, 1920, 1080))
+        )
+
+    def test_the_window_is_shown_without_being_activated(self):
+        fake, _hwnd = self._prepare(already_visible=False)
+
+        self.assertIn(4, [command for _hwnd, command in fake.show_window_calls],
+                      "expected SW_SHOWNOACTIVATE")
+        swp_noactivate = 0x0010
+        for call in fake.set_window_pos_calls:
+            self.assertTrue(call[-1] & swp_noactivate, f"SetWindowPos activated: {call}")
+
+    def test_a_window_left_on_the_desktop_fails_the_run(self):
+        fake = _FakeUser32()
+        fake.placed = (100, 100, 800, 600)  # squarely on the visible desktop
+        with mock.patch.object(smoke.os, "name", "nt"), \
+             mock.patch.object(smoke, "_user32", return_value=fake):
+            with self.assertRaises(smoke.VisualSmokeError) as raised:
+                smoke._assert_window_offscreen(1001)
+
+        self.assertIn("visible desktop", str(raised.exception))
+
+    def test_no_capture_path_deiconifies_without_repositioning(self):
+        source = (
+            Path(__file__).resolve().parents[1] / "scripts" / "visual_regression_smoke.py"
+        ).read_text(encoding="utf-8")
+
+        # The only deiconify left is the non-Windows branch inside the helper,
+        # where there is no virtual desktop to hide behind.
+        self.assertEqual(1, source.count(".deiconify()"))
+        helper = source.split("def _prepare_background_window")[1].split("\ndef ")[0]
+        self.assertIn(".deiconify()", helper)
+
+    def test_offscreen_geometry_covers_every_edge(self):
+        bounds = (0, 0, 1920, 1080)
+
+        self.assertTrue(smoke._rect_is_offscreen((-900, 0, -100, 600), bounds))
+        self.assertTrue(smoke._rect_is_offscreen((1920, 0, 2720, 600), bounds))
+        self.assertTrue(smoke._rect_is_offscreen((0, -700, 800, -100), bounds))
+        self.assertFalse(smoke._rect_is_offscreen((0, 0, 800, 600), bounds))
+        self.assertFalse(smoke._rect_is_offscreen((-100, 0, 100, 600), bounds))
+
+    def test_a_run_that_stole_focus_fails(self):
+        fake = _FakeUser32()
+        with mock.patch.object(smoke.os, "name", "nt"), \
+             mock.patch.object(smoke, "_user32", return_value=fake):
+            smoke._assert_foreground_unchanged(4242)  # unchanged: fine
+            with self.assertRaises(smoke.VisualSmokeError) as raised:
+                smoke._assert_foreground_unchanged(9999)
+
+        self.assertIn("foreground window", str(raised.exception))

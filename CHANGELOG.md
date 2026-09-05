@@ -44,6 +44,11 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   time to cover the rest. `bop dups` takes `--category` and `--json`.
 - The desktop duplicate scan now covers the collection you have selected rather
   than always scanning the whole library.
+- The screenshot check no longer puts windows on your screen. It was supposed
+  to position them off the desktop, but skipped that for any window that was
+  already showing, so a run interrupted whatever you were doing. Every window
+  is now placed off the desktop before it is shown, checked to be there, and a
+  run that changes which window has focus fails.
 - The first-run notice no longer claims nothing leaves your machine unless
   you set an AI key. That was untrue: site icons, link checks, offline
   copies, reader extraction, feeds and transcripts all reach the web with no

@@ -157,6 +157,27 @@ class VisualSmokeError(AssertionError):
     """Raised when a visual smoke surface fails its contract."""
 
 
+def _user32():
+    """The Win32 entry point every capture path goes through.
+
+    Routed through one accessor so the offscreen contract can be tested without
+    mapping a real window, which is the behaviour under test.
+    """
+    return ctypes.windll.user32
+
+
+def _rect_is_offscreen(rect: tuple[int, int, int, int], bounds: tuple[int, int, int, int]) -> bool:
+    """Whether a window rectangle lies wholly outside the visible desktop."""
+    left, top, right, bottom = rect
+    desk_left, desk_top, desk_width, desk_height = bounds
+    return (
+        right <= desk_left
+        or left >= desk_left + desk_width
+        or bottom <= desk_top
+        or top >= desk_top + desk_height
+    )
+
+
 def _background_position(
     virtual_desktop: tuple[int, int, int, int], width: int, height: int
 ) -> tuple[int, int]:
@@ -168,7 +189,7 @@ def _background_position(
 def _virtual_desktop_bounds() -> tuple[int, int, int, int]:
     if os.name != "nt":
         return (0, 0, 1920, 1080)
-    user32 = ctypes.windll.user32
+    user32 = _user32()
     return (
         user32.GetSystemMetrics(76),
         user32.GetSystemMetrics(77),
@@ -182,7 +203,7 @@ def _get_toplevel_hwnd(window) -> int:
     window.update_idletasks()
     hwnd = int(window.winfo_id())
     if os.name == "nt":
-        hwnd = int(ctypes.windll.user32.GetAncestor(hwnd, 2)) or hwnd
+        hwnd = int(_user32().GetAncestor(hwnd, 2)) or hwnd
     return hwnd
 
 
@@ -210,19 +231,17 @@ def _prepare_background_window(window) -> int:
         window.update_idletasks()
         return _get_toplevel_hwnd(window)
 
-    user32 = ctypes.windll.user32
+    user32 = _user32()
     window.update_idletasks()
     owner = getattr(window, "master", None)
     if owner is not None and not hasattr(owner, "wm_state"):
         owner = None
     client_hwnd = int(window.winfo_id())
     hwnd = _get_toplevel_hwnd(window)
-    if user32.IsWindowVisible(hwnd):
-        window.update_idletasks()
-        window.update()
-        user32.RedrawWindow(hwnd, None, None, 0x0001 | 0x0080 | 0x0100)
-        user32.UpdateWindow(hwnd)
-        return hwnd
+    # A window that is ALREADY visible still has to be moved off the desktop.
+    # Returning early here left every surface that maps itself before this
+    # helper runs sitting on the user's screen, which is the one thing the
+    # capture design exists to prevent.
     min_width, min_height = window.minsize()
     width = max(window.winfo_width(), window.winfo_reqwidth(), min_width, 240)
     height = max(window.winfo_height(), window.winfo_reqheight(), min_height, 180)
@@ -266,7 +285,51 @@ def _prepare_background_window(window) -> int:
     user32.RedrawWindow(hwnd, None, None, 0x0001 | 0x0080 | 0x0100)
     user32.UpdateWindow(hwnd)
     window.update()
+    _assert_window_offscreen(hwnd)
     return hwnd
+
+
+def _foreground_window() -> int:
+    """The window that currently has focus, or 0 off Windows."""
+    if os.name != "nt":
+        return 0
+    return int(_user32().GetForegroundWindow())
+
+
+def _assert_foreground_unchanged(before: int) -> None:
+    """Fail a run that stole focus from whoever is at the machine."""
+    if os.name != "nt":
+        return
+    after = _foreground_window()
+    if before and after != before:
+        raise VisualSmokeError(
+            f"capture changed the foreground window from {before} to {after}; "
+            "a run must not take focus from the user"
+        )
+
+
+def _window_rect(hwnd: int) -> tuple[int, int, int, int]:
+    """Read a window's screen rectangle."""
+    rect = wintypes.RECT()
+    _user32().GetWindowRect(hwnd, ctypes.byref(rect))
+    return (int(rect.left), int(rect.top), int(rect.right), int(rect.bottom))
+
+
+def _assert_window_offscreen(hwnd: int) -> None:
+    """Refuse to capture a window the user can see.
+
+    The positioning above is what keeps a run from interrupting whoever is at
+    the machine, so it is checked rather than assumed.
+    """
+    if os.name != "nt":
+        return
+    rect = _window_rect(hwnd)
+    bounds = _virtual_desktop_bounds()
+    if not _rect_is_offscreen(rect, bounds):
+        raise VisualSmokeError(
+            f"capture window at {rect} is on the visible desktop {bounds}; "
+            "it would interrupt the user"
+        )
 
 
 def _capture_background_window(window, hwnd: int):
@@ -281,7 +344,7 @@ def _capture_background_window(window, hwnd: int):
         )
 
     image = ImageGrab.grab(window=ImageWin.HWND(hwnd))
-    user32 = ctypes.windll.user32
+    user32 = _user32()
     window_rect = wintypes.RECT()
     client_rect = wintypes.RECT()
     client_origin = wintypes.POINT(0, 0)
@@ -1053,7 +1116,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
                 ("Bookmark Organizer Pro", "Version"),
             )
         )
-        about.deiconify()
+        _prepare_background_window(about)
         about.update()
         about._export_support_bundle()
         support_preview = next(
@@ -1371,13 +1434,12 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
             "delete_bookmark",
         )
         app._credential_manager = credential_manager
-        root.deiconify()
-        root.update()
         _prepare_background_window(root)
+        root.update()
         app._show_credential_security()
         credential_dialog = root.winfo_children()[-1]
         _prepare_background_window(credential_dialog)
-        credential_dialog.deiconify()
+        _prepare_background_window(credential_dialog)
         credential_dialog.update()
         assert_actionable_controls_inside(credential_dialog)
         assert_named_controls_visible(
@@ -1935,6 +1997,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
     threading.excepthook = _record_thread_error
+    # Whatever the user is doing must still be in front when this finishes.
+    foreground_before = _foreground_window()
     try:
         results: list[CaptureResult] = []
         if args.surface in {"all", "desktop"}:
@@ -1958,6 +2022,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 for result in results
             ],
         }
+        _assert_foreground_unchanged(foreground_before)
         watchdog.finish()
         print(json.dumps(summary, indent=2))
         return 0
