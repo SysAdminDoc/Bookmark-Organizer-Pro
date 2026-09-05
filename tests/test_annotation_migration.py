@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
+import tracemalloc
 from pathlib import Path
 from unittest import mock
 
@@ -621,3 +623,172 @@ def test_the_desktop_dialog_discards_the_spool_when_it_closes(migration_files: d
 
     assert 'dlg.bind("<Destroy>", discard_plan)' in source
     assert "plan.close()" in source
+
+
+def _linkwarden_fixture(path: Path, *, target_bytes: int, filler_chars: int) -> int:
+    filler = "x" * filler_chars
+    written = 0
+    index = 0
+    with path.open("w", encoding="utf-8") as handle:
+        handle.write('{"links": [')
+        while written < target_bytes:
+            record = json.dumps({
+                "id": f"lw-{index}",
+                "url": f"https://example.com/{index}",
+                "name": f"Record {index}",
+                "description": filler,
+                "tags": [{"name": "alpha"}],
+                "createdAt": "2026-01-01",
+            })
+            handle.write(("" if index == 0 else ",") + record)
+            written += len(record) + 1
+            index += 1
+        handle.write("]}")
+    return index
+
+
+def _raindrop_fixture(path: Path, *, target_bytes: int, filler_chars: int) -> int:
+    filler = "x" * filler_chars
+    fields = ["id", "url", "title", "folder", "tags", "note", "created", "cover"]
+    written = 0
+    index = 0
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        while written < target_bytes:
+            writer.writerow({
+                "id": f"rd-{index}", "url": f"https://example.org/{index}",
+                "title": f"Title {index}", "folder": "Work", "tags": "news, web",
+                "note": filler, "created": "2026-01-03", "cover": "",
+            })
+            written += filler_chars + 200
+            index += 1
+    return index
+
+
+@pytest.mark.parametrize(
+    "source,builder,name",
+    [
+        ("linkwarden", _linkwarden_fixture, "big.json"),
+        ("raindrop", _raindrop_fixture, "big.csv"),
+    ],
+)
+def test_a_250mb_export_streams_without_becoming_resident(source, builder, name, tmp_path: Path):
+    """The whole point of the spool: the source is never held in memory."""
+    path = tmp_path / name
+    expected_records = builder(path, target_bytes=250 * 1024 * 1024, filler_chars=9000)
+    assert path.stat().st_size > 240 * 1024 * 1024
+
+    tracemalloc.start()
+    try:
+        plan = preflight_migration(source, path)
+        _current, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    with plan:
+        assert peak < 96 * 1024 * 1024, f"peak allocation was {peak / 1024 / 1024:.1f} MiB"
+        assert plan.report.total_records == expected_records
+        # One pass over the bytes still produces the digest of the whole file.
+        assert plan.report.source_sha256 == hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_the_source_is_opened_once(migration_files: dict[str, Path]):
+    """Hashing used to read the file, then parsing read it again."""
+    opens = []
+    real_open = Path.open
+
+    def counting_open(self, *args, **kwargs):
+        opens.append(str(self))
+        return real_open(self, *args, **kwargs)
+
+    with mock.patch.object(Path, "open", counting_open):
+        plan = preflight_migration("linkwarden", migration_files["linkwarden"])
+
+    with plan:
+        assert opens.count(str(migration_files["linkwarden"])) == 1
+
+
+@pytest.mark.parametrize(
+    "limits,fixture_kwargs,expected",
+    [
+        (migration.MigrationLimits(max_records=2), {}, "max_records"),
+        (
+            migration.MigrationLimits(max_field_chars=64),
+            {"filler_chars": 500},
+            "max_field_chars",
+        ),
+    ],
+)
+def test_a_ceiling_refuses_the_export_and_names_itself(
+    limits, fixture_kwargs, expected, tmp_path: Path
+):
+    path = tmp_path / "big.json"
+    _linkwarden_fixture(
+        path,
+        target_bytes=fixture_kwargs.get("target_bytes", 4096),
+        filler_chars=fixture_kwargs.get("filler_chars", 10),
+    )
+
+    with pytest.raises(migration.MigrationSpoolError) as excinfo:
+        preflight_migration("linkwarden", path, limits=limits)
+
+    assert expected in str(excinfo.value)
+
+
+def test_a_deeply_nested_record_is_refused_by_name(tmp_path: Path):
+    payload = {"url": "https://deep.example", "name": "Deep"}
+    nested: dict = {}
+    payload["custom"] = nested
+    for _level in range(12):
+        child: dict = {}
+        nested["child"] = child
+        nested = child
+    path = tmp_path / "deep.json"
+    path.write_text(json.dumps({"links": [payload]}), encoding="utf-8")
+
+    with pytest.raises(migration.MigrationSpoolError) as excinfo:
+        preflight_migration(
+            "linkwarden", path, limits=migration.MigrationLimits(max_json_depth=4)
+        )
+
+    assert "max_json_depth" in str(excinfo.value)
+
+
+def test_a_refused_ceiling_leaves_no_spool_behind(tmp_path: Path):
+    path = tmp_path / "big.json"
+    _linkwarden_fixture(path, target_bytes=4096, filler_chars=10)
+    spools: list = []
+    real_spool = migration._PlanSpool
+
+    def capture(*args, **kwargs):
+        spool = real_spool(*args, **kwargs)
+        spools.append(spool)
+        return spool
+
+    with mock.patch.object(migration, "_PlanSpool", capture):
+        with pytest.raises(migration.MigrationSpoolError):
+            preflight_migration(
+                "linkwarden", path, limits=migration.MigrationLimits(max_records=2)
+            )
+
+    assert spools and not spools[0].path.parent.exists()
+
+
+def test_a_json_export_with_no_bookmark_array_is_rejected(tmp_path: Path):
+    path = tmp_path / "wrong.json"
+    path.write_text(json.dumps({"unrelated": {"nothing": 1}}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="supported bookmark list"):
+        preflight_migration("linkwarden", path)
+
+
+def test_a_top_level_json_array_still_parses(tmp_path: Path):
+    path = tmp_path / "bare.json"
+    path.write_text(
+        json.dumps([{"url": "https://bare.example", "name": "Bare"}]), encoding="utf-8"
+    )
+
+    with preflight_migration("linkwarden", path) as plan:
+        assert plan.report.total_records == 1
+        assert plan.bookmarks[0].url == "https://bare.example"

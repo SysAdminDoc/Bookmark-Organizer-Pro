@@ -225,10 +225,13 @@ class TestNuitkaBuildHelper(unittest.TestCase):
         project_data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
         self.assertEqual(checked_in, module.bootstrap_manifest_document())
-        self.assertEqual(module.validate_bootstrap_manifest(), 10)
+        self.assertEqual(module.validate_bootstrap_manifest(), 11)
         self.assertEqual(
             {entry["import_name"] for entry in checked_in["dependencies"]},
-            {"bs4", "requests", "idna", "PIL", "defusedxml", "tksheet", "urllib3", "lxml", "lz4", "regex"},
+            {
+                "bs4", "requests", "idna", "PIL", "defusedxml", "tksheet",
+                "urllib3", "lxml", "lz4", "regex", "ijson",
+            },
         )
         self.assertEqual(project_data["tool"]["setuptools"]["py-modules"], ["bootstrap_dependencies"])
         self.assertIn(

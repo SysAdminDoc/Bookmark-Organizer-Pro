@@ -25,6 +25,12 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Fixed
 
+- Migrating from Linkwarden, Karakeep, Raindrop, or Readwise now reads the
+  export as a stream. A 250 MB file used to be loaded whole, parsed whole, and
+  then read a second time to hash it; it now goes past once and costs about
+  2 MB of memory. Exports that are too large, hold too many records, carry an
+  absurdly long field, or nest too deeply are refused by name before anything
+  reaches the library.
 - A migration preflight no longer leaves a copy of the export behind. Closing
   the review window or finishing a dry run deletes the temporary database that
   held every converted record. An export larger than 512 MB is refused by name

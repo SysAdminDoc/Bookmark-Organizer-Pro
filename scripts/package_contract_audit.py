@@ -41,6 +41,7 @@ BOOTSTRAP_IMPORT_NAMES = {
     "lxml": "lxml",
     "lz4": "lz4",
     "regex": "regex",
+    "ijson": "ijson",
 }
 
 

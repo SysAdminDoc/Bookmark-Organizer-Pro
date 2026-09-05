@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import io
 import json
 import shutil
 import sqlite3
@@ -32,16 +33,13 @@ class MigrationLimits:
     or merely enormous export decides how much memory and disk this process
     uses, so each one is explicit and reported by name when it trips.
 
-    Only ``max_source_bytes`` is enforced today; the rest need the streaming
-    parser that R-154 slice B introduces, and are not honoured until then.
+    Each one is checked as the source streams past, so an export that trips a
+    ceiling is refused partway through rather than after it has been read.
     """
 
     max_source_bytes: int = 512 * 1024 * 1024
-    #: Not enforced yet. See R-154 slice C.
     max_records: int = 2_000_000
-    #: Not enforced yet. See R-154 slice C.
     max_field_chars: int = 1_000_000
-    #: Not enforced yet. See R-154 slice C.
     max_json_depth: int = 64
 
 
@@ -62,11 +60,24 @@ class _PlanSpool:
         self.path = self._directory / "plan.sqlite3"
         self._connection = sqlite3.connect(self.path)
         self._connection.execute("PRAGMA journal_mode=WAL")
+        # This database is scratch: it is deleted on close and never survives a
+        # run, so paying for durability on every write buys nothing and made a
+        # large export spend most of its time in fsync.
+        self._connection.execute("PRAGMA synchronous=OFF")
+        # Two tables, deliberately. Keeping the record body in the same table
+        # as the TEXT primary key made every insert rewrite index pages around
+        # a multi-kilobyte payload, and the cost grew with the rows already
+        # stored: a 250 MB export with long notes spent minutes there. The
+        # dedupe index now holds only URLs, and bodies append to a rowid table.
         self._connection.execute(
             "CREATE TABLE IF NOT EXISTS seen ("
             " canonical TEXT PRIMARY KEY,"
-            " seq INTEGER,"
-            " payload TEXT)"
+            " seq INTEGER)"
+        )
+        self._connection.execute(
+            "CREATE TABLE IF NOT EXISTS payloads ("
+            " seq INTEGER PRIMARY KEY,"
+            " payload TEXT NOT NULL)"
         )
         self._connection.commit()
         self._sequence = 0
@@ -75,7 +86,7 @@ class _PlanSpool:
     def seed_existing(self, canonical_urls: Iterable[str]) -> None:
         """Record URLs the library already holds so they dedupe like any other."""
         self._connection.executemany(
-            "INSERT OR IGNORE INTO seen (canonical, seq, payload) VALUES (?, NULL, NULL)",
+            "INSERT OR IGNORE INTO seen (canonical, seq) VALUES (?, NULL)",
             ((url,) for url in canonical_urls if url),
         )
         self._connection.commit()
@@ -83,11 +94,15 @@ class _PlanSpool:
     def add(self, canonical: str, payload: Mapping) -> bool:
         """Store one converted record. Returns False when it is a duplicate."""
         cursor = self._connection.execute(
-            "INSERT OR IGNORE INTO seen (canonical, seq, payload) VALUES (?, ?, ?)",
-            (canonical, self._sequence, json.dumps(payload, ensure_ascii=False)),
+            "INSERT OR IGNORE INTO seen (canonical, seq) VALUES (?, ?)",
+            (canonical, self._sequence),
         )
         if not cursor.rowcount:
             return False
+        self._connection.execute(
+            "INSERT INTO payloads (seq, payload) VALUES (?, ?)",
+            (self._sequence, json.dumps(payload, ensure_ascii=False)),
+        )
         self._sequence += 1
         return True
 
@@ -95,9 +110,7 @@ class _PlanSpool:
         self._connection.commit()
 
     def __len__(self) -> int:
-        row = self._connection.execute(
-            "SELECT COUNT(*) FROM seen WHERE payload IS NOT NULL"
-        ).fetchone()
+        row = self._connection.execute("SELECT COUNT(*) FROM payloads").fetchone()
         return int(row[0]) if row else 0
 
     def iter_payloads(self) -> "Iterator[dict]":
@@ -105,7 +118,7 @@ class _PlanSpool:
         if self._closed:
             raise MigrationSpoolError("this migration plan has already been discarded")
         cursor = self._connection.execute(
-            "SELECT payload FROM seen WHERE payload IS NOT NULL ORDER BY seq"
+            "SELECT payload FROM payloads ORDER BY seq"
         )
         for (payload,) in cursor:
             yield json.loads(payload)
@@ -188,30 +201,122 @@ class MigrationResult:
     report: MigrationReport
 
 
-def _items_from_json(path: Path, source: str) -> list[dict]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if isinstance(payload, list):
-        return [item for item in payload if isinstance(item, dict)]
-    if not isinstance(payload, dict):
-        raise ValueError(f"{source} export must contain a JSON object or list")
-    keys = {
-        "linkwarden": ("links", "bookmarks", "data"),
-        "karakeep": ("bookmarks", "links", "data", "items"),
-    }[source]
-    for key in keys:
-        items = payload.get(key)
-        if isinstance(items, list):
-            return [item for item in items if isinstance(item, dict)]
-        if isinstance(items, dict):
-            nested = items.get("bookmarks") or items.get("links") or items.get("items")
-            if isinstance(nested, list):
-                return [item for item in nested if isinstance(item, dict)]
-    raise ValueError(f"{source} export does not contain a supported bookmark list")
+class _HashingReader(io.RawIOBase):
+    """A file wrapper that digests the source while the parser consumes it.
+
+    Preflight used to read the file once for its hash and again to parse it.
+    Reading once and hashing on the way through means a 250 MB export is never
+    resident, and the recorded digest still covers every byte the parse saw.
+
+    It is a real ``RawIOBase`` so that both ijson and ``TextIOWrapper`` can
+    drive it; implementing ``read`` alone is not enough for the latter.
+    """
+
+    def __init__(self, handle):
+        super().__init__()
+        self._handle = handle
+        self._digest = hashlib.sha256()
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, buffer) -> int:
+        chunk = self._handle.read(len(buffer))
+        if not chunk:
+            return 0
+        self._digest.update(chunk)
+        buffer[: len(chunk)] = chunk
+        return len(chunk)
+
+    @property
+    def hexdigest(self) -> str:
+        return self._digest.hexdigest()
 
 
-def _items_from_csv(path: Path) -> list[dict]:
-    with path.open("r", encoding="utf-8-sig", newline="") as handle:
-        return [dict(row) for row in csv.DictReader(handle)]
+# Where each export keeps its bookmark array. A top-level array is the empty
+# prefix; ijson names nested members "<prefix>.item".
+_JSON_ITEM_PREFIXES = {
+    "linkwarden": ("", "links", "bookmarks", "data", "data.bookmarks", "data.links"),
+    "karakeep": (
+        "", "bookmarks", "links", "data", "items",
+        "data.bookmarks", "data.links", "data.items",
+    ),
+}
+
+
+def _stream_json_items(reader, source: str) -> "Iterator[dict]":
+    """Yield each record of a JSON export without holding the whole document.
+
+    ijson reports one flat event stream, so the first array whose prefix is a
+    known bookmark container wins and its members are rebuilt one at a time.
+    Scanning for any of the candidate prefixes in that single pass is what
+    keeps the source from being read twice to find out which one it uses.
+    """
+    import ijson
+    from ijson.common import ObjectBuilder
+
+    candidates = _JSON_ITEM_PREFIXES[source]
+    member_prefix: str | None = None
+    builder: ObjectBuilder | None = None
+    depth = 0
+    found = False
+
+    for prefix, event, value in ijson.parse(reader):
+        if member_prefix is None:
+            if event == "start_array" and prefix in candidates:
+                member_prefix = f"{prefix}.item" if prefix else "item"
+                found = True
+            continue
+        if builder is None:
+            # Only whole objects are records; a stray scalar in the array is
+            # skipped the way the list comprehension used to skip it.
+            if prefix == member_prefix and event == "start_map":
+                builder = ObjectBuilder()
+                depth = 0
+            else:
+                continue
+        if event in ("start_map", "start_array"):
+            depth += 1
+        elif event in ("end_map", "end_array"):
+            depth -= 1
+        builder.event(event, value)
+        if depth == 0:
+            yield builder.value
+            builder = None
+
+    if not found:
+        raise ValueError(f"{source} export does not contain a supported bookmark list")
+
+
+def _reject_oversized_fields(item: Mapping, limits: "MigrationLimits", index: int) -> None:
+    """Refuse a record carrying a field too large to be a bookmark field.
+
+    A single field is what a hostile export inflates: one 400 MB title costs
+    the same as a million records and passes a record count untouched.
+    """
+    stack = [(item, 0)]
+    while stack:
+        value, depth = stack.pop()
+        if depth > limits.max_json_depth:
+            raise MigrationSpoolError(
+                f"max_json_depth exceeded at record {index}: "
+                f"nesting deeper than {limits.max_json_depth}"
+            )
+        if isinstance(value, str):
+            if len(value) > limits.max_field_chars:
+                raise MigrationSpoolError(
+                    f"max_field_chars exceeded at record {index}: "
+                    f"{len(value)} characters, limit {limits.max_field_chars}"
+                )
+        elif isinstance(value, Mapping):
+            stack.extend((child, depth + 1) for child in value.values())
+        elif isinstance(value, (list, tuple)):
+            stack.extend((child, depth + 1) for child in value)
+
+
+def _stream_csv_items(reader) -> "Iterator[dict]":
+    """Yield each CSV row, decoding the hashed byte stream as it arrives."""
+    return iter(csv.DictReader(io.TextIOWrapper(reader, encoding="utf-8-sig", newline="")))
 
 
 def _pick(item: Mapping, *keys, default=""):
@@ -369,29 +474,44 @@ def preflight_migration(
         raise MigrationSpoolError(
             f"max_source_bytes exceeded: {size} bytes, limit {limits.max_source_bytes}"
         )
-    raw = source_path.read_bytes()
-    items = _items_from_json(source_path, source) if source in {"linkwarden", "karakeep"} else _items_from_csv(source_path)
     counters = {name: Counter() for name in ("preserved", "transformed", "unsupported")}
     spool = _PlanSpool()
     try:
         spool.seed_existing(normalize_url(url) for url in existing_urls)
         total = invalid = duplicates = 0
-        for index, item in enumerate(items):
-            total += 1
-            bookmark = _convert_item(source, item, index, counters)
-            if bookmark is None:
-                invalid += 1
-                continue
-            canonical = normalize_url(bookmark.url)
-            # The spool's primary key is the dedupe check, so no set of every
-            # URL in the library and the export is held in memory.
-            if not canonical or not spool.add(canonical, bookmark.to_dict()):
-                duplicates += 1
-                continue
+        with source_path.open("rb") as handle:
+            reader = _HashingReader(handle)
+            items = (
+                _stream_json_items(reader, source)
+                if source in {"linkwarden", "karakeep"}
+                else _stream_csv_items(reader)
+            )
+            for index, item in enumerate(items):
+                total += 1
+                if total > limits.max_records:
+                    raise MigrationSpoolError(
+                        f"max_records exceeded: more than {limits.max_records} records"
+                    )
+                _reject_oversized_fields(item, limits, index)
+                bookmark = _convert_item(source, item, index, counters)
+                if bookmark is None:
+                    invalid += 1
+                    continue
+                canonical = normalize_url(bookmark.url)
+                # The spool's primary key is the dedupe check, so no set of
+                # every URL in the library and the export is held in memory.
+                if not canonical or not spool.add(canonical, bookmark.to_dict()):
+                    duplicates += 1
+                    continue
+            # Drain whatever the parser has not touched so the digest covers
+            # every byte, not only the bytes up to the last record.
+            while reader.read(1024 * 1024):
+                pass
+            source_sha256 = reader.hexdigest
         spool.commit()
         report = MigrationReport(
             source=source,
-            source_sha256=hashlib.sha256(raw).hexdigest(),
+            source_sha256=source_sha256,
             total_records=total,
             importable=len(spool),
             duplicates=duplicates,

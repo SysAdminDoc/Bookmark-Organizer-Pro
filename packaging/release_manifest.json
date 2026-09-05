@@ -20,7 +20,7 @@
       "python": "3.11",
       "platform": "win32",
       "verified": true,
-      "sha256": "a1e06e17b927b019054b5286a1b20a1a8941391290f337abbf98a0f9d8458c41"
+      "sha256": "f69f10d159816425852766ddc31d4f39934132862a636db0fbfd944f7e449754"
     }
   ],
   "unlocked_supported_environments": {
@@ -86,6 +86,11 @@
       "name": "safe_regex",
       "module": "regex",
       "distribution": "regex"
+    },
+    {
+      "name": "streaming_json",
+      "module": "ijson",
+      "distribution": "ijson"
     },
     {
       "name": "firefox_jsonlz4",

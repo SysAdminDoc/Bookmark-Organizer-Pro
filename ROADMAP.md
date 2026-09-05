@@ -4,16 +4,6 @@ Actionable incomplete work only. Historical and completed material belongs in `C
 
 ## Research-Driven Additions
 
-### P0
-
-- [ ] P0: R-154: Stream migrations into a disk-backed preflight plan
-  Why: Preflight hashes the source, materializes the parsed export, and retains all converted bookmarks in memory, so large imports can exhaust memory before apply.
-  Evidence: `bookmark_organizer_pro/services/migration.py:40`, `:57`, `:216`; iterative parser https://pypi.org/project/ijson/; Karakeep import pressure https://github.com/karakeep-app/karakeep/issues/1748; large-archive fix https://github.com/karakeep-app/karakeep/releases/tag/v0.33.2
-  Touches: `bookmark_organizer_pro/services/migration.py`, `pyproject.toml`, dependency lock and release manifest, temporary SQLite plan store, migration CLI and desktop flows, job ledger, cancellation, tests
-  Acceptance: A hashing reader feeds `csv.DictReader` or pinned `ijson>=3.5.1,<4` so source bytes are consumed once; converted records, normalized dedupe keys, counters, and errors stream into a temporary SQLite plan rather than a bookmark tuple; apply streams that plan only after preflight approval; record, field, nesting, and source-byte ceilings fail with an exact report; cancellation or failure deletes the spool and leaves the library untouched; generated 250 MB CSV and JSON fixtures keep additional Python allocation below 96 MiB while preserving deterministic hashes and fidelity counts.
-  Complexity: XL
-  Note 2026-09-05: the disk-backed plan half is done. `_PlanSpool` holds converted records in a temporary SQLite database and dedupes through its primary key, so preflight no longer keeps every Bookmark plus a set of every normalized URL in memory, and `apply_migration` streams the plan instead of materializing it. A failed or cancelled preflight deletes the spool, and `MigrationPlan` is a context manager. STILL OPEN: parsing is still `json.loads` / full `read_bytes`, so the source is read twice and the parsed structure is resident; the `ijson` dependency, the record/field/nesting/source-byte ceilings with an exact report, and the 250 MB fixture memory gate are all outstanding.
-
 ### P1
 
 - [ ] P1: R-159: Remove confirmation from the restorable extension queue clear

@@ -52,6 +52,11 @@
       "distribution": "regex",
       "import_name": "regex",
       "requirement": "regex>=2026.8.31"
+    },
+    {
+      "distribution": "ijson",
+      "import_name": "ijson",
+      "requirement": "ijson>=3.5.1,<4"
     }
   ]
 }
