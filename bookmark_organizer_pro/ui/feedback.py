@@ -355,7 +355,7 @@ class ToastNotification(tk.Toplevel):
     _active_toasts: list = []
 
     def __init__(self, parent, message: str, style: str = "info",
-                 duration: int = 3500):
+                 duration: int = 3500, action=None):
         super().__init__(parent)
         self.overrideredirect(True)
         self.attributes("-topmost", True)
@@ -391,11 +391,25 @@ class ToastNotification(tk.Toplevel):
         ).pack(side=tk.LEFT)
 
         # Message
-        tk.Label(
+        message_lbl = tk.Label(
             inner, text=message, bg=theme.bg_card,
             fg=theme.text_primary, font=FONTS.body(),
             pady=10, wraplength=340, justify="left"
-        ).pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(4, 14))
+        )
+        message_lbl.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(4, 14))
+
+        # An optional action makes the toast an offer rather than a statement:
+        # click the body to act, the close label still just dismisses.
+        if action is not None:
+            def _invoke():
+                self._dismiss()
+                try:
+                    action()
+                except Exception:
+                    pass
+
+            make_keyboard_activatable(message_lbl, _invoke)
+            route_pointer_to_control(message_lbl, inner)
 
         close_lbl = tk.Label(
             inner, text=_("✕"), bg=theme.bg_card,
@@ -458,6 +472,7 @@ class ToastNotification(tk.Toplevel):
                 continue
 
     @classmethod
-    def show(cls, parent, message: str, style: str = "info", duration: int = 3500):
+    def show(cls, parent, message: str, style: str = "info", duration: int = 3500,
+             action=None):
         """Convenience method to show a toast."""
-        return cls(parent, message, style, duration)
+        return cls(parent, message, style, duration, action)

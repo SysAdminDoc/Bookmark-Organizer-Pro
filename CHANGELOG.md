@@ -15,6 +15,13 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   selected records and every owned artifact. A bundle or coverage failure stops
   the purge before anything is unlinked. The desktop does this work in the
   background and shows the verified bundle path when it finishes.
+- A crash after the window is up now leaves a record. Failures in the interface,
+  in a background thread, and at the top of the program all write a timestamped
+  crash file next to the log, holding the traceback, the thread, and the build
+  it happened on. A message appears in the corner naming the file, and clicking
+  it shows the file. Hard interpreter faults get their own file. Crash files are
+  never rotated away with the log, and a support bundle carries them in full
+  with the same redaction the log gets.
 
 ### Fixed
 

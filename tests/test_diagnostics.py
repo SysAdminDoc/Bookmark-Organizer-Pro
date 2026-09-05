@@ -100,7 +100,13 @@ class TestDiagnosticsSupportBundle(unittest.TestCase):
             with zipfile.ZipFile(bundle_path) as archive:
                 names = set(archive.namelist())
                 self.assertEqual(
-                    {"diagnostics.json", "diagnostics.txt", "recent_log_redacted.txt", "README.txt"},
+                    {
+                        "diagnostics.json",
+                        "diagnostics.txt",
+                        "recent_log_redacted.txt",
+                        "crash_reports_redacted.txt",
+                        "README.txt",
+                    },
                     names,
                 )
                 combined = "\n".join(archive.read(name).decode("utf-8") for name in sorted(names))
@@ -171,6 +177,7 @@ class TestDiagnosticsSupportBundle(unittest.TestCase):
                     "diagnostics.json",
                     "diagnostics.txt",
                     "recent_log_redacted.txt",
+                    "crash_reports_redacted.txt",
                     "README.txt",
                 ),
             )

@@ -75,6 +75,7 @@ _SUPPORT_FILE_NAMES = (
     "diagnostics.json",
     "diagnostics.txt",
     "recent_log_redacted.txt",
+    "crash_reports_redacted.txt",
     "README.txt",
 )
 
@@ -488,6 +489,54 @@ class SupportBundlePreview:
         return "\n\n".join(sections)
 
 
+def _redacted_crash_reports(
+    limit: int = 3,
+    *,
+    retain_url_hosts: bool = False,
+    pseudonym_key: bytes | None = None,
+) -> str:
+    """The newest crash reports, whole and redacted.
+
+    The log is sampled to its last few hundred lines, so a crash that happened
+    before a busy stretch rotates out of the bundle exactly when it matters
+    most. Crash reports are separate files and are included in full.
+    """
+    from bookmark_organizer_pro.logging_config import (
+        is_crash_header_line,
+        latest_crash_reports,
+    )
+
+    key = pseudonym_key or secrets.token_bytes(32)
+    sections: List[str] = []
+    for path in latest_crash_reports(limit, directory=Path(LOG_FILE).parent):
+        try:
+            raw = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            sections.append(f"=== {path.name} ===" + "\n" + "ERROR | detail=[CRASH_READ_ERROR]")
+            continue
+        # The header is fields the crash writer produced itself (build,
+        # interpreter, origin, thread) and holds no user content, so it passes
+        # through. It ends at the first blank line; everything after that is a
+        # traceback and gets the same treatment as a log line. The block is
+        # closed on the first non-header line as well, so an exception message
+        # containing a newline cannot pose as a header and slip through.
+        lines: List[str] = []
+        in_header = True
+        for line in raw.splitlines():
+            if in_header and is_crash_header_line(line):
+                lines.append(line)
+                continue
+            in_header = False
+            lines.append(
+                _sanitize_log_line(
+                    line, retain_url_hosts=retain_url_hosts, pseudonym_key=key,
+                )
+            )
+        redacted = "\n".join(lines)
+        sections.append(f"=== {path.name} ===" + "\n" + redacted)
+    return "\n\n".join(sections)
+
+
 def build_support_bundle_preview(
     *,
     retain_url_hosts: bool = False,
@@ -518,6 +567,12 @@ def build_support_bundle_preview(
         (
             "recent_log_redacted.txt",
             recent_log or "No log file was available.",
+        ),
+        (
+            "crash_reports_redacted.txt",
+            _redacted_crash_reports(
+                retain_url_hosts=retain_url_hosts, pseudonym_key=pseudonym_key,
+            ) or "No crash reports were recorded.",
         ),
         ("README.txt", readme),
     )

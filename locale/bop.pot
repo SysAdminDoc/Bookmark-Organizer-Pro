@@ -4325,6 +4325,10 @@ msgstr ""
 msgid "Snapshot retry complete: {success} fixed, {failed} still failing, {skipped} missing"
 msgstr ""
 
+#: bookmark_organizer_pro/launcher.py:126
+msgid "Something went wrong. A crash report was saved as {name}. Click to show it."
+msgstr ""
+
 #: bookmark_organizer_pro/app_mixins/selection.py:166
 msgid "Sort by"
 msgstr ""
@@ -5398,7 +5402,7 @@ msgstr ""
 msgid "✓ Library ready"
 msgstr ""
 
-#: bookmark_organizer_pro/ui/feedback.py:401
+#: bookmark_organizer_pro/ui/feedback.py:415
 msgid "✕"
 msgstr ""
 

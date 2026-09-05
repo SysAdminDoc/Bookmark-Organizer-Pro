@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import multiprocessing
 import os
+import subprocess
 import sys
 import tkinter as tk
+from pathlib import Path
 from tkinter import messagebox
 from typing import Sequence
 
@@ -16,9 +18,13 @@ from bookmark_organizer_pro.desktop_bootstrap import (
     set_dark_title_bar,
     setup_dpi_awareness,
 )
-from bookmark_organizer_pro.logging_config import log
+from bookmark_organizer_pro.logging_config import (
+    install_crash_handlers,
+    log,
+    tk_exception_reporter,
+)
 from bookmark_organizer_pro.services.egress import egress_summary_line
-from bookmark_organizer_pro.i18n import setup_locale
+from bookmark_organizer_pro.i18n import _, setup_locale
 from bookmark_organizer_pro.ui import check_and_install_dependencies
 from bookmark_organizer_pro.ui.style_manager import style_manager
 from bookmark_organizer_pro.ui.tk_interactions import make_keyboard_activatable
@@ -90,9 +96,55 @@ def _configure_tk_scaling(root: tk.Tk):
         log.warning(f"Could not set tk scaling: {e}")
 
 
+def _open_in_file_manager(path) -> None:
+    """Show one file to the user in whatever their platform calls Explorer."""
+    try:
+        if sys.platform.startswith("win"):
+            subprocess.Popen(["explorer", "/select,", str(path)])
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", "-R", str(path)])
+        else:
+            subprocess.Popen(["xdg-open", str(Path(path).parent)])
+    except Exception as exc:  # a failed reveal must never mask the crash
+        log.warning(f"Could not reveal crash report {path}: {exc}")
+
+
+def crash_notifier(root: tk.Tk):
+    """A ``notify`` callback that offers the crash report without blocking.
+
+    Crashes arrive on whatever thread failed, so the notice is marshalled onto
+    the Tk thread. It is a toast rather than a dialog: a modal here would stack
+    up behind a repeating failure and make the app unusable on top of broken.
+    """
+
+    def notify(path) -> None:
+        def present() -> None:
+            from bookmark_organizer_pro.ui.feedback import ToastNotification
+
+            ToastNotification.show(
+                root,
+                _("Something went wrong. A crash report was saved as {name}. "
+                  "Click to show it.").format(name=Path(path).name),
+                style="error",
+                duration=15000,
+                action=lambda: _open_in_file_manager(path),
+            )
+
+        try:
+            root.after(0, present)
+        except Exception as exc:
+            log.warning(f"Could not show the crash notice: {exc}")
+
+    return notify
+
+
 def main(argv: Sequence[str] | None = None):
     """Run the CLI or desktop GUI with professional error handling."""
     ensure_directories()
+    # Before anything else can fail: a crash with no record is a crash nobody
+    # can act on, and Tk's default handler prints to a stderr a windowed build
+    # throws away.
+    install_crash_handlers()
     args = list(sys.argv[1:] if argv is None else argv)
     setup_locale(os.environ.get("BOOKMARK_LOCALE", ""))
 
@@ -111,6 +163,13 @@ def main(argv: Sequence[str] | None = None):
     try:
         root = tk.Tk()
         root.withdraw()  # Hide while checking dependencies
+        # There is a surface to notify on now, so the handlers installed before
+        # the window existed are replaced with ones that can offer the report.
+        notify_crash = crash_notifier(root)
+        install_crash_handlers(notify=notify_crash)
+        # Tk swallows callback errors into stderr and keeps running. Keep the
+        # keep-running part, record the rest.
+        root.report_callback_exception = tk_exception_reporter(notify=notify_crash)
 
         # Configure DPI scaling BEFORE style init so sizes are correct
         _configure_tk_scaling(root)

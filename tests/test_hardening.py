@@ -7,12 +7,15 @@ CLI exit codes.
 
 from __future__ import annotations
 
+import faulthandler
 import ipaddress
 import json
 import os
+import shutil
 import stat
 import sys
 import tempfile
+import threading
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -580,3 +583,218 @@ class TestCliExitCodes(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCrashCapture(unittest.TestCase):
+    """R-182: a crash after the UI starts must leave something readable."""
+
+    def setUp(self):
+        from bookmark_organizer_pro import logging_config
+
+        self.logging_config = logging_config
+        self._tmp = tempfile.mkdtemp(prefix="bop_crash_test_")
+        self._log_file = Path(self._tmp) / "logs" / "bookmark_organizer.log"
+        patcher = mock.patch.object(logging_config, "LOG_FILE", self._log_file)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(shutil.rmtree, self._tmp, ignore_errors=True)
+
+    def _boom(self):
+        try:
+            raise ValueError("planted crash")
+        except ValueError:
+            return sys.exc_info()
+
+    def test_a_crash_report_names_the_build_thread_and_traceback(self):
+        exc_type, exc_value, exc_tb = self._boom()
+
+        path = self.logging_config.write_crash_report(
+            exc_type, exc_value, exc_tb, origin="tk-callback", thread_name="MainThread"
+        )
+
+        self.assertIsNotNone(path)
+        report = path.read_text(encoding="utf-8")
+        self.assertIn("planted crash", report)
+        self.assertIn("ValueError", report)
+        self.assertIn("origin: tk-callback", report)
+        self.assertIn("thread: MainThread", report)
+        self.assertIn("Traceback", report)
+
+    def test_two_crashes_in_the_same_second_do_not_overwrite_each_other(self):
+        exc_type, exc_value, exc_tb = self._boom()
+
+        first = self.logging_config.write_crash_report(
+            exc_type, exc_value, exc_tb, origin="main", thread_name="MainThread"
+        )
+        second = self.logging_config.write_crash_report(
+            exc_type, exc_value, exc_tb, origin="main", thread_name="MainThread"
+        )
+
+        self.assertNotEqual(first, second)
+        self.assertTrue(first.exists() and second.exists())
+
+    def test_a_worker_thread_crash_is_recorded(self):
+        """threading.excepthook, exercised for real rather than asserted about."""
+        previous_sys, previous_thread = sys.excepthook, threading.excepthook
+        self.addCleanup(setattr, sys, "excepthook", previous_sys)
+        self.addCleanup(setattr, threading, "excepthook", previous_thread)
+        self.logging_config.install_crash_handlers()
+
+        def explode():
+            raise RuntimeError("worker exploded")
+
+        worker = threading.Thread(target=explode, name="planted-worker")
+        worker.start()
+        worker.join(timeout=10)
+
+        reports = self.logging_config.latest_crash_reports()
+        self.assertTrue(reports, "a worker-thread crash left no report")
+        report = reports[0].read_text(encoding="utf-8")
+        self.assertIn("worker exploded", report)
+        self.assertIn("thread: planted-worker", report)
+        self.assertIn("origin: thread", report)
+
+    def test_a_tk_callback_crash_is_recorded_and_keeps_running(self):
+        """The Tk reporter is called directly: constructing a root maps a window."""
+        notified = []
+        report_callback = self.logging_config.tk_exception_reporter(notify=notified.append)
+        exc_type, exc_value, exc_tb = self._boom()
+
+        result = report_callback(exc_type, exc_value, exc_tb)
+
+        self.assertIsNone(result, "the reporter must return, not re-raise")
+        reports = self.logging_config.latest_crash_reports()
+        self.assertTrue(reports)
+        self.assertIn("origin: tk-callback", reports[0].read_text(encoding="utf-8"))
+        self.assertEqual([reports[0]], notified)
+
+    def test_a_notifier_that_raises_does_not_replace_the_crash(self):
+        def hostile(_path):
+            raise RuntimeError("notifier exploded")
+
+        report_callback = self.logging_config.tk_exception_reporter(notify=hostile)
+        exc_type, exc_value, exc_tb = self._boom()
+
+        report_callback(exc_type, exc_value, exc_tb)
+
+        self.assertTrue(self.logging_config.latest_crash_reports())
+
+    def test_keyboard_interrupt_is_not_a_crash(self):
+        report_callback = self.logging_config.tk_exception_reporter()
+
+        report_callback(KeyboardInterrupt, KeyboardInterrupt(), None)
+
+        self.assertEqual([], self.logging_config.latest_crash_reports())
+
+    def test_crash_reports_are_not_rotated_away_by_ordinary_logging(self):
+        exc_type, exc_value, exc_tb = self._boom()
+        path = self.logging_config.write_crash_report(
+            exc_type, exc_value, exc_tb, origin="main", thread_name="MainThread"
+        )
+
+        # The rotating handler owns bookmark_organizer.log and its .1/.2/.3
+        # backups. A crash file is not one of them.
+        self.assertNotIn(path.name, {self._log_file.name} | {
+            f"{self._log_file.name}.{index}" for index in range(1, 5)
+        })
+        self.assertTrue(path.name.startswith(self.logging_config.CRASH_FILE_PREFIX))
+
+    def test_the_launcher_installs_every_hook(self):
+        launcher = (
+            Path(__file__).resolve().parents[1]
+            / "bookmark_organizer_pro" / "launcher.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("install_crash_handlers()", launcher)
+        # Once a window exists the handlers are replaced with notifying ones,
+        # so a crash after startup reaches the user and not only the disk.
+        self.assertIn("install_crash_handlers(notify=notify_crash)", launcher)
+        self.assertIn(
+            "root.report_callback_exception = tk_exception_reporter(notify=notify_crash)",
+            launcher,
+        )
+
+    def test_the_crash_notice_is_marshalled_onto_the_tk_thread(self):
+        """A worker-thread crash must not touch Tk from that thread."""
+        from bookmark_organizer_pro import launcher
+
+        scheduled = []
+
+        class FakeRoot:
+            def after(self, delay, callback):
+                scheduled.append((delay, callback))
+
+        launcher.crash_notifier(FakeRoot())(Path("crash-20260905-000000-1.log"))
+
+        self.assertEqual(1, len(scheduled))
+        self.assertEqual(0, scheduled[0][0])
+
+    def test_a_dead_root_does_not_turn_a_crash_into_a_second_crash(self):
+        from bookmark_organizer_pro import launcher
+
+        class DeadRoot:
+            def after(self, delay, callback):
+                raise RuntimeError("main thread is not in main loop")
+
+        launcher.crash_notifier(DeadRoot())(Path("crash-20260905-000000-1.log"))
+
+    def test_install_wires_both_interpreter_hooks_and_faulthandler(self):
+        previous_sys, previous_thread = sys.excepthook, threading.excepthook
+        self.addCleanup(setattr, sys, "excepthook", previous_sys)
+        self.addCleanup(setattr, threading, "excepthook", previous_thread)
+
+        self.logging_config.install_crash_handlers()
+
+        self.assertIsNot(sys.excepthook, previous_sys)
+        self.assertIsNot(threading.excepthook, previous_thread)
+        self.assertTrue(faulthandler.is_enabled())
+
+
+class TestCrashReportsReachTheSupportBundle(unittest.TestCase):
+    """A crash must survive into the bundle whole, not sampled like the log."""
+
+    def test_the_bundle_includes_redacted_crash_reports(self):
+        """The real lookup is used: a crash beside the log reaches the bundle."""
+        from bookmark_organizer_pro.services import local_state
+
+        with tempfile.TemporaryDirectory(prefix="bop_bundle_crash_") as tmp:
+            log_file = Path(tmp) / "bookmark_organizer.log"
+            log_file.write_text("2026-09-05 | INFO | BookmarkOrganizer | up\n", encoding="utf-8")
+            crash = Path(tmp) / "crash-20260905-010203-1.log"
+            crash.write_text(
+                "app: Bookmark Organizer Pro 6.16.0\n"
+                "origin: tk-callback\n"
+                "thread: MainThread\n"
+                "\n"
+                "Traceback (most recent call last):\n"
+                '  File "C:\\Users\\Alice\\app.py", line 7\n'
+                "ValueError: owner=alice@example.test\n"
+                "origin: alice@example.test\n",
+                encoding="utf-8",
+            )
+            with mock.patch.object(local_state, "LOG_FILE", log_file):
+                preview = local_state.build_support_bundle_preview()
+
+        content = dict(preview.files)["crash_reports_redacted.txt"]
+        self.assertIn(crash.name, content)
+        # Whole, not tail-sampled: the header this build wrote survives intact.
+        self.assertIn("origin: tk-callback", content)
+        self.assertIn("app: Bookmark Organizer Pro 6.16.0", content)
+        self.assertIn("exception_type=ValueError", content)
+        # Redacted on the same terms as the log, and a header-shaped line below
+        # the header cannot smuggle content past the redactor.
+        self.assertNotIn("alice@example.test", content)
+        self.assertNotIn(r"C:\Users\Alice", content)
+        self.assertNotIn('File "', content)
+
+    def test_no_crash_reports_still_produces_the_allowlisted_file(self):
+        from bookmark_organizer_pro.services import local_state
+
+        with tempfile.TemporaryDirectory(prefix="bop_bundle_nocrash_") as tmp:
+            log_file = Path(tmp) / "bookmark_organizer.log"
+            log_file.write_text("2026-09-05 | INFO | BookmarkOrganizer | up\n", encoding="utf-8")
+            with mock.patch.object(local_state, "LOG_FILE", log_file):
+                preview = local_state.build_support_bundle_preview()
+
+        content = dict(preview.files)["crash_reports_redacted.txt"]
+        self.assertEqual("No crash reports were recorded.", content)
