@@ -25,6 +25,9 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Fixed
 
+- Clearing the browser extension's offline queue no longer stops to ask. It
+  clears, says how many it cleared, and points at the Restore button sitting
+  right below it.
 - An import now tells you whether all of it arrived. Every import reports how
   many records the file held, how many were added, how many were already
   saved, how many failed, and how many could not be read, and it says so

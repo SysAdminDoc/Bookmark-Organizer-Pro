@@ -710,15 +710,14 @@ vm.runInContext(`(async () => {
     { url: "https://example.com", title: "Sidebar title" }, config, { source: "side_panel" }
   );
   const pending = await getPendingSaves();
-  let refused = false;
-  try { await clearPendingSaves(); } catch { refused = true; }
-  const cleared = await clearPendingSaves({ confirmed: true });
+  const cleared = await clearPendingSaves();
   const snapshot = await getClearedPendingSaves();
   const restored = await restoreClearedPendingSaves();
+  const restoredQueue = await getPendingSaves();
   control.mode = "409";
   const retry = await retryPendingSaves();
-  globalThis.result = { first, second, pending, refused, cleared, snapshot, restored, retry,
-    remaining: await getPendingSaves() };
+  globalThis.result = { first, second, pending, cleared, snapshot, restored, retry,
+    restoredQueue, remaining: await getPendingSaves() };
 })()`, context)
   .then(() => process.stdout.write(JSON.stringify(context.result)))
   .catch(error => { console.error(error); process.exitCode = 1; });
@@ -738,20 +737,25 @@ vm.runInContext(`(async () => {
         self.assertEqual(result["pending"][0]["source"], "side_panel")
         self.assertEqual(result["pending"][0]["payload"]["title"], "Sidebar title")
         self.assertIn("created_at", result["pending"][0])
-        self.assertTrue(result["refused"])
+        # R-159 removed the confirmation: the clear is undoable from the same
+        # panel, so it acts immediately and this used to assert the opposite.
         self.assertEqual((result["cleared"], result["restored"]), (1, 1))
         self.assertEqual(len(result["snapshot"]["items"]), 1)
+        # Restore returns the entry with its retry metadata, not a bare URL.
+        self.assertEqual(result["restoredQueue"], result["pending"])
         self.assertEqual(result["retry"], {"attempted": 1, "resolved": 1, "remaining": 0})
         self.assertEqual(result["remaining"], [])
 
-    def test_extension_queue_ui_exposes_rows_export_confirmation_and_undo(self):
+    def test_extension_queue_ui_exposes_rows_export_and_undo(self):
         for name in ("popup.html", "sidepanel.html"):
             html = (ROOT / "browser-extension" / name).read_text(encoding="utf-8")
             for control in ("pendingList", "exportPending", "clearPending", "restorePending"):
                 self.assertIn(f'id="{control}"', html)
         for name in ("popup.js", "sidepanel.js"):
             source = (ROOT / "browser-extension" / name).read_text(encoding="utf-8")
-            self.assertIn("globalThis.confirm", source)
+            # The clear is undoable from the same panel, so it must not stop to
+            # ask. This asserted the presence of the prompt before R-159.
+            self.assertNotIn("globalThis.confirm", source)
             self.assertIn("renderPendingSaves", source)
             self.assertIn("exportPendingSaves", source)
             self.assertIn("restoreClearedPendingSaves", source)

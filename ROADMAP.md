@@ -6,13 +6,6 @@ Actionable incomplete work only. Historical and completed material belongs in `C
 
 ### P1
 
-- [ ] P1: R-159: Remove confirmation from the restorable extension queue clear
-  Why: Popup and side panel block an undoable clear behind `globalThis.confirm` even though the cleared journal can be restored.
-  Evidence: `browser-extension/popup.js:110`; `browser-extension/sidepanel.js:150`; `browser-extension/shared.js:749`; `tests/test_packaging.py:500`
-  Touches: extension popup, side panel, shared journal API, locale strings, extension and packaging tests
-  Acceptance: Clear acts immediately, reports the count, and exposes Restore in the same panel; restore preserves entry order and retry metadata after worker restart; no confirmation API or `confirmed` flag remains; popup and side-panel parity tests pass.
-  Complexity: S
-
 - [ ] P1: R-161: Add revision-bound paragraph paging for MCP extracted content
   Why: `get_extracted_text` can return an entire article or transcript in one tool response, with no way to resume safely after recapture.
   Evidence: `bookmark_organizer_pro/mcp_server.py:762`; Karakeep 0.33.1 https://github.com/karakeep-app/karakeep/releases/tag/v0.33.1

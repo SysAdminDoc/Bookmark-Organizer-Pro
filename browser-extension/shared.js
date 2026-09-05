@@ -856,8 +856,9 @@ async function getClearedPendingSaves() {
   return snapshot && Array.isArray(snapshot.items) ? snapshot : null;
 }
 
-async function clearPendingSaves({ confirmed = false } = {}) {
-  if (!confirmed) throw new Error("Pending-save clear requires confirmation");
+async function clearPendingSaves() {
+  // No confirmation. The cleared journal is kept whole and Restore sits in the
+  // same panel, so asking first buys nothing a single click cannot undo.
   const pending = await getPendingSaves();
   await storageSet({
     [CLEARED_SAVES_KEY]: {

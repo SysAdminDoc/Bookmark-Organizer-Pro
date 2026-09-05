@@ -2151,3 +2151,90 @@ vm.runInContext(fs.readFileSync(process.argv[1], "utf8"), context);
         for outcome in ('"saved"', '"queued"', '"dropped"', '"failed"'):
             self.assertIn(outcome, background)
         self.assertIn("await refreshPendingBadge();", background)
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for the shared extension harness")
+    def test_a_cleared_queue_restores_in_order_after_the_worker_restarts(self):
+        """MV3 tears the worker down; only chrome.storage.local survives it."""
+        harness = r"""
+const fs = require("fs");
+const vm = require("vm");
+const state = {};
+const local = {
+  async get(keys) {
+    const result = {};
+    for (const [key, fallback] of Object.entries(keys || {})) {
+      result[key] = Object.prototype.hasOwnProperty.call(state, key) ? state[key] : fallback;
+    }
+    return result;
+  },
+  async set(values) { Object.assign(state, JSON.parse(JSON.stringify(values))); }
+};
+const chrome = {
+  storage: { local },
+  runtime: {
+    sendMessage: async (_message) => ({ ok: true, config: { apiPort: 8765, apiToken: "t" } }),
+    getURL: path => path
+  },
+  action: {
+    setBadgeText: async () => {},
+    setBadgeBackgroundColor: async () => {},
+    setTitle: async () => {}
+  }
+};
+const source = fs.readFileSync(process.argv[1], "utf8");
+
+function newWorker() {
+  const context = vm.createContext({
+    chrome, console, fetch: async () => { throw new Error("offline"); }, Date, Math
+  });
+  context.globalThis = context;
+  vm.runInContext(source, context);
+  return context;
+}
+
+const first = newWorker();
+vm.runInContext(`(async () => {
+  await enqueuePendingSave({ url: "https://a.example", title: "A" }, "offline");
+  await enqueuePendingSave({ url: "https://b.example", title: "B" }, "HTTP 503");
+  await enqueuePendingSave({ url: "https://c.example", title: "C" }, "offline");
+  globalThis.before = await getPendingSaves();
+  globalThis.cleared = await clearPendingSaves();
+  globalThis.emptied = await getPendingSaves();
+})()`, first).then(async () => {
+  // The worker dies here. A fresh module instance sees only stored state.
+  const second = newWorker();
+  await vm.runInContext(`(async () => {
+    globalThis.restored = await restoreClearedPendingSaves();
+    globalThis.after = await getPendingSaves();
+    globalThis.snapshotGone = (await getClearedPendingSaves()) === null;
+  })()`, second);
+  process.stdout.write(JSON.stringify({
+    before: first.before, cleared: first.cleared, emptied: first.emptied,
+    restored: second.restored, after: second.after, snapshotGone: second.snapshotGone
+  }));
+}, error => process.stdout.write(JSON.stringify({ rejected: String(error && error.stack) })));
+"""
+        completed = subprocess.run(
+            ["node", "-e", harness, str(EXT_DIR / "shared.js")],
+            capture_output=True, text=True, check=False, timeout=15,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = json.loads(completed.stdout)
+        self.assertNotIn("rejected", result, result.get("rejected"))
+        self.assertEqual(3, result["cleared"])
+        self.assertEqual([], result["emptied"])
+        self.assertEqual(3, result["restored"])
+        # Order is preserved across the restart.
+        self.assertEqual(
+            ["https://a.example", "https://b.example", "https://c.example"],
+            [item["payload"]["url"] for item in result["after"]],
+        )
+        # So is the retry metadata, not just the URL.
+        self.assertEqual(
+            [item["reason"] for item in result["before"]],
+            [item["reason"] for item in result["after"]],
+        )
+        self.assertEqual(result["before"], result["after"])
+        self.assertTrue(result["snapshotGone"])
+

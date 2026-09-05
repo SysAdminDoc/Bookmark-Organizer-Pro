@@ -321,14 +321,11 @@
   "pendingSavesResolved": {
     "message": "Pending saves resolved"
   },
-  "confirmClearPending": {
-    "message": "Clear the pending save journal? You can undo this from the same panel."
+  "clearedOnePendingSaveUndo": {
+    "message": "Cleared 1 pending save. Restore it below."
   },
-  "clearedOnePendingSave": {
-    "message": "Cleared 1 pending save"
-  },
-  "clearedPendingSaves": {
-    "message": "Cleared $COUNT$ pending saves",
+  "clearedPendingSavesUndo": {
+    "message": "Cleared $COUNT$ pending saves. Restore them below.",
     "placeholders": {
       "count": {
         "content": "$1"

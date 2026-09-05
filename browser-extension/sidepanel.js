@@ -148,15 +148,13 @@ async function retryPendingQueue() {
 }
 
 async function clearPendingQueue() {
-  if (!globalThis.confirm(extensionMessage(
-    "confirmClearPending",
-    [],
-    "Clear the pending save journal? You can undo this from the same panel.",
-  ))) return;
-  const cleared = await clearPendingSaves({ confirmed: true });
+  const cleared = await clearPendingSaves();
   document.getElementById("statusText").textContent = cleared === 1
-    ? extensionMessage("clearedOnePendingSave", [], "Cleared 1 pending save")
-    : extensionMessage("clearedPendingSaves", [String(cleared)], `Cleared ${cleared} pending saves`);
+    ? extensionMessage("clearedOnePendingSaveUndo", [], "Cleared 1 pending save. Restore it below.")
+    : extensionMessage(
+        "clearedPendingSavesUndo", [String(cleared)],
+        `Cleared ${cleared} pending saves. Restore them below.`,
+      );
   await refreshPendingPanel();
 }
 
