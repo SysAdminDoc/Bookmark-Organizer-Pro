@@ -162,15 +162,6 @@ Actionable incomplete work only. Historical and completed material belongs in `C
 
 ## Research-Driven Additions (2026-09-04)
 
-### P0
-
-- [ ] P0: R-177: Raise the security-relevant dependency floors the audit cannot see
-  Why: lxml 6.1.3 fixes external parameter entity parsing being allowed by default even under `resolve_entities="internal"`, and regex 2026.8.30 fixes a heap out-of-bounds write at pattern compile time plus a `count_one()` size underflow. Both are reachable from user-supplied input here, and neither carries a CVE or GHSA, so `pip-audit` reports clean against the current lock.
-  Evidence: https://raw.githubusercontent.com/lxml/lxml/lxml-6.1.3/CHANGES.txt (LP#2165901, 2026-09-02); https://raw.githubusercontent.com/mrabarnett/mrab-regex/hg/changelog.txt (issues 611 and 612); `pyproject.toml` floors `lxml>=6.1.1` and `regex>=2024.11.6`; `pylock.toml` locks 6.1.2 and 2026.7.19; user-editable patterns reach the compiler through `bookmark_organizer_pro/core/default_categories.json`
-  Touches: `pyproject.toml`, `pylock.toml`, `packaging/release_manifest.json`, `security/pip_audit_suppressions.json`, `scripts/package_contract_audit.py`, `tests/test_packaging.py`
-  Acceptance: Floors move to `lxml>=6.1.3` and `regex>=2026.8.30`, and `mcp>=1.29.1` inside the existing `<2.0` cap so the 4 MiB body limit covers the SSE and OAuth endpoints; the lock regenerates and the release manifest records the new versions; a test asserts each floor is at or above the fixed release so a later relaxation fails; the full suite, the ruff gate, and the dependency audit pass on the regenerated lock.
-  Complexity: S
-
 ### P1
 
 - [ ] P1: R-178: Make the benchmark thresholds scale with collection size

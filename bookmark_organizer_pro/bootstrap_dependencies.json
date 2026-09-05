@@ -41,7 +41,7 @@
     {
       "distribution": "lxml",
       "import_name": "lxml",
-      "requirement": "lxml>=6.1.1"
+      "requirement": "lxml>=6.1.3"
     },
     {
       "distribution": "lz4",
@@ -51,7 +51,7 @@
     {
       "distribution": "regex",
       "import_name": "regex",
-      "requirement": "regex>=2024.11.6"
+      "requirement": "regex>=2026.8.31"
     }
   ]
 }

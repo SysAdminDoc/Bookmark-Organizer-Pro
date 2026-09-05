@@ -236,6 +236,39 @@ class TestNuitkaBuildHelper(unittest.TestCase):
             project_data["tool"]["setuptools"]["package-data"]["bookmark_organizer_pro"],
         )
 
+    def test_security_relevant_dependency_floors_stay_at_or_above_the_fixed_release(self):
+        """R-177: these fixes carry no CVE, so pip-audit cannot hold this line.
+
+        lxml 6.1.3 stops external parameter entities being parsed by default
+        even under resolve_entities="internal", regex 2026.8.31 is the published
+        build of the four memory-safety fixes listed under 2026.8.30 (that
+        version was never released to PyPI), and mcp 1.29.1 applies the 4 MiB
+        request body limit to the SSE and OAuth endpoints. All three parse or
+        compile input this project takes from users.
+        """
+        project_data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        requirements = list(project_data["project"]["dependencies"])
+        for group in project_data["project"]["optional-dependencies"].values():
+            requirements.extend(group)
+
+        floors = {}
+        for requirement in requirements:
+            name, separator, rest = requirement.partition(">=")
+            if not separator:
+                continue
+            floors[name.strip().lower()] = rest.split(",")[0].strip()
+
+        required = {"lxml": (6, 1, 3), "regex": (2026, 8, 31), "mcp": (1, 29, 1)}
+        for name, minimum in required.items():
+            with self.subTest(dependency=name):
+                self.assertIn(name, floors, f"{name} lost its lower bound")
+                declared = tuple(int(part) for part in floors[name].split("."))
+                self.assertGreaterEqual(
+                    declared,
+                    minimum,
+                    f"{name} floor {floors[name]} is below the release that fixed it",
+                )
+
     def test_bootstrap_module_imports_only_the_standard_library(self):
         tree = ast.parse((ROOT / "bootstrap_dependencies.py").read_text(encoding="utf-8"))
         imported_roots = set()

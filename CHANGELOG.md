@@ -41,6 +41,13 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   time to cover the rest. `bop dups` takes `--category` and `--json`.
 - The desktop duplicate scan now covers the collection you have selected rather
   than always scanning the whole library.
+- Raised the minimum versions of three dependencies that fixed real problems
+  without ever getting a CVE, so the vulnerability audit had nothing to report.
+  lxml 6.1.3 stops external entities being parsed by default in a mode that
+  promised not to, regex 2026.8.31 fixes four memory-safety bugs including an
+  out-of-bounds write while compiling a pattern, and mcp 1.29.1 puts a size
+  limit on two more request paths. This app parses bookmark files and compiles
+  patterns you can edit, so all three are reachable.
 - Importing a browser bookmarks file from the command line now keeps the folder
   each bookmark came from and the tags stored alongside it. The command line and
   the desktop read the file with two different parsers, and only the desktop one
