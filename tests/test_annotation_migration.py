@@ -571,3 +571,53 @@ def test_a_discarded_plan_refuses_to_stream(migration_files: dict[str, Path]):
 
     with pytest.raises(migration.MigrationSpoolError):
         list(plan.iter_bookmarks())
+
+
+def test_an_oversized_export_is_refused_before_it_is_read(migration_files: dict[str, Path]):
+    """The ceiling is checked against the file size, not after reading it."""
+    limits = migration.MigrationLimits(max_source_bytes=8)
+
+    with mock.patch.object(Path, "read_bytes", side_effect=AssertionError("read anyway")):
+        with pytest.raises(migration.MigrationSpoolError) as excinfo:
+            preflight_migration("linkwarden", migration_files["linkwarden"], limits=limits)
+
+    assert "max_source_bytes" in str(excinfo.value)
+
+
+def test_the_cli_deletes_the_spool_on_a_dry_run(migration_files: dict[str, Path], capsys):
+    """A preflight that the user never applies must leave no copy behind."""
+    from bookmark_organizer_pro.cli import BookmarkCLI
+
+    cli = BookmarkCLI.__new__(BookmarkCLI)
+    cli.bookmark_manager = mock.Mock(get_all_bookmarks=lambda: [])
+    namespace = mock.Mock(
+        source="linkwarden",
+        file=str(migration_files["linkwarden"]),
+        report=None,
+        action="preflight",
+    )
+    spools: list = []
+    real_spool = migration._PlanSpool
+
+    def capture(*args, **kwargs):
+        spool = real_spool(*args, **kwargs)
+        spools.append(spool)
+        return spool
+
+    with mock.patch.object(migration, "_PlanSpool", capture):
+        assert cli._cmd_migration(namespace) == 0
+
+    assert spools, "the preflight built no spool"
+    assert not spools[0].path.exists()
+    assert not spools[0].path.parent.exists()
+
+
+def test_the_desktop_dialog_discards_the_spool_when_it_closes(migration_files: dict[str, Path]):
+    """The review dialog owns the spool: destroying it deletes the copy."""
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "bookmark_organizer_pro" / "app_mixins" / "import_export.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'dlg.bind("<Destroy>", discard_plan)' in source
+    assert "plan.close()" in source

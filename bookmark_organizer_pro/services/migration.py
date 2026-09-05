@@ -31,11 +31,17 @@ class MigrationLimits:
     A migration reads a file the user did not write. Without ceilings a hostile
     or merely enormous export decides how much memory and disk this process
     uses, so each one is explicit and reported by name when it trips.
+
+    Only ``max_source_bytes`` is enforced today; the rest need the streaming
+    parser that R-154 slice B introduces, and are not honoured until then.
     """
 
     max_source_bytes: int = 512 * 1024 * 1024
+    #: Not enforced yet. See R-154 slice C.
     max_records: int = 2_000_000
+    #: Not enforced yet. See R-154 slice C.
     max_field_chars: int = 1_000_000
+    #: Not enforced yet. See R-154 slice C.
     max_json_depth: int = 64
 
 
@@ -348,12 +354,21 @@ def preflight_migration(
     path: str | Path,
     *,
     existing_urls: Iterable[str] = (),
+    limits: "MigrationLimits | None" = None,
 ) -> MigrationPlan:
     """Parse a competitor export without mutating the library."""
     source = str(source).strip().lower()
     if source not in SUPPORTED_MIGRATION_SOURCES:
         raise ValueError(f"unsupported migration source: {source}")
+    limits = limits or MigrationLimits()
     source_path = Path(path)
+    # The whole file is read below, so its size is checked before that happens
+    # rather than after the process has already committed the memory.
+    size = source_path.stat().st_size
+    if size > limits.max_source_bytes:
+        raise MigrationSpoolError(
+            f"max_source_bytes exceeded: {size} bytes, limit {limits.max_source_bytes}"
+        )
     raw = source_path.read_bytes()
     items = _items_from_json(source_path, source) if source in {"linkwarden", "karakeep"} else _items_from_csv(source_path)
     counters = {name: Counter() for name in ("preserved", "transformed", "unsupported")}

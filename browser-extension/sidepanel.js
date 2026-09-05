@@ -422,6 +422,13 @@ async function saveBookmark() {
     if (result.queued) {
       setAddStatus(extensionMessage("queuedSave", [], "API unavailable. Save added to the retry journal."), "warning");
       await refreshPendingPanel();
+    } else if (result.dropped) {
+      // The queue refused it. Reporting the transport status here would say
+      // "Save failed (0)", which names neither what happened nor what to do.
+      setAddStatus(result.message || extensionMessage(
+        "queueFull", [], "Offline queue is full. Retry the queued saves to make room."
+      ), "error");
+      await refreshPendingPanel();
     } else if (isSavedStatus(result.status)) {
       // An attach keeps the title, tags, and notes already on the row, so it
       // must not be reported as though this form's fields were saved.
@@ -477,6 +484,7 @@ async function importReadingList() {
     let duplicates = 0;
     let failed = 0;
     let queued = 0;
+    let dropped = 0;
     for (const item of items) {
       if (!item.url || !/^https?:\/\//i.test(item.url)) continue;
       try {
@@ -489,6 +497,9 @@ async function importReadingList() {
         if (isSavedStatus(result.status)) imported++;
         else if (result.status === 409) duplicates++;
         else if (result.queued) queued++;
+        // A refused queue is not a failed request: nothing was attempted and
+        // retrying the same import will refuse it again until room is made.
+        else if (result.dropped) dropped++;
         else failed++;
       } catch { failed++; }
     }
@@ -501,15 +512,19 @@ async function importReadingList() {
     const queueDetail = queued
       ? extensionMessage("readingListQueued", [String(queued)], `; ${queued} queued for retry`)
       : "";
+    const droppedDetail = dropped
+      ? extensionMessage("readingListDropped", [String(dropped)], `; ${dropped} refused, the offline queue is full`)
+      : "";
     const failureDetail = failed
       ? extensionMessage("readingListFailed", [String(failed)], `; ${failed} failed`)
       : "";
+    const trailer = `${detail}${queueDetail}${droppedDetail}${failureDetail}`;
     setAddStatus(extensionMessage(
       "readingListImportSummary",
-      [String(imported), String(items.length), itemWord, `${detail}${queueDetail}${failureDetail}`],
-      `Imported ${imported} of ${items.length} reading list ${itemWord}${detail}${queueDetail}${failureDetail}.`,
-    ), failed ? "error" : (queued ? "warning" : "success"));
-    if (queued) await refreshPendingPanel();
+      [String(imported), String(items.length), itemWord, trailer],
+      `Imported ${imported} of ${items.length} reading list ${itemWord}${trailer}.`,
+    ), (failed || dropped) ? "error" : (queued ? "warning" : "success"));
+    if (queued || dropped) await refreshPendingPanel();
     if (imported > 0) loadRecent();
   } catch {
     setAddStatus(extensionMessage("readingListAccessFailed", [], "Could not access reading list."), "error");

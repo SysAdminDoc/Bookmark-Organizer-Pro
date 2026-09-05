@@ -477,3 +477,70 @@ class TestCaptureStaysOffTheUsersScreen(unittest.TestCase):
                 smoke._assert_foreground_unchanged(9999)
 
         self.assertIn("foreground window", str(raised.exception))
+
+    def test_an_unmeasurable_window_is_refused_rather_than_assumed_offscreen(self):
+        """A failed GetWindowRect leaves a zero rect, which reads as offscreen."""
+        fake = _FakeUser32()
+        fake.placed = (0, 0, 0, 0)
+
+        def failing_rect(_hwnd, _pointer):
+            return 0
+
+        fake.GetWindowRect = failing_rect
+        with mock.patch.object(smoke.os, "name", "nt"), \
+             mock.patch.object(smoke, "_user32", return_value=fake):
+            with self.assertRaises(smoke.VisualSmokeError) as raised:
+                smoke._assert_window_offscreen(1001)
+
+        self.assertIn("GetWindowRect failed", str(raised.exception))
+
+    def test_a_degenerate_rectangle_is_refused(self):
+        """An all-zero rect passes _rect_is_offscreen against a desktop at 0,0."""
+        self.assertTrue(smoke._rect_is_offscreen((0, 0, 0, 0), (0, 0, 1920, 1080)))
+
+        fake = _FakeUser32()
+        fake.placed = (0, 0, 0, 0)
+        with mock.patch.object(smoke.os, "name", "nt"), \
+             mock.patch.object(smoke, "_user32", return_value=fake):
+            with self.assertRaises(smoke.VisualSmokeError) as raised:
+                smoke._assert_window_offscreen(1001)
+
+        self.assertIn("degenerate", str(raised.exception))
+
+    def test_a_non_windows_run_refuses_a_display_someone_may_be_using(self):
+        window = _FakeWindow()
+        with mock.patch.object(smoke.os, "name", "posix"), \
+             mock.patch.dict(smoke.os.environ, {"DISPLAY": ":0"}, clear=True):
+            with self.assertRaises(smoke.VisualSmokeError) as raised:
+                smoke._prepare_background_window(window)
+
+        self.assertIn("virtual display", str(raised.exception))
+
+    def test_a_non_windows_run_proceeds_on_a_virtual_display(self):
+        for environment in (
+            {"DISPLAY": ":99"},
+            {"DISPLAY": ":7", "XVFB_DISPLAY": ":7"},
+            {"BOP_VISUAL_SMOKE_VIRTUAL_DISPLAY": "1"},
+        ):
+            window = _FakeWindow()
+            window.deiconify = lambda: None
+            with mock.patch.object(smoke.os, "name", "posix"), \
+                 mock.patch.dict(smoke.os.environ, environment, clear=True), \
+                 mock.patch.object(smoke, "_get_toplevel_hwnd", return_value=1001):
+                self.assertEqual(1001, smoke._prepare_background_window(window))
+
+    def test_the_focus_contract_is_checked_even_when_the_run_fails(self):
+        """A run that stole focus and then failed still reports the theft."""
+        source = inspect.getsource(smoke.main)
+        finally_block = source.split("finally:", 1)[1]
+
+        self.assertIn("_assert_foreground_unchanged(foreground_before)", finally_block)
+
+    def test_a_dialog_is_prepared_once(self):
+        source = Path(smoke.__file__).read_text(encoding="utf-8")
+
+        self.assertNotIn(
+            "_prepare_background_window(credential_dialog)\n"
+            "        _prepare_background_window(credential_dialog)",
+            source,
+        )

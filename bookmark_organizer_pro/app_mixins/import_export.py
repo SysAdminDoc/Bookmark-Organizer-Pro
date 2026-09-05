@@ -612,6 +612,16 @@ class ImportExportMixin:
                 _("Restore point: {name}").format(name=result.safepoint),
             )
 
+        def discard_plan(event=None):
+            """The spool holds a full copy of the export; it dies with the dialog."""
+            if event is not None and event.widget is not dlg:
+                return  # <Destroy> fires for every child widget too
+            plan.close()
+
+        # Covers all three exits: Close, the window manager, and a successful
+        # apply, which destroys the dialog itself.
+        dlg.bind("<Destroy>", discard_plan)
+
         buttons = tk.Frame(dlg, bg=theme.bg_primary)
         buttons.pack(fill=tk.X, padx=22, pady=(0, 18))
         ModernButton(buttons, text=_("Apply Migration"), command=apply_plan,

@@ -486,6 +486,9 @@
   "pairingStorageFailedRestored": {
     "message": "Pairing succeeded, but settings could not be stored. Previous settings were restored."
   },
+  "queueFull": {
+    "message": "Offline queue is full. Retry the queued saves to make room."
+  },
   "queuedSave": {
     "message": "API unavailable. Save added to the retry journal."
   },
@@ -530,6 +533,14 @@
   },
   "readingListItems": {
     "message": "items"
+  },
+  "readingListDropped": {
+    "message": "; $COUNT$ refused, the offline queue is full",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "readingListQueued": {
     "message": "; $COUNT$ queued for retry",

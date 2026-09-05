@@ -224,9 +224,39 @@ def _apply_theme(theme_manager, theme_name: str) -> None:
         )
 
 
+def _display_is_virtual() -> bool:
+    """Whether a non-Windows run is pointed at a display nobody can see.
+
+    Xvfb and Xvnc are conventionally given a high display number by the CI and
+    container recipes that start them, and a real seat is :0. That is a
+    convention rather than a guarantee, so an operator who knows better can say
+    so outright with XVFB_DISPLAY or BOP_VISUAL_SMOKE_VIRTUAL_DISPLAY.
+    """
+    if os.environ.get("BOP_VISUAL_SMOKE_VIRTUAL_DISPLAY") == "1":
+        return True
+    display = os.environ.get("DISPLAY", "")
+    if not display:
+        return False
+    if display == os.environ.get("XVFB_DISPLAY"):
+        return True
+    number = display.partition(":")[2].partition(".")[0]
+    return number.isdigit() and int(number) >= 10
+
+
 def _prepare_background_window(window) -> int:
     """Map a Windows Tk window offscreen without activating or taskbar noise."""
     if os.name != "nt":
+        # There is no repositioning here and the offscreen and focus assertions
+        # below are Windows-only, so on any other platform this maps a window
+        # onto whatever display is attached. That is the one thing this helper
+        # exists to prevent, so it runs only against a display nobody is
+        # looking at, and says so instead of guessing.
+        if not _display_is_virtual():
+            raise VisualSmokeError(
+                "the offscreen capture contract is only enforced on Windows; "
+                "run this under a virtual display (Xvfb, or DISPLAY set to one) "
+                "so captures cannot appear on a screen someone is using"
+            )
         window.deiconify()
         window.update_idletasks()
         return _get_toplevel_hwnd(window)
@@ -309,10 +339,27 @@ def _assert_foreground_unchanged(before: int) -> None:
 
 
 def _window_rect(hwnd: int) -> tuple[int, int, int, int]:
-    """Read a window's screen rectangle."""
+    """Read a window's screen rectangle.
+
+    A failed call leaves ``rect`` zeroed, and an all-zero rectangle satisfies
+    the offscreen test against any desktop whose origin is (0, 0). This guard
+    exists to stop a capture appearing on the user's screen, so a rectangle it
+    could not measure is a failure, never a pass.
+    """
     rect = wintypes.RECT()
-    _user32().GetWindowRect(hwnd, ctypes.byref(rect))
-    return (int(rect.left), int(rect.top), int(rect.right), int(rect.bottom))
+    if not _user32().GetWindowRect(hwnd, ctypes.byref(rect)):
+        raise VisualSmokeError(
+            f"GetWindowRect failed for window {hwnd} "
+            f"(error {ctypes.get_last_error() if hasattr(ctypes, 'get_last_error') else '?'}); "
+            "the offscreen contract cannot be verified"
+        )
+    measured = (int(rect.left), int(rect.top), int(rect.right), int(rect.bottom))
+    if measured[2] <= measured[0] or measured[3] <= measured[1]:
+        raise VisualSmokeError(
+            f"window {hwnd} reported a degenerate rectangle {measured}; "
+            "the offscreen contract cannot be verified"
+        )
+    return measured
 
 
 def _assert_window_offscreen(hwnd: int) -> None:
@@ -1439,7 +1486,6 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
         app._show_credential_security()
         credential_dialog = root.winfo_children()[-1]
         _prepare_background_window(credential_dialog)
-        _prepare_background_window(credential_dialog)
         credential_dialog.update()
         assert_actionable_controls_inside(credential_dialog)
         assert_named_controls_visible(
@@ -1999,6 +2045,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     threading.excepthook = _record_thread_error
     # Whatever the user is doing must still be in front when this finishes.
     foreground_before = _foreground_window()
+    focus_checked = False
     try:
         results: list[CaptureResult] = []
         if args.surface in {"all", "desktop"}:
@@ -2022,6 +2069,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 for result in results
             ],
         }
+        focus_checked = True
         _assert_foreground_unchanged(foreground_before)
         watchdog.finish()
         print(json.dumps(summary, indent=2))
@@ -2038,6 +2086,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         threading.excepthook = previous_thread_hook
         if temp_data is not None:
             temp_data.cleanup()
+        # A run that stole focus and then failed is exactly the run the user
+        # notices, so this is checked on every exit rather than only on the
+        # successful one. It reports rather than raises: the failure that got
+        # us here is the more useful thing to keep.
+        if not focus_checked:
+            try:
+                _assert_foreground_unchanged(foreground_before)
+            except VisualSmokeError as focus_exc:
+                print(f"visual smoke focus contract: {focus_exc}", file=sys.stderr)
 
 
 if __name__ == "__main__":

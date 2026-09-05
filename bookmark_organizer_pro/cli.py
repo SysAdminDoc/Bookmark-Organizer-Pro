@@ -1250,26 +1250,30 @@ Examples:
             )
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             return self._failure(f"Migration preflight failed: {exc}")
-        report = plan.report.to_dict()
-        rendered = json.dumps(report, indent=2, ensure_ascii=False, sort_keys=True)
-        print(rendered)
-        if ns.report:
-            report_path = Path(ns.report)
-            report_path.parent.mkdir(parents=True, exist_ok=True)
-            report_path.write_text(rendered + "\n", encoding="utf-8")
-            print(f"Migration report written: {report_path}")
-        if ns.action == "preflight":
-            print("Dry run only; library unchanged.")
+        # The plan spools every converted record to a temp database. Closing it
+        # is what deletes that copy of the user's export, so every exit from
+        # here goes through the context manager, including the dry run.
+        with plan:
+            report = plan.report.to_dict()
+            rendered = json.dumps(report, indent=2, ensure_ascii=False, sort_keys=True)
+            print(rendered)
+            if ns.report:
+                report_path = Path(ns.report)
+                report_path.parent.mkdir(parents=True, exist_ok=True)
+                report_path.write_text(rendered + "\n", encoding="utf-8")
+                print(f"Migration report written: {report_path}")
+            if ns.action == "preflight":
+                print("Dry run only; library unchanged.")
+                return 0
+            try:
+                result = apply_migration(self.bookmark_manager, plan)
+            except RuntimeError as exc:
+                return self._failure(f"Migration blocked: {exc}")
+            print(
+                f"Migration applied: {result.added} added, {result.duplicates} duplicates skipped; "
+                f"restore safepoint {result.safepoint}"
+            )
             return 0
-        try:
-            result = apply_migration(self.bookmark_manager, plan)
-        except RuntimeError as exc:
-            return self._failure(f"Migration blocked: {exc}")
-        print(
-            f"Migration applied: {result.added} added, {result.duplicates} duplicates skipped; "
-            f"restore safepoint {result.safepoint}"
-        )
-        return 0
 
     def _cmd_categories(self, ns: argparse.Namespace):
         """List categories"""

@@ -773,15 +773,24 @@ async function enqueuePendingSave(payload, reason = "API unavailable", source = 
     // this capture. Refuse the NEW entry rather than evicting older ones, and
     // make the refusal visible instead of losing it silently.
     const message = "Offline queue is full. This capture was not saved.";
-    await setPendingAlert({
-      schema: "bookmark-organizer-pro/pending-alert",
-      kind: "quota",
-      message,
-      url: normalized.payload.url,
-      at: new Date().toISOString()
-    });
-    await refreshPendingBadge();
-    return { queued: false, dropped: true, pending: (await getPendingSaves()).length, message };
+    // Recording the refusal is itself a storage write, and storage being full
+    // is the condition that got us here. If it fails too, the returned outcome
+    // is still correct and the caller still reports it; letting the throw
+    // escape would land in the caller's network catch and enqueue a second
+    // time, which is how a full queue turned into "cannot reach the API".
+    let pendingCount = 0;
+    try {
+      await setPendingAlert({
+        schema: "bookmark-organizer-pro/pending-alert",
+        kind: "quota",
+        message,
+        url: normalized.payload.url,
+        at: new Date().toISOString()
+      });
+      await refreshPendingBadge();
+      pendingCount = (await getPendingSaves()).length;
+    } catch { /* the refusal is reported through the return value regardless */ }
+    return { queued: false, dropped: true, pending: pendingCount, message };
   }
   await clearPendingAlert();
   await refreshPendingBadge();
@@ -809,7 +818,8 @@ async function runPendingReplay() {
   const pending = await getPendingSaves();
   const remaining = [];
   let resolved = 0;
-  for (const item of pending) {
+  for (let index = 0; index < pending.length; index += 1) {
+    const item = pending[index];
     try {
       const result = await saveBookmarkPayload(
         item.payload, config, { source: item.source || "retry", journal: false }
@@ -826,6 +836,13 @@ async function runPendingReplay() {
     } catch {
       remaining.push({ ...item, attempts: (item.attempts || 0) + 1, reason: "API unavailable" });
     }
+    // Persist after every entry rather than once at the end. A popup or side
+    // panel is torn down the moment it closes, and a single write after the
+    // loop meant a mid-replay close left every already-posted entry queued to
+    // be posted again.
+    try {
+      await setPendingSaves(remaining.concat(pending.slice(index + 1)));
+    } catch { /* a failed write leaves the entry queued, which is the safe way to fail */ }
   }
   await setPendingSaves(remaining);
   if (!remaining.length) await clearPendingAlert();

@@ -439,6 +439,120 @@ function send(message, url = "chrome-extension://test-extension/popup.html") {
         self.assertEqual(result["roundTrip"]["config"]["apiToken"], "replacement-secret")
         self.assertTrue(result["untrusted"]["rejected"])
 
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for the shared extension harness")
+    def test_a_full_queue_is_refused_even_when_recording_the_refusal_also_fails(self):
+        """Storage being full is exactly the condition the alert write hits too."""
+        harness = r"""
+const fs = require("fs");
+const vm = require("vm");
+const local = {
+  async get(keys) {
+    const result = {};
+    for (const [key, fallback] of Object.entries(keys || {})) result[key] = fallback;
+    return result;
+  },
+  async set(_values) { throw new Error("QUOTA_BYTES quota exceeded"); }
+};
+const chrome = { storage: { local }, runtime: { sendMessage: async () => ({}), getURL: path => path } };
+const context = vm.createContext({ chrome, console, fetch: async () => ({ status: 201 }), Date, Math });
+context.globalThis = context;
+vm.runInContext(fs.readFileSync(process.argv[1], "utf8"), context);
+vm.runInContext(`(async () => {
+  globalThis.result = await enqueuePendingSave({ url: "https://example.com", title: "One" }, "offline");
+})()`, context).then(() => process.stdout.write(JSON.stringify(context.result)));
+"""
+        completed = subprocess.run(
+            ["node", "-e", harness, str(EXT_DIR / "shared.js")],
+            capture_output=True, text=True, check=False, timeout=10,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        outcome = json.loads(completed.stdout)
+        self.assertTrue(outcome["dropped"])
+        self.assertFalse(outcome["queued"])
+        self.assertIn("queue is full", outcome["message"])
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for the shared extension harness")
+    def test_a_replay_persists_after_every_entry_not_once_at_the_end(self):
+        """A popup is torn down the moment it closes, mid-replay included."""
+        harness = r"""
+const fs = require("fs");
+const vm = require("vm");
+const state = {};
+const writes = [];
+const local = {
+  async get(keys) {
+    const result = {};
+    for (const [key, fallback] of Object.entries(keys || {})) {
+      result[key] = Object.prototype.hasOwnProperty.call(state, key) ? state[key] : fallback;
+    }
+    return result;
+  },
+  async set(values) {
+    Object.assign(state, values);
+    if (Array.isArray(values.pendingSaves)) {
+      writes.push(values.pendingSaves.map(item => item.payload.url));
+    }
+  }
+};
+const chrome = {
+  storage: { local },
+  runtime: {
+    sendMessage: async (_message) => ({ ok: true, config: { apiPort: 8765, apiToken: "t" } }),
+    getURL: path => path
+  },
+  action: {
+    setBadgeText: async () => {},
+    setBadgeBackgroundColor: async () => {},
+    setTitle: async () => {}
+  }
+};
+let call = 0;
+const fetchStub = async () => {
+  call += 1;
+  if (call === 2) throw new Error("network down");
+  return { status: 201, json: async () => ({}) };
+};
+const context = vm.createContext({ chrome, console, fetch: fetchStub, Date, Math, writes });
+context.globalThis = context;
+vm.runInContext(fs.readFileSync(process.argv[1], "utf8"), context);
+vm.runInContext(`(async () => {
+  await enqueuePendingSave({ url: "https://a.example", title: "A" }, "offline");
+  await enqueuePendingSave({ url: "https://b.example", title: "B" }, "offline");
+  await enqueuePendingSave({ url: "https://c.example", title: "C" }, "offline");
+  globalThis.enqueued = writes.length;
+  globalThis.summary = await retryPendingSaves();
+})()`, context).then(
+  () => process.stdout.write(JSON.stringify({
+    writes, enqueued: context.enqueued, summary: context.summary
+  })),
+  // Without this a rejection leaves stdout empty and the failure says only
+  // "Expecting value", which hides the actual cause.
+  (error) => process.stdout.write(JSON.stringify({ rejected: String(error && error.stack) }))
+);
+"""
+        completed = subprocess.run(
+            ["node", "-e", harness, str(EXT_DIR / "shared.js")],
+            capture_output=True, text=True, check=False, timeout=15,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = json.loads(completed.stdout)
+        self.assertNotIn("rejected", result, result.get("rejected"))
+        replay_writes = result["writes"][result["enqueued"]:]
+        # One write per entry, so closing the panel after any entry leaves the
+        # queue matching what has actually been posted.
+        self.assertGreaterEqual(len(replay_writes), 3)
+        # After the first entry succeeded it is gone, and the untried entries
+        # are still queued rather than lost.
+        self.assertEqual(
+            ["https://b.example", "https://c.example"], replay_writes[0]
+        )
+        # The one that failed stays; the two that succeeded do not.
+        self.assertEqual(["https://b.example"], replay_writes[-1])
+        self.assertEqual(2, result["summary"]["resolved"])
+
     @unittest.skipUnless(shutil.which("node"), "Node.js is required for the shared extension harness")
     def test_shared_pending_queue_normalizes_and_deduplicates(self):
         harness = r"""

@@ -25,6 +25,17 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Fixed
 
+- A migration preflight no longer leaves a copy of the export behind. Closing
+  the review window or finishing a dry run deletes the temporary database that
+  held every converted record. An export larger than 512 MB is refused by name
+  before it is read.
+- The browser extension now says what happened when the offline queue is full.
+  It used to report "Save failed (0)", which named neither the cause nor the
+  fix, and a reading list import counted refused items as failures.
+- Retrying queued saves records progress after each entry instead of once at
+  the end, so closing the popup partway through no longer re-sends everything
+  it had already saved.
+
 - Startup now checks every required Python import before loading the application
   package. If the environment is incomplete, the error names each missing
   import and gives a reinstall command for that exact Python interpreter.

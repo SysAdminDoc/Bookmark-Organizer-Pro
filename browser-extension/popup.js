@@ -161,6 +161,13 @@ async function saveBookmark() {
     if (result.queued) {
       setStatus(extensionMessage("queuedSave", [], "API unavailable. Save added to the retry journal."), "warning");
       await refreshPendingPanel();
+    } else if (result.dropped) {
+      // The queue refused it. Reporting the transport status here would say
+      // "Save failed (0)", which names neither what happened nor what to do.
+      setStatus(result.message || extensionMessage(
+        "queueFull", [], "Offline queue is full. Retry the queued saves to make room."
+      ), "error");
+      await refreshPendingPanel();
     } else if (isSavedStatus(result.status)) {
       // An attach keeps the title, tags, and notes already on the row, so it
       // must not be reported as though this form's fields were saved.
