@@ -5,16 +5,115 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import shutil
+import sqlite3
+import tempfile
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, Mapping
+from typing import Iterable, Iterator, Mapping
 
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.utils import normalize_url
 
 
 SUPPORTED_MIGRATION_SOURCES = ("linkwarden", "karakeep", "raindrop", "readwise")
+
+
+class MigrationSpoolError(RuntimeError):
+    """A bounded migration refused the source before touching the library."""
+
+
+@dataclass(frozen=True)
+class MigrationLimits:
+    """Ceilings a bounded preflight refuses to exceed.
+
+    A migration reads a file the user did not write. Without ceilings a hostile
+    or merely enormous export decides how much memory and disk this process
+    uses, so each one is explicit and reported by name when it trips.
+    """
+
+    max_source_bytes: int = 512 * 1024 * 1024
+    max_records: int = 2_000_000
+    max_field_chars: int = 1_000_000
+    max_json_depth: int = 64
+
+
+class _PlanSpool:
+    """Converted records on disk, not in memory.
+
+    Preflight used to keep every converted bookmark plus a set of every
+    normalized URL in memory, so a large export was held several times over
+    before a single row reached the library. SQLite holds the plan and enforces
+    dedupe through a primary key, which also removes the in-memory seen-set.
+    """
+
+    def __init__(self, directory: Path | None = None):
+        self._directory = Path(
+            directory or tempfile.mkdtemp(prefix="bop-migration-plan-")
+        )
+        self._directory.mkdir(parents=True, exist_ok=True)
+        self.path = self._directory / "plan.sqlite3"
+        self._connection = sqlite3.connect(self.path)
+        self._connection.execute("PRAGMA journal_mode=WAL")
+        self._connection.execute(
+            "CREATE TABLE IF NOT EXISTS seen ("
+            " canonical TEXT PRIMARY KEY,"
+            " seq INTEGER,"
+            " payload TEXT)"
+        )
+        self._connection.commit()
+        self._sequence = 0
+        self._closed = False
+
+    def seed_existing(self, canonical_urls: Iterable[str]) -> None:
+        """Record URLs the library already holds so they dedupe like any other."""
+        self._connection.executemany(
+            "INSERT OR IGNORE INTO seen (canonical, seq, payload) VALUES (?, NULL, NULL)",
+            ((url,) for url in canonical_urls if url),
+        )
+        self._connection.commit()
+
+    def add(self, canonical: str, payload: Mapping) -> bool:
+        """Store one converted record. Returns False when it is a duplicate."""
+        cursor = self._connection.execute(
+            "INSERT OR IGNORE INTO seen (canonical, seq, payload) VALUES (?, ?, ?)",
+            (canonical, self._sequence, json.dumps(payload, ensure_ascii=False)),
+        )
+        if not cursor.rowcount:
+            return False
+        self._sequence += 1
+        return True
+
+    def commit(self) -> None:
+        self._connection.commit()
+
+    def __len__(self) -> int:
+        row = self._connection.execute(
+            "SELECT COUNT(*) FROM seen WHERE payload IS NOT NULL"
+        ).fetchone()
+        return int(row[0]) if row else 0
+
+    def iter_payloads(self) -> "Iterator[dict]":
+        """Yield stored records in the order they were accepted."""
+        if self._closed:
+            raise MigrationSpoolError("this migration plan has already been discarded")
+        cursor = self._connection.execute(
+            "SELECT payload FROM seen WHERE payload IS NOT NULL ORDER BY seq"
+        )
+        for (payload,) in cursor:
+            yield json.loads(payload)
+
+    def close(self) -> None:
+        """Delete the spool. Safe to call twice."""
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            self._connection.close()
+        except sqlite3.Error:
+            pass
+        shutil.rmtree(self._directory, ignore_errors=True)
 
 
 @dataclass(frozen=True)
@@ -43,10 +142,36 @@ class MigrationReport:
         }
 
 
-@dataclass(frozen=True)
 class MigrationPlan:
-    bookmarks: tuple[Bookmark, ...]
-    report: MigrationReport
+    """A preflighted migration whose records live on disk until applied."""
+
+    def __init__(self, report: "MigrationReport", spool: _PlanSpool):
+        self.report = report
+        self._spool = spool
+
+    def iter_bookmarks(self) -> Iterator[Bookmark]:
+        """Stream the converted records without materializing them."""
+        for payload in self._spool.iter_payloads():
+            yield Bookmark.from_dict(payload)
+
+    @property
+    def bookmarks(self) -> tuple[Bookmark, ...]:
+        """Every record at once.
+
+        Materializes the whole plan, which is what streaming exists to avoid.
+        Kept for small callers and tests; apply_migration streams instead.
+        """
+        return tuple(self.iter_bookmarks())
+
+    def close(self) -> None:
+        """Discard the spool. The library is untouched either way."""
+        self._spool.close()
+
+    def __enter__(self) -> "MigrationPlan":
+        return self
+
+    def __exit__(self, *_exc) -> None:
+        self.close()
 
 
 @dataclass(frozen=True)
@@ -232,33 +357,39 @@ def preflight_migration(
     raw = source_path.read_bytes()
     items = _items_from_json(source_path, source) if source in {"linkwarden", "karakeep"} else _items_from_csv(source_path)
     counters = {name: Counter() for name in ("preserved", "transformed", "unsupported")}
-    existing = {normalize_url(url) for url in existing_urls}
-    seen = set(existing)
-    bookmarks = []
-    invalid = duplicates = 0
-    for index, item in enumerate(items):
-        bookmark = _convert_item(source, item, index, counters)
-        if bookmark is None:
-            invalid += 1
-            continue
-        canonical = normalize_url(bookmark.url)
-        if not canonical or canonical in seen:
-            duplicates += 1
-            continue
-        seen.add(canonical)
-        bookmarks.append(bookmark)
-    report = MigrationReport(
-        source=source,
-        source_sha256=hashlib.sha256(raw).hexdigest(),
-        total_records=len(items),
-        importable=len(bookmarks),
-        duplicates=duplicates,
-        invalid=invalid,
-        preserved=counters["preserved"],
-        transformed=counters["transformed"],
-        unsupported=counters["unsupported"],
-    )
-    return MigrationPlan(tuple(bookmarks), report)
+    spool = _PlanSpool()
+    try:
+        spool.seed_existing(normalize_url(url) for url in existing_urls)
+        total = invalid = duplicates = 0
+        for index, item in enumerate(items):
+            total += 1
+            bookmark = _convert_item(source, item, index, counters)
+            if bookmark is None:
+                invalid += 1
+                continue
+            canonical = normalize_url(bookmark.url)
+            # The spool's primary key is the dedupe check, so no set of every
+            # URL in the library and the export is held in memory.
+            if not canonical or not spool.add(canonical, bookmark.to_dict()):
+                duplicates += 1
+                continue
+        spool.commit()
+        report = MigrationReport(
+            source=source,
+            source_sha256=hashlib.sha256(raw).hexdigest(),
+            total_records=total,
+            importable=len(spool),
+            duplicates=duplicates,
+            invalid=invalid,
+            preserved=counters["preserved"],
+            transformed=counters["transformed"],
+            unsupported=counters["unsupported"],
+        )
+    except BaseException:
+        # A refused or cancelled preflight leaves nothing behind.
+        spool.close()
+        raise
+    return MigrationPlan(report, spool)
 
 
 def apply_migration(manager, plan: MigrationPlan) -> MigrationResult:
@@ -271,7 +402,9 @@ def apply_migration(manager, plan: MigrationPlan) -> MigrationResult:
         raise RuntimeError("could not create a pre-migration safepoint")
     existing = {normalize_url(bookmark.url) for bookmark in manager.get_all_bookmarks()}
     added = duplicates = 0
-    for bookmark in plan.bookmarks:
+    # Stream the plan rather than materializing it: the spool exists so a large
+    # export never has to be resident all at once.
+    for bookmark in plan.iter_bookmarks():
         canonical = normalize_url(bookmark.url)
         if canonical in existing:
             duplicates += 1

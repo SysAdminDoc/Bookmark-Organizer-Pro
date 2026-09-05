@@ -4,8 +4,11 @@ import csv
 import io
 import json
 from pathlib import Path
+from unittest import mock
 
 import pytest
+
+from bookmark_organizer_pro.services import migration
 
 from bookmark_organizer_pro.models import Bookmark
 from bookmark_organizer_pro.services.migration import apply_migration, preflight_migration
@@ -447,3 +450,124 @@ def test_apply_migration_is_safepointed_and_idempotent(migration_files: dict[str
     assert len(manager.bookmarks) == 1
     assert first.safepoint.startswith("safepoints/pre-raindrop-migration")
     assert manager.safepoints == ["pre-raindrop-migration", "pre-raindrop-migration"]
+
+
+# ── R-154: the plan lives on disk, not in memory ─────────────────────────────
+
+
+def test_the_spool_round_trip_preserves_every_converted_field(migration_files: dict[str, Path]):
+    """Serializing through the spool must not quietly drop or coerce a field."""
+    from bookmark_organizer_pro.services import migration as migration_module
+
+    for source, path in migration_files.items():
+        direct = []
+        original_add = migration_module._PlanSpool.add
+
+        def capture(self, canonical, payload, _original=original_add):
+            direct.append(dict(payload))
+            return _original(self, canonical, payload)
+
+        with mock.patch.object(migration_module._PlanSpool, "add", capture):
+            plan = preflight_migration(source, path)
+        try:
+            restored = [bookmark.to_dict() for bookmark in plan.iter_bookmarks()]
+        finally:
+            plan.close()
+        assert restored == direct, f"{source} lost fields through the spool"
+
+
+def test_the_plan_streams_without_materializing(migration_files: dict[str, Path]):
+    plan = preflight_migration("linkwarden", migration_files["linkwarden"])
+    try:
+        streamed = plan.iter_bookmarks()
+        assert not isinstance(streamed, (list, tuple))
+        assert [bookmark.url for bookmark in streamed] == ["https://one.example"]
+    finally:
+        plan.close()
+
+
+def test_existing_library_urls_dedupe_through_the_spool(migration_files: dict[str, Path]):
+    plan = preflight_migration(
+        "linkwarden", migration_files["linkwarden"], existing_urls=["https://one.example"]
+    )
+    try:
+        assert plan.report.importable == 0
+        assert plan.report.duplicates == 1
+        assert list(plan.iter_bookmarks()) == []
+    finally:
+        plan.close()
+
+
+def test_repeats_inside_one_export_collapse_to_one_record(tmp_path: Path):
+    path = tmp_path / "repeats.json"
+    path.write_text(
+        json.dumps({"links": [
+            {"url": "https://dupe.example/a", "name": "First"},
+            {"url": "https://dupe.example/a", "name": "Second"},
+            {"url": "https://other.example/b", "name": "Other"},
+        ]}),
+        encoding="utf-8",
+    )
+
+    plan = preflight_migration("linkwarden", path)
+    try:
+        assert plan.report.total_records == 3
+        assert plan.report.importable == 2
+        assert plan.report.duplicates == 1
+        assert [bookmark.url for bookmark in plan.iter_bookmarks()] == [
+            "https://dupe.example/a", "https://other.example/b"
+        ]
+    finally:
+        plan.close()
+
+
+def test_closing_a_plan_removes_its_spool_from_disk(migration_files: dict[str, Path]):
+    plan = preflight_migration("linkwarden", migration_files["linkwarden"])
+    spool_path = plan._spool.path
+    assert spool_path.exists()
+
+    plan.close()
+
+    assert not spool_path.exists()
+    assert not spool_path.parent.exists()
+    plan.close()  # idempotent
+
+
+def test_a_plan_used_as_a_context_manager_cleans_up(migration_files: dict[str, Path]):
+    with preflight_migration("linkwarden", migration_files["linkwarden"]) as plan:
+        spool_path = plan._spool.path
+        assert spool_path.exists()
+
+    assert not spool_path.exists()
+
+
+def test_a_failing_preflight_leaves_no_spool_behind(migration_files: dict[str, Path], monkeypatch):
+    from bookmark_organizer_pro.services import migration as migration_module
+
+    created: list = []
+    original_init = migration_module._PlanSpool.__init__
+
+    def record(self, directory=None, _original=original_init):
+        _original(self, directory)
+        created.append(self)
+
+    monkeypatch.setattr(migration_module._PlanSpool, "__init__", record)
+    monkeypatch.setattr(
+        migration_module, "_convert_item",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("conversion exploded")),
+    )
+
+    with pytest.raises(ValueError):
+        preflight_migration("linkwarden", migration_files["linkwarden"])
+
+    assert created, "the preflight never opened a spool"
+    for spool in created:
+        assert not spool.path.exists(), "a failed preflight left its spool on disk"
+
+
+def test_a_discarded_plan_refuses_to_stream(migration_files: dict[str, Path]):
+    plan = preflight_migration("linkwarden", migration_files["linkwarden"])
+    plan.close()
+
+    with pytest.raises(migration.MigrationSpoolError):
+        list(plan.iter_bookmarks())
