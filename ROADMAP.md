@@ -164,13 +164,6 @@ Actionable incomplete work only. Historical and completed material belongs in `C
 
 ### P1
 
-- [ ] P1: R-178: Make the benchmark thresholds scale with collection size
-  Why: The gate holds every collection size to the same absolute millisecond ceiling, so it is a fixed budget rather than a complexity check. An O(n squared) rewrite that stays under 750 ms at 5,000 records passes it unchanged, which is why none of the scale defects in this pass were caught by a green benchmark run.
-  Evidence: `benchmarks/bench_core.py:337-343` computes `scale = max(1.0, size / largest_size)`, which is exactly 1.0 for every size at or below the largest; `DEFAULT_SIZES` at `:32` is `(100, 1_000, 5_000)`; the measured cases at `:35-44` include no widget path and not `dup_hybrid.detect`
-  Touches: `benchmarks/bench_core.py`, `tests/test_benchmarks.py`, `scripts/` benchmark invocation, README benchmark documentation
-  Acceptance: Each case declares an expected growth class and the threshold is derived from the smallest tier's measured time scaled by that class, so a case that grows faster than declared fails even when it stays under a wall-clock ceiling; the size tiers extend above the current 5,000 once the open question about supported library size is settled; a `dup_hybrid.detect` case and a table-population case are added; the gate is proved by making one measured operation quadratic and watching only that case fail while the others stay green.
-  Complexity: M
-
 - [ ] P1: R-179: Stop rewriting the whole library on every single-record mutation
   Why: Adding, editing, deleting, or retagging one bookmark serializes every record and fsyncs the complete file. This is the documented cause of the README's own "high CPU on large imports" entry, and at a realistic library size it makes ordinary editing unusable.
   Evidence: `bookmark_organizer_pro/managers/bookmarks.py:490` `_save_snapshot` builds `[bm.to_dict() for bm in mapping.values()]` at `:501`; `bookmark_organizer_pro/core/storage_manager.py:200-221` writes through mkstemp, fsync, and `os.replace`; fourteen mutation call sites including `managers/bookmarks.py:573`, `:604`, `:624`, `:643`, `:947`, `:1029`, `:1055`, `:1265`, `:1370`, `:1469`, `:1498`; README troubleshooting records the symptom
@@ -183,6 +176,7 @@ Actionable incomplete work only. Historical and completed material belongs in `C
   Evidence: `bookmark_organizer_pro/app_mixins/bookmarks.py:105`, `:151`, `:159` and `bookmark_organizer_pro/app_mixins/filters.py:233` each call `get_all_bookmarks()`, which returns a fresh list from `_iter_snapshot()` (`managers/bookmarks.py:813-815`); sort at `app_mixins/bookmarks.py:149`; `_populate_list_view` at `:234-334` with the row spec at `:288-297`, favicon lookup at `:313`, and the per-row insert fallback at `:319-330`; no paging or row limit exists in `bookmarks.py`, `filters.py`, or `ui/treeview.py`
   Touches: `bookmark_organizer_pro/app_mixins/bookmarks.py`, `bookmark_organizer_pro/app_mixins/filters.py`, `bookmark_organizer_pro/ui/treeview.py`, `benchmarks/bench_core.py`, `tests/test_core.py`
   Acceptance: A refresh takes exactly one library snapshot and derives filter counts, totals, and the visible set from it, asserted by a test that counts `get_all_bookmarks()` calls; the sort key is computed once per record per refresh; row specs are built only for rows the view can present, with the remainder loaded on demand and the full count still reported accurately in the summary; the accessibility fallback batches its inserts; the new benchmark case from R-178 covers the refresh and its budget is proved by reintroducing a second full scan.
+  Note 2026-09-05: R-178 shipped the growth-class thresholds and a `duplicate_scan` case but NOT the table-population case, which needs an offscreen Tk root in a benchmark worker and was split out rather than half-built. Adding it belongs to this item. `benchmarks/bench_core.py` now takes a growth class per case in `CASE_GROWTH`, so a new case must declare one.
   Complexity: L
 
 - [ ] P1: R-181: Harden the local credential surface

@@ -94,3 +94,41 @@ def test_benchmark_report_has_bounded_named_workloads() -> None:
     assert all(case["watchdog_ms"] == 5000.0 for case in report["cases"])
     dedupe = next(case for case in report["cases"] if case["name"] == "dedupe")
     assert dedupe["duplicates"] >= 1
+
+
+def test_growth_budget_tightens_a_larger_tier_below_the_flat_ceiling() -> None:
+    """R-178: the flat ceiling alone cannot see a complexity regression."""
+    from benchmarks.bench_core import CASE_THRESHOLDS_MS, _case_threshold
+
+    flat = _case_threshold("search", 2000, 2000)
+    derived = _case_threshold("search", 2000, 2000, baseline=(200, 2.0))
+
+    assert flat == CASE_THRESHOLDS_MS["search"]
+    assert derived < flat
+    # 2.0ms at 200 records, linear to 2000, times the noise tolerance.
+    assert derived == pytest.approx(60.0, rel=0.01)
+
+
+def test_growth_budget_scales_with_the_declared_class() -> None:
+    from benchmarks.bench_core import _case_threshold
+
+    linear = _case_threshold("search", 4000, 100_000, baseline=(1000, 10.0))
+    log_linear = _case_threshold("sort", 4000, 100_000, baseline=(1000, 10.0))
+
+    # n log n grows faster than n over the same span, so it earns more room.
+    assert log_linear > linear
+
+
+def test_a_case_that_cannot_grow_keeps_its_baseline_budget() -> None:
+    from benchmarks.bench_core import GROWTH_FLOOR_MS, _case_threshold, CASE_GROWTH
+
+    assert "constant" not in {CASE_GROWTH[case] for case in ("load", "search", "save")}
+    # A floor keeps a sub-millisecond baseline from failing on noise alone.
+    assert _case_threshold("sort", 10_000, 100_000, baseline=(100, 0.05)) == GROWTH_FLOOR_MS
+
+
+def test_every_benchmark_case_declares_a_growth_class() -> None:
+    from benchmarks.bench_core import CASE_GROWTH, CASE_ORDER, CASE_THRESHOLDS_MS
+
+    assert set(CASE_GROWTH) == set(CASE_ORDER) == set(CASE_THRESHOLDS_MS)
+    assert set(CASE_GROWTH.values()) <= {"constant", "linear", "n_log_n"}

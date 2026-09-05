@@ -223,10 +223,17 @@ python scripts/generate_completions.py --check
 ### Performance gate
 
 The benchmark uses bulk deterministic fixtures outside the measured regions,
-then reports cold/warm startup, load, search, sort, save, dedupe, and one
-incremental persisted add at 100, 1,000, and 5,000 bookmarks. Each case runs in
-an isolated worker with a 10-second watchdog; the complete default gate has a
-60-second budget. Use JSON for CI or local comparison:
+then reports cold/warm startup, load, search, sort, save, dedupe, one
+incremental persisted add, and the pairwise duplicate scan at 100, 1,000, and
+5,000 bookmarks. Each case runs in an isolated worker with a 10-second watchdog;
+the complete default gate has a 60-second budget.
+
+Every case declares how it is allowed to grow with the collection. Once the
+smallest size has been measured, each larger size is held to that measurement
+grown by the declared class, so an operation that turns quadratic fails even
+while it stays under its flat ceiling. A generous tolerance and a floor keep
+ordinary measurement noise from failing the gate. Use JSON for CI or local
+comparison:
 
 ```bash
 python benchmarks/bench_core.py --gate

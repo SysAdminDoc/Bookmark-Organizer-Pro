@@ -41,6 +41,13 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   time to cover the rest. `bop dups` takes `--category` and `--json`.
 - The desktop duplicate scan now covers the collection you have selected rather
   than always scanning the whole library.
+- The performance gate can now catch an operation that gets slower than it
+  should as the library grows. It held every collection size to the same
+  stopwatch limit, so a change that made something scale badly still passed as
+  long as it stayed under that limit at the largest size tested. Each measured
+  operation now says how it is allowed to grow, and larger sizes are checked
+  against what the smallest size actually measured. The duplicate scan is now
+  measured too.
 - Raised the minimum versions of three dependencies that fixed real problems
   without ever getting a CVE, so the vulnerability audit had nothing to report.
   lxml 6.1.3 stops external entities being parsed by default in a mode that

@@ -9,12 +9,18 @@ creation is bulk work outside measured regions. Each named case runs in an
 isolated worker with a hard watchdog so a slow persistence path cannot stall
 the complete gate. Add ``--json`` or ``--output report.json`` for the stable
 machine-readable report.
+
+Each case also declares its expected growth class. The smallest size measured
+becomes that case's baseline, and every larger size is held to the baseline
+grown by the declared class, so an operation that becomes superlinear fails
+even while it stays under its flat ceiling.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -41,6 +47,7 @@ CASE_ORDER = (
     "save",
     "dedupe",
     "incremental_add",
+    "duplicate_scan",
 )
 
 # These are intentionally local-machine budgets, not universal SLAs. The
@@ -55,7 +62,34 @@ CASE_THRESHOLDS_MS = {
     "save": 3_000.0,
     "dedupe": 3_000.0,
     "incremental_add": 5_000.0,
+    "duplicate_scan": 5_000.0,
 }
+
+# How each case is allowed to grow with the collection. The flat ceilings above
+# cannot see a complexity regression on their own: every size at or below the
+# largest resolves to the same absolute budget, so an O(n^2) rewrite that stays
+# under the ceiling at the top tier passes unchanged. Declaring the class lets
+# the gate compare a larger tier against the smallest tier it measured.
+CASE_GROWTH = {
+    # Both startup cases construct a manager, which loads the whole library, so
+    # they scale with it. Declaring them constant made the gate fail honestly on
+    # its first run, which is the behaviour this table is for.
+    "startup_cold": "linear",
+    "startup_warm": "linear",
+    "load": "linear",
+    "search": "linear",
+    "sort": "n_log_n",
+    "save": "linear",
+    "dedupe": "linear",
+    "incremental_add": "linear",
+    "duplicate_scan": "linear",
+}
+
+# Measurement noise on a loaded desktop is large relative to a few milliseconds,
+# so a case may exceed its declared growth by this factor before failing, and a
+# tier is never held to less than the floor.
+GROWTH_TOLERANCE = 3.0
+GROWTH_FLOOR_MS = 50.0
 
 
 def _make_bookmarks(count: int) -> list[Any]:
@@ -226,6 +260,23 @@ def _worker_case(case: str, library: Path, save_target: Path, categories: Path, 
         duration_ms = (time.perf_counter() - started) * 1000
         return {"duration_ms": duration_ms, "saved": bookmark is not None}
 
+    if case == "duplicate_scan":
+        # The expensive duplicate path, not the cheap URL-bucket one the dedupe
+        # case measures. Its pairwise passes are capped, so the cap is lifted
+        # here to time the work the cap exists to bound.
+        from bookmark_organizer_pro.services.dup_hybrid import HybridDuplicateDetector
+
+        detector = HybridDuplicateDetector(max_pairwise=len(bookmarks) or 1)
+        started = time.perf_counter()
+        report = detector.detect(bookmarks)
+        duration_ms = (time.perf_counter() - started) * 1000
+        return {
+            "duration_ms": duration_ms,
+            "groups": len(report.groups),
+            "examined": report.pairwise_examined,
+            "skipped": report.pairwise_skipped,
+        }
+
     raise ValueError(f"unknown benchmark case: {case}")
 
 
@@ -334,12 +385,45 @@ def _parse_sizes(raw: str) -> tuple[int, ...]:
     return tuple(sorted(set(values)))
 
 
-def _case_threshold(case: str, size: int, largest_size: int) -> float:
-    # A fixed lower bound keeps interpreter startup from making tiny fixtures
-    # look like failures while still making the report explicit per case.
+def _growth_factor(case: str, size: int, baseline_size: int) -> float:
+    """How much slower this case may get between two collection sizes."""
+    ratio = size / max(baseline_size, 1)
+    growth = CASE_GROWTH[case]
+    if growth == "constant":
+        return 1.0
+    if growth == "linear":
+        return ratio
+    if growth == "n_log_n":
+        return ratio * (math.log2(max(size, 2)) / math.log2(max(baseline_size, 2)))
+    raise ValueError(f"unknown growth class for {case}: {growth}")
+
+
+def _case_threshold(
+    case: str,
+    size: int,
+    largest_size: int,
+    *,
+    baseline: tuple[int, float] | None = None,
+) -> float:
+    """Budget for one case at one size.
+
+    Without a baseline this is the flat per-case ceiling, which is all a
+    single-size run can offer. With one, the budget is the smallest tier's
+    measured time grown by the case's declared complexity class, so a case that
+    grows faster than it claims fails even while it stays under the ceiling.
+    The flat ceiling still applies, and a floor absorbs the fixed interpreter
+    and storage cost that does not scale with the collection.
+    """
     base = CASE_THRESHOLDS_MS[case]
     scale = max(1.0, size / max(largest_size, 1))
-    return round(max(base * 0.5, base * scale), 3)
+    flat = max(base * 0.5, base * scale)
+    if baseline is None:
+        return round(flat, 3)
+    baseline_size, baseline_ms = baseline
+    if size <= baseline_size:
+        return round(flat, 3)
+    grown = baseline_ms * _growth_factor(case, size, baseline_size) * GROWTH_TOLERANCE
+    return round(min(flat, max(grown, GROWTH_FLOOR_MS)), 3)
 
 
 def run_benchmark(
@@ -365,6 +449,9 @@ def run_benchmark(
     cases: list[dict[str, Any]] = []
     violations: list[str] = []
     largest_size = max(sizes)
+    # Smallest tier first, so every later tier can be judged against what this
+    # machine actually measured rather than against a fixed ceiling alone.
+    baselines: dict[str, tuple[int, float]] = {}
     try:
         for size in sizes:
             if time.perf_counter() - started >= total_timeout_seconds:
@@ -376,7 +463,9 @@ def run_benchmark(
                             "status": "not_run",
                             "duration_ms": None,
                             "watchdog_ms": round(case_timeout_seconds * 1000, 3),
-                            "threshold_ms": _case_threshold(case, size, largest_size),
+                            "threshold_ms": _case_threshold(
+                                case, size, largest_size, baseline=baselines.get(case)
+                            ),
                             "detail": "total benchmark watchdog exhausted before setup",
                         }
                     )
@@ -411,21 +500,31 @@ def run_benchmark(
                         timeout_seconds=min(case_timeout_seconds, remaining),
                         environment=environment,
                     )
-                threshold = _case_threshold(case, size, largest_size)
+                baseline = baselines.get(case)
+                threshold = _case_threshold(case, size, largest_size, baseline=baseline)
                 result.update(
                     {
                         "size": size,
                         "watchdog_ms": round(case_timeout_seconds * 1000, 3),
                         "threshold_ms": threshold,
+                        "growth": CASE_GROWTH[case],
+                        "baseline_size": baseline[0] if baseline else None,
+                        "baseline_ms": round(baseline[1], 3) if baseline else None,
                     }
                 )
                 if result["status"] != "completed":
                     violations.append(f"{case}@{size}: {result.get('detail', result['status'])}")
                 elif result["duration_ms"] > threshold:
                     result["status"] = "over_budget"
-                    violations.append(
-                        f"{case}@{size}: {result['duration_ms']:.1f}ms > {threshold:.1f}ms budget"
-                    )
+                    detail = f"{result['duration_ms']:.1f}ms > {threshold:.1f}ms budget"
+                    if baseline:
+                        detail += (
+                            f" (declared {CASE_GROWTH[case]} growth from "
+                            f"{baseline[1]:.1f}ms at {baseline[0]})"
+                        )
+                    violations.append(f"{case}@{size}: {detail}")
+                if result["status"] == "completed" and case not in baselines:
+                    baselines[case] = (size, float(result["duration_ms"]))
                 cases.append(result)
     finally:
         shutil.rmtree(temporary_root, ignore_errors=True)
@@ -436,6 +535,8 @@ def run_benchmark(
         "cases": cases,
         "case_order": list(CASE_ORDER),
         "thresholds_ms": CASE_THRESHOLDS_MS,
+        "growth_classes": CASE_GROWTH,
+        "growth_tolerance": GROWTH_TOLERANCE,
         "budgets": {
             "case_timeout_seconds": case_timeout_seconds,
             "total_timeout_seconds": total_timeout_seconds,

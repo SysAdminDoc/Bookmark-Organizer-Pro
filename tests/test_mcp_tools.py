@@ -604,7 +604,14 @@ class TestMCPRuntimeCompatibility(MCPToolTestBase):
         lock = tomllib.loads((ROOT / "pylock.toml").read_text(encoding="utf-8"))
         locked = {item.get("name"): item.get("version") for item in lock["packages"]}
 
-        self.assertRegex(pyproject_text, re.compile(r'"mcp>=1\.28,<2\.0"'))
+        # Assert the shape of the range, not one floor literal. The floor moves
+        # whenever an in-range release fixes something (1.29.1 added the 4 MiB
+        # body limit on the SSE and OAuth endpoints); the cap is the contract.
+        declared_mcp = re.search(r'"mcp>=(\d+(?:\.\d+)*),<2\.0"', pyproject_text)
+        self.assertIsNotNone(declared_mcp, "mcp must declare a floor and a <2.0 cap")
+        declared_floor = tuple(int(part) for part in declared_mcp.group(1).split("."))
+        self.assertGreaterEqual(declared_floor, (1, 28))
+        self.assertLess(declared_floor[:2], (2, 0))
         self.assertRegex(pyproject_text, re.compile(r'"fastmcp>=3\.4\.1,<4\.0"'))
         self.assertIn(".[ai,encryption,mcp,sunvalley,themedetect]", requirements_text)
         # The contract is the declared RANGE, not one patch line: pinning the
