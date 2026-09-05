@@ -390,3 +390,35 @@ def test_every_build_path_ships_compiled_catalogs():
     assert "locale/*/LC_MESSAGES/*.mo" in package_data
     assert 'LC_MESSAGES/*.mo' in spec, "PyInstaller spec collects no message catalogs"
     assert 'LC_MESSAGES/*.mo' in nuitka, "Nuitka build collects no message catalogs"
+
+
+def test_the_builds_collect_from_the_directory_lookup_prefers():
+    """All four have to agree on one location or the wheel ships nothing.
+
+    setuptools package-data globs are relative to the package directory, so a
+    catalog at the repo root cannot reach a wheel however it is declared. The
+    canonical home is therefore inside the package, and the two frozen builds
+    have to read the same place rather than the repo root beside the POT.
+    """
+    from bookmark_organizer_pro import i18n
+
+    root = Path(__file__).resolve().parents[1]
+    spec = (root / "packaging" / "bookmark_organizer.spec").read_text(encoding="utf-8")
+    nuitka = (root / "packaging" / "nuitka_build.py").read_text(encoding="utf-8")
+
+    preferred = i18n.locale_roots()[0]
+    assert preferred == root / "bookmark_organizer_pro" / "locale", preferred
+    assert 'ROOT_DIR / "bookmark_organizer_pro" / "locale"' in spec
+    assert 'root / "bookmark_organizer_pro" / "locale"' in nuitka
+    # The POT stays at the repo root next to the translator-facing sources.
+    assert i18n.POT_PATH == root / "locale" / "bop.pot"
+
+
+def test_the_nuitka_catalog_loop_does_not_shadow_the_build_target():
+    """`target` is a build_command parameter; reusing the name is a latent bug."""
+    nuitka = (
+        Path(__file__).resolve().parents[1] / "packaging" / "nuitka_build.py"
+    ).read_text(encoding="utf-8")
+
+    catalog_block = nuitka.split("catalog_dir = ")[1].split("if sys.platform")[0]
+    assert "target =" not in catalog_block, catalog_block

@@ -163,8 +163,12 @@ if not default_categories.is_file():
     raise FileNotFoundError(f"required runtime asset is missing: {default_categories}")
 datas.append((str(default_categories), "bookmark_organizer_pro/core"))
 
-for catalog in sorted((ROOT_DIR / "locale").glob("*/LC_MESSAGES/*.mo")):
-    datas.append((str(catalog), str(catalog.parent.relative_to(ROOT_DIR)).replace("\\", "/")))
+# Compiled catalogs live inside the package, which is the only place a wheel
+# can ship them and the first location i18n.locale_roots() looks.
+CATALOG_DIR = ROOT_DIR / "bookmark_organizer_pro" / "locale"
+for catalog in sorted(CATALOG_DIR.glob("*/LC_MESSAGES/*.mo")):
+    destination = catalog.parent.relative_to(ROOT_DIR).as_posix()
+    datas.append((str(catalog), destination))
 
 bootstrap_manifest = ROOT_DIR / "bookmark_organizer_pro" / "bootstrap_dependencies.json"
 if not bootstrap_manifest.is_file():

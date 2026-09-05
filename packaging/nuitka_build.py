@@ -92,9 +92,12 @@ def build_command(
             )
         )
         # Compiled message catalogs, so a translation can load from the build.
-        for catalog in sorted((root / "locale").glob("*/LC_MESSAGES/*.mo")):
-            target = catalog.relative_to(root).as_posix()
-            command.append(f"--include-data-files={catalog}={target}")
+        # They live inside the package: that is the only place a wheel can
+        # ship them and the first location i18n.locale_roots() looks.
+        catalog_dir = root / "bookmark_organizer_pro" / "locale"
+        for catalog in sorted(catalog_dir.glob("*/LC_MESSAGES/*.mo")):
+            destination = catalog.relative_to(root).as_posix()
+            command.append(f"--include-data-files={catalog}={destination}")
     if sys.platform.startswith("win"):
         console_mode = "force" if is_smoke else "disable"
         command.append(f"--windows-console-mode={console_mode}")
