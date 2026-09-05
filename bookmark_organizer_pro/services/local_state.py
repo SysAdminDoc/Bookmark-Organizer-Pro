@@ -489,6 +489,16 @@ class SupportBundlePreview:
         return "\n\n".join(sections)
 
 
+def _safe_report_name(path: Path) -> str:
+    """A crash filename fit to print in a bundle.
+
+    The reader finds these by glob, so the name is as untrusted as the body:
+    anything can create a file called crash-<anything>.log in that folder.
+    """
+    stem = re.sub(r"[^A-Za-z0-9._-]", "_", path.name)
+    return stem[:80] if stem else "crash-report"
+
+
 def _redacted_crash_reports(
     limit: int = 3,
     *,
@@ -512,7 +522,7 @@ def _redacted_crash_reports(
         try:
             raw = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
-            sections.append(f"=== {path.name} ===" + "\n" + "ERROR | detail=[CRASH_READ_ERROR]")
+            sections.append(f"=== {_safe_report_name(path)} ===" + "\n" + "ERROR | detail=[CRASH_READ_ERROR]")
             continue
         # The header is fields the crash writer produced itself (build,
         # interpreter, origin, thread) and holds no user content, so it passes
@@ -533,7 +543,7 @@ def _redacted_crash_reports(
                 )
             )
         redacted = "\n".join(lines)
-        sections.append(f"=== {path.name} ===" + "\n" + redacted)
+        sections.append(f"=== {_safe_report_name(path)} ===" + "\n" + redacted)
     return "\n\n".join(sections)
 
 

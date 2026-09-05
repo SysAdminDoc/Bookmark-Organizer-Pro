@@ -714,6 +714,71 @@ class TestCrashCapture(unittest.TestCase):
             launcher,
         )
 
+    def test_the_launcher_wires_a_working_reporter_onto_the_real_root(self):
+        """Driven, not grepped: renaming the local would pass a text search.
+
+        A real ``tk.Tk()`` maps a window, so the root is a stand-in. What is
+        under test is that the launcher assigns something onto
+        ``report_callback_exception`` that records a crash when Tk calls it.
+        """
+        from bookmark_organizer_pro import launcher
+
+        class FakeRoot:
+            def __init__(self):
+                self.report_callback_exception = None
+                self.scheduled = []
+
+            def withdraw(self):
+                pass
+
+            def after(self, _delay, callback):
+                self.scheduled.append(callback)
+
+            def winfo_fpixels(self, _spec):
+                return 96.0
+
+            def destroy(self):
+                self.destroyed = True
+
+        root = FakeRoot()
+        # main() leaves through its own "dependencies are missing" path rather
+        # than an exception: its exception handler calls messagebox.showerror,
+        # and a test must not put a dialog on someone's screen.
+        with mock.patch.object(launcher.tk, "Tk", lambda: root), \
+             mock.patch.object(launcher, "_configure_tk_scaling", lambda _root: None), \
+             mock.patch.object(launcher, "ensure_directories", lambda: None), \
+             mock.patch.object(launcher, "setup_locale", lambda _value: None), \
+             mock.patch.object(launcher, "setup_dpi_awareness", lambda: None), \
+             mock.patch.object(launcher, "set_widget_window_chrome_provider", lambda _p: None), \
+             mock.patch.object(launcher.style_manager, "initialize", lambda _root: None), \
+             mock.patch.object(launcher, "check_and_install_dependencies", lambda _root: False), \
+             mock.patch.object(launcher.messagebox, "showerror") as showerror, \
+             mock.patch.object(launcher, "install_crash_handlers") as install:
+            launcher.main([])
+
+        showerror.assert_not_called()
+
+        self.assertTrue(callable(root.report_callback_exception))
+        install.assert_called_with(notify=mock.ANY)
+
+        # The thing that was wired actually records a crash.
+        with tempfile.TemporaryDirectory(prefix="bop_wired_") as tmp:
+            from bookmark_organizer_pro import logging_config
+
+            log_file = Path(tmp) / "logs" / "bookmark_organizer.log"
+            with mock.patch.object(logging_config, "LOG_FILE", log_file):
+                try:
+                    raise ValueError("planted through the wired reporter")
+                except ValueError:
+                    root.report_callback_exception(*sys.exc_info())
+                reports = logging_config.latest_crash_reports(directory=log_file.parent)
+
+            self.assertTrue(reports, "the wired reporter recorded nothing")
+            self.assertIn(
+                "planted through the wired reporter",
+                reports[0].read_text(encoding="utf-8"),
+            )
+
     def test_the_crash_notice_is_marshalled_onto_the_tk_thread(self):
         """A worker-thread crash must not touch Tk from that thread."""
         from bookmark_organizer_pro import launcher
@@ -798,3 +863,61 @@ class TestCrashReportsReachTheSupportBundle(unittest.TestCase):
 
         content = dict(preview.files)["crash_reports_redacted.txt"]
         self.assertEqual("No crash reports were recorded.", content)
+
+
+class TestAForgedCrashFileCannotSmuggleContent(unittest.TestCase):
+    """The reader finds crash files by glob, so the file is untrusted input."""
+
+    def _bundle_text(self, tmp: str, name: str, body: str) -> str:
+        from bookmark_organizer_pro.services import local_state
+
+        log_file = Path(tmp) / "bookmark_organizer.log"
+        log_file.write_text("2026-09-05 | INFO | BookmarkOrganizer | up\n", encoding="utf-8")
+        (Path(tmp) / name).write_text(body, encoding="utf-8")
+        with mock.patch.object(local_state, "LOG_FILE", log_file):
+            preview = local_state.build_support_bundle_preview()
+        return dict(preview.files)["crash_reports_redacted.txt"]
+
+    def test_a_header_shaped_line_with_a_foreign_value_is_redacted(self):
+        with tempfile.TemporaryDirectory(prefix="bop_forged_") as tmp:
+            content = self._bundle_text(
+                tmp,
+                "crash-20260905-999999-1.log",
+                "thread: password=hunter2 owner=alice@example.test\n"
+                "origin: https://internal.corp/secret?token=abc\n"
+                r"app: C:\Users\Alice\Documents\ssn-123-45-6789.txt" + "\n",
+            )
+
+        self.assertNotIn("hunter2", content)
+        self.assertNotIn("alice@example.test", content)
+        self.assertNotIn("internal.corp", content)
+        self.assertNotIn("ssn-123-45-6789", content)
+        self.assertNotIn(r"C:\Users\Alice", content)
+
+    def test_a_genuine_header_still_passes_through(self):
+        with tempfile.TemporaryDirectory(prefix="bop_genuine_") as tmp:
+            content = self._bundle_text(
+                tmp,
+                "crash-20260905-010203-1.log",
+                "app: Bookmark Organizer Pro 6.16.0\n"
+                "when: 2026-09-05T01:02:03\n"
+                "origin: tk-callback\n"
+                "thread: MainThread\n"
+                "python: 3.12.10 CPython\n"
+                "platform: win32\n"
+                "frozen: False\n",
+            )
+
+        self.assertIn("origin: tk-callback", content)
+        self.assertIn("app: Bookmark Organizer Pro 6.16.0", content)
+        self.assertIn("platform: win32", content)
+
+    def test_a_hostile_filename_does_not_reach_the_bundle(self):
+        with tempfile.TemporaryDirectory(prefix="bop_name_") as tmp:
+            content = self._bundle_text(
+                tmp,
+                "crash-owner=alice@example.test.log",
+                "origin: main\n",
+            )
+
+        self.assertNotIn("alice@example.test", content)

@@ -10,6 +10,7 @@ import logging
 import logging.handlers
 import os
 import platform
+import re
 import sys
 import threading
 import traceback
@@ -145,10 +146,28 @@ def latest_crash_reports(limit: int = 5, *, directory: Path | None = None) -> li
 CRASH_HEADER_KEYS = ("app", "when", "origin", "thread", "python", "platform", "frozen")
 
 
+# A header line is exempt from redaction only if its value looks like the value
+# this module writes for that field. The crash directory is an ordinary folder
+# and the reader finds files by glob, so matching the key alone would let any
+# file named crash-*.log carry arbitrary text into a support bundle verbatim.
+_CRASH_HEADER_VALUE_PATTERNS = {
+    "app": re.compile(r"^[\w .+-]{1,80}$"),
+    "when": re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[.+-][\d:.]+)?$"),
+    "origin": re.compile(r"^(?:main|thread|tk-callback)$"),
+    "thread": re.compile(r"^[\w .:#()-]{1,120}$"),
+    "python": re.compile(r"^\d+\.\d+\.\d+\S*\s+\w+$"),
+    "platform": re.compile(r"^\w{1,32}$"),
+    "frozen": re.compile(r"^(?:True|False)$"),
+}
+
+
 def is_crash_header_line(line: str) -> bool:
     """True for a header line this module wrote, which needs no redaction."""
-    key, separator, _rest = line.partition(": ")
-    return bool(separator) and key in CRASH_HEADER_KEYS
+    key, separator, value = line.partition(": ")
+    if not separator:
+        return False
+    pattern = _CRASH_HEADER_VALUE_PATTERNS.get(key)
+    return pattern is not None and bool(pattern.match(value))
 
 
 def format_crash_report(

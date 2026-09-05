@@ -792,3 +792,90 @@ def test_a_top_level_json_array_still_parses(tmp_path: Path):
     with preflight_migration("linkwarden", path) as plan:
         assert plan.report.total_records == 1
         assert plan.bookmarks[0].url == "https://bare.example"
+
+
+@pytest.mark.parametrize(
+    "source,document,expected_url",
+    [
+        # An empty higher-ranked container must not win over the real one, and
+        # the real one must not lose just because it appears later in the file.
+        ("karakeep", {"links": [], "bookmarks": [{"url": "https://real.example"}]},
+         "https://real.example"),
+        ("karakeep", {"items": [{"tag": "decoy"}], "bookmarks": [{"url": "https://real.example"}]},
+         "https://real.example"),
+        ("karakeep", {"data": [{"c": 1}], "bookmarks": [{"url": "https://real.example"}]},
+         "https://real.example"),
+        ("linkwarden", {"data": [{"c": 1}], "links": [{"url": "https://real.example"}]},
+         "https://real.example"),
+        ("linkwarden", {"bookmarks": [{"url": "https://second.example"}],
+                        "links": [{"url": "https://real.example"}]},
+         "https://real.example"),
+    ],
+)
+def test_the_ranked_container_wins_over_whichever_appears_first(
+    source, document, expected_url, tmp_path: Path
+):
+    """Document order is not the ranking; picking it imports nothing."""
+    path = tmp_path / "export.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    with preflight_migration(source, path) as plan:
+        assert plan.report.importable == 1
+        assert plan.bookmarks[0].url == expected_url
+
+
+@pytest.mark.parametrize(
+    "source,document",
+    [
+        ("linkwarden", {"bookmarks": {"items": [{"url": "https://nested.example"}]}}),
+        ("linkwarden", {"links": {"bookmarks": [{"url": "https://nested.example"}]}}),
+        ("linkwarden", {"data": {"items": [{"url": "https://nested.example"}]}}),
+        ("karakeep", {"bookmarks": {"links": [{"url": "https://nested.example"}]}}),
+        ("karakeep", {"data": {"bookmarks": [{"url": "https://nested.example"}]}}),
+    ],
+)
+def test_a_container_nested_one_level_still_parses(source, document, tmp_path: Path):
+    """The materializing parser descended one level under any candidate key."""
+    path = tmp_path / "export.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    with preflight_migration(source, path) as plan:
+        assert plan.report.importable == 1
+        assert plan.bookmarks[0].url == "https://nested.example"
+
+
+def test_an_enormous_field_name_is_refused_like_an_enormous_value(tmp_path: Path):
+    """An unknown key is interned into the report, so a huge key costs more."""
+    path = tmp_path / "hostile.json"
+    path.write_text(
+        json.dumps({"links": [{"url": "https://a.example", "x" * 5000: "small"}]}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(migration.MigrationSpoolError) as excinfo:
+        preflight_migration(
+            "linkwarden", path, limits=migration.MigrationLimits(max_field_chars=1000)
+        )
+
+    assert "max_field_chars" in str(excinfo.value)
+
+
+def test_the_candidate_records_are_dropped_before_the_plan_is_returned(tmp_path: Path):
+    """The ranking spool is scratch and must not double the plan on disk."""
+    path = tmp_path / "export.json"
+    path.write_text(
+        json.dumps({"links": [{"url": f"https://e{index}.example"} for index in range(5)]}),
+        encoding="utf-8",
+    )
+    spools: list = []
+    real_spool = migration._PlanSpool
+
+    def capture(*args, **kwargs):
+        spool = real_spool(*args, **kwargs)
+        spools.append(spool)
+        return spool
+
+    with mock.patch.object(migration, "_PlanSpool", capture):
+        with preflight_migration("linkwarden", path) as plan:
+            assert plan.report.importable == 5
+            assert spools[0].raw_prefixes() == {}

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import csv
 import hashlib
 import io
@@ -79,9 +80,23 @@ class _PlanSpool:
             " seq INTEGER PRIMARY KEY,"
             " payload TEXT NOT NULL)"
         )
+        # Candidate containers from a JSON export, kept only long enough to
+        # rank them. Dropped before conversion begins.
+        self._connection.execute(
+            "CREATE TABLE IF NOT EXISTS raw ("
+            " seq INTEGER PRIMARY KEY,"
+            " prefix TEXT NOT NULL,"
+            " payload TEXT NOT NULL)"
+        )
         self._connection.commit()
         self._sequence = 0
+        self._raw_sequence = 0
         self._closed = False
+        # Cursors handed to callers. A generator suspended over one keeps the
+        # database file open on Windows, and rmtree then fails silently and
+        # leaves the spool behind, which is the leak this class exists to
+        # avoid. They are closed explicitly before the connection is.
+        self._cursors: list[sqlite3.Cursor] = []
 
     def seed_existing(self, canonical_urls: Iterable[str]) -> None:
         """Record URLs the library already holds so they dedupe like any other."""
@@ -106,6 +121,40 @@ class _PlanSpool:
         self._sequence += 1
         return True
 
+    def add_raw(self, prefix: str, payload: Mapping) -> None:
+        """Keep one candidate-container record until the ranking is decided."""
+        self._connection.execute(
+            "INSERT INTO raw (seq, prefix, payload) VALUES (?, ?, ?)",
+            (self._raw_sequence, prefix, json.dumps(payload, ensure_ascii=False)),
+        )
+        self._raw_sequence += 1
+
+    def raw_prefixes(self) -> dict[str, int]:
+        """How many records each candidate container held."""
+        return {
+            str(prefix): int(count)
+            for prefix, count in self._connection.execute(
+                "SELECT prefix, COUNT(*) FROM raw GROUP BY prefix"
+            )
+        }
+
+    def iter_raw(self, prefix: str) -> "Iterator[dict]":
+        """Yield one container's records in document order."""
+        cursor = self._connection.execute(
+            "SELECT payload FROM raw WHERE prefix = ? ORDER BY seq", (prefix,)
+        )
+        self._cursors.append(cursor)
+        try:
+            for (payload,) in cursor:
+                yield json.loads(payload)
+        finally:
+            self._release(cursor)
+
+    def discard_raw(self) -> None:
+        """Drop the candidate containers once their records are converted."""
+        self._connection.execute("DELETE FROM raw")
+        self._connection.commit()
+
     def commit(self) -> None:
         self._connection.commit()
 
@@ -120,19 +169,36 @@ class _PlanSpool:
         cursor = self._connection.execute(
             "SELECT payload FROM payloads ORDER BY seq"
         )
-        for (payload,) in cursor:
-            yield json.loads(payload)
+        self._cursors.append(cursor)
+        try:
+            for (payload,) in cursor:
+                yield json.loads(payload)
+        finally:
+            self._release(cursor)
+
+    def _release(self, cursor: sqlite3.Cursor) -> None:
+        with contextlib.suppress(sqlite3.Error, ValueError):
+            cursor.close()
+        with contextlib.suppress(ValueError):
+            self._cursors.remove(cursor)
 
     def close(self) -> None:
         """Delete the spool. Safe to call twice."""
         if self._closed:
             return
         self._closed = True
+        for cursor in list(self._cursors):
+            self._release(cursor)
         try:
             self._connection.close()
         except sqlite3.Error:
             pass
         shutil.rmtree(self._directory, ignore_errors=True)
+        if self._directory.exists():
+            # A stale handle on Windows can outlive the close by a moment. The
+            # spool holds a full copy of the user's export, so a silent failure
+            # here is the leak, not a tidiness problem.
+            shutil.rmtree(self._directory, ignore_errors=True)
 
 
 @dataclass(frozen=True)
@@ -233,44 +299,63 @@ class _HashingReader(io.RawIOBase):
         return self._digest.hexdigest()
 
 
-# Where each export keeps its bookmark array. A top-level array is the empty
-# prefix; ijson names nested members "<prefix>.item".
-_JSON_ITEM_PREFIXES = {
-    "linkwarden": ("", "links", "bookmarks", "data", "data.bookmarks", "data.links"),
-    "karakeep": (
-        "", "bookmarks", "links", "data", "items",
-        "data.bookmarks", "data.links", "data.items",
-    ),
+# Where each export keeps its bookmark array, in the order a container is
+# preferred when a document offers more than one. A top-level array is the
+# empty prefix; ijson names an array member "<prefix>.item".
+#
+# The order matters and is not decoration. A Karakeep export that carries an
+# empty "links" alongside its real "bookmarks" must resolve to "bookmarks", and
+# picking whichever container appears first in the file instead produces a
+# migration that silently imports nothing.
+_JSON_CONTAINER_KEYS = {
+    "linkwarden": ("links", "bookmarks", "data"),
+    "karakeep": ("bookmarks", "links", "data", "items"),
 }
+_JSON_NESTED_KEYS = ("bookmarks", "links", "items")
 
 
-def _stream_json_items(reader, source: str) -> "Iterator[dict]":
-    """Yield each record of a JSON export without holding the whole document.
+def _json_prefix_priority(source: str) -> tuple[str, ...]:
+    """Every container prefix for a source, most preferred first.
 
-    ijson reports one flat event stream, so the first array whose prefix is a
-    known bookmark container wins and its members are rebuilt one at a time.
-    Scanning for any of the candidate prefixes in that single pass is what
-    keeps the source from being read twice to find out which one it uses.
+    Each top-level key is tried before its nested forms, matching the one-level
+    descent the materializing parser did under whichever key it settled on.
+    """
+    order = [""]
+    for key in _JSON_CONTAINER_KEYS[source]:
+        order.append(key)
+        order.extend(f"{key}.{nested}" for nested in _JSON_NESTED_KEYS if nested != key)
+    return tuple(order)
+
+
+def _spool_json_candidates(reader, source: str, spool: "_PlanSpool") -> str:
+    """Read the export once, keeping every candidate container on disk.
+
+    A single event pass cannot know whether a better-ranked container appears
+    later in the file, and re-reading to find out would mean parsing a 250 MB
+    export twice. So every candidate array's records are spooled as raw JSON
+    tagged with their prefix, the ranking picks the winner afterwards, and the
+    losers are discarded. Nothing is held in memory beyond one record.
     """
     import ijson
     from ijson.common import ObjectBuilder
 
-    candidates = _JSON_ITEM_PREFIXES[source]
+    candidates = set(_json_prefix_priority(source))
     member_prefix: str | None = None
+    active_prefix = ""
     builder: ObjectBuilder | None = None
     depth = 0
-    found = False
+    seen_any = False
 
     for prefix, event, value in ijson.parse(reader):
-        if member_prefix is None:
-            if event == "start_array" and prefix in candidates:
-                member_prefix = f"{prefix}.item" if prefix else "item"
-                found = True
-            continue
         if builder is None:
+            if event == "start_array" and prefix in candidates:
+                active_prefix = prefix
+                member_prefix = f"{prefix}.item" if prefix else "item"
+                seen_any = True
+                continue
             # Only whole objects are records; a stray scalar in the array is
             # skipped the way the list comprehension used to skip it.
-            if prefix == member_prefix and event == "start_map":
+            if member_prefix is not None and prefix == member_prefix and event == "start_map":
                 builder = ObjectBuilder()
                 depth = 0
             else:
@@ -281,11 +366,19 @@ def _stream_json_items(reader, source: str) -> "Iterator[dict]":
             depth -= 1
         builder.event(event, value)
         if depth == 0:
-            yield builder.value
+            spool.add_raw(active_prefix, builder.value)
             builder = None
 
-    if not found:
+    if not seen_any:
         raise ValueError(f"{source} export does not contain a supported bookmark list")
+    spool.commit()
+    stored = spool.raw_prefixes()
+    for prefix in _json_prefix_priority(source):
+        if stored.get(prefix):
+            return prefix
+    # Every candidate container was present but empty. That is a real export
+    # with nothing in it, not an unrecognized one.
+    return next(iter(stored), "")
 
 
 def _reject_oversized_fields(item: Mapping, limits: "MigrationLimits", index: int) -> None:
@@ -309,6 +402,10 @@ def _reject_oversized_fields(item: Mapping, limits: "MigrationLimits", index: in
                     f"{len(value)} characters, limit {limits.max_field_chars}"
                 )
         elif isinstance(value, Mapping):
+            # Keys as well as values. An unknown key is interned into the
+            # unsupported-field counter and kept for the whole run, so a
+            # megabyte-long key costs more than a megabyte-long title.
+            stack.extend((child, depth + 1) for child in value.keys())
             stack.extend((child, depth + 1) for child in value.values())
         elif isinstance(value, (list, tuple)):
             stack.extend((child, depth + 1) for child in value)
@@ -481,11 +578,11 @@ def preflight_migration(
         total = invalid = duplicates = 0
         with source_path.open("rb") as handle:
             reader = _HashingReader(handle)
-            items = (
-                _stream_json_items(reader, source)
-                if source in {"linkwarden", "karakeep"}
-                else _stream_csv_items(reader)
-            )
+            if source in {"linkwarden", "karakeep"}:
+                chosen = _spool_json_candidates(reader, source, spool)
+                items: "Iterator[Mapping]" = spool.iter_raw(chosen)
+            else:
+                items = _stream_csv_items(reader)
             for index, item in enumerate(items):
                 total += 1
                 if total > limits.max_records:
@@ -508,6 +605,7 @@ def preflight_migration(
             while reader.read(1024 * 1024):
                 pass
             source_sha256 = reader.hexdigest
+        spool.discard_raw()
         spool.commit()
         report = MigrationReport(
             source=source,
