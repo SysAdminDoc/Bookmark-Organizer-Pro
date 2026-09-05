@@ -112,8 +112,8 @@ class BatchImportPlan:
         }
 
 
-def _parse_netscape(path: str) -> List[Bookmark]:
-    return list(NetscapeBookmarkImporter.import_from_netscape(path))
+def _parse_netscape(path: str, *, categorize=None) -> List[Bookmark]:
+    return list(NetscapeBookmarkImporter.import_from_netscape(path, categorize=categorize))
 
 
 def _parse_firefox_backup(path: str) -> List[Bookmark]:
@@ -222,6 +222,16 @@ def detect_format(path: str | Path) -> str:
     return ""
 
 
+def _accepts_categorize(parser: Callable) -> bool:
+    """Whether a registered parser takes the shared categorization policy."""
+    import inspect
+
+    try:
+        return "categorize" in inspect.signature(parser).parameters
+    except (TypeError, ValueError):
+        return False
+
+
 def _parser_for(label: str) -> Callable[[str], List[Bookmark]]:
     for candidate, _suffixes, _sniff, parse in _FORMATS:
         if candidate == label:
@@ -292,8 +302,12 @@ def _best_timestamp(bookmark: Bookmark) -> Optional[float]:
 class BatchDirectoryImporter:
     """Importer-shaped facade over a directory (or explicit list) of exports."""
 
-    def __init__(self, *, recursive: bool = True):
+    def __init__(self, *, recursive: bool = True, categorize=None):
         self.recursive = recursive
+        # Same URL-categorization policy the desktop and CLI single-file
+        # importers apply, so one export produces one set of records no
+        # matter which surface reads it.
+        self.categorize = categorize
         self.stats = SessionImportStats()
         self.last_plan: Optional[BatchImportPlan] = None
 
@@ -367,7 +381,11 @@ class BatchDirectoryImporter:
                 continue
 
             try:
-                parsed = _parser_for(label)(str(path))
+                parser = _parser_for(label)
+                if self.categorize is not None and _accepts_categorize(parser):
+                    parsed = parser(str(path), categorize=self.categorize)
+                else:
+                    parsed = parser(str(path))
             except Exception as exc:  # a bad file must not abort the batch
                 log.warning(f"Batch import could not parse {path}: {exc}")
                 files.append(BatchSourceFile(

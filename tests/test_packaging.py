@@ -395,42 +395,66 @@ print("imported")
         self.assertNotIn("preflight_or_exit", called)
         self.assertNotIn("_preflight_or_exit", called)
 
-    def test_console_entry_points_preflight_missing_manifest_imports(self):
+    def test_console_scripts_preflight_before_importing_the_package(self):
+        """A genuinely absent dependency must reach the guidance, not a traceback.
+
+        Patching importlib.util.find_spec is not enough here: it does not
+        affect the real import system, so the application package still imports
+        and only the preflight sees the fake absence. This blocks the module on
+        sys.meta_path, which is how a missing dependency actually behaves, and
+        is the condition that proved a preflight living inside main() is
+        unreachable for a console script.
+        """
         module = _load_package_contract_audit()
         manifest = module.bootstrap_manifest_document()
+        project_data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
         probe = """
 import importlib
-import importlib.util
 import sys
 
-target, module_name, attribute = sys.argv[1], sys.argv[2], sys.argv[3]
-original_find_spec = importlib.util.find_spec
-importlib.util.find_spec = lambda name, package=None: (
-    None if name == target else original_find_spec(name, package)
-)
-entry = getattr(importlib.import_module(module_name), attribute)
-entry()
+blocked, target, attribute = sys.argv[1], sys.argv[2], sys.argv[3]
+
+
+class Blocker:
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == blocked or fullname.startswith(blocked + "."):
+            raise ModuleNotFoundError(f"No module named {fullname!r}", name=fullname)
+        return None
+
+
+sys.meta_path.insert(0, Blocker())
+entry = getattr(importlib.import_module(target), attribute)
+raise SystemExit(entry())
 """
-        entry_points = (
-            ("bookmark_organizer_pro.cli", "main"),
-            ("bookmark_organizer_pro.mcp_server", "main"),
-        )
-        import_name = manifest["dependencies"][0]["import_name"]
-        for module_name, attribute in entry_points:
-            result = subprocess.run(
-                [sys.executable, "-c", probe, import_name, module_name, attribute],
-                cwd=ROOT,
-                capture_output=True,
-                text=True,
-                timeout=60,
-                check=False,
-            )
-            with self.subTest(entry_point=f"{module_name}:{attribute}"):
-                self.assertEqual(result.returncode, 2, result.stderr)
-                self.assertIn(import_name, result.stderr)
-                self.assertIn(sys.executable, result.stderr)
-                self.assertIn("-m pip install --upgrade --force-reinstall", result.stderr)
-                self.assertNotIn("Traceback", result.stderr)
+        for script, declared in sorted(project_data["project"]["scripts"].items()):
+            target, _, attribute = declared.partition(":")
+            for dependency in manifest["dependencies"]:
+                import_name = dependency["import_name"]
+                result = subprocess.run(
+                    [sys.executable, "-c", probe, import_name, target, attribute],
+                    cwd=ROOT,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                    check=False,
+                )
+                with self.subTest(script=script, import_name=import_name):
+                    self.assertEqual(result.returncode, 2, result.stderr)
+                    self.assertIn(import_name, result.stderr)
+                    self.assertIn(sys.executable, result.stderr)
+                    self.assertIn("-m pip install --upgrade --force-reinstall", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertNotIn("ModuleNotFoundError", result.stderr)
+
+    def test_console_scripts_route_through_the_stdlib_only_bootstrap(self):
+        project_data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+        for script, declared in project_data["project"]["scripts"].items():
+            with self.subTest(script=script):
+                self.assertTrue(
+                    declared.startswith("bootstrap_dependencies:"),
+                    f"{script} imports the application package before the preflight can run",
+                )
 
     def test_release_lock_renders_hash_required_install_input(self):
         module = _load_package_contract_audit()

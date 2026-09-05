@@ -1163,7 +1163,9 @@ Examples:
         from bookmark_organizer_pro.services.batch_import import BatchDirectoryImporter
         from bookmark_organizer_pro.services.import_sessions import ImportSessionManager
 
-        importer = BatchDirectoryImporter()
+        importer = BatchDirectoryImporter(
+            categorize=self.bookmark_manager.category_manager.categorize_url
+        )
         plan = importer.plan(directory)
         summary = plan.summary()
 

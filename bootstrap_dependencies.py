@@ -166,3 +166,30 @@ def preflight_or_exit(
         return
     _emit_failure(repair_message(missing, frozen=frozen), stream=stream, frozen=frozen)
     raise SystemExit(2)
+
+
+def _run_entry_point(target: str, attribute: str) -> object:
+    """Preflight, then hand control to an application entry point.
+
+    Console scripts name a module and an attribute, and Python imports that
+    module before calling anything in it. Pointing them straight at
+    ``bookmark_organizer_pro.cli:main`` means an incomplete environment fails
+    inside the package's own imports, with a raw ModuleNotFoundError, before the
+    preflight in ``main()`` can run. Routing them through here keeps the
+    guidance reachable, because this module imports nothing but the standard
+    library at module scope. The application import below is deliberately a call
+    rather than an import statement so that stays true.
+    """
+    preflight_or_exit()
+    module = importlib.import_module(target)
+    return getattr(module, attribute)()
+
+
+def run_cli() -> object:
+    """Console-script entry point for the command line."""
+    return _run_entry_point("bookmark_organizer_pro.cli", "main")
+
+
+def run_mcp_server() -> object:
+    """Console-script entry point for the MCP server."""
+    return _run_entry_point("bookmark_organizer_pro.mcp_server", "main")

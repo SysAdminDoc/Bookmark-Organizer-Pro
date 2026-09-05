@@ -1039,9 +1039,14 @@ class ToolsActionsMixin:
     def _smart_duplicate_scan(self):
         """Run the 3-pass hybrid duplicate detector and show grouped results."""
         import threading
-        self._set_status("Scanning for duplicates (URL + SimHash + semantic)...")
-
         category = getattr(self, "current_category", "") or ""
+        if category:
+            self._set_status(format_message(
+                "Scanning {collection} for duplicates (URL + SimHash + semantic)...",
+                collection=category,
+            ))
+        else:
+            self._set_status("Scanning for duplicates (URL + SimHash + semantic)...")
 
         def _run():
             try:
@@ -1066,13 +1071,15 @@ class ToolsActionsMixin:
         truncated = bool(getattr(report, "truncated", False))
         coverage = getattr(report, "coverage_summary", None)
         coverage_text = coverage() if callable(coverage) else ""
+        scope = getattr(self, "current_category", "") or ""
         if not raw_groups:
             if truncated:
                 self._show_toast(_("No duplicates among the bookmarks that were compared"), "info")
             else:
                 self._show_toast(_("No duplicates found"), "success")
             self._set_status(
-                format_message("Smart duplicate scan complete: 0 groups. {coverage}",
+                format_message("Smart duplicate scan complete: 0 groups in {scope}. {coverage}",
+                               scope=scope or "the whole library",
                                coverage=coverage_text).strip()
                 if coverage_text else "Smart duplicate scan complete: 0 groups"
             )
@@ -1086,7 +1093,8 @@ class ToolsActionsMixin:
             else:
                 self._show_toast(_("No actionable duplicates found"), "success")
             self._set_status(
-                format_message("Smart duplicate scan complete: 0 actionable groups. {coverage}",
+                format_message("Smart duplicate scan complete: 0 actionable groups in {scope}. {coverage}",
+                               scope=scope or "the whole library",
                                coverage=coverage_text).strip()
                 if coverage_text else "Smart duplicate scan complete: 0 actionable groups"
             )
@@ -1141,8 +1149,13 @@ class ToolsActionsMixin:
         total = sum(len(getattr(group, "bookmark_ids", [])) - 1 for group in raw_groups)
         self._show_cleanup_review_dialog(
             "Smart Duplicate Review",
-            f"Found {pluralize(len(review_groups), 'group')} and "
-            f"{pluralize(total, 'extra bookmark')}. Select only the groups you want to apply.",
+            " ".join(part for part in (
+                format_message("Scope: {collection}.", collection=scope) if scope else "",
+                f"Found {pluralize(len(review_groups), 'group')} and "
+                f"{pluralize(total, 'extra bookmark')}.",
+                coverage_text,
+                "Select only the groups you want to apply.",
+            ) if part),
             review_groups,
             _apply,
         )

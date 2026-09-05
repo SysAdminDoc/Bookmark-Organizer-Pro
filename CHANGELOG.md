@@ -32,6 +32,9 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Annotation CSV exports now protect every selected field from spreadsheet
   formula execution, including rendered tag and anchor-history lists. JSON and
   Markdown annotation exports are unchanged.
+- Importing a plain HTML page, a bookmarks file written without line breaks,
+  or one that closes a folder on the same line as its last bookmark now
+  reads every link in it. Favicons stored in the file are kept.
 - The duplicate scan now says how much of the library it actually compared. Its
   slower passes stop after a fixed number of records, and until now a large
   library could be told no duplicates were found when most of it was never

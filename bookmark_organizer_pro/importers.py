@@ -127,6 +127,22 @@ def _firefox_timestamp(value) -> str:
         return ""
 
 
+def _netscape_created_at(timestamp: int) -> str:
+    """ISO local time for a Netscape ADD_DATE, tolerating pre-epoch values.
+
+    ``datetime.fromtimestamp`` raises ``OSError`` on Windows whenever the value
+    lands before 1970 in local time, and real browser exports carry
+    ``ADD_DATE="1"``. Keep local time for every ordinary value so imported dates
+    stay consistent with the rest of the app, and only fall back to epoch plus
+    offset for the values the platform refuses, where losing the date entirely
+    is the worse answer.
+    """
+    try:
+        return datetime.fromtimestamp(timestamp).isoformat()
+    except (OSError, OverflowError, ValueError):
+        return (datetime(1970, 1, 1) + timedelta(seconds=timestamp)).isoformat()
+
+
 def _bookmark_url_key(url: str) -> str:
     return str(url or "").strip().lower().rstrip("/")
 
@@ -600,7 +616,9 @@ class GenericFileSessionImporter:
     @staticmethod
     def _parse_one(path: Path, suffix: str) -> List[Bookmark]:
         if suffix in {".html", ".htm"}:
-            return NetscapeBookmarkImporter.import_from_netscape(str(path))
+            return NetscapeBookmarkImporter.import_from_netscape(
+                str(path), categorize=NetscapeBookmarkImporter.default_categorize()
+            )
         if suffix in {".json", ".jsonlz4"}:
             if suffix == ".jsonlz4" or FirefoxBookmarkBackupImporter.looks_like_backup(str(path)):
                 return FirefoxBookmarkBackupImporter().from_path(str(path))
@@ -999,6 +1017,24 @@ class NetscapeBookmarkImporter:
     DEFAULT_FOLDER = "Imported"
 
     @staticmethod
+    def default_categorize():
+        """The URL categorization policy every surface shares.
+
+        Callers that already hold a CategoryManager should pass its own
+        ``categorize_url`` so the categories file is read once. This exists for
+        the paths that have no manager to hand, and returns None rather than
+        raising if categories cannot be loaded, which leaves the folder fallback
+        in place instead of failing an import.
+        """
+        try:
+            from .core import CategoryManager
+
+            return CategoryManager().categorize_url
+        except Exception as exc:  # pragma: no cover - defensive
+            log.warning(f"URL categorization unavailable for this import: {exc}")
+            return None
+
+    @staticmethod
     def import_from_netscape(filepath: str, *, categorize=None) -> List[Bookmark]:
         """Import from Netscape/Mozilla bookmark format.
 
@@ -1015,67 +1051,79 @@ class NetscapeBookmarkImporter:
             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
 
-            lines = content.split('\n')
+            # Netscape files are not valid HTML and browsers emit them one
+            # element per line, but plain HTML pages, single-line exports and
+            # exports that close a folder on the same line as its last anchor
+            # all occur. Walk the markup in document order by token instead of
+            # deciding what a whole line is.
+            token_pattern = re.compile(
+                r"""<H3[^>]*>(?P<folder>[^<]*)</H3>
+                  | (?P<close></DL\s*>)
+                  | <A(?P<attrs>[^>]*)>(?P<title>.*?)</A>""",
+                re.IGNORECASE | re.VERBOSE | re.DOTALL,
+            )
+            href_pattern = re.compile(r"""HREF\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))""", re.IGNORECASE)
+            add_date_pattern = re.compile(r"""ADD_DATE\s*=\s*(?:"(\d+)"|'(\d+)'|(\d+))""", re.IGNORECASE)
+            icon_pattern = re.compile(r"""ICON\s*=\s*(?:"([^"]*)"|'([^']*)')""", re.IGNORECASE)
+            tags_pattern = re.compile(r"""TAGS\s*=\s*(?:"([^"]*)"|'([^']*)')""", re.IGNORECASE)
 
-            for line in lines:
-                line = line.strip()
+            def _attr(pattern, text):
+                match = pattern.search(text)
+                if not match:
+                    return ""
+                return next((group for group in match.groups() if group is not None), "")
 
-                folder_match = re.search(r'<H3[^>]*>([^<]+)</H3>', line, re.IGNORECASE)
-                if folder_match:
-                    folder_name = _decode(folder_match.group(1)).strip()
+            for token in token_pattern.finditer(content):
+                if token.group("folder") is not None:
+                    folder_name = _decode(token.group("folder")).strip()
                     folder_stack.append(current_folder)
-                    current_folder = folder_name
+                    current_folder = folder_name or current_folder
                     folder_depth += 1
                     continue
 
-                if '</DL>' in line.upper():
+                if token.group("close") is not None:
                     if folder_stack:
                         current_folder = folder_stack.pop()
                         folder_depth = max(0, folder_depth - 1)
                     continue
 
-                bm_match = re.search(
-                    r'<A[^>]*HREF="([^"]*)"[^>]*>([^<]*)</A>',
-                    line, re.IGNORECASE
-                )
-                if bm_match:
-                    url = _decode(bm_match.group(1))
-                    title = _decode(bm_match.group(2)).strip()
+                attrs = token.group("attrs") or ""
+                url = _decode(_attr(href_pattern, attrs))
+                title = _decode(re.sub(r"<[^>]*>", "", token.group("title") or "")).strip()
 
-                    if url and _is_supported_web_url(url):
-                        add_date_match = re.search(r'ADD_DATE="(\d+)"', line, re.IGNORECASE)
+                if url and _is_supported_web_url(url):
+                    category = current_folder
+                    if folder_depth == 0 and categorize is not None:
+                        category = categorize(url, title or url) or current_folder
 
-                        category = current_folder
-                        if folder_depth == 0 and categorize is not None:
-                            category = categorize(url, title or url) or current_folder
+                    bm = Bookmark(
+                        id=None,
+                        url=url,
+                        title=title or url,
+                        category=category
+                    )
 
-                        bm = Bookmark(
-                            id=None,
-                            url=url,
-                            title=title or url,
-                            category=category
-                        )
+                    # The source date lands in created_at, not add_date. The
+                    # batch merge compares add_date as a parsed stamp and this
+                    # attribute is raw epoch seconds, so writing both makes the
+                    # newer-wins comparison pick the string.
+                    raw_add_date = _attr(add_date_pattern, attrs)
+                    if raw_add_date:
+                        try:
+                            timestamp = int(raw_add_date)
+                            bm.created_at = _netscape_created_at(timestamp)
+                        except (ValueError, OverflowError):
+                            pass
 
-                        if add_date_match:
-                            try:
-                                # Real exports carry ADD_DATE="1" and other
-                                # pre-epoch values. datetime.fromtimestamp
-                                # raises OSError on Windows for anything that
-                                # lands before 1970 in local time, so build the
-                                # value by offset instead.
-                                timestamp = int(add_date_match.group(1))
-                                bm.created_at = (
-                                    datetime(1970, 1, 1) + timedelta(seconds=timestamp)
-                                ).isoformat()
-                            except Exception:
-                                pass
+                    icon = _attr(icon_pattern, attrs)
+                    if icon:
+                        bm.icon = icon
 
-                        tags_match = re.search(r'TAGS="([^"]*)"', line, re.IGNORECASE)
-                        if tags_match:
-                            tags = _decode(tags_match.group(1))
-                            bm.tags = [t.strip() for t in tags.split(',') if t.strip()]
+                    raw_tags = _decode(_attr(tags_pattern, attrs))
+                    if raw_tags:
+                        bm.tags = [t.strip() for t in raw_tags.split(',') if t.strip()]
 
-                        bookmarks.append(bm)
+                    bookmarks.append(bm)
 
         except Exception as e:
             log.error(f"Error importing Netscape bookmarks: {e}")

@@ -1810,9 +1810,100 @@ class TestMainAppManagers(_LocalAPIServerMixin, unittest.TestCase):
             manager.import_html_file(str(html_path))
             by_url = {bm.url: bm for bm in manager.bookmarks.values()}
 
-            self.assertEqual(
-                "1970-01-01T00:00:01", by_url["https://loose.example/top"].created_at
+            # ADD_DATE="1" lands before the epoch in any negative UTC offset,
+            # which is what makes fromtimestamp raise on Windows. The date must
+            # survive; which side of the epoch it lands on is the local zone's
+            # business, so pin the year rather than a literal instant.
+            imported = by_url["https://loose.example/top"]
+            self.assertTrue(imported.created_at)
+            self.assertIn(imported.created_at[:4], {"1969", "1970"})
+
+    def test_html_import_reads_plain_html_and_single_quoted_hrefs(self):
+        """The shared parser must not import less than the one it replaced."""
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            html_path = Path(tmp) / "page.html"
+            html_path.write_text(
+                "<html><body><p>"
+                "<a href='https://single.example/one'>One</a> and "
+                "<a href=\"https://double.example/two\">Two</a>"
+                "</p><a href=https://bare.example/three>Three</a></body></html>",
+                encoding="utf-8",
             )
+
+            added, _duplicates = manager.import_html_file(str(html_path))
+
+            self.assertEqual(3, added)
+            self.assertEqual(
+                {
+                    "https://single.example/one",
+                    "https://double.example/two",
+                    "https://bare.example/three",
+                },
+                {bm.url for bm in manager.bookmarks.values()},
+            )
+
+    def test_html_import_reads_an_export_written_without_newlines(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            html_path = Path(tmp) / "oneline.html"
+            html_path.write_text(
+                '<!DOCTYPE NETSCAPE-Bookmark-file-1><DL><p><DT><H3>Work</H3><DL><p>'
+                '<DT><A HREF="https://work.example/a" TAGS="x">A</A>'
+                '<DT><A HREF="https://work.example/b">B</A></DL><p></DL><p>',
+                encoding="utf-8",
+            )
+
+            added, _duplicates = manager.import_html_file(str(html_path))
+            by_url = {bm.url: bm for bm in manager.bookmarks.values()}
+
+            self.assertEqual(2, added)
+            self.assertEqual("Work", by_url["https://work.example/a"].category)
+            self.assertEqual(["x"], by_url["https://work.example/a"].tags)
+            self.assertEqual("Work", by_url["https://work.example/b"].category)
+
+    def test_html_import_keeps_a_bookmark_that_shares_a_line_with_its_folder_close(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            html_path = Path(tmp) / "tight.html"
+            html_path.write_text(
+                "\n".join([
+                    "<!DOCTYPE NETSCAPE-Bookmark-file-1>",
+                    "<DL><p>",
+                    "    <DT><H3>Reading</H3>",
+                    "    <DL><p>",
+                    '        <DT><A HREF="https://tight.example/last">Last</A></DL><p>',
+                    "</DL><p>",
+                    "",
+                ]),
+                encoding="utf-8",
+            )
+
+            added, _duplicates = manager.import_html_file(str(html_path))
+            by_url = {bm.url: bm for bm in manager.bookmarks.values()}
+
+            self.assertEqual(1, added)
+            self.assertEqual("Reading", by_url["https://tight.example/last"].category)
+
+    def test_html_import_keeps_the_favicon_attribute(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            html_path = Path(tmp) / "icon.html"
+            html_path.write_text(
+                "\n".join([
+                    "<!DOCTYPE NETSCAPE-Bookmark-file-1>",
+                    "<DL><p>",
+                    '    <DT><A HREF="https://icon.example/x" ICON="data:image/png;base64,AAA">X</A>',
+                    "</DL><p>",
+                    "",
+                ]),
+                encoding="utf-8",
+            )
+
+            manager.import_html_file(str(html_path))
+            imported = next(iter(manager.bookmarks.values()))
+
+            self.assertEqual("data:image/png;base64,AAA", imported.icon)
 
     def test_tag_manager_ignores_corrupt_empty_tags_on_load(self):
         import main

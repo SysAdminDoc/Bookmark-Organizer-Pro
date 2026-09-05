@@ -132,11 +132,13 @@ class HybridDuplicateDetector:
             library_size=len(bookmarks),
         )
         seen_ids: set[int] = set()
-        # Records that entered a pairwise pass. Everything the cap left out of
-        # every pass is reported as skipped so no caller can read an empty
-        # result as "this library has no near-duplicates".
-        compared_ids: set[int] = set()
-        pairwise_candidate_ids: set[int] = set()
+        # A record counts as skipped if ANY pairwise pass had it as a candidate
+        # and the cap left it out. Unioning the passes' examined sets instead
+        # would call a record compared because a later pass happened to include
+        # it, even though the pass that was supposed to compare it never did,
+        # and the report would then claim full coverage while missing pairs.
+        skipped_ids: set[int] = set()
+        examined_ids: set[int] = set()
 
         # --- Pass 1: URL canonical
         url_buckets: Dict[str, List[Bookmark]] = defaultdict(list)
@@ -152,9 +154,9 @@ class HybridDuplicateDetector:
                 report.method_counts["url"] += 1
 
         pass2_candidates = [bm for bm in bookmarks if bm.id not in seen_ids]
-        pairwise_candidate_ids.update(bm.id for bm in pass2_candidates)
         remaining = pass2_candidates[:self.max_pairwise]
-        compared_ids.update(bm.id for bm in remaining)
+        examined_ids.update(bm.id for bm in remaining)
+        skipped_ids.update(bm.id for bm in pass2_candidates[self.max_pairwise:])
 
         # --- Pass 2: SimHash
         sims: Dict[int, int] = {}
@@ -187,9 +189,9 @@ class HybridDuplicateDetector:
         # --- Pass 3: Embedding cosine
         if self.embedder is not None and self.embedder.available:
             pass3_candidates = [bm for bm in bookmarks if bm.id not in seen_ids]
-            pairwise_candidate_ids.update(bm.id for bm in pass3_candidates)
             still_remaining = pass3_candidates[:self.max_pairwise]
-            compared_ids.update(bm.id for bm in still_remaining)
+            examined_ids.update(bm.id for bm in still_remaining)
+            skipped_ids.update(bm.id for bm in pass3_candidates[self.max_pairwise:])
             texts = [(_read_text(bm)[:1500]) for bm in still_remaining]
             if texts:
                 vectors = self.embedder.embed(texts)
@@ -211,6 +213,6 @@ class HybridDuplicateDetector:
                         ))
                         report.method_counts["embedding"] += 1
 
-        report.pairwise_examined = len(compared_ids)
-        report.pairwise_skipped = len(pairwise_candidate_ids - compared_ids)
+        report.pairwise_skipped = len(skipped_ids)
+        report.pairwise_examined = len(examined_ids - skipped_ids)
         return report

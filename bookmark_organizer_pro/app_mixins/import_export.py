@@ -849,7 +849,9 @@ class ImportExportMixin:
             return
 
         self._set_status(_("Scanning {folder} for bookmark exports…").format(folder=directory))
-        importer = BatchDirectoryImporter()
+        importer = BatchDirectoryImporter(
+            categorize=self.bookmark_manager.category_manager.categorize_url
+        )
         try:
             plan = importer.plan(directory)
         except Exception as exc:

@@ -708,6 +708,8 @@ class BookmarkManager:
                 continue
             if parsed_bookmark.created_at:
                 bm.created_at = parsed_bookmark.created_at
+            if parsed_bookmark.icon:
+                bm.icon = parsed_bookmark.icon
             self.add_bookmark(bm, save=False)
             existing_urls.add(normalized)
             added += 1

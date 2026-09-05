@@ -52,8 +52,8 @@ all = [
 ]
 
 [project.scripts]
-bop = "bookmark_organizer_pro.cli:main"
-bop-mcp = "bookmark_organizer_pro.mcp_server:main"
+bop = "bootstrap_dependencies:run_cli"
+bop-mcp = "bootstrap_dependencies:run_mcp_server"
 
 [tool.setuptools]
 py-modules = ["bootstrap_dependencies"]

@@ -250,7 +250,9 @@ class CategoryActionsMixin:
                 dialog.destroy()
         
         entry.bind("<Return>", lambda e: rename())
-        
+        dialog.bind("<Escape>", lambda e: dialog.destroy())
+        dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
+
         ModernButton(
             dialog, text=_("Rename"), style="primary",
             font=FONTS.body(), command=rename, padx=20

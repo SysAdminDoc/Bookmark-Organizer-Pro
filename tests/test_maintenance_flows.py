@@ -554,3 +554,47 @@ class TestBookmarkTableRefresh(unittest.TestCase):
         app._refresh_bookmark_list()
 
         self.assertEqual(sorted(lowered), sorted(str(bm.title) for bm in library))
+
+
+class TestDuplicateScanCoverageAccounting(unittest.TestCase):
+    """A later pass must not launder records the earlier pass never compared."""
+
+    class _Embedder:
+        available = True
+
+        def embed(self, texts):
+            return [[1.0, 0.0] for _ in texts]
+
+    def test_a_pass_that_skipped_records_is_not_cancelled_out_by_a_later_pass(self):
+        from bookmark_organizer_pro.services.dup_hybrid import HybridDuplicateDetector
+
+        # Five near-identical records group in the simhash pass, so the cap
+        # excludes the tail from it. The embedding pass then sees a small
+        # enough candidate set to run inside the same cap.
+        library = [bookmark(index, f"https://same.example/{index}") for index in range(1, 6)]
+        for bm in library:
+            bm.title = "identical benchmark title"
+        library += [
+            bookmark(index, f"https://tail-{index}.example/page")
+            for index in range(6, 11)
+        ]
+
+        report = HybridDuplicateDetector(self._Embedder(), max_pairwise=5).detect(library)
+
+        self.assertTrue(
+            report.truncated,
+            "the simhash pass skipped records, so the report cannot claim full coverage",
+        )
+        self.assertGreater(report.pairwise_skipped, 0)
+        self.assertNotIn("Compared all", report.coverage_summary())
+
+    def test_an_uncapped_scan_with_both_passes_still_reports_full_coverage(self):
+        from bookmark_organizer_pro.services.dup_hybrid import HybridDuplicateDetector
+
+        library = [bookmark(index, f"https://uncapped-{index}.example/page") for index in range(1, 8)]
+
+        report = HybridDuplicateDetector(self._Embedder(), max_pairwise=100).detect(library)
+
+        self.assertFalse(report.truncated)
+        self.assertEqual(0, report.pairwise_skipped)
+        self.assertEqual("Compared all 7 bookmarks.", report.coverage_summary())
