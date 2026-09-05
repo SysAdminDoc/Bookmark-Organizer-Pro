@@ -344,7 +344,7 @@ msgstr ""
 msgid "Add useful context"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/bookmark_crud.py:49
+#: bookmark_organizer_pro/app_mixins/bookmark_crud.py:60
 msgid "Added bookmark: {title}"
 msgstr ""
 
@@ -411,6 +411,10 @@ msgstr ""
 #: bookmark_organizer_pro/app_mixins/app_shell.py:1086
 #: bookmark_organizer_pro/app_mixins/dashboard.py:77
 msgid "All types"
+msgstr ""
+
+#: bookmark_organizer_pro/app_mixins/bookmark_crud.py:51
+msgid "Already saved: {title}"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/about.py:277
@@ -621,16 +625,21 @@ msgstr ""
 msgid "Bookmark Graph"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/bookmark_crud.py:50
+#: bookmark_organizer_pro/app_mixins/bookmark_crud.py:61
 msgid "Bookmark added"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/bookmark_crud.py:42
-msgid "Bookmark already exists"
+#: bookmark_organizer_pro/app_mixins/bookmark_crud.py:50
+msgid "Bookmark already saved"
 msgstr ""
 
 #: bookmark_organizer_pro/ui/workflow_detail_panel.py:89
 msgid "Bookmark saved"
+msgstr ""
+
+#: bookmark_organizer_pro/app_mixins/bookmark_crud.py:43
+#: bookmark_organizer_pro/app_mixins/bookmark_crud.py:44
+msgid "Bookmark was not added"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/bookmark_crud.py:30
@@ -1438,10 +1447,6 @@ msgstr ""
 #: bookmark_organizer_pro/ui/highlights_workspace.py:120
 #: bookmark_organizer_pro/ui/highlights_workspace.py:265
 msgid "Due"
-msgstr ""
-
-#: bookmark_organizer_pro/app_mixins/bookmark_crud.py:43
-msgid "Duplicate bookmark skipped"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/tools.py:1064
@@ -5443,7 +5448,7 @@ msgid_plural "Cleared {count} snapshot failure reports"
 msgstr[0] ""
 msgstr[1] ""
 
-#: bookmark_organizer_pro/app_mixins/bookmark_crud.py:87
+#: bookmark_organizer_pro/app_mixins/bookmark_crud.py:118
 #, python-brace-format
 msgid "Copied {count} URL"
 msgid_plural "Copied {count} URLs"
@@ -5506,7 +5511,7 @@ msgid_plural "Moved {count} bookmarks to '{category}'"
 msgstr[0] ""
 msgstr[1] ""
 
-#: bookmark_organizer_pro/app_mixins/bookmark_crud.py:123
+#: bookmark_organizer_pro/app_mixins/bookmark_crud.py:154
 #, python-brace-format
 msgid "Moved {count} bookmark to Trash. Undo is available from Edit."
 msgid_plural "Moved {count} bookmarks to Trash. Undo is available from Edit."
@@ -5627,7 +5632,7 @@ msgid_plural "Undo {status}: {count} bookmarks."
 msgstr[0] ""
 msgstr[1] ""
 
-#: bookmark_organizer_pro/app_mixins/bookmark_crud.py:102
+#: bookmark_organizer_pro/app_mixins/bookmark_crud.py:133
 #, python-brace-format
 msgid "Updated pin state for {count} bookmark"
 msgid_plural "Updated pin state for {count} bookmarks"

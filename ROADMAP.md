@@ -22,20 +22,6 @@ Actionable incomplete work only. Historical and completed material belongs in `C
 
 ### P1
 
-- [ ] P1: R-155: Isolate production data paths in every test process
-  Why: Per-class overrides and an after-the-fact extension-registry guard do not stop other default application paths from touching a user's library.
-  Evidence: `tests/__init__.py:10`; per-class overrides in `tests/test_cli.py:19`, `tests/test_services.py:36`, and `tests/test_mcp_tools.py:30`; commit-history repairs for extension-origin leakage
-  Touches: test bootstrap, `bookmark_organizer_pro/constants.py`, local-state and API defaults, subprocess test helpers, storage fixtures
-  Acceptance: A temporary `BOOKMARK_DATA_DIR` is established before application imports in the main suite and spawned test processes; a default `BookmarkAPI` writes its registry there; canaries cover the known production paths derived from constants, local state, API credentials, and extension-origin defaults while allowing ordinary pytest temporary directories; every protected real path remains absent or byte-identical after the full suite.
-  Complexity: M
-
-- [ ] P1: R-157: Report duplicate adds consistently in desktop and CLI
-  Why: Duplicate GUI and CLI adds claim success, and the desktop starts unnecessary favicon work, while REST and MCP already expose `already_exists`.
-  Evidence: `bookmark_organizer_pro/managers/bookmarks.py:1116`; `bookmark_organizer_pro/app_mixins/bookmark_crud.py:35`; `bookmark_organizer_pro/cli.py:945`; comparison paths `bookmark_organizer_pro/services/api.py:1090` and `bookmark_organizer_pro/mcp_server.py:728`
-  Touches: bookmark manager result contract, desktop add flow, CLI text and JSON output, favicon dispatch, cross-surface tests
-  Acceptance: Normalized duplicates make no mutation and trigger no favicon fetch; desktop selects the existing row and reports its title; CLI text prints the existing ID and `--json` returns `already_exists: true`; REST and MCP behavior stays compatible; URL-normalization variants are covered.
-  Complexity: S
-
 - [ ] P1: R-158: Replace the absolute first-run privacy claim with an egress inventory
   Why: The launcher says no data leaves the machine without an AI key even though non-AI metadata, favicon, link-check, snapshot, feed, transcript, Wayback, and update features can use the network.
   Evidence: `bookmark_organizer_pro/launcher.py:65`; `README.md:627`; egress controls in `bookmark_organizer_pro/services/egress.py` and `bookmark_organizer_pro/services/snapshot.py`

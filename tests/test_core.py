@@ -4247,3 +4247,146 @@ class TestNormalizedURLIndex(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDuplicateAddOutcome(unittest.TestCase):
+    """R-157: a duplicate add must not read as a new bookmark on any surface."""
+
+    def _manager(self, tmp):
+        from bookmark_organizer_pro.core import CategoryManager
+        from bookmark_organizer_pro.managers import BookmarkManager, TagManager
+
+        return BookmarkManager(
+            CategoryManager(filepath=Path(tmp) / "categories.json"),
+            TagManager(filepath=Path(tmp) / "tags.json"),
+            filepath=Path(tmp) / "bookmarks.json",
+        )
+
+    def test_a_new_url_reports_created(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._manager(tmp)
+
+            result = manager.add_bookmark_result(url="https://fresh.example/page")
+
+            self.assertTrue(result.created)
+            self.assertFalse(result.already_exists)
+            self.assertIsNotNone(result.bookmark)
+
+    def test_normalization_variants_all_report_the_same_existing_row(self):
+        variants = (
+            "https://dupe.example/page",
+            "https://www.dupe.example/page",
+            "https://dupe.example/page/",
+            "https://dupe.example/page?utm_source=news",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._manager(tmp)
+            first = manager.add_bookmark_result(url=variants[0])
+
+            for variant in variants[1:]:
+                with self.subTest(url=variant):
+                    result = manager.add_bookmark_result(url=variant)
+                    self.assertFalse(result.created, variant)
+                    self.assertTrue(result.already_exists, variant)
+                    self.assertEqual(first.bookmark.id, result.bookmark.id)
+            self.assertEqual(1, len(manager.get_all_bookmarks()))
+
+    def test_a_duplicate_add_mutates_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._manager(tmp)
+            manager.add_bookmark_result(url="https://stable.example/page", title="Original")
+            before = [bm.to_dict() for bm in manager.get_all_bookmarks()]
+
+            manager.add_bookmark_result(url="https://stable.example/page", title="Different")
+
+            self.assertEqual(before, [bm.to_dict() for bm in manager.get_all_bookmarks()])
+
+    def test_an_invalid_url_reports_neither_created_nor_existing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._manager(tmp)
+
+            result = manager.add_bookmark_result(url="ftp://not-supported.example/x")
+
+            self.assertIsNone(result.bookmark)
+            self.assertFalse(result.created)
+            self.assertFalse(result.already_exists)
+
+    def test_add_bookmark_clean_still_returns_the_bookmark(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._manager(tmp)
+            created = manager.add_bookmark_clean(url="https://compat.example/page")
+
+            duplicate = manager.add_bookmark_clean(url="https://compat.example/page")
+
+            self.assertIsNotNone(created)
+            self.assertEqual(created.id, duplicate.id)
+
+
+class TestDesktopDuplicateAdd(unittest.TestCase):
+    """The desktop must not fetch a favicon for a row it did not create."""
+
+    class _Harness:
+        def __init__(self, manager):
+            self.bookmark_manager = manager
+            self.statuses = []
+            self.toasts = []
+            self.favicon_calls = []
+            self.refreshes = 0
+            self.selected_bookmarks = []
+            self.tree = None
+            self.favicon_manager = self
+
+        def download_async(self, domain, bookmark_id):
+            self.favicon_calls.append((domain, bookmark_id))
+
+        def _set_status(self, message):
+            self.statuses.append(message)
+
+        def _show_toast(self, message, style="info"):
+            self.toasts.append((style, message))
+
+        def _refresh_all(self):
+            self.refreshes += 1
+
+    def _app(self, manager):
+        from bookmark_organizer_pro.app_mixins.bookmark_crud import BookmarkCrudMixin
+
+        combined = type("Harness", (BookmarkCrudMixin, self._Harness), {})
+        return combined(manager)
+
+    def _manager(self, tmp):
+        from bookmark_organizer_pro.core import CategoryManager
+        from bookmark_organizer_pro.managers import BookmarkManager, TagManager
+
+        return BookmarkManager(
+            CategoryManager(filepath=Path(tmp) / "categories.json"),
+            TagManager(filepath=Path(tmp) / "tags.json"),
+            filepath=Path(tmp) / "bookmarks.json",
+        )
+
+    def test_a_duplicate_add_fetches_no_favicon_and_names_the_existing_row(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._manager(tmp)
+            app = self._app(manager)
+            app._on_bookmark_added({"url": "https://dupe.example/page", "title": "First"})
+            app.favicon_calls.clear()
+            app.refreshes = 0
+
+            app._on_bookmark_added({"url": "https://www.dupe.example/page/", "title": "Second"})
+
+            self.assertEqual([], app.favicon_calls)
+            self.assertEqual(0, app.refreshes)
+            self.assertIn("Already saved", app.statuses[-1])
+            self.assertIn("First", app.statuses[-1])
+            self.assertEqual([manager.get_all_bookmarks()[0].id], app.selected_bookmarks)
+
+    def test_a_new_add_still_fetches_a_favicon_and_refreshes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._manager(tmp)
+            app = self._app(manager)
+
+            app._on_bookmark_added({"url": "https://fresh.example/page", "title": "Fresh"})
+
+            self.assertEqual(1, len(app.favicon_calls))
+            self.assertEqual(1, app.refreshes)
+            self.assertIn("Added bookmark", app.statuses[-1])

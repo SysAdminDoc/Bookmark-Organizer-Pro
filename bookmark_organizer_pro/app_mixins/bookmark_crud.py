@@ -32,22 +32,53 @@ class BookmarkCrudMixin:
             ), "error")
             return
         
-        bookmark = self.bookmark_manager.add_bookmark_clean(
+        result = self.bookmark_manager.add_bookmark_result(
             url=url,
             title=str(data.get("title") or url).strip(),
             category=str(data.get("category") or "Uncategorized / Needs Review"),
             favicon_path=str(data.get("custom_favicon") or ""),
         )
+        bookmark = result.bookmark
         if bookmark is None:
-            self._show_toast("Bookmark already exists", "info")
-            self._set_status("Duplicate bookmark skipped")
+            self._show_toast("Bookmark was not added", "error")
+            self._set_status("Bookmark was not added")
+            return
+
+        if result.already_exists:
+            # Nothing changed, so nothing is fetched. Show the user the row
+            # they already have instead of claiming a new one.
+            self._show_toast("Bookmark already saved", "info")
+            self._set_status(format_message(
+                "Already saved: {title}", title=bookmark.title,
+            ))
+            self._select_existing_bookmark(bookmark)
             return
 
         self.favicon_manager.download_async(bookmark.domain, bookmark.id)
-        
+
         self._refresh_all()
         self._set_status(format_message("Added bookmark: {title}", title=bookmark.title))
         self._show_toast("Bookmark added", "success")
+
+    def _select_existing_bookmark(self, bookmark) -> None:
+        """Bring an already-saved bookmark into view without changing it."""
+        self.selected_bookmarks = [bookmark.id]
+        tree = getattr(self, "tree", None)
+        if tree is None:
+            return
+        item = str(bookmark.id)
+        try:
+            tree.selection_set(item)
+            see = getattr(tree, "see", None)
+            if callable(see):
+                see(item)
+        except Exception:
+            # The row may not be in the current filtered view; the status line
+            # has already named it, so this is not worth failing an add over.
+            pass
+        update_bar = getattr(self, "_update_selection_bar", None)
+        if callable(update_bar):
+            update_bar()
     
     def _edit_selected(self):
         """Edit selected bookmark"""

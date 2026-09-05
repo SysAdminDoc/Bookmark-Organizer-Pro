@@ -108,6 +108,7 @@ class BookmarkCLI:
         p = sub.add_parser("add", help="Add a new bookmark")
         p.add_argument("url", help="URL to bookmark")
         p.add_argument("title", nargs="*", help="Bookmark title")
+        p.add_argument("--json", action="store_true", help="Emit the result as JSON")
         p.set_defaults(func=self._cmd_add)
 
         p = sub.add_parser("delete", help="Move a bookmark to Trash by ID")
@@ -955,17 +956,40 @@ Examples:
         if not url.startswith(("http://", "https://")):
             url = "https://" + url
 
-        bookmark = self.bookmark_manager.add_bookmark_clean(
+        result = self.bookmark_manager.add_bookmark_result(
             url=url,
             title=title,
             category="Uncategorized / Needs Review",
         )
+        bookmark = result.bookmark
+        as_json = bool(getattr(ns, "json", False))
         if bookmark is None:
-            self._error("Could not add bookmark: invalid URL or duplicate")
+            if as_json:
+                print(json.dumps({"added": False, "already_exists": False,
+                                  "error": "invalid URL"}, indent=2))
+                return 1
+            self._error("Could not add bookmark: invalid URL")
             return 1
 
-        print(f"✓ Added: {title}")
-        print(f"  URL: {url}")
+        if as_json:
+            print(json.dumps({
+                "added": result.created,
+                "already_exists": result.already_exists,
+                "id": bookmark.id,
+                "url": bookmark.url,
+                "title": bookmark.title,
+                "category": bookmark.category,
+            }, indent=2))
+            return 0
+
+        if result.already_exists:
+            print(f"• Already saved: {bookmark.title}")
+            print(f"  URL: {bookmark.url}")
+            print(f"  ID: {bookmark.id}")
+            return 0
+
+        print(f"✓ Added: {bookmark.title}")
+        print(f"  URL: {bookmark.url}")
         print(f"  ID: {bookmark.id}")
         return 0
 

@@ -125,6 +125,7 @@ _bop_completions() {
             local -a options=(
                 -h
                 --help
+                --json
             )
             case "$prev" in
             esac

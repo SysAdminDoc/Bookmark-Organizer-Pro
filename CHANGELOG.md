@@ -44,6 +44,10 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   time to cover the rest. `bop dups` takes `--category` and `--json`.
 - The desktop duplicate scan now covers the collection you have selected rather
   than always scanning the whole library.
+- Saving a bookmark you already have no longer reports it as newly added.
+  The desktop selects the row you already have and says so, and fetches no
+  favicon for it; `bop add` prints the existing entry and its ID, and takes
+  `--json`, which reports `already_exists`.
 - The screenshot check now fails when a theme does not actually apply. It
   asked the app to switch themes and ignored the answer, so a capture could
   pass while still showing the previous palette.

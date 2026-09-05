@@ -43,6 +43,24 @@ from .tags import TagManager
 
 
 @dataclass(frozen=True)
+class BookmarkAddResult:
+    """Outcome of one clean add, separating a new row from an existing one.
+
+    add_bookmark_clean returns the existing bookmark for a duplicate, which
+    reads as success at the call site. Callers that need to tell the two apart,
+    so they do not claim to have added something or start work against a row
+    that was already there, use this instead.
+    """
+
+    bookmark: Optional[Bookmark] = None
+    created: bool = False
+
+    @property
+    def already_exists(self) -> bool:
+        return self.bookmark is not None and not self.created
+
+
+@dataclass(frozen=True)
 class TrashPurgeResult:
     """Outcome of one recovery-backed permanent trash purge."""
 
@@ -1371,6 +1389,18 @@ class BookmarkManager:
                            **kwargs) -> Optional[Bookmark]:
         """Add a bookmark with automatic URL cleaning and categorization.
 
+        Returns the bookmark, existing or new. Callers that need to know which
+        one they got should use :meth:`add_bookmark_result`.
+        """
+        return self.add_bookmark_result(
+            url, title=title, category=category, tags=tags, **kwargs
+        ).bookmark
+
+    def add_bookmark_result(self, url: str, title: str = "",
+                            category: str = "", tags: List[str] = None,
+                            **kwargs) -> "BookmarkAddResult":
+        """Add a bookmark, reporting whether a new row was actually created.
+
         Strips tracking parameters, normalizes URL, auto-categorizes if no
         category given, and checks for duplicates.
         """
@@ -1379,7 +1409,7 @@ class BookmarkManager:
         valid_url, error = validate_url(url)
         if not valid_url or not url.startswith(('http://', 'https://')):
             log.warning(f"Rejected invalid bookmark URL '{str(url)[:80]}': {error}")
-            return None
+            return BookmarkAddResult()
 
         clean = normalize_url(url)
         # But keep the original scheme if user explicitly used http
@@ -1400,7 +1430,9 @@ class BookmarkManager:
         with self._lock:
             existing = self._lookup_by_normalized_url(canonical)
             if existing is not None:
-                return existing  # Already exists — return it rather than creating a duplicate
+                # Already exists. Return it rather than creating a duplicate,
+                # and say so, so a caller cannot report it as a new row.
+                return BookmarkAddResult(bookmark=existing, created=False)
 
             bm = Bookmark(
                 id=None, url=clean, title=title or clean,
@@ -1409,7 +1441,7 @@ class BookmarkManager:
             if bm.read_later and bm.read_later_position == 0:
                 from bookmark_organizer_pro.services.read_later import ReadLaterQueue
                 ReadLaterQueue.enqueue(bm, all_bookmarks=self._iter_snapshot())
-            return self.add_bookmark(bm)
+            return BookmarkAddResult(bookmark=self.add_bookmark(bm), created=True)
 
     def find_broken_links(self) -> List[Bookmark]:
         """Get bookmarks marked as broken"""

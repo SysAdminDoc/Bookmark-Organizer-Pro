@@ -95,7 +95,8 @@ _bop() {
         add)
             _arguments -s \
                 '-h[show this help message and exit]' \
-                '--help[show this help message and exit]'
+                '--help[show this help message and exit]' \
+                '--json[Emit the result as JSON]'
             return
             ;;
         delete)

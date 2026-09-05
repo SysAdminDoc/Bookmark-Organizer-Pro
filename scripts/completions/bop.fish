@@ -151,6 +151,7 @@ complete -c bop -n "__fish_seen_subcommand_from list" -l help -d "show this help
 complete -c bop -n "__fish_seen_subcommand_from list" -l all -d "Show all bookmarks"
 complete -c bop -n "__fish_seen_subcommand_from add" -s h -d "show this help message and exit"
 complete -c bop -n "__fish_seen_subcommand_from add" -l help -d "show this help message and exit"
+complete -c bop -n "__fish_seen_subcommand_from add" -l json -d "Emit the result as JSON"
 complete -c bop -n "__fish_seen_subcommand_from delete" -s h -d "show this help message and exit"
 complete -c bop -n "__fish_seen_subcommand_from delete" -l help -d "show this help message and exit"
 complete -c bop -n "__fish_seen_subcommand_from delete" -l force -d "==SUPPRESS=="
