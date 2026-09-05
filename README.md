@@ -623,11 +623,9 @@ the detail panel.
 - **Google Gemini**: Free tier at [aistudio.google.com](https://aistudio.google.com)
 - **Ollama**: Run models locally (free, requires setup)
 
-The Ollama setup action requires an explicit confirmation. On Windows it
-downloads the pinned `v0.32.5` installer from the official GitHub release,
-enforces an asset-size ceiling, verifies the embedded SHA-256 before execution,
-and removes the installer afterward. On macOS and Linux the dialog provides
-pinned download-and-verify commands; it never pipes a remote script to a shell.
+The Ollama setup action opens Ollama's official download page in your browser.
+Bookmark Organizer Pro does not download or launch the provider's installer.
+After Ollama is installed, return to Assistant Settings and select **Refresh**.
 
 ### Safety Notes
 

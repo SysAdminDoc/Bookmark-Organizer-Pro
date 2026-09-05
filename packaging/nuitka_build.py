@@ -14,6 +14,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 ASSETS_DIR = ROOT_DIR / "assets"
 MAIN_SCRIPT = ROOT_DIR / "main.py"
 SMOKE_SCRIPT = ROOT_DIR / "packaging" / "nuitka_smoke.py"
+BOOTSTRAP_MANIFEST = Path("bookmark_organizer_pro") / "bootstrap_dependencies.json"
 DEFAULT_OUTPUT_DIR = ROOT_DIR / "dist" / "nuitka"
 DEFAULT_JOBS = 4
 APP_NAME = "Bookmark Organizer Pro"
@@ -78,7 +79,18 @@ def build_command(
         f"--company-name={COMPANY_NAME}",
     ]
     if not is_smoke:
-        command.extend(("--enable-plugin=tk-inter", "--include-package=bookmark_organizer_pro"))
+        bootstrap_manifest = root / BOOTSTRAP_MANIFEST
+        if not bootstrap_manifest.is_file():
+            raise FileNotFoundError(
+                f"required runtime asset is missing: {bootstrap_manifest}"
+            )
+        command.extend(
+            (
+                "--enable-plugin=tk-inter",
+                "--include-package=bookmark_organizer_pro",
+                f"--include-data-files={bootstrap_manifest}={BOOTSTRAP_MANIFEST.as_posix()}",
+            )
+        )
     if sys.platform.startswith("win"):
         console_mode = "force" if is_smoke else "disable"
         command.append(f"--windows-console-mode={console_mode}")

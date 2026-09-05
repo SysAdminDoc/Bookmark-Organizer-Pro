@@ -10,8 +10,7 @@ from bookmark_organizer_pro.ai import AI_PROVIDERS, TAG_VOCABULARY_MODES, create
 from bookmark_organizer_pro.i18n import _, format_message
 from bookmark_organizer_pro.services.ollama_manager import (
     OLLAMA_DEFAULT_URL,
-    OLLAMA_INSTALL_VERSION,
-    OLLAMA_WINDOWS_INSTALLER,
+    OLLAMA_DOWNLOAD_URL,
     OllamaManager,
     OllamaStatus,
 )
@@ -203,8 +202,15 @@ class AiSettingsMixin:
         action_row = tk.Frame(ollama_panel, bg=theme.bg_secondary)
         action_row.pack(fill=tk.X, pady=(0, 8))
 
-        install_btn = ModernButton(action_row, text=_("Install Ollama"), style="primary", padx=10, pady=4, font=FONTS.small())
-        install_btn.pack(side=tk.LEFT, padx=(0, 6))
+        setup_btn = ModernButton(
+            action_row,
+            text=_("Open Ollama Setup"),
+            style="primary",
+            padx=10,
+            pady=4,
+            font=FONTS.small(),
+        )
+        setup_btn.pack(side=tk.LEFT, padx=(0, 6))
 
         start_btn = ModernButton(action_row, text=_("Start Server"), padx=10, pady=4, font=FONTS.small())
         start_btn.pack(side=tk.LEFT, padx=(0, 6))
@@ -234,8 +240,6 @@ class AiSettingsMixin:
             ollama_panel, textvariable=progress_var,
             bg=theme.bg_secondary, fg=theme.accent_primary, font=FONTS.small(),
         )
-        install_state = {"cancel_event": None}
-
         # Local models list
         local_models_frame = tk.Frame(ollama_panel, bg=theme.bg_secondary)
         local_models_label = tk.Label(
@@ -250,18 +254,18 @@ class AiSettingsMixin:
             if not status.installed:
                 ollama_status_var.set(_("Not installed"))
                 ollama_dot.configure(fg=theme.accent_error)
-                install_btn.set_state("normal")
+                setup_btn.set_state("normal")
                 start_btn.set_state("disabled")
             elif not status.running:
                 ollama_status_var.set(_("Installed (v{version}), server stopped").format(version=status.version))
                 ollama_dot.configure(fg=theme.accent_warning)
-                install_btn.set_state("disabled")
+                setup_btn.set_state("disabled")
                 start_btn.set_state("normal")
             else:
                 n = len(status.models)
                 ollama_status_var.set(_("Running, {models} available").format(models=pluralize(n, 'model')))
                 ollama_dot.configure(fg=theme.accent_success)
-                install_btn.set_state("disabled")
+                setup_btn.set_state("disabled")
                 start_btn.set_state("disabled")
 
                 # Update model combo with local models
@@ -286,83 +290,32 @@ class AiSettingsMixin:
         def _refresh_ollama():
             ollama_status_var.set(_("Checking…"))
             ollama_dot.configure(fg=theme.text_muted)
+            ollama_url = ollama_url_var.get().strip() or OLLAMA_DEFAULT_URL
 
             def worker():
-                mgr = OllamaManager(ollama_url_var.get().strip() or OLLAMA_DEFAULT_URL)
+                mgr = OllamaManager(ollama_url)
                 status = mgr.detect()
                 self._post_to_ui(lambda: _update_ollama_status(status))
 
             threading.Thread(target=worker, daemon=True).start()
 
-        def _install_ollama():
-            active_cancel = install_state["cancel_event"]
-            if active_cancel is not None:
-                active_cancel.set()
-                install_btn.set_state("disabled")
-                install_btn.set_text(_("Cancelling…"))
-                progress_var.set(_("Cancelling installation and removing the download…"))
-                return
+        def _open_ollama_setup():
+            import webbrowser
 
-            confirmed = messagebox.askyesno(
-                _("Install verified Ollama?"),
-                _(
-                    "Bookmark Organizer Pro will install the pinned Ollama "
-                    "{version} release.\n\n"
-                    "On Windows it downloads the installer from the official "
-                    "GitHub release, enforces a byte limit, verifies this SHA-256 "
-                    "before execution, and removes the installer afterward:\n"
-                    "{digest}\n\n"
-                    "macOS and Linux receive download-and-verify commands instead "
-                    "of executing a remote install script. Continue?"
-                ).format(
-                    version=OLLAMA_INSTALL_VERSION,
-                    digest=OLLAMA_WINDOWS_INSTALLER.sha256,
-                ),
-                parent=dialog,
-            )
-            if not confirmed:
-                return
-
-            cancel_event = threading.Event()
-            install_state["cancel_event"] = cancel_event
-            install_btn.set_state("disabled")
-            install_btn.set_text(_("Installing…"))
-            progress_var.set(_("Starting installation…"))
+            if webbrowser.open(OLLAMA_DOWNLOAD_URL):
+                progress_var.set(
+                    _(
+                        "Ollama setup opened in your browser. Return here and "
+                        "select Refresh when installation is complete."
+                    )
+                )
+            else:
+                progress_var.set(
+                    _("Could not open Ollama setup. Visit {url}").format(
+                        url=OLLAMA_DOWNLOAD_URL
+                    )
+                )
             progress_label.pack(fill=tk.X, pady=(4, 0))
-            install_btn.set_state("normal")
-            install_btn.set_text(_("Cancel install"))
-
-            def on_progress(msg):
-                self._post_to_ui(lambda: progress_var.set(msg))
-
-            def on_done(ok, msg):
-                def update():
-                    if not dialog.winfo_exists():
-                        return
-                    install_state["cancel_event"] = None
-                    install_btn.set_text(_("Install Ollama"))
-                    if ok:
-                        progress_var.set(_("Installed! Starting server…"))
-                        _start_ollama()
-                    else:
-                        progress_var.set(
-                            _("Install stopped: {message}").format(message=msg[:100])
-                        )
-                        install_btn.set_state("normal")
-                        if msg.startswith("Manual install required"):
-                            messagebox.showinfo(
-                                _("Verified manual installation"),
-                                msg,
-                                parent=dialog,
-                            )
-                self._post_to_ui(update)
-
-            OllamaManager().install(
-                on_progress=on_progress,
-                on_done=on_done,
-                confirmed=True,
-                cancel_event=cancel_event,
-            )
 
         def _start_ollama():
             start_btn.set_state("disabled")
@@ -383,7 +336,8 @@ class AiSettingsMixin:
                         start_btn.set_state("normal")
                 self._post_to_ui(update)
 
-            OllamaManager(ollama_url_var.get().strip() or OLLAMA_DEFAULT_URL).start_server(on_done=on_done)
+            ollama_url = ollama_url_var.get().strip() or OLLAMA_DEFAULT_URL
+            OllamaManager(ollama_url).start_server(on_done=on_done)
 
         def _pull_model():
             selected = pull_var.get()
@@ -411,19 +365,25 @@ class AiSettingsMixin:
                         progress_var.set(f"Pull failed: {msg[:80]}")
                 self._post_to_ui(update)
 
-            OllamaManager(ollama_url_var.get().strip() or OLLAMA_DEFAULT_URL).pull_model(
+            ollama_url = ollama_url_var.get().strip() or OLLAMA_DEFAULT_URL
+            OllamaManager(ollama_url).pull_model(
                 model_name, on_progress=on_progress, on_done=on_done,
             )
 
         pull_btn = ModernButton(download_frame, text=_("Download"), style="primary", padx=10, pady=4, font=FONTS.small())
         pull_btn.pack(side=tk.LEFT)
 
-        install_btn.command = _install_ollama
+        setup_btn.command = _open_ollama_setup
         start_btn.command = _start_ollama
         refresh_btn.command = _refresh_ollama
 
         # ── Failover settings ──
-        tk.Frame(body, bg=theme.border_muted, height=1).pack(fill=tk.X, pady=10)
+        reliability_separator = tk.Frame(
+            body,
+            bg=theme.border_muted,
+            height=1,
+        )
+        reliability_separator.pack(fill=tk.X, pady=10)
 
         tk.Label(
             body, text=_("Reliability"), bg=theme.bg_primary,
@@ -572,12 +532,20 @@ class AiSettingsMixin:
                 api_key_var.set(self.ai_config.get_api_key(provider))
 
             if provider == "ollama":
-                ollama_panel.pack(fill=tk.X, pady=(8, 4), before=failover_frame)
+                ollama_panel.pack(
+                    fill=tk.X,
+                    pady=(8, 4),
+                    before=reliability_separator,
+                )
                 api_key_frame.pack_forget()
                 _refresh_ollama()
             else:
                 ollama_panel.pack_forget()
-                api_key_frame.pack(fill=tk.X, pady=(0, 8), before=failover_frame)
+                api_key_frame.pack(
+                    fill=tk.X,
+                    pady=(0, 8),
+                    before=reliability_separator,
+                )
 
         provider_var.trace_add("write", on_provider_change)
         on_provider_change()

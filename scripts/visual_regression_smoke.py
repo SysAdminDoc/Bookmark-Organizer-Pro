@@ -14,6 +14,7 @@ import json
 import os
 import sys
 import tempfile
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -925,6 +926,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
     from bookmark_organizer_pro.ui.import_center import ImportCenterDialog, build_import_sources
     from bookmark_organizer_pro.ui.about import AboutDialog
     from bookmark_organizer_pro.ui.cleanup_review import CleanupReviewDialog, CleanupReviewGroup
+    from bookmark_organizer_pro.ui.components import ScrollableFrame
     from bookmark_organizer_pro.ui.dependencies import DependencyCheckDialog
     from bookmark_organizer_pro.ui.read_later_queue import ReadLaterQueueDialog
     from bookmark_organizer_pro.ui.reader_view import ReaderViewDialog
@@ -1296,12 +1298,45 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
         root.update()
         app._show_ai_settings()
         assistant = root.winfo_children()[-1]
+        _prepare_background_window(assistant)
+        assistant.update()
+        assistant_scrolls = []
+        ollama_options = []
+        assistant_stack = list(assistant.winfo_children())
+        while assistant_stack:
+            widget = assistant_stack.pop()
+            assistant_stack.extend(widget.winfo_children())
+            if isinstance(widget, ScrollableFrame):
+                assistant_scrolls.append(widget)
+            if (
+                widget.winfo_class() == "Radiobutton"
+                and str(widget.cget("text")) == "Ollama (Local)"
+            ):
+                ollama_options.append(widget)
+        if len(assistant_scrolls) != 1:
+            raise VisualSmokeError(
+                "assistant settings must expose one scrollable content frame"
+            )
+        if len(ollama_options) != 1:
+            raise VisualSmokeError(
+                "assistant settings must expose one Ollama provider option"
+            )
+        ollama_options[0].invoke()
+        assistant.update()
+        assistant_scrolls[0].canvas.yview_moveto(0.2)
+        assistant.update()
         results.append(
             capture_tk_window(
                 assistant,
                 output_dir,
                 "desktop-assistant-settings",
-                ("Assistant Settings", "Provider", "Model", "Ollama Local"),
+                (
+                    "Assistant Settings",
+                    "Ollama Local",
+                    "Open Ollama Setup",
+                    "Start Server",
+                    "Download model",
+                ),
             )
         )
         destroy_window(assistant)
@@ -1877,11 +1912,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         phase_timeout=args.phase_timeout,
         artifact_dir=output_dir,
     )
+    background_errors: list[str] = []
+    previous_thread_hook = threading.excepthook
+
+    def _record_thread_error(args: threading.ExceptHookArgs) -> None:
+        background_errors.append(
+            f"{args.thread.name}: {args.exc_type.__name__}: {args.exc_value}"
+        )
+
+    threading.excepthook = _record_thread_error
     try:
         results: list[CaptureResult] = []
         if args.surface in {"all", "desktop"}:
             watchdog.phase("desktop-surfaces")
             results.extend(run_desktop_smoke(output_dir, data_dir))
+            if background_errors:
+                raise VisualSmokeError(
+                    "Desktop background thread errors:\n"
+                    + "\n".join(background_errors)
+                )
             watchdog.check("desktop surface capture")
         if args.surface in {"all", "extension"}:
             watchdog.phase("extension-surfaces")
@@ -1907,6 +1956,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"visual smoke failed: {exc}", file=sys.stderr)
         return 1
     finally:
+        threading.excepthook = previous_thread_hook
         if temp_data is not None:
             temp_data.cleanup()
 

@@ -29,7 +29,6 @@ PACKAGE = ROOT / "bookmark_organizer_pro"
 # Every confirmation left in the product, with the reason it earns a modal.
 # A prompt guarding an action the user can undo does not belong here.
 JUSTIFIED_CONFIRMATIONS = {
-    ("app_mixins/ai_settings.py", "downloads and executes an installer on this machine"),
     ("app_mixins/tools.py", "sends domain names to a third-party proxy, which cannot be recalled"),
     ("ui/management_dialogs.py", "rotating and revoking a credential break live secrets at once"),
 }
@@ -48,8 +47,8 @@ def test_only_irreversible_actions_still_confirm():
         "a confirmation appeared in a file that has none justified, or a "
         f"justified one disappeared: {sorted(files)}"
     )
-    # management_dialogs holds two (rotate and revoke); the others hold one each.
-    assert len(found) == 4, sorted(found)
+    # management_dialogs holds two (rotate and revoke); tools holds one.
+    assert len(found) == 3, sorted(found)
 
 
 def test_no_import_or_rule_flow_blocks_on_a_confirmation():

@@ -24,13 +24,21 @@ class BootstrapManifestError(RuntimeError):
 
 def is_frozen_runtime() -> bool:
     """Return whether this process is running from a frozen application bundle."""
-    return bool(getattr(sys, "frozen", False) or hasattr(sys, "_MEIPASS"))
+    return bool(
+        getattr(sys, "frozen", False)
+        or hasattr(sys, "_MEIPASS")
+        or globals().get("__compiled__") is not None
+    )
 
 
 def manifest_path() -> Path:
     """Return the generated manifest path for source, wheel, or frozen layouts."""
-    if is_frozen_runtime():
-        root = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+    if hasattr(sys, "_MEIPASS"):
+        root = Path(sys._MEIPASS)
+    elif globals().get("__compiled__") is not None:
+        root = Path(__file__).resolve().parent
+    elif getattr(sys, "frozen", False):
+        root = Path(sys.executable).resolve().parent
     else:
         root = Path(__file__).resolve().parent
     return root / MANIFEST_RELATIVE_PATH

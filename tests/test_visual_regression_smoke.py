@@ -1,9 +1,39 @@
 import inspect
 from pathlib import Path
+import threading
 
 from PIL import Image
 
 from scripts import visual_regression_smoke as smoke
+
+
+def test_visual_smoke_fails_on_background_thread_exception(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+):
+    def failing_desktop_smoke(_output_dir, _data_dir):
+        def fail():
+            raise RuntimeError("worker failed")
+
+        worker = threading.Thread(target=fail, name="visual-worker")
+        worker.start()
+        worker.join()
+        return []
+
+    monkeypatch.setattr(smoke, "run_desktop_smoke", failing_desktop_smoke)
+
+    result = smoke.main(
+        [
+            "--surface",
+            "desktop",
+            "--output",
+            str(tmp_path / "captures"),
+        ]
+    )
+
+    assert result == 1
+    assert "visual-worker: RuntimeError: worker failed" in capsys.readouterr().err
 
 
 def test_visual_smoke_surface_matrix_covers_required_desktop_and_extension_views():
