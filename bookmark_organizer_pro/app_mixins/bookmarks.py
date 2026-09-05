@@ -144,8 +144,10 @@ class BookmarkViewMixin:
                     if hasattr(self, "_set_search_validation"):
                         self._set_search_validation([])
                 else:
+                    # Search the snapshot already in hand: the manager would
+                    # otherwise take a second full copy of the library.
                     bookmarks = self.bookmark_manager.search_bookmarks(
-                        query, category=self.current_category
+                        query, category=self.current_category, candidates=bookmarks
                     )
                     diagnostics = self.bookmark_manager.search_engine.last_diagnostics
                     search_has_error = bool(diagnostics)

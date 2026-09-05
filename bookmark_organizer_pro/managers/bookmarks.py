@@ -861,13 +861,21 @@ class BookmarkManager:
                 counts[tag] = counts.get(tag, 0) + 1
         return counts
     
-    def search_bookmarks(self, query: str, category: str = None) -> List[Bookmark]:
-        """Search bookmarks with advanced query"""
-        if category:
+    def search_bookmarks(
+        self, query: str, category: str = None, *, candidates: List[Bookmark] = None
+    ) -> List[Bookmark]:
+        """Search bookmarks with advanced query.
+
+        ``candidates`` lets a caller that already holds a snapshot search it
+        instead of causing another full copy of the library.
+        """
+        if candidates is not None:
+            bookmarks = candidates
+        elif category:
             bookmarks = self.get_bookmarks_by_category(category)
         else:
             bookmarks = self.get_all_bookmarks()
-        
+
         results = self.search_engine.search(bookmarks, query)
         return [bm for bm, score in results]
     

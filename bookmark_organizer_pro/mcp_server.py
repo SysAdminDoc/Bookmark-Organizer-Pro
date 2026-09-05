@@ -1968,12 +1968,17 @@ FASTMCP_FALLBACK_CAPABILITIES = (
 )
 
 
-def fastmcp_transport_status(module=None) -> Dict[str, Any]:
+def fastmcp_transport_status(module=None, *, built=None) -> Dict[str, Any]:
     """Report whether the FastMCP transport can be built, and why not.
 
     An installed but unusable FastMCP is a defect worth surfacing: the server
     still starts on the raw SDK and silently drops the capabilities below. A
     FastMCP that is simply absent is an expected configuration, not a problem.
+
+    ``built`` is the server object the caller actually built. Passing it makes
+    this report describe the transport in use rather than a second, independent
+    probe, which could disagree with it in either direction and turn the log
+    into a guess.
     """
     fastmcp_mod = module if module is not None else _try_import("fastmcp")
     version = str(getattr(fastmcp_mod, "__version__", "") or "") if fastmcp_mod else ""
@@ -1996,14 +2001,27 @@ def fastmcp_transport_status(module=None) -> Dict[str, Any]:
             "degraded": True,
             "lost_capabilities": list(FASTMCP_FALLBACK_CAPABILITIES),
         }
-    try:
-        factory("bookmark-organizer-pro-probe")
-    except Exception as exc:
+    if built is None:
+        try:
+            factory("bookmark-organizer-pro-probe")
+        except Exception as exc:
+            return {
+                "transport": "raw-sdk",
+                "installed": True,
+                "version": version,
+                "reason": (
+                    "fastmcp.FastMCP could not be constructed: "
+                    f"{type(exc).__name__}: {exc}"
+                ),
+                "degraded": True,
+                "lost_capabilities": list(FASTMCP_FALLBACK_CAPABILITIES),
+            }
+    elif built is False:
         return {
             "transport": "raw-sdk",
             "installed": True,
             "version": version,
-            "reason": f"fastmcp.FastMCP could not be constructed: {type(exc).__name__}: {exc}",
+            "reason": "fastmcp is installed but the server could not be built from it",
             "degraded": True,
             "lost_capabilities": list(FASTMCP_FALLBACK_CAPABILITIES),
         }
@@ -2364,7 +2382,9 @@ def main():
     log.info(f"{APP_NAME} MCP server v{APP_VERSION} starting (stdio)")
 
     fastmcp_app = _build_fastmcp_server()
-    _report_transport_status(fastmcp_transport_status())
+    # Report the transport that was actually built, not a second probe that
+    # could disagree with it.
+    _report_transport_status(fastmcp_transport_status(built=fastmcp_app is not None))
     if fastmcp_app is not None:
         try:
             fastmcp_app.run(transport="stdio", stateless=True)

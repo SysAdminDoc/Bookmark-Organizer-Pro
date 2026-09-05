@@ -288,65 +288,155 @@ MODAL_REQUIREMENTS = {
 # test_escape_routes_through_an_existing_close_guard checks instead.
 
 
-def _modal_scopes(tree: ast.AST):
-    """Yield every function or class body that makes a window modal.
+def _enclosing_scopes(tree: ast.AST) -> dict:
+    """Map every node to the INNERMOST function or class body enclosing it.
 
-    A dialog is built either inside one function or in a Toplevel subclass's
-    __init__ plus its helpers, so the enclosing scope is the unit that has to
-    satisfy the contract. Class bodies subsume their methods for that reason.
+    ast.walk is breadth-first, so a class is visited before its methods. Keeping
+    the first scope seen would make the class own every method's nodes, and one
+    method's focus call would then vouch for a different method's dialog.
+    Overwriting instead lets the deeper scope win.
     """
-    for node in ast.walk(tree):
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+    owner = {}
+    for scope in ast.walk(tree):
+        if not isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             continue
-        if isinstance(node, ast.ClassDef):
-            scope_source = node
-        else:
-            scope_source = node
-        calls = {
-            child.func.attr
-            for child in ast.walk(scope_source)
-            if isinstance(child, ast.Call) and isinstance(child.func, ast.Attribute)
-        }
-        if "grab_set" in calls:
-            yield node, scope_source, calls
+        for child in ast.walk(scope):
+            owner[child] = scope
+    return owner
 
 
-def _scope_satisfies(scope_source, calls) -> set:
-    """Return the contract requirements this scope does not meet."""
-    literals = {
-        child.value
-        for child in ast.walk(scope_source)
-        if isinstance(child, ast.Constant) and isinstance(child.value, str)
-    }
-    missing = set()
-    if "transient" not in calls:
-        missing.add("transient")
-    if "<Escape>" not in literals:
-        missing.add("escape")
-    if not ({"focus_set", "focus_force"} & calls):
-        missing.add("focus")
-    return missing
+def _scope_parents(tree: ast.AST) -> dict:
+    """Map each scope to the scope directly containing it."""
+    parents = {}
+    for node in ast.walk(tree):
+        for child in ast.iter_child_nodes(node):
+            parents[child] = node
+    return parents
+
+
+def _creates_window(scope, receiver: str, parents: dict) -> bool:
+    """Whether this scope is the one that brings the modal window into being.
+
+    A grab_set on a window created elsewhere is a re-grab, not a new modal:
+    ui/about.py restores its own grab after closing a child preview, and it
+    should not be asked to re-declare a contract it already satisfies where the
+    window is built.
+    """
+    for child in ast.walk(scope):
+        if isinstance(child, ast.Assign) and isinstance(child.value, ast.Call):
+            try:
+                factory = ast.unparse(child.value.func)
+            except Exception:
+                continue
+            if not factory.endswith("Toplevel"):
+                continue
+            for target in child.targets:
+                try:
+                    if ast.unparse(target) == receiver:
+                        return True
+                except Exception:
+                    continue
+    if receiver != "self":
+        return False
+    owner = parents.get(scope)
+    if not isinstance(owner, ast.ClassDef):
+        return False
+    return any("Toplevel" in ast.unparse(base) for base in owner.bases)
+
+
+def _modal_targets(tree: ast.AST):
+    """Yield (scope, receiver) for every grab_set() call in a module.
+
+    Keyed on the receiver rather than the enclosing class, because a class whose
+    other methods happen to call focus_set would otherwise satisfy the contract
+    on behalf of a sibling dialog that does not. Keyed on the node itself rather
+    than a scope name, because two scopes can share a name.
+    """
+    owner = _enclosing_scopes(tree)
+    parents = _scope_parents(tree)
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
+            continue
+        if node.func.attr != "grab_set":
+            continue
+        receiver = ast.unparse(node.func.value)
+        scope = owner.get(node)
+        if scope is None or not _creates_window(scope, receiver, parents):
+            continue
+        yield scope, receiver
+
+
+def _receiver_calls(scope, receiver: str) -> set:
+    """Method names called on `receiver` anywhere in `scope`."""
+    names = set()
+    for child in ast.walk(scope):
+        if not (isinstance(child, ast.Call) and isinstance(child.func, ast.Attribute)):
+            continue
+        try:
+            if ast.unparse(child.func.value) == receiver:
+                names.add(child.func.attr)
+        except Exception:
+            continue
+    return names
+
+
+def _receiver_bindings(scope, receiver: str) -> set:
+    """String literals passed to `receiver.bind(...)` or `.protocol(...)`."""
+    literals = set()
+    for child in ast.walk(scope):
+        if not (isinstance(child, ast.Call) and isinstance(child.func, ast.Attribute)):
+            continue
+        if child.func.attr not in {"bind", "protocol"}:
+            continue
+        try:
+            if ast.unparse(child.func.value) != receiver:
+                continue
+        except Exception:
+            continue
+        for argument in child.args:
+            if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
+                literals.add(argument.value)
+    return literals
+
+
+def _scope_places_focus(scope) -> bool:
+    """Whether anything in this scope puts keyboard focus inside the dialog."""
+    for child in ast.walk(scope):
+        if (
+            isinstance(child, ast.Call)
+            and isinstance(child.func, ast.Attribute)
+            and child.func.attr in {"focus_set", "focus_force"}
+        ):
+            return True
+    return False
 
 
 def _modal_contract_violations(root: Path) -> list:
     violations = []
     for directory in MODAL_SOURCE_DIRS:
-        for source in sorted((root / "bookmark_organizer_pro" / directory).rglob("*.py")):
+        source_root = root / "bookmark_organizer_pro" / directory
+        if not source_root.is_dir():
+            continue
+        for source in sorted(source_root.rglob("*.py")):
             tree = ast.parse(source.read_text(encoding="utf-8"))
-            reported = set()
-            for node, scope_source, calls in _modal_scopes(tree):
-                # A class body already covers its methods; skip the inner one.
-                if isinstance(node, ast.ClassDef):
-                    reported.update(
-                        child.name for child in ast.walk(node)
-                        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
-                    )
-                elif node.name in reported:
+            for scope, receiver in _modal_targets(tree):
+                if scope is None:
                     continue
-                missing = _scope_satisfies(scope_source, calls)
+                calls = _receiver_calls(scope, receiver)
+                bindings = _receiver_bindings(scope, receiver)
+                missing = set()
+                if "transient" not in calls:
+                    missing.add("transient")
+                if "<Escape>" not in bindings:
+                    missing.add("escape")
+                # Focus may land on any widget inside the dialog, and focusing
+                # the first field is better than focusing the window, so this
+                # one is checked across the scope rather than on the receiver.
+                if not _scope_places_focus(scope):
+                    missing.add("focus")
                 if missing:
                     relative = source.relative_to(root).as_posix()
-                    violations.append((relative, node.name, sorted(missing)))
+                    violations.append((relative, f"{scope.name}:{receiver}", sorted(missing)))
     return violations
 
 
@@ -394,4 +484,46 @@ def test_the_modal_contract_gate_reports_a_dialog_that_breaks_it(tmp_path: Path)
 
     violations = _modal_contract_violations(tmp_path)
 
-    assert violations == [("bookmark_organizer_pro/ui/leaky.py", "show", ["escape"])]
+    assert violations == [
+        ("bookmark_organizer_pro/ui/leaky.py", "show:dialog", ["escape"])
+    ]
+
+
+def test_the_gate_is_not_fooled_by_a_sibling_that_meets_the_contract(tmp_path: Path):
+    """A compliant dialog must not vouch for a non-compliant one.
+
+    Keying on the enclosing class let any method's focus_set satisfy every
+    modal in that class, and keying on the scope NAME let a compliant method
+    silence a module-level function that happened to share its name.
+    """
+    package = tmp_path / "bookmark_organizer_pro" / "ui"
+    package.mkdir(parents=True)
+    (tmp_path / "bookmark_organizer_pro" / "app_mixins").mkdir(parents=True)
+    (package / "collide.py").write_text(
+        "\n".join([
+            "import tkinter as tk",
+            "",
+            "class Good(tk.Toplevel):",
+            "    def show(self):",
+            "        self.transient(self.master)",
+            "        self.grab_set()",
+            "        self.focus_set()",
+            "        self.bind('<Escape>', lambda e: self.destroy())",
+            "",
+            "def show(parent):",
+            "    dialog = tk.Toplevel(parent)",
+            "    dialog.grab_set()",
+            "",
+        ]),
+        encoding="utf-8",
+    )
+
+    violations = _modal_contract_violations(tmp_path)
+
+    assert violations == [
+        (
+            "bookmark_organizer_pro/ui/collide.py",
+            "show:dialog",
+            ["escape", "focus", "transient"],
+        )
+    ]

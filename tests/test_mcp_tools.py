@@ -1319,3 +1319,46 @@ class TestFastMCPTransportStatus(unittest.TestCase):
             mcp_server._report_transport_status(status)
 
         warning.assert_not_called()
+
+
+class TestTransportStatusMatchesTheServerBuilt(unittest.TestCase):
+    """R-183: the log must describe the transport in use, not a second probe."""
+
+    def test_a_failed_build_is_reported_even_when_a_probe_would_succeed(self):
+        from bookmark_organizer_pro import mcp_server
+
+        # A module whose FastMCP constructs fine, so an independent probe would
+        # say "fastmcp", while the real build returned None.
+        module = types.SimpleNamespace(FastMCP=lambda _name: object(), __version__="3.4.7")
+
+        status = mcp_server.fastmcp_transport_status(module=module, built=False)
+
+        self.assertEqual("raw-sdk", status["transport"])
+        self.assertTrue(status["degraded"])
+        self.assertIn("could not be built", status["reason"])
+
+    def test_a_successful_build_is_reported_without_constructing_a_second_server(self):
+        from bookmark_organizer_pro import mcp_server
+
+        constructed = []
+
+        def factory(name):
+            constructed.append(name)
+            return object()
+
+        module = types.SimpleNamespace(FastMCP=factory, __version__="3.4.7")
+
+        status = mcp_server.fastmcp_transport_status(module=module, built=True)
+
+        self.assertEqual("fastmcp", status["transport"])
+        self.assertFalse(status["degraded"])
+        self.assertEqual([], constructed, "reporting must not build a second server")
+
+    def test_an_absent_module_is_still_a_quiet_fallback_when_the_build_failed(self):
+        from bookmark_organizer_pro import mcp_server
+
+        with patch.object(mcp_server, "_try_import", return_value=None):
+            status = mcp_server.fastmcp_transport_status(built=False)
+
+        self.assertFalse(status["installed"])
+        self.assertFalse(status["degraded"])

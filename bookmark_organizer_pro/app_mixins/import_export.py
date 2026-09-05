@@ -123,6 +123,7 @@ class ImportExportMixin:
         dlg.minsize(540, 380)
         dlg.transient(self.root)
         dlg.grab_set()
+        dlg.focus_set()
         apply_window_chrome(dlg)
 
         tk.Label(dlg, text=_("Restore bookmarks from a backup or safepoint"),
@@ -453,6 +454,7 @@ class ImportExportMixin:
         dlg.geometry("520x360")
         dlg.transient(self.root)
         dlg.grab_set()
+        dlg.focus_set()
         tk.Label(
             dlg,
             text=_("Choose the exact profile to import"),

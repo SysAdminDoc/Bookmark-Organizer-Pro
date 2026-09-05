@@ -415,8 +415,7 @@ def _case_threshold(
     and storage cost that does not scale with the collection.
     """
     base = CASE_THRESHOLDS_MS[case]
-    scale = max(1.0, size / max(largest_size, 1))
-    flat = max(base * 0.5, base * scale)
+    flat = base * max(1.0, size / max(largest_size, 1))
     if baseline is None:
         return round(flat, 3)
     baseline_size, baseline_ms = baseline
@@ -523,7 +522,12 @@ def run_benchmark(
                             f"{baseline[1]:.1f}ms at {baseline[0]})"
                         )
                     violations.append(f"{case}@{size}: {detail}")
-                if result["status"] == "completed" and case not in baselines:
+                # An over-budget tier is still a measurement. Refusing to seed
+                # the baseline from it would disable the growth check for
+                # exactly the case that just misbehaved, leaving it graded
+                # against the flat ceiling alone.
+                measured = result.get("duration_ms") is not None
+                if measured and case not in baselines:
                     baselines[case] = (size, float(result["duration_ms"]))
                 cases.append(result)
     finally:

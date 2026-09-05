@@ -102,6 +102,7 @@ class AppShellMixin:
         win.geometry("520x480")
         win.transient(self.root)
         win.grab_set()
+        win.focus_set()
         win.bind("<Escape>", lambda e: win.destroy())
         theme = get_theme()
         text = tk.Text(win, bg=theme.bg_primary, fg=theme.text_primary,
@@ -133,6 +134,7 @@ class AppShellMixin:
         win.geometry("400x400")
         win.transient(self.root)
         win.grab_set()
+        win.focus_set()
         win.bind("<Escape>", lambda e: win.destroy())
         theme = get_theme()
         win.configure(bg=theme.bg_primary)

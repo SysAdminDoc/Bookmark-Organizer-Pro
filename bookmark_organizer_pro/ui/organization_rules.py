@@ -61,6 +61,7 @@ class OrganizationRuleEditorDialog(tk.Toplevel):
         self._load_rule(rule)
         self.bind("<Escape>", lambda _event: self.destroy())
         self.grab_set()
+        self.focus_set()
 
     def _build(self) -> None:
         theme = get_theme()
