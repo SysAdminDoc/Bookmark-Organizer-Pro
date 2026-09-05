@@ -414,6 +414,48 @@ def test_the_builds_collect_from_the_directory_lookup_prefers():
     assert i18n.POT_PATH == root / "locale" / "bop.pot"
 
 
+def test_each_build_path_collects_a_catalog_that_is_really_there():
+    """Assert against real files, not against the text of the config.
+
+    Checking that the string "LC_MESSAGES/*.mo" appears in a spec proves
+    nothing about whether the glob resolves: there are no catalogs in the tree
+    yet, so a wrong base directory would look identical to a right one. This
+    plants a catalog where a translator's compiled output belongs and checks
+    each build path actually picks it up.
+    """
+    import importlib.util
+
+    root = Path(__file__).resolve().parents[1]
+    catalog_root = root / "bookmark_organizer_pro" / "locale"
+    planted = _compile_catalog(catalog_root, "qq", "Library", "Bibliotheek")
+    try:
+        # Nuitka: build_command is a pure function, so ask it directly.
+        spec = importlib.util.spec_from_file_location(
+            "nuitka_build_probe", root / "packaging" / "nuitka_build.py"
+        )
+        nuitka_build = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(nuitka_build)
+        command = nuitka_build.build_command(root=root, version="0.0.0")
+        expected = "bookmark_organizer_pro/locale/qq/LC_MESSAGES/bop.mo"
+        assert any(
+            arg.startswith("--include-data-files=") and arg.endswith(f"={expected}")
+            for arg in command
+        ), [arg for arg in command if "locale" in arg]
+
+        # PyInstaller: evaluate the spec's own glob against the planted file.
+        spec_text = (root / "packaging" / "bookmark_organizer.spec").read_text(encoding="utf-8")
+        assert 'CATALOG_DIR = ROOT_DIR / "bookmark_organizer_pro" / "locale"' in spec_text
+        collected = sorted(catalog_root.glob("*/LC_MESSAGES/*.mo"))
+        assert planted in collected, collected
+
+        # Wheel: package-data globs are package-relative, so the planted file
+        # has to match from inside the package directory.
+        package_dir = root / "bookmark_organizer_pro"
+        assert planted in set(package_dir.glob("locale/*/LC_MESSAGES/*.mo"))
+    finally:
+        shutil.rmtree(catalog_root, ignore_errors=True)
+
+
 def test_the_nuitka_catalog_loop_does_not_shadow_the_build_target():
     """`target` is a build_command parameter; reusing the name is a latent bug."""
     nuitka = (
