@@ -634,6 +634,39 @@ The Ollama setup action opens Ollama's official download page in your browser.
 Bookmark Organizer Pro does not download or launch the provider's installer.
 After Ollama is installed, return to Assistant Settings and select **Refresh**.
 
+### What connects to the internet
+
+<!-- egress-inventory:start -->
+
+Your bookmarks are stored on this machine. Some features fetch from the web when you use them.
+
+Generated from the same inventory the first-run notice uses, so a feature
+cannot reach the network without appearing here.
+
+**Runs on its own:** nothing.
+
+**Runs when you ask for it:**
+
+- **Broken link check** reaches each bookmarked site. Control: Library tools, Check for broken links.
+- **Offline copy** reaches the page being saved and whatever it embeds. Control: the Save offline copy action, and Settings, Archiving.
+- **Reader text extraction** reaches the page being read. Control: the Reader View action.
+- **Quick Add preview** reaches the URL and custom icon you paste into Quick Add. Control: the Quick Add dialog.
+- **URL checks and upgrades** reaches the site being checked, to follow redirects and test HTTPS. Control: the action that triggered it, such as adding or checking a link.
+- **Title and description lookup** reaches the bookmarked page, and the Wayback Machine when you ask for an archived copy. Control: Library tools, Refresh metadata, and the archive action.
+
+**Off until you turn it on:**
+
+- **Site icons** reaches the bookmarked site, or the icon proxy you choose. Control: Settings, Appearance, Show site icons.
+- **Feed ingestion** reaches the feeds you subscribe to. Control: bop feed, and the feeds you register.
+- **YouTube transcripts** reaches YouTube. Control: Library tools, Fetch YouTube Transcript.
+
+**Goes to a service you configure:**
+
+- **Assistant provider** reaches the AI provider you configure, or your own Ollama server. Control: Assistant Settings, Provider.
+- **Local model status** reaches the Ollama server address you set, localhost by default. Control: Assistant Settings, Server.
+
+<!-- egress-inventory:end -->
+
 ### Safety Notes
 
 - Network tools skip private, localhost, and unsupported URL schemes to avoid leaking or fetching internal resources.

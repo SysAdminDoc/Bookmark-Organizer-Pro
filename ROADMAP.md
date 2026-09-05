@@ -22,14 +22,6 @@ Actionable incomplete work only. Historical and completed material belongs in `C
 
 ### P1
 
-- [ ] P1: R-158: Replace the absolute first-run privacy claim with an egress inventory
-  Why: The launcher says no data leaves the machine without an AI key even though non-AI metadata, favicon, link-check, snapshot, feed, transcript, Wayback, and update features can use the network.
-  Evidence: `bookmark_organizer_pro/launcher.py:65`; `README.md:627`; egress controls in `bookmark_organizer_pro/services/egress.py` and `bookmark_organizer_pro/services/snapshot.py`
-  Touches: launcher banner, onboarding copy, network settings, README privacy section, string catalog, copy-contract tests
-  Acceptance: First-run copy distinguishes default-local storage from automatic, user-triggered, opt-in, and provider-specific egress; each listed path names its control; tests fail if a registered egress feature lacks an inventory entry; no feature's actual default changes silently.
-  Complexity: S
-  Note 2026-09-04: Build the inventory from reachable code, not from the module list. The Wayback, screenshot, and PDF classes in `bookmark_organizer_pro/services/web_tools.py` have no production caller, so listing them as egress paths would overstate what the application actually does. See R-191.
-
 - [ ] P1: R-159: Remove confirmation from the restorable extension queue clear
   Why: Popup and side panel block an undoable clear behind `globalThis.confirm` even though the cleared journal can be restored.
   Evidence: `browser-extension/popup.js:110`; `browser-extension/sidepanel.js:150`; `browser-extension/shared.js:749`; `tests/test_packaging.py:500`

@@ -4151,3 +4151,85 @@ class TestLanceDBSupportedRange(unittest.TestCase):
             "pydantic v2, so the vector-store paths need re-checking before the "
             "range moves",
         )
+
+
+class TestEgressInventory(unittest.TestCase):
+    """R-158: the privacy copy must match what the code can actually reach."""
+
+    # Modules that make network requests but have no production caller. Listing
+    # them as egress paths would overstate what the application does.
+    UNREACHABLE = {"bookmark_organizer_pro/services/web_tools.py"}
+
+    def _network_modules(self):
+        """Modules that construct a network client or call requests directly."""
+        root = Path(__file__).resolve().parents[1] / "bookmark_organizer_pro"
+        # yt-dlp reaches the network on the transcript path without going
+        # through requests, so a marker set that only knows requests would
+        # quietly exempt it.
+        markers = ("BoundedEgressClient", "requests.get(", "requests.post(",
+                   "requests.head(", "urlopen(", "yt_dlp")
+        found = set()
+        for source in sorted(root.rglob("*.py")):
+            relative = source.relative_to(root.parent).as_posix()
+            if relative.endswith("services/egress.py"):
+                continue
+            text = source.read_text(encoding="utf-8")
+            if any(marker in text for marker in markers):
+                found.add(relative)
+        return found
+
+    def test_every_reachable_network_module_is_in_the_inventory(self):
+        from bookmark_organizer_pro.services.egress import EGRESS_INVENTORY
+
+        listed = {
+            feature.module.replace(".", "/") + ".py" for feature in EGRESS_INVENTORY
+        }
+        reachable = self._network_modules() - self.UNREACHABLE
+
+        missing = sorted(reachable - listed)
+        self.assertEqual(
+            [], missing,
+            "these modules can reach the network but the privacy inventory does "
+            f"not list them: {missing}",
+        )
+
+    def test_the_inventory_lists_no_module_that_cannot_reach_the_network(self):
+        from bookmark_organizer_pro.services.egress import EGRESS_INVENTORY
+
+        listed = {
+            feature.module.replace(".", "/") + ".py" for feature in EGRESS_INVENTORY
+        }
+        stale = sorted(listed - self._network_modules())
+
+        self.assertEqual([], stale, f"inventory names modules that make no requests: {stale}")
+
+    def test_every_entry_names_a_real_module_a_trigger_and_a_control(self):
+        import importlib
+
+        from bookmark_organizer_pro.services.egress import EGRESS_INVENTORY, EGRESS_TRIGGERS
+
+        self.assertTrue(EGRESS_INVENTORY)
+        for feature in EGRESS_INVENTORY:
+            with self.subTest(feature=feature.key):
+                importlib.import_module(feature.module)
+                self.assertIn(feature.trigger, EGRESS_TRIGGERS)
+                self.assertTrue(feature.control.strip())
+                self.assertTrue(feature.destination.strip())
+
+    def test_the_first_run_notice_no_longer_claims_nothing_leaves(self):
+        root = Path(__file__).resolve().parents[1]
+        launcher = (root / "bookmark_organizer_pro" / "launcher.py").read_text(encoding="utf-8")
+
+        self.assertNotIn("No data leaves your machine", launcher)
+        self.assertIn("egress_summary_line()", launcher)
+
+    def test_the_readme_lists_every_inventory_entry_with_its_control(self):
+        from bookmark_organizer_pro.services.egress import EGRESS_INVENTORY
+
+        readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("### What connects to the internet", readme)
+        for feature in EGRESS_INVENTORY:
+            with self.subTest(feature=feature.key):
+                self.assertIn(feature.name, readme)
+                self.assertIn(feature.control, readme)

@@ -44,6 +44,12 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   time to cover the rest. `bop dups` takes `--category` and `--json`.
 - The desktop duplicate scan now covers the collection you have selected rather
   than always scanning the whole library.
+- The first-run notice no longer claims nothing leaves your machine unless
+  you set an AI key. That was untrue: site icons, link checks, offline
+  copies, reader extraction, feeds and transcripts all reach the web with no
+  AI provider configured. It now says your bookmarks are stored locally and
+  that some features fetch from the web when you use them, and the README
+  lists every one of those features with the setting that governs it.
 - Saving a bookmark you already have no longer reports it as newly added.
   The desktop selects the row you already have and says so, and fetches no
   favicon for it; `bop add` prints the existing entry and its ID, and takes

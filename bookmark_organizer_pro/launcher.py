@@ -17,6 +17,7 @@ from bookmark_organizer_pro.desktop_bootstrap import (
     setup_dpi_awareness,
 )
 from bookmark_organizer_pro.logging_config import log
+from bookmark_organizer_pro.services.egress import egress_summary_line
 from bookmark_organizer_pro.i18n import setup_locale
 from bookmark_organizer_pro.ui import check_and_install_dependencies
 from bookmark_organizer_pro.ui.style_manager import style_manager
@@ -62,7 +63,7 @@ def _show_first_run_privacy_notice(root: tk.Tk):
 
     tk.Label(
         banner,
-        text="Fully local. No data leaves your machine unless you configure an AI API key.",
+        text=egress_summary_line(),
         bg=accent, fg=accent_fg, font=FONTS.small(),
         anchor="w",
     ).pack(side=tk.LEFT, padx=(16, 8), fill=tk.Y)

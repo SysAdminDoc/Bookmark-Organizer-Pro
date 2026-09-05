@@ -58,6 +58,140 @@ class _PinnedDNSAdapter(HTTPAdapter):
 
 
 @dataclass(frozen=True)
+class EgressFeature:
+    """One feature that can reach the network, and how a user governs it."""
+
+    key: str
+    name: str
+    # "automatic" runs without being asked, "user" runs only on an explicit
+    # action, "opt-in" stays off until switched on, "provider" goes to a
+    # third party the user configured.
+    trigger: str
+    destination: str
+    control: str
+    module: str
+
+
+# The inventory the first-run copy and the README privacy section are both
+# built from. It is deliberately a list of REACHABLE features: services/
+# web_tools.py can also make requests but has no production caller, so listing
+# it would overstate what the application does. R-191 removes that module.
+EGRESS_TRIGGERS = ("automatic", "user", "opt-in", "provider")
+
+EGRESS_INVENTORY = (
+    EgressFeature(
+        key="favicons",
+        name="Site icons",
+        trigger="opt-in",
+        destination="the bookmarked site, or the icon proxy you choose",
+        control="Settings, Appearance, Show site icons",
+        module="bookmark_organizer_pro.services.favicons",
+    ),
+    EgressFeature(
+        key="link_check",
+        name="Broken link check",
+        trigger="user",
+        destination="each bookmarked site",
+        control="Library tools, Check for broken links",
+        module="bookmark_organizer_pro.link_checker",
+    ),
+    EgressFeature(
+        key="snapshot",
+        name="Offline copy",
+        trigger="user",
+        destination="the page being saved and whatever it embeds",
+        control="the Save offline copy action, and Settings, Archiving",
+        module="bookmark_organizer_pro.services.snapshot",
+    ),
+    EgressFeature(
+        key="extraction",
+        name="Reader text extraction",
+        trigger="user",
+        destination="the page being read",
+        control="the Reader View action",
+        module="bookmark_organizer_pro.services.ingest",
+    ),
+    EgressFeature(
+        key="feeds",
+        name="Feed ingestion",
+        trigger="opt-in",
+        destination="the feeds you subscribe to",
+        control="bop feed, and the feeds you register",
+        module="bookmark_organizer_pro.services.rss_feeds",
+    ),
+    EgressFeature(
+        key="transcripts",
+        name="YouTube transcripts",
+        trigger="opt-in",
+        destination="YouTube",
+        control="Library tools, Fetch YouTube Transcript",
+        module="bookmark_organizer_pro.services.youtube_transcript",
+    ),
+    EgressFeature(
+        key="quick_add_preview",
+        name="Quick Add preview",
+        trigger="user",
+        destination="the URL and custom icon you paste into Quick Add",
+        control="the Quick Add dialog",
+        module="bookmark_organizer_pro.ui.workflow_quick_add",
+    ),
+    EgressFeature(
+        key="url_probe",
+        name="URL checks and upgrades",
+        trigger="user",
+        destination="the site being checked, to follow redirects and test HTTPS",
+        control="the action that triggered it, such as adding or checking a link",
+        module="bookmark_organizer_pro.url_utils",
+    ),
+    EgressFeature(
+        key="metadata",
+        name="Title and description lookup",
+        trigger="user",
+        destination="the bookmarked page, and the Wayback Machine when you ask for an archived copy",
+        control="Library tools, Refresh metadata, and the archive action",
+        module="bookmark_organizer_pro.utils.metadata",
+    ),
+    EgressFeature(
+        key="assistant",
+        name="Assistant provider",
+        trigger="provider",
+        destination="the AI provider you configure, or your own Ollama server",
+        control="Assistant Settings, Provider",
+        module="bookmark_organizer_pro.ai",
+    ),
+    EgressFeature(
+        key="ollama_status",
+        name="Local model status",
+        trigger="provider",
+        destination="the Ollama server address you set, localhost by default",
+        control="Assistant Settings, Server",
+        module="bookmark_organizer_pro.services.ollama_manager",
+    ),
+)
+
+
+def egress_summary_line() -> str:
+    """One accurate sentence for first-run copy.
+
+    The old banner said no data leaves the machine without an AI key, which was
+    not true: icons, link checks, offline copies, reader extraction, feeds and
+    transcripts all reach the network without any AI provider configured.
+    """
+    return (
+        "Your bookmarks are stored on this machine. "
+        "Some features fetch from the web when you use them."
+    )
+
+
+def egress_features_by_trigger() -> dict:
+    """The inventory grouped the way the privacy copy presents it."""
+    grouped: dict = {trigger: [] for trigger in EGRESS_TRIGGERS}
+    for feature in EGRESS_INVENTORY:
+        grouped[feature.trigger].append(feature)
+    return grouped
+
+
+@dataclass(frozen=True)
 class EgressPolicy:
     max_redirects: int = 5
     max_bytes: int = 25_000_000
