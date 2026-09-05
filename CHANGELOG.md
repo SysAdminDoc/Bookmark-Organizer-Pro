@@ -44,6 +44,12 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   time to cover the rest. `bop dups` takes `--category` and `--json`.
 - The desktop duplicate scan now covers the collection you have selected rather
   than always scanning the whole library.
+- Translations can now actually load. The app only ever looked for message
+  catalogs in a folder that exists in a source checkout, and no build shipped
+  that folder, so a finished translation would have had nowhere to load from
+  in an installed copy or a release build. Catalogs now resolve from the
+  installed package, a packaged build and a checkout alike, and all three
+  builds ship them. A translator is still the only thing missing.
 - Every dialog that takes over the window can now be closed with Escape and
   starts with the keyboard already inside it. The Trash window, the assistant
   activity window and the rename prompt could be opened and not dismissed

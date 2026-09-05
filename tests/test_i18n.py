@@ -1,6 +1,9 @@
 import json
 import shutil
 import subprocess
+import sys
+import tomllib
+from pathlib import Path
 
 import pytest
 
@@ -282,3 +285,108 @@ process.stdout.write(JSON.stringify({
     assert len(result["text"]) > len("Save Bookmark") * 1.25
     assert "missingKey" != result["missing"]
     assert result["missing"].startswith("\u202b")
+
+
+# ── R-186: a compiled catalog has to load from an install, not just a checkout ─
+
+
+def _compile_catalog(root: Path, language: str, msgid: str, msgstr: str) -> Path:
+    """Write a minimal .mo the way msgfmt would, without needing gettext tools."""
+    import struct
+
+    target = root / language / "LC_MESSAGES"
+    target.mkdir(parents=True, exist_ok=True)
+    entries = [(b"", b"Content-Type: text/plain; charset=UTF-8\n"),
+               (msgid.encode("utf-8"), msgstr.encode("utf-8"))]
+    entries.sort()
+    count = len(entries)
+    key_start = 7 * 4 + 16 * count
+    value_start = key_start + sum(len(key) + 1 for key, _ in entries)
+    key_offsets, value_offsets = [], []
+    offset = key_start
+    for key, _value in entries:
+        key_offsets.append((len(key), offset))
+        offset += len(key) + 1
+    offset = value_start
+    for _key, value in entries:
+        value_offsets.append((len(value), offset))
+        offset += len(value) + 1
+    output = struct.pack(
+        "Iiiiiii", 0x950412DE, 0, count, 7 * 4, 7 * 4 + count * 8, 0, 0
+    )
+    for length, position in key_offsets:
+        output += struct.pack("ii", length, position)
+    for length, position in value_offsets:
+        output += struct.pack("ii", length, position)
+    for key, _value in entries:
+        output += key + b"\x00"
+    for _key, value in entries:
+        output += value + b"\x00"
+    catalog = target / "bop.mo"
+    catalog.write_bytes(output)
+    return catalog
+
+
+def test_a_catalog_loads_from_every_install_layout(tmp_path, monkeypatch):
+    """Source checkout, installed wheel, PyInstaller and Nuitka roots."""
+    from bookmark_organizer_pro import i18n
+
+    layouts = {
+        "wheel": tmp_path / "package" / "locale",
+        "pyinstaller": tmp_path / "meipass" / "locale",
+        "frozen": tmp_path / "beside-exe" / "locale",
+        "source": tmp_path / "checkout" / "locale",
+    }
+    for root in layouts.values():
+        _compile_catalog(root, "qq", "Library", "Bibliotheek")
+
+    for name, root in layouts.items():
+        monkeypatch.setattr(i18n, "locale_roots", lambda root=root: [root])
+        try:
+            i18n.setup_locale("qq")
+            assert i18n._("Library") == "Bibliotheek", f"{name} layout did not load the catalog"
+        finally:
+            monkeypatch.undo()
+            i18n.setup_locale("en")
+
+
+def test_locale_roots_cover_the_frozen_and_wheel_layouts(monkeypatch):
+    from bookmark_organizer_pro import i18n
+
+    monkeypatch.setattr(sys, "_MEIPASS", str(Path("C:/bundle")), raising=False)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+
+    roots = [str(root) for root in i18n.locale_roots()]
+
+    assert any(root.endswith(str(Path("bookmark_organizer_pro/locale"))) for root in roots), roots
+    assert any(str(Path("C:/bundle/locale")) == root for root in roots), roots
+    assert len(roots) == len(set(roots)), "locale roots must not repeat"
+
+
+def test_a_language_without_a_catalog_falls_through_to_the_next_root(tmp_path, monkeypatch):
+    """A directory that merely exists must not stop the search."""
+    from bookmark_organizer_pro import i18n
+
+    empty = tmp_path / "empty" / "locale"
+    empty.mkdir(parents=True)
+    populated = tmp_path / "populated" / "locale"
+    _compile_catalog(populated, "qq", "Library", "Bibliotheek")
+
+    monkeypatch.setattr(i18n, "locale_roots", lambda: [empty, populated])
+    try:
+        i18n.setup_locale("qq")
+        assert i18n._("Library") == "Bibliotheek"
+    finally:
+        i18n.setup_locale("en")
+
+
+def test_every_build_path_ships_compiled_catalogs():
+    root = Path(__file__).resolve().parents[1]
+    pyproject = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    spec = (root / "packaging" / "bookmark_organizer.spec").read_text(encoding="utf-8")
+    nuitka = (root / "packaging" / "nuitka_build.py").read_text(encoding="utf-8")
+
+    package_data = pyproject["tool"]["setuptools"]["package-data"]["bookmark_organizer_pro"]
+    assert "locale/*/LC_MESSAGES/*.mo" in package_data
+    assert 'LC_MESSAGES/*.mo' in spec, "PyInstaller spec collects no message catalogs"
+    assert 'LC_MESSAGES/*.mo' in nuitka, "Nuitka build collects no message catalogs"

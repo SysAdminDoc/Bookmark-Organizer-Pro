@@ -47,7 +47,9 @@ Items moved here from ROADMAP.md because they have hard blockers preventing impl
 
 ## First community translation (es or zh)
 
-**Blocker:** 263 GUI strings are now wrapped with `_()` and the POT file is generated. However, creating the actual `.po` translation file requires a fluent translator for the target language. This is a human-gated task.
+**Blocker:** The GUI strings are wrapped with `_()` and the POT file is generated. Creating the actual `.po` translation file requires a fluent translator for the target language. This is a human-gated task.
+
+**Update 2026-09-05 (R-186):** the packaging half of this blocker is cleared. Catalog lookup used to resolve only `<package parent>/locale`, which exists in a source checkout and nowhere else, and no build shipped `locale/` at all, so a finished `.po` could not have loaded from a wheel or a release build even once someone wrote it. `i18n.locale_roots()` now covers the wheel, PyInstaller `_MEIPASS`, frozen and source layouts, and all three build paths collect compiled catalogs. Only the translator is still needed.
 
 **Source:** [S-128]
 

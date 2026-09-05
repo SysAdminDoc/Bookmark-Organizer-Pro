@@ -30,7 +30,44 @@ from pathlib import Path
 from string import Formatter
 from typing import Sequence
 
-_LOCALE_DIR = Path(__file__).resolve().parent.parent / "locale"
+_SOURCE_LOCALE_DIR = Path(__file__).resolve().parent.parent / "locale"
+
+
+def locale_roots() -> list[Path]:
+    """Every directory a compiled catalog can live in, most specific first.
+
+    A source checkout keeps `locale/` beside the package, but an installed
+    wheel and a frozen build do not: PyInstaller unpacks to `_MEIPASS`, Nuitka
+    puts data beside the module, and a wheel installs `locale/` inside the
+    package. Resolving only the checkout layout meant a catalog could never
+    load from anything a user actually installs.
+    """
+    roots: list[Path] = [Path(__file__).resolve().parent / "locale"]
+    bundle = getattr(sys, "_MEIPASS", None)
+    if bundle:
+        roots.append(Path(bundle) / "locale")
+    if getattr(sys, "frozen", False):
+        roots.append(Path(sys.executable).resolve().parent / "locale")
+    roots.append(_SOURCE_LOCALE_DIR)
+    seen: set[str] = set()
+    unique: list[Path] = []
+    for root in roots:
+        key = str(root)
+        if key not in seen:
+            seen.add(key)
+            unique.append(root)
+    return unique
+
+
+def active_locale_dir() -> Path:
+    """The first locale root that exists, or the source layout as a fallback."""
+    for root in locale_roots():
+        if root.is_dir():
+            return root
+    return _SOURCE_LOCALE_DIR
+
+
+_LOCALE_DIR = _SOURCE_LOCALE_DIR
 _DOMAIN = "bop"
 POT_PATH = _LOCALE_DIR / f"{_DOMAIN}.pot"
 EXTENSION_DIR = Path(__file__).resolve().parent.parent / "browser-extension"
@@ -184,15 +221,22 @@ def setup_locale(lang: str = ""):
         _translation = PseudoTranslations(rtl=True)
         return
 
-    if _LOCALE_DIR.is_dir():
+    for root in locale_roots():
+        if not root.is_dir():
+            continue
         try:
-            _translation = gettext.translation(
-                _DOMAIN, localedir=str(_LOCALE_DIR), languages=[lang],
+            candidate = gettext.translation(
+                _DOMAIN, localedir=str(root), languages=[lang],
                 fallback=True,
             )
-            return
         except Exception:
-            pass
+            continue
+        # fallback=True hands back NullTranslations when this root has no
+        # catalog for the language, so keep looking rather than stopping at
+        # the first directory that merely exists.
+        if isinstance(candidate, gettext.GNUTranslations):
+            _translation = candidate
+            return
 
     _translation = gettext.NullTranslations()
 

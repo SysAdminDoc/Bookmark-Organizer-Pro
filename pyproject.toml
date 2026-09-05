@@ -62,8 +62,9 @@ py-modules = ["bootstrap_dependencies"]
 include = ["bookmark_organizer_pro*"]
 
 [tool.setuptools.package-data]
-# Ship bundled data assets (e.g. the default category patterns) with the wheel.
-bookmark_organizer_pro = ["**/*.json"]
+# Ship bundled data assets (e.g. the default category patterns) with the wheel,
+# plus any compiled message catalogs so a translation can load from an install.
+bookmark_organizer_pro = ["**/*.json", "locale/*/LC_MESSAGES/*.mo"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

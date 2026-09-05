@@ -163,6 +163,9 @@ if not default_categories.is_file():
     raise FileNotFoundError(f"required runtime asset is missing: {default_categories}")
 datas.append((str(default_categories), "bookmark_organizer_pro/core"))
 
+for catalog in sorted((ROOT_DIR / "locale").glob("*/LC_MESSAGES/*.mo")):
+    datas.append((str(catalog), str(catalog.parent.relative_to(ROOT_DIR)).replace("\\", "/")))
+
 bootstrap_manifest = ROOT_DIR / "bookmark_organizer_pro" / "bootstrap_dependencies.json"
 if not bootstrap_manifest.is_file():
     raise FileNotFoundError(f"required runtime asset is missing: {bootstrap_manifest}")

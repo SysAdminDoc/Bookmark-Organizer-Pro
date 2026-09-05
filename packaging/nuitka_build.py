@@ -91,6 +91,10 @@ def build_command(
                 f"--include-data-files={bootstrap_manifest}={BOOTSTRAP_MANIFEST.as_posix()}",
             )
         )
+        # Compiled message catalogs, so a translation can load from the build.
+        for catalog in sorted((root / "locale").glob("*/LC_MESSAGES/*.mo")):
+            target = catalog.relative_to(root).as_posix()
+            command.append(f"--include-data-files={catalog}={target}")
     if sys.platform.startswith("win"):
         console_mode = "force" if is_smoke else "disable"
         command.append(f"--windows-console-mode={console_mode}")
