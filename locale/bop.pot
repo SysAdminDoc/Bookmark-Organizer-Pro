@@ -811,7 +811,7 @@ msgstr ""
 msgid "Category patterns exported successfully!\n\nFile: {value_0}\nCategories: {value_1}\nTotal patterns: {value_2}\n\nShare this file to help improve categorization for others!"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/filters.py:341
+#: bookmark_organizer_pro/app_mixins/filters.py:347
 msgid "Category: {category}"
 msgstr ""
 
@@ -1782,11 +1782,11 @@ msgstr ""
 msgid "Filter library: {name}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/filters.py:399
+#: bookmark_organizer_pro/app_mixins/filters.py:405
 msgid "Filter: {filter}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/filters.py:307
+#: bookmark_organizer_pro/app_mixins/filters.py:313
 msgid "Filtering by domain: {domain}"
 msgstr ""
 
@@ -2293,7 +2293,7 @@ msgid "Let the model invent tags"
 msgstr ""
 
 #: bookmark_organizer_pro/app_mixins/app_shell.py:513
-#: bookmark_organizer_pro/app_mixins/bookmarks.py:152
+#: bookmark_organizer_pro/app_mixins/bookmarks.py:168
 #: bookmark_organizer_pro/app_mixins/dashboard.py:125
 msgid "Library"
 msgstr ""
@@ -2370,7 +2370,7 @@ msgstr ""
 msgid "Local Job Health"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/bookmarks.py:156
+#: bookmark_organizer_pro/app_mixins/bookmarks.py:172
 msgid "Local and ready"
 msgstr ""
 
@@ -2622,7 +2622,7 @@ msgstr ""
 msgid "Next: {action}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/bookmarks.py:275
+#: bookmark_organizer_pro/app_mixins/bookmarks.py:290
 #: bookmark_organizer_pro/ui/organization_rules.py:434
 msgid "No"
 msgstr ""
@@ -2687,7 +2687,7 @@ msgstr ""
 msgid "No bookmarks found in that folder"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/bookmarks.py:216
+#: bookmark_organizer_pro/app_mixins/bookmarks.py:231
 msgid "No bookmarks match the current view."
 msgstr ""
 
@@ -3394,7 +3394,7 @@ msgstr ""
 msgid "Ready"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/bookmarks.py:154
+#: bookmark_organizer_pro/app_mixins/bookmarks.py:170
 msgid "Ready for your first save"
 msgstr ""
 
@@ -3980,7 +3980,7 @@ msgstr ""
 msgid "Search index updated"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/bookmarks.py:210
+#: bookmark_organizer_pro/app_mixins/bookmarks.py:225
 msgid "Search query has errors; no results are shown."
 msgstr ""
 
@@ -4231,9 +4231,9 @@ msgstr ""
 msgid "Show only pinned bookmarks"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/filters.py:272
-#: bookmark_organizer_pro/app_mixins/filters.py:343
-#: bookmark_organizer_pro/app_mixins/filters.py:397
+#: bookmark_organizer_pro/app_mixins/filters.py:278
+#: bookmark_organizer_pro/app_mixins/filters.py:349
+#: bookmark_organizer_pro/app_mixins/filters.py:403
 msgid "Showing all bookmarks"
 msgstr ""
 
@@ -4316,7 +4316,7 @@ msgstr ""
 msgid "Sort by"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/bookmarks.py:403
+#: bookmark_organizer_pro/app_mixins/bookmarks.py:418
 msgid "Sorted: {column} {direction}"
 msgstr ""
 
@@ -4801,7 +4801,7 @@ msgstr ""
 msgid "Unknown credential"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/bookmarks.py:277
+#: bookmark_organizer_pro/app_mixins/bookmarks.py:292
 msgid "Unknown site"
 msgstr ""
 
@@ -4936,7 +4936,7 @@ msgstr ""
 msgid "YYYY-MM-DD"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/bookmarks.py:275
+#: bookmark_organizer_pro/app_mixins/bookmarks.py:290
 #: bookmark_organizer_pro/ui/organization_rules.py:434
 msgid "Yes"
 msgstr ""
@@ -4957,7 +4957,7 @@ msgstr ""
 msgid "YouTube transcript captured"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/bookmarks.py:218
+#: bookmark_organizer_pro/app_mixins/bookmarks.py:233
 msgid "Your bookmark library is empty."
 msgstr ""
 
@@ -4989,11 +4989,11 @@ msgstr ""
 msgid "and {count} more"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/bookmarks.py:400
+#: bookmark_organizer_pro/app_mixins/bookmarks.py:415
 msgid "ascending"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/bookmarks.py:398
+#: bookmark_organizer_pro/app_mixins/bookmarks.py:413
 msgid "descending"
 msgstr ""
 
@@ -5035,7 +5035,7 @@ msgstr ""
 msgid "paused"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/bookmarks.py:379
+#: bookmark_organizer_pro/app_mixins/bookmarks.py:394
 msgid "row {position} of {total} selected"
 msgstr ""
 
@@ -5079,7 +5079,7 @@ msgstr ""
 msgid "{count} allowlisted text files ready for review"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/bookmarks.py:224
+#: bookmark_organizer_pro/app_mixins/bookmarks.py:239
 msgid "{count} bookmarks in the current view."
 msgstr ""
 
@@ -5095,7 +5095,7 @@ msgstr ""
 msgid "{count} queued • changes save automatically"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/bookmarks.py:386
+#: bookmark_organizer_pro/app_mixins/bookmarks.py:401
 msgid "{count} rows selected"
 msgstr ""
 
@@ -5287,7 +5287,7 @@ msgstr ""
 msgid "{verb}: {detail}"
 msgstr ""
 
-#: bookmark_organizer_pro/app_mixins/bookmarks.py:370
+#: bookmark_organizer_pro/app_mixins/bookmarks.py:385
 msgid "{visible} of {total} bookmarks"
 msgstr ""
 

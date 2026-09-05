@@ -226,11 +226,17 @@ class FilterActionsMixin:
         except Exception:
             pass
 
-    def _refresh_filter_counts(self):
-        """Refresh quick-filter badges so the sidebar feels alive and trustworthy."""
+    def _refresh_filter_counts(self, library=None):
+        """Refresh quick-filter badges so the sidebar feels alive and trustworthy.
+
+        ``library`` lets the caller pass the snapshot it already holds. Taking a
+        fresh one here copied the whole library a second time on every refresh.
+        """
         if not getattr(self, 'filter_button_parts', None):
             return
-        counts = build_filter_counts(self.bookmark_manager.get_all_bookmarks()).as_dict()
+        if library is None:
+            library = self.bookmark_manager.get_all_bookmarks()
+        counts = build_filter_counts(library).as_dict()
         for name, count in counts.items():
             parts = self.filter_button_parts.get(name)
             if parts:

@@ -98,11 +98,22 @@ class BookmarkViewMixin:
             set_semantic_state("loading", _("Loading bookmarks"))
             self._refresh_table_semantic_status()
         
-        # Get base bookmarks - always start from all bookmarks for quick filters
+        # One snapshot per refresh. Every call to get_all_bookmarks() copies the
+        # whole library, and this method used to take four of them.
+        library = self.bookmark_manager.get_all_bookmarks()
+        total_bookmarks = len(library)
+
+        # Get base bookmarks - always start from all bookmarks for quick filters.
+        # The category filter matches BookmarkManager.get_bookmarks_by_category
+        # with include_children, applied to the snapshot already in hand.
         if self.current_category:
-            bookmarks = self.bookmark_manager.get_bookmarks_by_category(self.current_category)
+            category = self.current_category
+            bookmarks = [
+                bm for bm in library
+                if bm.category == category or bm.parent_category == category
+            ]
         else:
-            bookmarks = self.bookmark_manager.get_all_bookmarks()
+            bookmarks = list(library)
         
         query = self.search_query.strip() if hasattr(self, 'search_query') and self.search_query else ""
         search_has_error = False
@@ -146,17 +157,21 @@ class BookmarkViewMixin:
         if query:
             bookmarks.sort(key=lambda b: not b.is_pinned)
         else:
-            bookmarks.sort(key=lambda b: (not b.is_pinned, b.title.lower()))
+            # Decorate-sort-undecorate: title.lower() as a sort key is recomputed
+            # on every comparison, which is O(n log n) lowerings rather than n.
+            decorated = [(not b.is_pinned, b.title.lower(), index, b)
+                         for index, b in enumerate(bookmarks)]
+            decorated.sort(key=lambda row: row[:3])
+            bookmarks = [row[3] for row in decorated]
 
-        if self.count_label and not bookmarks and not self.bookmark_manager.get_all_bookmarks():
+        if self.count_label and not bookmarks and not total_bookmarks:
             self.count_label.configure(text=_("Library"))
             if getattr(self, 'library_context_label', None):
                 self.library_context_label.configure(text=_("Ready for your first save"))
             if getattr(self, 'view_hint_label', None):
                 self.view_hint_label.configure(text=_("Local and ready"))
 
-        self._refresh_filter_counts()
-        total_bookmarks = len(self.bookmark_manager.get_all_bookmarks())
+        self._refresh_filter_counts(library)
         self._table_visible_total = len(bookmarks)
         self._table_library_total = total_bookmarks
         self._set_collection_summary_visible(total_bookmarks > 0)

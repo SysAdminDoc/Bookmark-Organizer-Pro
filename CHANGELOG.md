@@ -41,6 +41,11 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   time to cover the rest. `bop dups` takes `--category` and `--json`.
 - The desktop duplicate scan now covers the collection you have selected rather
   than always scanning the whole library.
+- Refreshing the bookmark table is cheaper on a large library. It used to copy
+  the whole library four times per refresh, once more again to filter by
+  collection, and re-lowercase every title on every comparison while sorting.
+  It now takes one copy and lowercases each title once. Ordering, collection
+  filtering and the sidebar counts are unchanged.
 - The performance gate can now catch an operation that gets slower than it
   should as the library grows. It held every collection size to the same
   stopwatch limit, so a change that made something scale badly still passed as

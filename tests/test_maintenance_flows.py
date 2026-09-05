@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
+from bookmark_organizer_pro.app_mixins.bookmarks import BookmarkViewMixin
 from bookmark_organizer_pro.app_mixins.tools import ToolsActionsMixin
 from bookmark_organizer_pro.models.bookmark import Bookmark
 from bookmark_organizer_pro.models.category import Category
@@ -429,3 +430,127 @@ class TestDuplicateScanCoverage(unittest.TestCase):
 
         self.assertEqual([("success", "No duplicates found")], app.toasts)
         self.assertIn("Compared all 9 bookmarks", app.statuses[-1])
+
+
+class CountingBookmarkManager:
+    """Counts full-library snapshots so a refresh cannot quietly take four."""
+
+    def __init__(self, bookmarks):
+        self._bookmarks = list(bookmarks)
+        self.snapshot_calls = 0
+        self.category_calls = 0
+
+    def get_all_bookmarks(self):
+        self.snapshot_calls += 1
+        return list(self._bookmarks)
+
+    def get_bookmarks_by_category(self, category, include_children=True):
+        self.category_calls += 1
+        return [
+            bm for bm in self._bookmarks
+            if bm.category == category
+            or (include_children and bm.parent_category == category)
+        ]
+
+
+class RefreshHarness(BookmarkViewMixin):
+    """Minimal stand-in for the app shell around the bookmark table."""
+
+    def __init__(self, bookmarks):
+        self.bookmark_manager = CountingBookmarkManager(bookmarks)
+        self.tree = object()
+        self.count_label = None
+        self.current_category = ""
+        self.search_query = ""
+        self.quick_filter = None
+        self.filter_button_parts = None
+        self.populated = None
+        self.collection_summaries = []
+
+    def _refresh_filter_counts(self, library=None):
+        self.filter_count_library = library
+
+    def _set_collection_summary_visible(self, visible):
+        pass
+
+    def _set_content_header_visible(self, visible):
+        pass
+
+    def _refresh_collection_summary(self, **kwargs):
+        self.collection_summaries.append(kwargs)
+
+    def _populate_list_view(self, bookmarks):
+        self.populated = list(bookmarks)
+
+
+class TestBookmarkTableRefresh(unittest.TestCase):
+    def _library(self):
+        first = bookmark(1, "https://example.com/b", category="Dev")
+        first.title = "beta"
+        second = bookmark(2, "https://example.com/a", category="Dev")
+        second.title = "Alpha"
+        third = bookmark(3, "https://example.com/c", category="Ops")
+        third.title = "charlie"
+        third.is_pinned = True
+        return [first, second, third]
+
+    def test_a_refresh_takes_exactly_one_library_snapshot(self):
+        app = RefreshHarness(self._library())
+
+        app._refresh_bookmark_list()
+
+        self.assertEqual(1, app.bookmark_manager.snapshot_calls)
+        self.assertEqual(0, app.bookmark_manager.category_calls)
+
+    def test_a_category_refresh_still_takes_exactly_one_snapshot(self):
+        app = RefreshHarness(self._library())
+        app.current_category = "Dev"
+
+        app._refresh_bookmark_list()
+
+        self.assertEqual(1, app.bookmark_manager.snapshot_calls)
+        self.assertEqual(0, app.bookmark_manager.category_calls)
+        self.assertEqual({"Alpha", "beta"}, {bm.title for bm in app.populated})
+
+    def test_the_category_filter_matches_the_manager_it_replaced(self):
+        library = self._library()
+        library[0].parent_category = "Ops"
+        app = RefreshHarness(library)
+        app.current_category = "Ops"
+
+        app._refresh_bookmark_list()
+
+        expected = app.bookmark_manager.get_bookmarks_by_category("Ops")
+        self.assertEqual({bm.id for bm in expected}, {bm.id for bm in app.populated})
+
+    def test_filter_counts_reuse_the_snapshot_the_refresh_already_took(self):
+        app = RefreshHarness(self._library())
+
+        app._refresh_bookmark_list()
+
+        self.assertEqual(3, len(app.filter_count_library))
+        self.assertEqual(1, app.bookmark_manager.snapshot_calls)
+
+    def test_pinned_first_then_case_insensitive_title_order_is_unchanged(self):
+        app = RefreshHarness(self._library())
+
+        app._refresh_bookmark_list()
+
+        self.assertEqual(["charlie", "Alpha", "beta"], [bm.title for bm in app.populated])
+
+    def test_the_sort_key_is_computed_once_per_record(self):
+        library = self._library()
+        lowered = []
+
+        class CountingTitle(str):
+            def lower(self):
+                lowered.append(str(self))
+                return str.lower(self)
+
+        for bm in library:
+            bm.title = CountingTitle(bm.title)
+        app = RefreshHarness(library)
+
+        app._refresh_bookmark_list()
+
+        self.assertEqual(sorted(lowered), sorted(str(bm.title) for bm in library))
