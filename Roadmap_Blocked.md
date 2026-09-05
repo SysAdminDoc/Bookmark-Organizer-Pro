@@ -111,3 +111,48 @@ Blocked items moved from the actionable roadmap:
   Acceptance: An isolated prototype runs the existing MCP contract suite against the minimum and latest allowed dependency versions, negotiates capabilities with both pre-2026-07-28 and final-spec clients, renders one read-only bookmark-search app without broadening scopes or exposing content unexpectedly, and documents a keep/reject decision with measured compatibility evidence.
   Complexity: L
   Note 2026-08-21: mcp SDK 2.0.0 shipped 2026-07-28 (stateless requests, `server/discover`, Tasks + MCP Apps extensions, Roots/Sampling/Logging deprecated on a 12-month clock; `FastMCP` class renamed `MCPServer`); fastmcp 4.0.0b3 (2026-08-14) targets SDK v2 but is still beta, and fastmcp 3.4.x pins `mcp<2`. Current pins (`mcp>=1.28,<2.0`, `fastmcp>=3.4.1,<4.0`) are correct until fastmcp 4 goes stable or a decision is made to target the raw SDK. Sources: https://github.com/modelcontextprotocol/python-sdk/releases; https://github.com/jlowin/fastmcp/releases.
+
+## R-179 — Stop rewriting the whole library on every single-record mutation
+
+**Blocker:** The acceptance criterion contradicts the storage architecture, and
+resolving it needs a product decision about user data safety that should not be
+made by an implementer alone.
+
+The item asks that "the `incremental_add` benchmark is measured at a tier above
+5,000 and its per-record cost stops growing with library size". On the JSON
+backend that is not achievable by coalescing. A JSON array cannot be partially
+rewritten, so `_save_snapshot` is O(n) by construction
+(`bookmark_organizer_pro/managers/bookmarks.py:484-502` into
+`core/storage_manager.py:200-221`). Three ways out, each needing a decision:
+
+1. **Debounce the write.** The item sanctions this ("debounced or batched"), and
+   the coalescing machinery already exists as `BookmarkManager.batch()`
+   (`managers/bookmarks.py:504`), including rollback through `_batch_snapshot`.
+   But a debounce measured by a benchmark that adds one bookmark reports ~0ms
+   because the write never happens inside the timed region, which games the
+   criterion rather than meeting it. More importantly it introduces a window in
+   which acknowledged user edits are not on disk. Every other durability
+   decision in this repo goes the other way: atomic replace, revision checks,
+   safepoints before destructive work, a verified recovery bundle before purge.
+   Accepting a loss window is a reversal of that stance and belongs to the
+   maintainer.
+2. **Write-ahead journal.** Append each mutation to a small journal (O(1),
+   fsynced), replay it on load, compact into the library periodically. This
+   genuinely makes per-record cost independent of library size with no loss
+   window. It is also a new on-disk format that every recovery path
+   (safepoints, rolling backups, recovery bundles, the revision-polling file
+   watcher, `StorageConflictError` semantics, and the SQLite backend) has to
+   understand. That is a storage redesign, not a fix.
+3. **Make SQLite the default backend**, where row-level writes are native. This
+   is R-162's territory and a product decision about the default install.
+
+**What is already true and needs no work:** bulk paths are not affected. The
+batch scope exists and is used by the import paths, so the README's "high CPU on
+large imports" note is about the loop, not the single-record path.
+
+**To unblock:** pick 1, 2 or 3. If 1, state the acceptable window and whether it
+applies to the desktop only (leaving CLI, REST and MCP writing immediately), and
+drop the benchmark criterion because a deferred write cannot be measured by a
+timer around the mutation.
+
+**Source:** RESEARCH.md 2026-09-04; `benchmarks/bench_core.py` `incremental_add`.
