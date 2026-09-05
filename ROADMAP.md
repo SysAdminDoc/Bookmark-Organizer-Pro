@@ -29,13 +29,6 @@ Actionable incomplete work only. Historical and completed material belongs in `C
   Acceptance: A temporary `BOOKMARK_DATA_DIR` is established before application imports in the main suite and spawned test processes; a default `BookmarkAPI` writes its registry there; canaries cover the known production paths derived from constants, local state, API credentials, and extension-origin defaults while allowing ordinary pytest temporary directories; every protected real path remains absent or byte-identical after the full suite.
   Complexity: M
 
-- [ ] P1: R-156: Make desktop theme activation a tested gate condition
-  Why: Several visual-smoke paths call `set_theme()` without checking its result, so captures can pass while rendering the previous theme.
-  Evidence: `scripts/visual_regression_smoke.py:776`, `:822`, `:851`, and `:956`; historical gate repair commit `584799be1f3bf471a45480c107a99ceb427ec5b5`; current smoke unit tests in `tests/test_visual_regression_smoke.py`
-  Touches: `scripts/visual_regression_smoke.py`, theme-matrix helpers, `tests/test_visual_regression_smoke.py`
-  Acceptance: Every theme transition checks the returned theme name or success result before capture; a fake manager that refuses or no-ops a requested transition makes each affected matrix path fail with the requested and active theme names; an untouched manager passes the same paths.
-  Complexity: S
-
 - [ ] P1: R-157: Report duplicate adds consistently in desktop and CLI
   Why: Duplicate GUI and CLI adds claim success, and the desktop starts unnecessary favicon work, while REST and MCP already expose `already_exists`.
   Evidence: `bookmark_organizer_pro/managers/bookmarks.py:1116`; `bookmark_organizer_pro/app_mixins/bookmark_crud.py:35`; `bookmark_organizer_pro/cli.py:945`; comparison paths `bookmark_organizer_pro/services/api.py:1090` and `bookmark_organizer_pro/mcp_server.py:728`

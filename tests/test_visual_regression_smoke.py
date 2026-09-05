@@ -1,6 +1,8 @@
 import inspect
 from pathlib import Path
 import threading
+import types
+import unittest
 
 from PIL import Image
 
@@ -235,3 +237,59 @@ def test_primary_dialog_headers_share_design_token():
     ):
         source = (root / relative).read_text(encoding="utf-8")
         assert "height=DesignTokens.HEADER_HEIGHT" in source
+
+
+class TestThemeActivationIsChecked(unittest.TestCase):
+    """R-156: a capture must not pass while the previous theme is on screen."""
+
+    class _Manager:
+        def __init__(self, *, applies=True, lands=True):
+            self.applies = applies
+            self.lands = lands
+            self.current_theme = types.SimpleNamespace(name="github_dark")
+            self.requested = []
+
+        def set_theme(self, name):
+            self.requested.append(name)
+            if not self.applies:
+                return False
+            if self.lands:
+                self.current_theme = types.SimpleNamespace(name=name)
+            return True
+
+    def test_a_manager_that_refuses_the_transition_fails_the_smoke(self):
+        manager = self._Manager(applies=False)
+
+        with self.assertRaises(smoke.VisualSmokeError) as raised:
+            smoke._apply_theme(manager, "github_light")
+
+        message = str(raised.exception)
+        self.assertIn("github_light", message)
+        self.assertIn("github_dark", message)
+
+    def test_a_manager_that_reports_success_but_does_not_switch_fails(self):
+        manager = self._Manager(lands=False)
+
+        with self.assertRaises(smoke.VisualSmokeError) as raised:
+            smoke._apply_theme(manager, "github_light")
+
+        message = str(raised.exception)
+        self.assertIn("github_light", message)
+        self.assertIn("github_dark", message)
+
+    def test_a_working_manager_passes(self):
+        manager = self._Manager()
+
+        smoke._apply_theme(manager, "github_light")
+
+        self.assertEqual(["github_light"], manager.requested)
+        self.assertEqual("github_light", manager.current_theme.name)
+
+    def test_no_theme_transition_bypasses_the_guard(self):
+        source = (
+            Path(__file__).resolve().parents[1] / "scripts" / "visual_regression_smoke.py"
+        ).read_text(encoding="utf-8")
+
+        # The helper itself is the one place allowed to call set_theme.
+        self.assertEqual(1, source.count("theme_manager.set_theme("))
+        self.assertIn("def _apply_theme(theme_manager", source)

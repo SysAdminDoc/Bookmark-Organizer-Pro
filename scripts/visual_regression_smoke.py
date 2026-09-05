@@ -186,6 +186,23 @@ def _get_toplevel_hwnd(window) -> int:
     return hwnd
 
 
+def _apply_theme(theme_manager, theme_name: str) -> None:
+    """Switch themes, refusing to capture the previous one by accident.
+
+    ThemeManager.set_theme returns False for a name it does not know and leaves
+    the previous theme rendered. Dropping that result means a capture can pass
+    while showing the wrong palette, which is the failure this smoke exists to
+    catch, so both the return value and the resulting active theme are checked.
+    """
+    applied = theme_manager.set_theme(theme_name)
+    active = getattr(getattr(theme_manager, "current_theme", None), "name", "")
+    if not applied or (active and active != theme_name):
+        raise VisualSmokeError(
+            f"theme {theme_name!r} could not be applied; "
+            f"active theme is {active or 'unknown'!r}"
+        )
+
+
 def _prepare_background_window(window) -> int:
     """Map a Windows Tk window offscreen without activating or taskbar noise."""
     if os.name != "nt":
@@ -774,7 +791,7 @@ def verify_desktop_viewports(
         for width, height, scaling in DESKTOP_VIEWPORTS:
             for theme_name in DESKTOP_SMOKE_THEMES:
                 _set_scaling(root, baseline, scaling)
-                theme_manager.set_theme(theme_name)
+                _apply_theme(theme_manager, theme_name)
                 _verify_viewport(root, width, height)
                 if collapsible_rail is not None:
                     rail = collapsible_rail() if callable(collapsible_rail) else collapsible_rail
@@ -787,10 +804,7 @@ def verify_desktop_viewports(
         painted: dict[str, str] = {}
         for theme_name in theme_sweep_names():
             _set_scaling(root, baseline, sweep_scaling)
-            # The return value is the difference between rendering this theme
-            # and silently rendering the previous one, so it is not dropped.
-            if not theme_manager.set_theme(theme_name):
-                raise VisualSmokeError(f"theme {theme_name} could not be applied")
+            _apply_theme(theme_manager, theme_name)
             _verify_viewport(root, sweep_width, sweep_height)
             painted[theme_name] = _painted_background(root)
             if output_dir is not None:
@@ -820,7 +834,7 @@ def verify_graph_viewports(root, theme_manager, bookmarks) -> None:
         for width, height, scaling in DESKTOP_VIEWPORTS:
             for theme_name in ("github_dark", "github_light"):
                 _set_scaling(root, baseline, scaling)
-                theme_manager.set_theme(theme_name)
+                _apply_theme(theme_manager, theme_name)
                 dialog = GraphViewDialog(root, bookmarks)
                 try:
                     _prepare_background_window(dialog)
@@ -849,7 +863,7 @@ def verify_dialog_viewports(root, theme_manager, bookmark) -> None:
         for width, height, scaling in DESKTOP_VIEWPORTS:
             for theme_name in ("github_dark", "github_light"):
                 _set_scaling(root, baseline, scaling)
-                theme_manager.set_theme(theme_name)
+                _apply_theme(theme_manager, theme_name)
                 editor = BookmarkEditorDialog(
                     root,
                     bookmark=bookmark,
@@ -958,7 +972,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
         output_dir=output_dir,
     )
     root.geometry("1540x980")
-    theme_manager.set_theme("github_dark")
+    _apply_theme(theme_manager, "github_dark")
     root.update()
 
     results: list[CaptureResult] = []
@@ -1183,7 +1197,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
                 f"app_selection={app.selected_bookmarks!r}"
             )
         root.geometry("1540x980")
-        theme_manager.set_theme("github_dark")
+        _apply_theme(theme_manager, "github_dark")
         root.update()
         results.append(
             capture_tk_window(
@@ -1226,7 +1240,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
         app._update_right_rail_selection()
         root.update()
 
-        theme_manager.set_theme("github_light")
+        _apply_theme(theme_manager, "github_light")
         root.update()
         results.append(
             capture_tk_window(
@@ -1238,7 +1252,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
         )
 
         save_accessible_list_mode(True)
-        theme_manager.set_theme("github_dark")
+        _apply_theme(theme_manager, "github_dark")
         root.update()
         if not isinstance(app.tree, SortableTreeview):
             raise VisualSmokeError(
@@ -1294,7 +1308,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
         destroy_window(snapshot_report)
 
         root.withdraw()
-        theme_manager.set_theme("github_dark")
+        _apply_theme(theme_manager, "github_dark")
         root.update()
         app._show_ai_settings()
         assistant = root.winfo_children()[-1]
@@ -1692,7 +1706,7 @@ def run_desktop_smoke(output_dir: Path, data_dir: Path) -> list[CaptureResult]:
         destroy_window(reader_dialog)
 
         verify_graph_viewports(root, theme_manager, sample_bookmarks)
-        theme_manager.set_theme("github_dark")
+        _apply_theme(theme_manager, "github_dark")
         graph_dialog = GraphViewDialog(root, sample_bookmarks)
         _prepare_background_window(graph_dialog)
         assert_graph_labels_visible(graph_dialog)
