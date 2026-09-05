@@ -1719,6 +1719,101 @@ class TestMainAppManagers(_LocalAPIServerMixin, unittest.TestCase):
             self.assertEqual((added, duplicates), (1, 0))
             self.assertEqual([bm.url for bm in manager.bookmarks.values()], ["https://safe.example/path"])
 
+    NETSCAPE_FIXTURE = """<!DOCTYPE NETSCAPE-Bookmark-file-1>
+<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+<TITLE>Bookmarks</TITLE>
+<H1>Bookmarks</H1>
+<DL><p>
+    <DT><A HREF="https://loose.example/top" ADD_DATE="1">Loose &amp; Early</A>
+    <DT><H3>Development</H3>
+    <DL><p>
+        <DT><A HREF="https://python.example/docs" ADD_DATE="1700000000" TAGS="python,docs">Python Docs</A>
+        <DT><H3>Rust</H3>
+        <DL><p>
+            <DT><A HREF="https://rust.example/book" TAGS="rust">The Rust Book</A>
+        </DL><p>
+        <DT><A HREF="https://python.example/pep8">PEP 8</A>
+    </DL><p>
+    <DT><A HREF="https://loose.example/tail">Loose Tail</A>
+</DL><p>
+"""
+
+    def test_html_import_matches_the_desktop_importer_field_for_field(self):
+        """R-176: both surfaces must read one parser, not two that disagree."""
+        from bookmark_organizer_pro.importers import NetscapeBookmarkImporter
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            html_path = Path(tmp) / "bookmarks.html"
+            html_path.write_text(self.NETSCAPE_FIXTURE, encoding="utf-8")
+
+            added, duplicates = manager.import_html_file(str(html_path))
+            desktop = NetscapeBookmarkImporter.import_from_netscape(
+                str(html_path), categorize=manager.category_manager.categorize_url
+            )
+
+            self.assertEqual((added, duplicates), (5, 0))
+            imported = sorted(manager.bookmarks.values(), key=lambda bm: bm.url)
+            expected = sorted(desktop, key=lambda bm: bm.url)
+            self.assertEqual(
+                [(bm.url, bm.title, bm.category, bm.tags) for bm in imported],
+                [(bm.url, bm.title, bm.category, bm.tags) for bm in expected],
+            )
+            # created_at defaults to "now" when the source carries no ADD_DATE,
+            # so only the dated entries are comparable between two runs.
+            dated = {"https://loose.example/top", "https://python.example/docs"}
+            self.assertEqual(
+                [bm.created_at for bm in imported if bm.url in dated],
+                [bm.created_at for bm in expected if bm.url in dated],
+            )
+
+    def test_html_import_keeps_folders_and_tags_from_the_source(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            html_path = Path(tmp) / "bookmarks.html"
+            html_path.write_text(self.NETSCAPE_FIXTURE, encoding="utf-8")
+
+            manager.import_html_file(str(html_path))
+            by_url = {bm.url: bm for bm in manager.bookmarks.values()}
+
+            self.assertEqual("Development", by_url["https://python.example/docs"].category)
+            self.assertEqual(["python", "docs"], by_url["https://python.example/docs"].tags)
+            self.assertEqual("Rust", by_url["https://rust.example/book"].category)
+            self.assertEqual(["rust"], by_url["https://rust.example/book"].tags)
+            self.assertEqual("Development", by_url["https://python.example/pep8"].category)
+
+    def test_html_import_categorizes_only_the_bookmarks_outside_every_folder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            html_path = Path(tmp) / "bookmarks.html"
+            html_path.write_text(self.NETSCAPE_FIXTURE, encoding="utf-8")
+            calls = []
+            original = manager.category_manager.categorize_url
+
+            def recording(url, title=""):
+                calls.append(url)
+                return original(url, title)
+
+            manager.category_manager.categorize_url = recording
+            manager.import_html_file(str(html_path))
+
+            self.assertEqual(
+                ["https://loose.example/top", "https://loose.example/tail"], calls
+            )
+
+    def test_html_import_accepts_pre_epoch_add_dates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = self._make_manager(tmp)
+            html_path = Path(tmp) / "bookmarks.html"
+            html_path.write_text(self.NETSCAPE_FIXTURE, encoding="utf-8")
+
+            manager.import_html_file(str(html_path))
+            by_url = {bm.url: bm for bm in manager.bookmarks.values()}
+
+            self.assertEqual(
+                "1970-01-01T00:00:01", by_url["https://loose.example/top"].created_at
+            )
+
     def test_tag_manager_ignores_corrupt_empty_tags_on_load(self):
         import main
 

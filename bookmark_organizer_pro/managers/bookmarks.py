@@ -6,7 +6,6 @@ import bisect
 import contextlib
 import copy
 import csv
-import html as html_module
 import json
 import os
 import tempfile
@@ -17,11 +16,6 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
-
-try:
-    from bs4 import BeautifulSoup
-except Exception:  # pragma: no cover - exercised when optional dependency is unavailable
-    BeautifulSoup = None
 
 from bookmark_organizer_pro.constants import APP_VERSION, MASTER_BOOKMARKS_FILE
 from bookmark_organizer_pro.core import CategoryManager, SQLiteStorageManager, StorageManager
@@ -673,29 +667,22 @@ class BookmarkManager:
         return bookmark
     
     def import_html_file(self, filepath: str, source_name: str = "") -> Tuple[int, int]:
-        """Import bookmarks from HTML file"""
-        try:
-            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
-        except Exception as e:
-            log.error(f"Error reading file {filepath}: {e}")
-            return 0, 0
+        """Import bookmarks from a Netscape HTML file.
 
-        soup_class = BeautifulSoup
-        if soup_class is None:
-            try:
-                from bs4 import BeautifulSoup as soup_class
-            except Exception as exc:
-                log.error(f"HTML import requires BeautifulSoup: {exc}")
-                return 0, 0
+        Routed through the same parser the desktop uses so both surfaces read
+        the enclosing folder as the category and the TAGS attribute as tags.
+        """
+        from bookmark_organizer_pro.importers import NetscapeBookmarkImporter
 
-        soup = soup_class(content, 'html.parser')
+        parsed = NetscapeBookmarkImporter.import_from_netscape(
+            filepath, categorize=self.category_manager.categorize_url
+        )
         added = duplicates = 0
         existing_urls = {normalize_url(bm.url) for bm in self._iter_snapshot()}
         source = source_name or Path(filepath).name
 
-        for a_tag in soup.find_all('a'):
-            href = str(a_tag.get('href', '') or '').strip()
+        for parsed_bookmark in parsed:
+            href = parsed_bookmark.url
             valid_url, error = validate_url(href)
             if not valid_url or not href.startswith(('http://', 'https://')):
                 if href:
@@ -707,22 +694,20 @@ class BookmarkManager:
                 duplicates += 1
                 continue
 
-            title = html_module.unescape(a_tag.get_text(strip=True) or href)
-            category = self.category_manager.categorize_url(href, title)
-
             try:
                 bm = Bookmark(
                     id=None,
-                    title=title[:500],
+                    title=(parsed_bookmark.title or href)[:500],
                     url=href,
-                    add_date=str(a_tag.get('add_date', '') or ''),
-                    icon=str(a_tag.get('icon', '') or ''),
-                    category=category,
+                    category=parsed_bookmark.category,
+                    tags=list(parsed_bookmark.tags),
                     source_file=source
                 )
             except ValueError as exc:
                 log.warning(f"Skipping invalid imported bookmark '{href[:80]}': {exc}")
                 continue
+            if parsed_bookmark.created_at:
+                bm.created_at = parsed_bookmark.created_at
             self.add_bookmark(bm, save=False)
             existing_urls.add(normalized)
             added += 1

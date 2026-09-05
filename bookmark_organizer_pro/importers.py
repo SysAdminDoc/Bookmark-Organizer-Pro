@@ -996,12 +996,20 @@ class OneTabImporter:
 class NetscapeBookmarkImporter:
     """Enhanced Netscape bookmark format parser (used by most browsers)"""
 
+    DEFAULT_FOLDER = "Imported"
+
     @staticmethod
-    def import_from_netscape(filepath: str) -> List[Bookmark]:
-        """Import from Netscape/Mozilla bookmark format"""
+    def import_from_netscape(filepath: str, *, categorize=None) -> List[Bookmark]:
+        """Import from Netscape/Mozilla bookmark format.
+
+        ``categorize`` is an optional ``(url, title) -> category`` policy applied
+        only to bookmarks the file places outside any folder. Callers that share
+        this parser must share the policy too, or their records will differ.
+        """
         bookmarks = []
-        current_folder = "Imported"
+        current_folder = NetscapeBookmarkImporter.DEFAULT_FOLDER
         folder_stack = []
+        folder_depth = 0
 
         try:
             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
@@ -1017,11 +1025,13 @@ class NetscapeBookmarkImporter:
                     folder_name = _decode(folder_match.group(1)).strip()
                     folder_stack.append(current_folder)
                     current_folder = folder_name
+                    folder_depth += 1
                     continue
 
                 if '</DL>' in line.upper():
                     if folder_stack:
                         current_folder = folder_stack.pop()
+                        folder_depth = max(0, folder_depth - 1)
                     continue
 
                 bm_match = re.search(
@@ -1035,17 +1045,28 @@ class NetscapeBookmarkImporter:
                     if url and _is_supported_web_url(url):
                         add_date_match = re.search(r'ADD_DATE="(\d+)"', line, re.IGNORECASE)
 
+                        category = current_folder
+                        if folder_depth == 0 and categorize is not None:
+                            category = categorize(url, title or url) or current_folder
+
                         bm = Bookmark(
                             id=None,
                             url=url,
                             title=title or url,
-                            category=current_folder
+                            category=category
                         )
 
                         if add_date_match:
                             try:
+                                # Real exports carry ADD_DATE="1" and other
+                                # pre-epoch values. datetime.fromtimestamp
+                                # raises OSError on Windows for anything that
+                                # lands before 1970 in local time, so build the
+                                # value by offset instead.
                                 timestamp = int(add_date_match.group(1))
-                                bm.created_at = datetime.fromtimestamp(timestamp).isoformat()
+                                bm.created_at = (
+                                    datetime(1970, 1, 1) + timedelta(seconds=timestamp)
+                                ).isoformat()
                             except Exception:
                                 pass
 

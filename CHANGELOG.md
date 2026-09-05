@@ -41,6 +41,15 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   time to cover the rest. `bop dups` takes `--category` and `--json`.
 - The desktop duplicate scan now covers the collection you have selected rather
   than always scanning the whole library.
+- Importing a browser bookmarks file from the command line now keeps the folder
+  each bookmark came from and the tags stored alongside it. The command line and
+  the desktop read the file with two different parsers, and only the desktop one
+  understood folders and tags, so exporting a library and importing it back
+  through `bop import` quietly flattened it. Both now use the same parser, and
+  the URL is only used to guess a collection when the file itself places the
+  bookmark outside every folder.
+- Bookmarks carrying a pre-1970 date, which real browser exports do, now keep
+  that date instead of losing it on Windows.
 - The startup dependency check no longer runs when the package is imported, so
   importing the library, or collecting the test suite, cannot terminate the
   process. The check still runs at the desktop launcher, the command line, the

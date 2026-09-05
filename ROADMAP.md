@@ -164,13 +164,6 @@ Actionable incomplete work only. Historical and completed material belongs in `C
 
 ### P0
 
-- [ ] P0: R-176: Make the CLI Netscape importer read the tags and folders the GUI already reads
-  Why: The exporter writes `TAGS` and an `<H3>` folder, the GUI importer parses both, and the CLI importer parses neither. It reads only href, add_date, and icon and recomputes the category from the URL, so an export followed by a CLI reimport loses every tag and every folder placement without a warning.
-  Evidence: `bookmark_organizer_pro/cli.py:1124` routes to `bookmark_organizer_pro/managers/bookmarks.py:675`, which parses href/add_date/icon at `:718-719` and recomputes the category at `:711`; the GUI path parses both at `bookmark_organizer_pro/importers.py:996`; the exporter writes `TAGS` at `:1536` and `<H3>` at `:1528`; import fidelity as a live user complaint at https://news.ycombinator.com/item?id=44597668
-  Touches: `bookmark_organizer_pro/managers/bookmarks.py`, `bookmark_organizer_pro/cli.py`, `bookmark_organizer_pro/importers.py`, `tests/test_cli.py`, `tests/test_core.py`
-  Acceptance: Both surfaces route Netscape HTML through one parser; tags come from `TAGS`, category comes from the enclosing `<H3>` path, and `categorize_url` runs only when the source supplies no folder; a test imports one fixture file through the CLI and through the GUI importer and asserts the resulting records are field-for-field identical; the test is proved by reverting the CLI to the old parser and watching it fail; pre-1970 `ADD_DATE` values still import without raising on Windows.
-  Complexity: S
-
 - [ ] P0: R-177: Raise the security-relevant dependency floors the audit cannot see
   Why: lxml 6.1.3 fixes external parameter entity parsing being allowed by default even under `resolve_entities="internal"`, and regex 2026.8.30 fixes a heap out-of-bounds write at pattern compile time plus a `count_one()` size underflow. Both are reachable from user-supplied input here, and neither carries a CVE or GHSA, so `pip-audit` reports clean against the current lock.
   Evidence: https://raw.githubusercontent.com/lxml/lxml/lxml-6.1.3/CHANGES.txt (LP#2165901, 2026-09-02); https://raw.githubusercontent.com/mrabarnett/mrab-regex/hg/changelog.txt (issues 611 and 612); `pyproject.toml` floors `lxml>=6.1.1` and `regex>=2024.11.6`; `pylock.toml` locks 6.1.2 and 2026.7.19; user-editable patterns reach the compiler through `bookmark_organizer_pro/core/default_categories.json`
