@@ -2285,6 +2285,9 @@ def serve_http(host: str = "127.0.0.1", port: int = 8766, path: str = "/mcp") ->
 
 
 def main():
+    from bootstrap_dependencies import preflight_or_exit
+
+    preflight_or_exit()
     from bookmark_organizer_pro.constants import ensure_directories
     ensure_directories()
     log.info(f"{APP_NAME} MCP server v{APP_VERSION} starting (stdio)")

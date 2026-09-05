@@ -313,7 +313,9 @@ _bop() {
         dups)
             _arguments -s \
                 '-h[show this help message and exit]' \
-                '--help[show this help message and exit]'
+                '--help[show this help message and exit]' \
+                '--category[Only compare bookmarks in this collection (avoids the pairwise cap)]:category:' \
+                '--json[Emit the report as JSON]'
             return
             ;;
         scan)

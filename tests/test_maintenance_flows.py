@@ -354,3 +354,78 @@ class TestMaintenanceFlows(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDuplicateScanCoverage(unittest.TestCase):
+    """The pairwise passes are capped, so a report must say what it did not compare."""
+
+    def _detector(self, max_pairwise):
+        from bookmark_organizer_pro.services.dup_hybrid import HybridDuplicateDetector
+
+        return HybridDuplicateDetector(max_pairwise=max_pairwise)
+
+    def _distinct_library(self, count):
+        return [bookmark(index, f"https://example-{index}.test/page-{index}") for index in range(1, count + 1)]
+
+    def test_report_flags_the_records_the_cap_left_uncompared(self):
+        library = self._distinct_library(10)
+
+        report = self._detector(4).detect(library)
+
+        self.assertTrue(report.truncated)
+        self.assertEqual(10, report.library_size)
+        self.assertEqual(4, report.pairwise_examined)
+        self.assertEqual(6, report.pairwise_skipped)
+        self.assertIn("Compared 4 of 10 bookmarks", report.coverage_summary())
+
+    def test_the_same_library_reports_full_coverage_under_a_cap_that_fits(self):
+        library = self._distinct_library(10)
+
+        report = self._detector(10).detect(library)
+
+        self.assertFalse(report.truncated)
+        self.assertEqual(10, report.pairwise_examined)
+        self.assertEqual(0, report.pairwise_skipped)
+        self.assertEqual("Compared all 10 bookmarks.", report.coverage_summary())
+
+    def test_url_duplicates_are_never_capped(self):
+        library = self._distinct_library(8)
+        library.append(bookmark(99, "https://example-1.test/page-1"))
+
+        report = self._detector(1).detect(library)
+
+        self.assertEqual(1, report.method_counts["url"])
+        self.assertTrue(report.truncated)
+
+    def test_empty_result_on_a_truncated_scan_does_not_claim_the_library_is_clean(self):
+        from bookmark_organizer_pro.services.dup_hybrid import DuplicateReport
+
+        report = DuplicateReport(
+            method_counts={"url": 0, "simhash": 0, "embedding": 0},
+            library_size=9,
+            pairwise_examined=3,
+            pairwise_skipped=6,
+        )
+        app = MaintenanceHarness([])
+
+        app._show_dup_results(report)
+
+        self.assertEqual(1, len(app.toasts))
+        self.assertIn("were compared", app.toasts[0][1])
+        self.assertIn("6 were not compared", app.statuses[-1])
+
+    def test_empty_result_on_a_complete_scan_still_reads_as_clean(self):
+        from bookmark_organizer_pro.services.dup_hybrid import DuplicateReport
+
+        report = DuplicateReport(
+            method_counts={"url": 0, "simhash": 0, "embedding": 0},
+            library_size=9,
+            pairwise_examined=9,
+            pairwise_skipped=0,
+        )
+        app = MaintenanceHarness([])
+
+        app._show_dup_results(report)
+
+        self.assertEqual([("success", "No duplicates found")], app.toasts)
+        self.assertIn("Compared all 9 bookmarks", app.statuses[-1])

@@ -1041,10 +1041,15 @@ class ToolsActionsMixin:
         import threading
         self._set_status("Scanning for duplicates (URL + SimHash + semantic)...")
 
+        category = getattr(self, "current_category", "") or ""
+
         def _run():
             try:
                 from bookmark_organizer_pro.services.dup_hybrid import HybridDuplicateDetector
-                bms = self.bookmark_manager.get_all_bookmarks()
+                if category:
+                    bms = self.bookmark_manager.get_bookmarks_by_category(category)
+                else:
+                    bms = self.bookmark_manager.get_all_bookmarks()
                 detector = HybridDuplicateDetector()
                 report = detector.detect(bms)
                 self._post_to_ui(lambda: self._show_dup_results(report))
@@ -1058,16 +1063,33 @@ class ToolsActionsMixin:
 
     def _show_dup_results(self, report):
         raw_groups = list(getattr(report, "groups", report or []))
+        truncated = bool(getattr(report, "truncated", False))
+        coverage = getattr(report, "coverage_summary", None)
+        coverage_text = coverage() if callable(coverage) else ""
         if not raw_groups:
-            self._show_toast("No duplicates found", "success")
-            self._set_status("Smart duplicate scan complete: 0 groups")
+            if truncated:
+                self._show_toast(_("No duplicates among the bookmarks that were compared"), "info")
+            else:
+                self._show_toast(_("No duplicates found"), "success")
+            self._set_status(
+                format_message("Smart duplicate scan complete: 0 groups. {coverage}",
+                               coverage=coverage_text).strip()
+                if coverage_text else "Smart duplicate scan complete: 0 groups"
+            )
             return
 
         bookmarks_by_id = {bm.id: bm for bm in self.bookmark_manager.get_all_bookmarks() if bm.id is not None}
         review_groups = build_hybrid_duplicate_review_groups(report, bookmarks_by_id)
         if not review_groups:
-            self._show_toast("No actionable duplicates found", "success")
-            self._set_status("Smart duplicate scan complete: 0 actionable groups")
+            if truncated:
+                self._show_toast(_("No actionable duplicates among the bookmarks that were compared"), "info")
+            else:
+                self._show_toast(_("No actionable duplicates found"), "success")
+            self._set_status(
+                format_message("Smart duplicate scan complete: 0 actionable groups. {coverage}",
+                               coverage=coverage_text).strip()
+                if coverage_text else "Smart duplicate scan complete: 0 actionable groups"
+            )
             return
 
         review_keys = {group.key for group in review_groups}

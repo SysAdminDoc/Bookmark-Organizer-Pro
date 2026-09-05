@@ -11,11 +11,6 @@ Example usage:
     category = cm.categorize_url("https://github.com/user/repo")
 """
 
-from bootstrap_dependencies import preflight_or_exit as _preflight_or_exit
-
-_preflight_or_exit()
-del _preflight_or_exit
-
 from .constants import (
     APP_NAME, APP_VERSION, APP_SUBTITLE,
     APP_DIR, FAVICON_DIR, CACHE_DIR, BACKUP_DIR, THEMES_DIR,

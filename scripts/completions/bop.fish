@@ -226,6 +226,8 @@ complete -c bop -n "__fish_seen_subcommand_from lint-tags" -l help -d "show this
 complete -c bop -n "__fish_seen_subcommand_from lint-tags" -l apply -d "Apply merge fixes"
 complete -c bop -n "__fish_seen_subcommand_from dups" -s h -d "show this help message and exit"
 complete -c bop -n "__fish_seen_subcommand_from dups" -l help -d "show this help message and exit"
+complete -c bop -n "__fish_seen_subcommand_from dups" -l category -d "Only compare bookmarks in this collection (avoids the pairwise cap)" -r
+complete -c bop -n "__fish_seen_subcommand_from dups" -l json -d "Emit the report as JSON"
 complete -c bop -n "__fish_seen_subcommand_from scan" -s h -d "show this help message and exit"
 complete -c bop -n "__fish_seen_subcommand_from scan" -l help -d "show this help message and exit"
 complete -c bop -n "__fish_seen_subcommand_from scan" -l hours -d "Only scan unchecked for N hours" -r

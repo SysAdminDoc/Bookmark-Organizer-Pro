@@ -85,6 +85,11 @@ class TestNuitkaBuildHelper(unittest.TestCase):
         self.assertIn("--jobs=4", command)
         self.assertIn("--file-version=6.6.22.0", command)
         self.assertIn("--product-version=6.6.22.0", command)
+        self.assertIn(
+            f"--include-data-files={ROOT / 'bookmark_organizer_pro' / 'bootstrap_dependencies.json'}="
+            "bookmark_organizer_pro/bootstrap_dependencies.json",
+            command,
+        )
         self.assertTrue(any(arg.startswith("--include-data-files=") for arg in command))
         self.assertEqual(command[-1], str(ROOT / "main.py"))
 
@@ -302,29 +307,97 @@ runpy.run_path(sys.argv[2], run_name="__main__")
         self.assertIn(COMPLETE_RELEASE_URL, message)
         self.assertNotIn(" -m pip ", message)
 
-    def test_package_facade_runs_preflight_before_eager_internal_imports(self):
-        probe = """
-import importlib.util
-import sys
+    def test_nuitka_runtime_uses_compiled_module_path_and_frozen_guidance(self):
+        import bootstrap_dependencies as bootstrap
 
-original_find_spec = importlib.util.find_spec
-importlib.util.find_spec = lambda name, package=None: (
-    None if name == "regex" else original_find_spec(name, package)
-)
-import bookmark_organizer_pro.constants
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle_root = Path(tmp) / "onefile"
+            with (
+                patch.object(bootstrap, "__compiled__", object(), create=True),
+                patch.object(
+                    bootstrap,
+                    "__file__",
+                    str(bundle_root / "bootstrap_dependencies.py"),
+                ),
+            ):
+                self.assertTrue(bootstrap.is_frozen_runtime())
+                self.assertEqual(
+                    bootstrap.manifest_path(),
+                    bundle_root
+                    / "bookmark_organizer_pro"
+                    / "bootstrap_dependencies.json",
+                )
+                message = bootstrap.repair_message(("regex",))
+
+        self.assertIn("complete signed release", message)
+        self.assertNotIn(" -m pip ", message)
+
+    def test_importing_the_package_never_exits_the_process(self):
+        probe = """
+import bookmark_organizer_pro
+import bookmark_organizer_pro.cli
+import bookmark_organizer_pro.mcp_server
+print("imported")
 """
         result = subprocess.run(
             [sys.executable, "-c", probe],
             cwd=ROOT,
             capture_output=True,
             text=True,
-            timeout=20,
+            timeout=60,
             check=False,
         )
 
-        self.assertEqual(result.returncode, 2, result.stderr)
-        self.assertIn("regex", result.stderr)
-        self.assertNotIn("Traceback", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("imported", result.stdout)
+
+    def test_package_facade_does_not_call_the_dependency_preflight(self):
+        tree = ast.parse((ROOT / "bookmark_organizer_pro" / "__init__.py").read_text(encoding="utf-8"))
+        called = {
+            node.func.id
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        }
+
+        self.assertNotIn("preflight_or_exit", called)
+        self.assertNotIn("_preflight_or_exit", called)
+
+    def test_console_entry_points_preflight_missing_manifest_imports(self):
+        module = _load_package_contract_audit()
+        manifest = module.bootstrap_manifest_document()
+        probe = """
+import importlib
+import importlib.util
+import sys
+
+target, module_name, attribute = sys.argv[1], sys.argv[2], sys.argv[3]
+original_find_spec = importlib.util.find_spec
+importlib.util.find_spec = lambda name, package=None: (
+    None if name == target else original_find_spec(name, package)
+)
+entry = getattr(importlib.import_module(module_name), attribute)
+entry()
+"""
+        entry_points = (
+            ("bookmark_organizer_pro.cli", "main"),
+            ("bookmark_organizer_pro.mcp_server", "main"),
+        )
+        import_name = manifest["dependencies"][0]["import_name"]
+        for module_name, attribute in entry_points:
+            result = subprocess.run(
+                [sys.executable, "-c", probe, import_name, module_name, attribute],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+            with self.subTest(entry_point=f"{module_name}:{attribute}"):
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn(import_name, result.stderr)
+                self.assertIn(sys.executable, result.stderr)
+                self.assertIn("-m pip install --upgrade --force-reinstall", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
 
     def test_release_lock_renders_hash_required_install_input(self):
         module = _load_package_contract_audit()

@@ -226,6 +226,9 @@ class BookmarkCLI:
         p.set_defaults(func=self._cmd_lint_tags)
 
         p = sub.add_parser("dups", help="Layered duplicate detector")
+        p.add_argument("--category", default="",
+                       help="Only compare bookmarks in this collection (avoids the pairwise cap)")
+        p.add_argument("--json", action="store_true", help="Emit the report as JSON")
         p.set_defaults(func=self._cmd_dups)
 
         p = sub.add_parser("scan", help="Dead-link scan")
@@ -1560,8 +1563,41 @@ Top Domains:
 
     def _cmd_dups(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.services.dup_hybrid import HybridDuplicateDetector
+        category = (getattr(ns, "category", "") or "").strip()
+        if category:
+            bookmarks = self.bookmark_manager.get_bookmarks_by_category(category)
+        else:
+            bookmarks = self.bookmark_manager.get_all_bookmarks()
         d = HybridDuplicateDetector(self._embedder() if self._embedder().available else None)
-        rep = d.detect(self.bookmark_manager.get_all_bookmarks())
+        rep = d.detect(bookmarks)
+        if getattr(ns, "json", False):
+            print(json.dumps({
+                "scope": category or "all",
+                "library_size": rep.library_size,
+                "pairwise_examined": rep.pairwise_examined,
+                "pairwise_skipped": rep.pairwise_skipped,
+                "truncated": rep.truncated,
+                "method_counts": rep.method_counts,
+                "groups": [
+                    {
+                        "method": g.method,
+                        "canonical_id": g.canonical_id,
+                        "bookmark_ids": list(g.bookmark_ids),
+                        "confidence": g.confidence,
+                    }
+                    for g in rep.groups
+                ],
+            }, indent=2))
+            return
+        if category:
+            print(f"Scope: {category}")
+        print(rep.coverage_summary())
+        if not rep.groups:
+            if rep.truncated:
+                print("No duplicates among the bookmarks that were compared.")
+            else:
+                print("No duplicates found.")
+            return
         for k, v in rep.method_counts.items():
             print(f"  {k}: {v} groups")
         for g in rep.groups[:30]:
@@ -2920,6 +2956,9 @@ def main(argv=None) -> int:
     console_scripts wrapper and the __main__ block below turn it into an exit
     status.
     """
+    from bootstrap_dependencies import preflight_or_exit
+
+    preflight_or_exit()
     args = sys.argv[1:] if argv is None else list(argv)
     return BookmarkCLI().run(args) or 0
 

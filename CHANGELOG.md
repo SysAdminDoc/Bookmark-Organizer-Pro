@@ -21,13 +21,31 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 - Startup now checks every required Python import before loading the application
   package. If the environment is incomplete, the error names each missing
   import and gives a reinstall command for that exact Python interpreter.
-  Packaged builds direct users to the complete signed release instead.
+  PyInstaller and Nuitka builds direct users to the complete signed release
+  instead, and both bundles include the generated dependency manifest.
 - The dependency setup screen no longer runs pip or any other installer inside
   the application. It reports the missing components and shows repair guidance,
   so source and packaged builds never change their own runtime environment.
+- Assistant Settings no longer downloads or starts the Ollama installer. Its
+  setup action opens Ollama's official download page, then lets the user refresh
+  the local provider status after installation.
 - Annotation CSV exports now protect every selected field from spreadsheet
   formula execution, including rendered tag and anchor-history lists. JSON and
   Markdown annotation exports are unchanged.
+- The duplicate scan now says how much of the library it actually compared. Its
+  slower passes stop after a fixed number of records, and until now a large
+  library could be told no duplicates were found when most of it was never
+  looked at. The desktop and command line both report the count that was
+  compared and the count that was skipped, an empty result on a partial scan no
+  longer reads as a clean bill of health, and you can scan one collection at a
+  time to cover the rest. `bop dups` takes `--category` and `--json`.
+- The desktop duplicate scan now covers the collection you have selected rather
+  than always scanning the whole library.
+- The startup dependency check no longer runs when the package is imported, so
+  importing the library, or collecting the test suite, cannot terminate the
+  process. The check still runs at the desktop launcher, the command line, the
+  MCP server, and the packaged executable, with the same missing-import list and
+  interpreter-matched repair command.
 
 ## [v6.16.0] - 2026-08-22
 
@@ -80,9 +98,8 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   merge on a rules import moved out of a popup and into a checkbox, and
   because replacing discards every rule at once, the previous set goes on that
   same undo stack. Every import still ends on the summary with Roll Back. Four
-  prompts stay: installing Ollama, sharing domains with a favicon proxy, and
-  rotating or revoking a credential. Those change something that cannot be
-  taken back.
+  prompts remain only when sharing domains with a favicon proxy or changing a
+  credential in a way that cannot be taken back.
 
 - Everything a person reads now says "1 bookmark" and "5 bookmarks" instead of
   "1 bookmark(s)". v6.15.0 fixed four dialogs; this covers the Tools menu, bulk

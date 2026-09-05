@@ -90,6 +90,24 @@ class DuplicateGroup:
 class DuplicateReport:
     groups: List[DuplicateGroup] = field(default_factory=list)
     method_counts: Dict[str, int] = field(default_factory=dict)
+    library_size: int = 0
+    pairwise_examined: int = 0
+    pairwise_skipped: int = 0
+
+    @property
+    def truncated(self) -> bool:
+        """Whether the pairwise passes left part of the library uncompared."""
+        return self.pairwise_skipped > 0
+
+    def coverage_summary(self) -> str:
+        """One line describing how much of the library the pairwise passes saw."""
+        if not self.truncated:
+            return f"Compared all {self.library_size} bookmarks."
+        return (
+            f"Compared {self.pairwise_examined} of {self.library_size} bookmarks; "
+            f"{self.pairwise_skipped} were not compared because the near-duplicate "
+            "passes are capped. Scan one collection at a time to cover the rest."
+        )
 
 
 class HybridDuplicateDetector:
@@ -99,12 +117,26 @@ class HybridDuplicateDetector:
     EMBEDDING_THRESHOLD = 0.92  # cosine similarity
     MAX_PAIRWISE = 5000         # cap O(n²) passes to avoid minutes-long stalls
 
-    def __init__(self, embedder: Optional[EmbeddingService] = None):
+    def __init__(
+        self,
+        embedder: Optional[EmbeddingService] = None,
+        *,
+        max_pairwise: Optional[int] = None,
+    ):
         self.embedder = embedder
+        self.max_pairwise = self.MAX_PAIRWISE if max_pairwise is None else int(max_pairwise)
 
     def detect(self, bookmarks: Sequence[Bookmark]) -> DuplicateReport:
-        report = DuplicateReport(method_counts={"url": 0, "simhash": 0, "embedding": 0})
+        report = DuplicateReport(
+            method_counts={"url": 0, "simhash": 0, "embedding": 0},
+            library_size=len(bookmarks),
+        )
         seen_ids: set[int] = set()
+        # Records that entered a pairwise pass. Everything the cap left out of
+        # every pass is reported as skipped so no caller can read an empty
+        # result as "this library has no near-duplicates".
+        compared_ids: set[int] = set()
+        pairwise_candidate_ids: set[int] = set()
 
         # --- Pass 1: URL canonical
         url_buckets: Dict[str, List[Bookmark]] = defaultdict(list)
@@ -119,7 +151,10 @@ class HybridDuplicateDetector:
                 ))
                 report.method_counts["url"] += 1
 
-        remaining = [bm for bm in bookmarks if bm.id not in seen_ids][:self.MAX_PAIRWISE]
+        pass2_candidates = [bm for bm in bookmarks if bm.id not in seen_ids]
+        pairwise_candidate_ids.update(bm.id for bm in pass2_candidates)
+        remaining = pass2_candidates[:self.max_pairwise]
+        compared_ids.update(bm.id for bm in remaining)
 
         # --- Pass 2: SimHash
         sims: Dict[int, int] = {}
@@ -151,7 +186,10 @@ class HybridDuplicateDetector:
 
         # --- Pass 3: Embedding cosine
         if self.embedder is not None and self.embedder.available:
-            still_remaining = [bm for bm in bookmarks if bm.id not in seen_ids][:self.MAX_PAIRWISE]
+            pass3_candidates = [bm for bm in bookmarks if bm.id not in seen_ids]
+            pairwise_candidate_ids.update(bm.id for bm in pass3_candidates)
+            still_remaining = pass3_candidates[:self.max_pairwise]
+            compared_ids.update(bm.id for bm in still_remaining)
             texts = [(_read_text(bm)[:1500]) for bm in still_remaining]
             if texts:
                 vectors = self.embedder.embed(texts)
@@ -173,4 +211,6 @@ class HybridDuplicateDetector:
                         ))
                         report.method_counts["embedding"] += 1
 
+        report.pairwise_examined = len(compared_ids)
+        report.pairwise_skipped = len(pairwise_candidate_ids - compared_ids)
         return report
