@@ -268,9 +268,10 @@ class BookmarkCLI:
 
         p = sub.add_parser("imports", help="Inspect, retry, cancel, or roll back import sessions")
         p.add_argument("action", nargs="?", default="list",
-                       choices=["list", "show", "retry", "cancel", "rollback"])
+                       choices=["list", "show", "rejected", "retry", "cancel", "rollback"])
         p.add_argument("session_id", nargs="?", help="Import session ID prefix")
         p.add_argument("--limit", type=int, default=50)
+        p.add_argument("--out", help="Write rejected rows to this CSV file")
         p.add_argument("--json", action="store_true", dest="as_json")
         p.set_defaults(func=self._cmd_import_sessions)
 
@@ -1904,11 +1905,30 @@ Top Domains:
         if not report:
             return
         causes = "; ".join(f"{cause} ({count})" for cause, count in report.causes.items()) or "none"
+        # The reconciliation answers "did all of it arrive", which is the
+        # question a large import leaves a user with.
+        print(
+            f"  found={report.found} added={report.added} duplicates={report.duplicates} "
+            f"failed={report.failed} losses={report.losses} pending={report.pending}"
+        )
+        if report.malformed_source:
+            print(f"  DAMAGED SOURCE: {report.malformed_source}")
+            print("  The file itself is incomplete, so this is not all of it.")
+        if not report.balances:
+            print(
+                f"  ACCOUNTING ERROR: {report.unaccounted} of {report.found} records "
+                f"have no recorded outcome; the import is not verified complete"
+            )
         print(
             f"  session={report.session_id} status={report.status} failed={report.failed} "
             f"losses={report.losses} pending={report.pending} duration={report.duration_ms}ms "
             f"causes={causes}"
         )
+        if report.failed or report.pending:
+            print(
+                f"  review the rows that did not land: "
+                f"bop import-sessions rejected {report.session_id[:12]} --out rejected.csv"
+            )
 
     def _cmd_import_sessions(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.services.import_sessions import ImportSessionManager
@@ -1932,6 +1952,22 @@ Top Domains:
             self._error(f"imports {action} requires a session ID")
             return 2
         try:
+            if action == "rejected":
+                session = sessions.get(ns.session_id)
+                if not session:
+                    raise RuntimeError("Import session was not found or the prefix is ambiguous")
+                rows = sessions.rejected_rows(ns.session_id)
+                if getattr(ns, "out", None):
+                    written = sessions.write_rejected_rows(ns.session_id, ns.out)
+                    print(f"Wrote {len(rows)} rejected {pluralize(len(rows), 'row')}: {written}")
+                elif ns.as_json:
+                    print(json.dumps(rows, indent=2))
+                else:
+                    for row in rows:
+                        print(f"{row['position']:>7}  {row['state']:<9} {row['url']}  {row['reason']}")
+                    if not rows:
+                        print("Every record in this import landed.")
+                return 0
             if action == "show":
                 session = sessions.get(ns.session_id)
                 if not session:
@@ -1953,11 +1989,17 @@ Top Domains:
         else:
             causes = "; ".join(f"{cause} ({count})" for cause, count in report.causes.items()) or "none"
             print(
-                f"Session {report.session_id}: {report.status}; {report.added} added, "
+                f"Session {report.session_id}: {report.status}; {report.found} found, "
+                f"{report.added} added, "
                 f"{report.duplicates} duplicates, {report.failed} failed, "
                 f"{report.losses} losses, {report.pending} pending, "
                 f"{report.duration_ms}ms; causes: {causes}"
             )
+            if not report.balances:
+                print(
+                    f"  ACCOUNTING ERROR: {report.unaccounted} of {report.found} records "
+                    f"have no recorded outcome"
+                )
         return 0
 
     def _cmd_import_pocket(self, ns: argparse.Namespace):

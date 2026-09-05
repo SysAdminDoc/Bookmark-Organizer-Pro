@@ -405,6 +405,7 @@ _bop() {
                         local -a values=(
                             list
                             show
+                            rejected
                             retry
                             cancel
                             rollback
@@ -418,6 +419,7 @@ _bop() {
                 '-h[show this help message and exit]' \
                 '--help[show this help message and exit]' \
                 '--limit[]:limit:' \
+                '--out[Write rejected rows to this CSV file]:out:_files' \
                 '--json[]'
             return
             ;;

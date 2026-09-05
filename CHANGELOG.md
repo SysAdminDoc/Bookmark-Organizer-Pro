@@ -25,6 +25,16 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ### Fixed
 
+- An import now tells you whether all of it arrived. Every import reports how
+  many records the file held, how many were added, how many were already
+  saved, how many failed, and how many could not be read, and it says so
+  plainly if those do not add up. The rows that did not land can be saved to a
+  spreadsheet from the import summary or with
+  `bop imports rejected <session> --out rejected.csv`, so you can fix them and
+  re-import only those.
+- A truncated or damaged bookmarks file is now called out instead of importing
+  quietly as a smaller library. A half-written export used to look like a
+  successful import of everything it contained.
 - Migrating from Linkwarden, Karakeep, Raindrop, or Readwise now reads the
   export as a stream. A 250 MB file used to be loaded whole, parsed whole, and
   then read a second time to hash it; it now goes past once and costs about

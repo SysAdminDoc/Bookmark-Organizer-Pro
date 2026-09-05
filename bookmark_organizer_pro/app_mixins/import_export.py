@@ -348,20 +348,42 @@ class ImportExportMixin:
                 causes = "; ".join(
                     f"{cause} ({count})" for cause, count in report.causes.items()
                 ) or _("none")
-                diagnostics = _(
-                    "Session {session} · {status} · {duration} ms · "
-                    "{failed} failed · {losses} source losses · causes: {causes}."
+                # The reconciliation comes first: the question a large import
+                # leaves is whether everything in the file arrived, and a
+                # session ID does not answer it.
+                reconciliation = _(
+                    "{found} in the file · {added} added · {duplicates} already saved · "
+                    "{failed} failed · {losses} could not be read."
+                ).format(
+                    found=report.found,
+                    added=report.added,
+                    duplicates=report.duplicates,
+                    failed=report.failed,
+                    losses=report.losses,
+                )
+                if report.malformed_source:
+                    reconciliation += " " + _(
+                        "The file itself is incomplete ({detail}), so this is not "
+                        "all of it."
+                    ).format(detail=report.malformed_source)
+                if not report.balances:
+                    reconciliation += " " + _(
+                        "{unaccounted} of {found} records have no recorded outcome, "
+                        "so this import is not verified complete."
+                    ).format(unaccounted=report.unaccounted, found=report.found)
+                diagnostics = reconciliation + " " + _(
+                    "Session {session} · {status} · {duration} ms · causes: {causes}."
                 ).format(
                     session=report.session_id,
                     status=report.status,
                     duration=report.duration_ms,
-                    failed=report.failed,
-                    losses=report.losses,
                     causes=causes,
                 )
                 activity.signal_finish(
                     diagnostics,
-                    outcome="error" if report.failed else (
+                    outcome="error" if (
+                        report.failed or not report.balances or report.malformed_source
+                    ) else (
                         "warning" if report.status == "cancelled" else "success"
                     ),
                 )
@@ -763,9 +785,17 @@ class ImportExportMixin:
 
         tk.Label(
             dlg,
-            text=_("{added} imported. {dupes} duplicates skipped.").format(
-                added=pluralize(added, "bookmark"),
-                dupes=pluralize(dupes, "duplicate"),
+            text=(
+                _("{found} in the file. {added} imported. {dupes} duplicates skipped.").format(
+                    found=pluralize(report.found, "record"),
+                    added=pluralize(added, "bookmark"),
+                    dupes=pluralize(dupes, "duplicate"),
+                )
+                if report is not None
+                else _("{added} imported. {dupes} duplicates skipped.").format(
+                    added=pluralize(added, "bookmark"),
+                    dupes=pluralize(dupes, "duplicate"),
+                )
             ),
             bg=theme.bg_primary,
             fg=theme.text_secondary,
@@ -822,6 +852,31 @@ class ImportExportMixin:
                 on_error=failed,
             )
 
+        def save_rejected_rows():
+            """Write the rows that did not land where the user can open them."""
+            from tkinter import filedialog
+            from bookmark_organizer_pro.services.import_sessions import ImportSessionManager
+
+            destination = filedialog.asksaveasfilename(
+                title=_("Save Rejected Rows"),
+                defaultextension=".csv",
+                initialfile=f"rejected-{report.session_id[:12]}.csv",
+                filetypes=[(_("CSV file"), "*.csv"), (_("All"), "*.*")],
+                parent=dlg,
+            )
+            if not destination:
+                return
+            try:
+                written = ImportSessionManager().write_rejected_rows(
+                    report.session_id, destination
+                )
+            except OSError as exc:
+                self._show_toast(str(exc), "error")
+                return
+            self._show_toast(
+                _("Rejected rows saved: {path}").format(path=written), "success"
+            )
+
         ModernButton(
             buttons,
             text=_("Review Library"),
@@ -831,6 +886,11 @@ class ImportExportMixin:
             pady=7,
         ).pack(side=tk.RIGHT)
         ModernButton(buttons, text=_("Close"), command=dlg.destroy, padx=14, pady=7).pack(side=tk.RIGHT, padx=(0, 8))
+        if report and (report.failed or report.pending):
+            ModernButton(
+                buttons, text=_("Save Rejected Rows"), command=lambda: save_rejected_rows(),
+                padx=12, pady=7,
+            ).pack(side=tk.LEFT, padx=(0, 8))
         if report and report.failed:
             ModernButton(
                 buttons, text=_("Retry Failed"), command=lambda: session_action("retry"),

@@ -262,9 +262,11 @@ complete -c bop -f -n "__fish_seen_subcommand_from jobs" -a "clear" -d ""
 complete -c bop -n "__fish_seen_subcommand_from imports" -s h -d "show this help message and exit"
 complete -c bop -n "__fish_seen_subcommand_from imports" -l help -d "show this help message and exit"
 complete -c bop -n "__fish_seen_subcommand_from imports" -l limit -d "" -r
+complete -c bop -n "__fish_seen_subcommand_from imports" -l out -d "Write rejected rows to this CSV file" -r
 complete -c bop -n "__fish_seen_subcommand_from imports" -l json -d ""
 complete -c bop -f -n "__fish_seen_subcommand_from imports" -a "list" -d ""
 complete -c bop -f -n "__fish_seen_subcommand_from imports" -a "show" -d ""
+complete -c bop -f -n "__fish_seen_subcommand_from imports" -a "rejected" -d ""
 complete -c bop -f -n "__fish_seen_subcommand_from imports" -a "retry" -d ""
 complete -c bop -f -n "__fish_seen_subcommand_from imports" -a "cancel" -d ""
 complete -c bop -f -n "__fish_seen_subcommand_from imports" -a "rollback" -d ""

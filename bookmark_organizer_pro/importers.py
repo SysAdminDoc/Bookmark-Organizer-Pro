@@ -168,6 +168,10 @@ class SessionImportStats:
 
     skipped: int = 0
     causes: Dict[str, int] = None
+    #: Set when the file itself is damaged rather than a record being bad. A
+    #: truncated export parses into fewer records with no error at all, which
+    #: is how a partial import gets reported as a complete one.
+    malformed_source: str = ""
 
     def __post_init__(self):
         if self.causes is None:
@@ -177,6 +181,14 @@ class SessionImportStats:
         count = max(1, int(count))
         self.skipped += count
         self.causes[cause] = self.causes.get(cause, 0) + count
+
+    def record_malformed(self, detail: str) -> None:
+        """Note that the source file is damaged. Not a record count."""
+        detail = str(detail or "").strip()[:300]
+        if detail and detail not in self.malformed_source:
+            self.malformed_source = (
+                f"{self.malformed_source}; {detail}" if self.malformed_source else detail
+            )
 
 
 class FirefoxBookmarkBackupImporter:
@@ -597,8 +609,11 @@ class GenericFileSessionImporter:
                 self.stats.record(f"{path.name}: unsupported file type")
                 continue
             try:
-                parsed = self._parse_one(path, suffix)
+                parsed = self._parse_one(path, suffix, stats=self.stats)
             except Exception as exc:
+                # A format-level failure means the file was not read, which is
+                # damage to the source rather than one unusable record.
+                self.stats.record_malformed(f"{path.name}: {str(exc)[:160]}")
                 self.stats.record(f"{path.name}: {str(exc)[:160]}")
                 continue
             if not parsed:
@@ -614,10 +629,12 @@ class GenericFileSessionImporter:
         return bookmarks
 
     @staticmethod
-    def _parse_one(path: Path, suffix: str) -> List[Bookmark]:
+    def _parse_one(path: Path, suffix: str, *, stats=None) -> List[Bookmark]:
         if suffix in {".html", ".htm"}:
             return NetscapeBookmarkImporter.import_from_netscape(
-                str(path), categorize=NetscapeBookmarkImporter.default_categorize()
+                str(path),
+                categorize=NetscapeBookmarkImporter.default_categorize(),
+                stats=stats,
             )
         if suffix in {".json", ".jsonlz4"}:
             if suffix == ".jsonlz4" or FirefoxBookmarkBackupImporter.looks_like_backup(str(path)):
@@ -1011,6 +1028,27 @@ class OneTabImporter:
         return bookmarks
 
 
+def _netscape_source_defect(content: str) -> str:
+    """Describe damage to a Netscape export, or "" when it looks whole.
+
+    A browser writes one ``</DL>`` for every ``<DL>`` it opened. A file cut off
+    mid-write closes fewer than it opened, which the parser cannot otherwise
+    notice: it simply finds fewer anchors and returns them.
+    """
+    if not content.strip():
+        return "the file is empty"
+    opened = len(re.findall(r"<DL[^>]*>", content, re.IGNORECASE))
+    closed = len(re.findall(r"</DL\s*>", content, re.IGNORECASE))
+    if opened and closed < opened:
+        return (
+            f"the file ends inside a bookmark folder "
+            f"({opened} opened, {closed} closed), so it is truncated"
+        )
+    if not opened and "<A" not in content.upper():
+        return "the file contains no bookmark list"
+    return ""
+
+
 class NetscapeBookmarkImporter:
     """Enhanced Netscape bookmark format parser (used by most browsers)"""
 
@@ -1035,12 +1073,17 @@ class NetscapeBookmarkImporter:
             return None
 
     @staticmethod
-    def import_from_netscape(filepath: str, *, categorize=None) -> List[Bookmark]:
+    def import_from_netscape(filepath: str, *, categorize=None, stats=None) -> List[Bookmark]:
         """Import from Netscape/Mozilla bookmark format.
 
         ``categorize`` is an optional ``(url, title) -> category`` policy applied
         only to bookmarks the file places outside any folder. Callers that share
         this parser must share the policy too, or their records will differ.
+
+        ``stats`` is an optional ``SessionImportStats`` that receives damage to
+        the file itself. A truncated export parses into fewer bookmarks with no
+        error raised anywhere, so without this a half-written file imports as a
+        smaller library and reports success.
         """
         bookmarks = []
         current_folder = NetscapeBookmarkImporter.DEFAULT_FOLDER
@@ -1050,6 +1093,11 @@ class NetscapeBookmarkImporter:
         try:
             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
+
+            if stats is not None:
+                defect = _netscape_source_defect(content)
+                if defect:
+                    stats.record_malformed(defect)
 
             # Netscape files are not valid HTML and browsers emit them one
             # element per line, but plain HTML pages, single-line exports and
@@ -1127,5 +1175,9 @@ class NetscapeBookmarkImporter:
 
         except Exception as e:
             log.error(f"Error importing Netscape bookmarks: {e}")
+            # Whatever parsed before the error is returned, so the caller has
+            # to be told the rest of the file was never read.
+            if stats is not None:
+                stats.record_malformed(f"the file could not be read to the end: {e}")
 
         return _dedup_bookmarks(bookmarks)

@@ -676,10 +676,16 @@ _bop_completions() {
                 -h
                 --help
                 --limit
+                --out
                 --json
             )
             case "$prev" in
                 --limit)
+                    return 0
+                    ;;
+                --out)
+                    _bop_complete_files "$cur"
+                    return 0
                     return 0
                     ;;
             esac
@@ -691,6 +697,7 @@ _bop_completions() {
                 local -a values=(
                     list
                     show
+                    rejected
                     retry
                     cancel
                     rollback

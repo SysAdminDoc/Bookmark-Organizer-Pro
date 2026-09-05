@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import csv
 import hashlib
 import time
 from dataclasses import dataclass, field
@@ -19,6 +20,10 @@ from bookmark_organizer_pro.utils import normalize_url
 
 
 IMPORT_SESSIONS_FILE = DATA_DIR / "import_sessions.json"
+
+# Every state a row can end in that one of the report's counters covers. A row
+# outside this set is a record with no reported outcome.
+_COUNTED_ROW_STATES = frozenset({"completed", "duplicate", "failed", "pending"})
 
 
 def _now() -> str:
@@ -50,9 +55,48 @@ class ImportSessionReport:
     duration_ms: int
     causes: dict[str, int]
     safepoint: str
+    #: Damage to the source file. A truncated export parses into fewer records
+    #: with no error, so an import can only be called complete when this is "".
+    malformed_source: str = ""
+
+    @property
+    def found(self) -> int:
+        """Records the source actually contained.
+
+        The rows are what parsed; the losses are what the parser could not turn
+        into a row. Their sum is the number a user counts in the export file,
+        which is the question an import has to be able to answer.
+        """
+        return self.total + self.losses
+
+    @property
+    def accounted(self) -> int:
+        """Records this import can say an outcome for."""
+        return self.added + self.duplicates + self.failed + self.pending + self.losses
+
+    @property
+    def balances(self) -> bool:
+        """Whether every record found has a recorded outcome.
+
+        A row in an unrecognized state is invisible in the four counts above,
+        which is how a partial import reads as a complete one. Reporting the
+        gap is the entire point of the reconciliation.
+        """
+        return self.found == self.accounted
+
+    @property
+    def unaccounted(self) -> int:
+        return self.found - self.accounted
 
     def to_dict(self) -> dict[str, Any]:
-        return dict(self.__dict__)
+        payload = dict(self.__dict__)
+        payload.update(
+            found=self.found,
+            accounted=self.accounted,
+            unaccounted=self.unaccounted,
+            balances=self.balances,
+        )
+        return payload
 
 
 @dataclass(frozen=True)
@@ -67,6 +111,8 @@ class ImportPreflight:
     causes: dict[str, int]
     field_coverage: dict[str, int]
     bookmarks: tuple[Any, ...] = field(repr=False, compare=False)
+    #: Damage to the file itself, as opposed to a bad record inside it.
+    malformed_source: str = ""
 
 
 class ImportSessionManager:
@@ -214,6 +260,7 @@ class ImportSessionManager:
             causes=causes,
             field_coverage=coverage,
             bookmarks=tuple(bookmarks),
+            malformed_source=str(getattr(stats, "malformed_source", "") or "")[:300],
         )
 
     def run(
@@ -363,6 +410,51 @@ class ImportSessionManager:
         sessions.sort(key=lambda item: item.get("updated_at", ""), reverse=True)
         return [self._report(item) for item in sessions[: max(0, int(limit))]]
 
+    def rejected_rows(self, session_id: str) -> list[dict[str, Any]]:
+        """Every record that did not land, with the reason it did not.
+
+        A count tells a user something went wrong; this tells them which rows,
+        so they can fix the source and re-import only those.
+        """
+        session = self.get(session_id) or {}
+        rejected = []
+        for row in session.get("rows", []):
+            state = str(row.get("state") or "pending")
+            if state in {"completed", "duplicate"}:
+                continue
+            rejected.append({
+                "position": int(row.get("index", 0)) + 1,
+                # Sessions written before rows carried a URL still list their
+                # position and reason rather than being dropped from the file.
+                "url": str(row.get("url") or ""),
+                "state": state,
+                "reason": str(row.get("cause") or "").strip() or "no reason recorded",
+            })
+        return rejected
+
+    def write_rejected_rows(self, session_id: str, destination: str | Path) -> Path:
+        """Write the rejected rows somewhere the user can open them."""
+        path = Path(destination)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        from bookmark_organizer_pro.utils.runtime import csv_safe_cell
+
+        rows = self.rejected_rows(session_id)
+        with path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(
+                handle, fieldnames=["position", "url", "state", "reason"]
+            )
+            writer.writeheader()
+            for row in rows:
+                # The URL and the reason come from a file the user did not
+                # write, and this one opens in a spreadsheet.
+                writer.writerow({
+                    "position": row["position"],
+                    "url": csv_safe_cell(row["url"]),
+                    "state": csv_safe_cell(row["state"]),
+                    "reason": csv_safe_cell(row["reason"]),
+                })
+        return path
+
     def get(self, session_id: str) -> dict[str, Any] | None:
         prefix = str(session_id or "")
         matches = [
@@ -390,15 +482,24 @@ class ImportSessionManager:
             "updated_at": _now(),
             "duration_ms": 0,
             "losses": preflight.losses,
+            "malformed_source": preflight.malformed_source,
             "source_causes": dict(preflight.causes),
             "field_coverage": dict(preflight.field_coverage),
             "safepoint": "",
             "final_revision": 0,
             "cancel_requested": False,
             "terminal_cause": "",
+            # The key is a digest, so the URL is kept alongside it: a list of
+            # rejected rows is only reviewable if it names the rows.
             "rows": [
-                {"key": key, "index": index, "state": "pending", "cause": ""}
-                for index, (key, _bookmark) in enumerate(parsed)
+                {
+                    "key": key,
+                    "index": index,
+                    "state": "pending",
+                    "cause": "",
+                    "url": str(getattr(bookmark, "url", "") or "")[:2048],
+                }
+                for index, (key, bookmark) in enumerate(parsed)
             ],
         }
         self._store.update(lambda doc: doc["sessions"].append(session) or doc)
@@ -427,6 +528,20 @@ class ImportSessionManager:
             states = [row.get("state") for row in item.get("rows", [])]
             if item.get("status") != "cancelled":
                 item["status"] = "completed" if "failed" not in states and "pending" not in states else "attention"
+                # Everything the parser found may have landed and the file can
+                # still have been cut off. That is not a completed import of
+                # that file, and calling it one is the failure this reports.
+                if item.get("malformed_source") and item["status"] == "completed":
+                    item["status"] = "attention"
+                # A row in a state none of the counters recognize would be
+                # invisible, and the import would report success while having
+                # silently lost it. Say so instead.
+                unknown = [state for state in states if state not in _COUNTED_ROW_STATES]
+                if unknown:
+                    item["status"] = "accounting_error"
+                    item["terminal_cause"] = (
+                        f"unaccounted row states: {sorted(set(map(str, unknown)))}"
+                    )
             item["duration_ms"] = int(item.get("duration_ms", 0)) + round((time.monotonic() - started) * 1000)
             item["final_revision"] = int(getattr(manager.storage, "current_revision", lambda: 0)())
             return item
@@ -512,4 +627,5 @@ class ImportSessionManager:
             duration_ms=max(0, int(session.get("duration_ms") or 0)),
             causes=causes,
             safepoint=str(session.get("safepoint") or ""),
+            malformed_source=str(session.get("malformed_source") or ""),
         )
