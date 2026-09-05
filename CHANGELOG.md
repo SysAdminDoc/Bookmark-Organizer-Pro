@@ -44,6 +44,13 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   time to cover the rest. `bop dups` takes `--category` and `--json`.
 - The desktop duplicate scan now covers the collection you have selected rather
   than always scanning the whole library.
+- Saves made while the app is unreachable are no longer thrown away. The
+  browser extension queued them but kept only the newest 50, so anything
+  older vanished without a word. The queue now keeps everything in order
+  until it replays or you clear it. If storage really is full the newest
+  capture is refused rather than an old one being discarded, and the toolbar
+  icon says so. Saves from the right-click menu report the same outcome as
+  the popup and side panel instead of failing silently.
 - The screenshot check no longer puts windows on your screen. It was supposed
   to position them off the desktop, but skipped that for any window that was
   already showing, so a run interrupted whatever you were doing. Every window

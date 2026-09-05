@@ -6,13 +6,6 @@ Actionable incomplete work only. Historical and completed material belongs in `C
 
 ### P0
 
-- [ ] P0: R-153: Make background extension captures lossless and outcome-visible
-  Why: The retry journal silently drops the oldest saves after 50 entries, and context-menu saves ignore success, queue, and failure outcomes.
-  Evidence: `browser-extension/shared.js:696`; `browser-extension/background.js:122`; `browser-extension/popup.js:203`; `browser-extension/sidepanel.js:612`; community offline-failure signal at https://www.reddit.com/r/selfhosted/comments/1raq3b0/selfhosted_bookmark_manager_with_android_app_that/
-  Touches: `browser-extension/shared.js`, `browser-extension/background.js`, popup and side-panel pending panels, IndexedDB journal storage, extension tests and packaging contracts
-  Acceptance: More than 50 distinct offline captures remain queued in order until explicit clear or successful replay; quota failure refuses the new capture without evicting old entries and sets a visible action badge plus durable status; replay is idempotent after worker restart; popup, side panel, context menu, and selection capture share the same outcome contract; overflow and quota tests pass in Chromium and Firefox builds.
-  Complexity: M
-
 - [ ] P0: R-154: Stream migrations into a disk-backed preflight plan
   Why: Preflight hashes the source, materializes the parsed export, and retains all converted bookmarks in memory, so large imports can exhaust memory before apply.
   Evidence: `bookmark_organizer_pro/services/migration.py:40`, `:57`, `:216`; iterative parser https://pypi.org/project/ijson/; Karakeep import pressure https://github.com/karakeep-app/karakeep/issues/1748; large-archive fix https://github.com/karakeep-app/karakeep/releases/tag/v0.33.2

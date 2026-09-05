@@ -1859,3 +1859,181 @@ class TestBrowserExtensionApiRoundTrip(SharedExtensionRegistryGuard, unittest.Te
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPendingQueueIsLossless(unittest.TestCase):
+    """R-153: an offline capture must not be dropped to make room for a newer one."""
+
+    HARNESS_PRELUDE = r"""
+const fs = require("fs");
+const vm = require("vm");
+const state = {};
+const badge = { text: null, title: null, colors: [] };
+let quotaAfter = Infinity;
+const local = {
+  async get(keys) {
+    const result = {};
+    for (const [key, fallback] of Object.entries(keys || {})) {
+      result[key] = Object.prototype.hasOwnProperty.call(state, key) ? state[key] : fallback;
+    }
+    return JSON.parse(JSON.stringify(result));
+  },
+  async set(values) {
+    for (const [key, value] of Object.entries(values)) {
+      if (key === "pendingSaves" && Array.isArray(value) && value.length > quotaAfter) {
+        throw new Error("QUOTA_BYTES quota exceeded");
+      }
+    }
+    Object.assign(state, JSON.parse(JSON.stringify(values)));
+  }
+};
+const action = {
+  async setBadgeText({ text }) { badge.text = text; },
+  async setBadgeBackgroundColor({ color }) { badge.colors.push(color); },
+  async setTitle({ title }) { badge.title = title; }
+};
+// sendMessage MUST take one argument: runtimeMessage() branches on its arity,
+// and a zero-arg stub sends it down the callback path, where a stub that
+// returns a promise instead of calling the callback hangs forever.
+const chrome = {
+  storage: { local },
+  action,
+  runtime: {
+    sendMessage: async (_message) => ({ ok: true, config: { apiPort: 8765, apiToken: "test-token" } }),
+    getURL: path => path
+  }
+};
+const context = vm.createContext({
+  chrome, console, Date, Math, JSON,
+  fetch: async () => { throw new Error("offline"); }
+});
+context.globalThis = context;
+context.setQuotaAfter = n => { quotaAfter = n; };
+context.readBadge = () => badge;
+context.readState = () => state;
+vm.runInContext(fs.readFileSync(process.argv[1], "utf8"), context);
+"""
+
+    def _run(self, body):
+        harness = self.HARNESS_PRELUDE + (
+            'vm.runInContext(`(async () => {\n%s\n})()`, context)'
+            '.then(() => process.stdout.write(JSON.stringify(context.result)),'
+            ' err => { console.error(err); process.exit(1); });' % body
+        )
+        completed = subprocess.run(
+            ["node", "-e", harness, str(EXT_DIR / "shared.js")],
+            capture_output=True, text=True, check=False, timeout=20,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        return json.loads(completed.stdout)
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for the pending-queue harness")
+    def test_more_than_fifty_distinct_captures_stay_queued_in_order(self):
+        result = self._run("""
+  for (let i = 0; i < 120; i += 1) {
+    await enqueuePendingSave({ url: 'https://example.com/page-' + i, title: 'P' + i }, 'offline', 'popup');
+  }
+  const pending = await getPendingSaves();
+  globalThis.result = {
+    count: pending.length,
+    first: pending[0].payload.url,
+    last: pending[pending.length - 1].payload.url,
+    ordered: pending.every((item, index) => item.payload.url === 'https://example.com/page-' + index)
+  };
+""")
+        self.assertEqual(120, result["count"], "the queue evicted captures")
+        self.assertEqual("https://example.com/page-0", result["first"])
+        self.assertEqual("https://example.com/page-119", result["last"])
+        self.assertTrue(result["ordered"], "queue order was not preserved")
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for the pending-queue harness")
+    def test_a_full_queue_refuses_the_new_capture_and_keeps_the_old_ones(self):
+        result = self._run("""
+  setQuotaAfter(3);
+  for (let i = 0; i < 3; i += 1) {
+    await enqueuePendingSave({ url: 'https://example.com/keep-' + i, title: 'K' + i }, 'offline', 'popup');
+  }
+  const refused = await enqueuePendingSave(
+    { url: 'https://example.com/overflow', title: 'Overflow' }, 'offline', 'context_menu'
+  );
+  const pending = await getPendingSaves();
+  globalThis.result = {
+    refused,
+    kept: pending.map(item => item.payload.url),
+    alert: await getPendingAlert(),
+    badge: readBadge()
+  };
+""")
+        self.assertFalse(result["refused"]["queued"])
+        self.assertTrue(result["refused"]["dropped"])
+        self.assertEqual(
+            ["https://example.com/keep-0", "https://example.com/keep-1", "https://example.com/keep-2"],
+            result["kept"],
+            "a full queue evicted entries instead of refusing the new capture",
+        )
+        self.assertEqual("quota", result["alert"]["kind"])
+        self.assertEqual("https://example.com/overflow", result["alert"]["url"])
+        self.assertEqual("!", result["badge"]["text"], "no visible badge for a refused capture")
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for the pending-queue harness")
+    def test_the_badge_counts_what_is_waiting(self):
+        result = self._run("""
+  for (let i = 0; i < 4; i += 1) {
+    await enqueuePendingSave({ url: 'https://example.com/b-' + i, title: 'B' + i }, 'offline', 'popup');
+  }
+  globalThis.result = { badge: readBadge() };
+""")
+        self.assertEqual("4", result["badge"]["text"])
+        self.assertIn("waiting to retry", result["badge"]["title"])
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for the pending-queue harness")
+    def test_a_replay_that_runs_twice_at_once_does_not_double_post(self):
+        result = self._run("""
+  await enqueuePendingSave({ url: 'https://example.com/replay', title: 'R' }, 'offline', 'popup');
+  let posts = 0;
+  globalThis.fetch = async () => { posts += 1; return { status: 201, json: async () => ({}) }; };
+  const [first, second] = await Promise.all([retryPendingSaves(), retryPendingSaves()]);
+  globalThis.result = {
+    posts,
+    first, second,
+    remaining: (await getPendingSaves()).length,
+    badge: readBadge()
+  };
+""")
+        self.assertEqual(1, result["posts"], "a concurrent replay re-posted the same capture")
+        self.assertEqual(0, result["remaining"])
+        self.assertEqual("", result["badge"]["text"])
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for the pending-queue harness")
+    def test_a_successful_save_clears_a_previous_quota_alert(self):
+        result = self._run("""
+  setQuotaAfter(0);
+  await enqueuePendingSave({ url: 'https://example.com/refused', title: 'X' }, 'offline', 'popup');
+  const before = await getPendingAlert();
+  setQuotaAfter(Infinity);
+  globalThis.fetch = async () => ({ status: 201, json: async () => ({}) });
+  await saveBookmarkPayload({ url: 'https://example.com/ok', title: 'OK' }, { apiToken: 't' }, { source: 'popup' });
+  globalThis.result = { before: Boolean(before), after: await getPendingAlert(), badge: readBadge() };
+""")
+        self.assertTrue(result["before"], "the refused capture never raised an alert")
+        self.assertIsNone(result["after"], "a successful save left the alert showing")
+        self.assertEqual("", result["badge"]["text"])
+
+    def test_no_capture_path_caps_the_queue(self):
+        shared = (EXT_DIR / "shared.js").read_text(encoding="utf-8")
+
+        # Report the offending line, not the whole file.
+        capped = [
+            line.strip() for line in shared.splitlines() if "slice(-50)" in line
+        ]
+        self.assertEqual([], capped, f"the pending queue is capped again: {capped}")
+        self.assertIn("const PENDING_ALERT_KEY", shared)
+
+    def test_every_capture_surface_reports_the_same_outcomes(self):
+        background = (EXT_DIR / "background.js").read_text(encoding="utf-8")
+
+        # A bare boolean made a queued save and a refused one indistinguishable.
+        self.assertNotIn("return isSavedStatus(result.status) || result.status === 409;", background)
+        for outcome in ('"saved"', '"queued"', '"dropped"', '"failed"'):
+            self.assertIn(outcome, background)
+        self.assertIn("await refreshPendingBadge();", background)

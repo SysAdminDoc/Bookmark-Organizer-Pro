@@ -104,8 +104,12 @@ api.runtime.onInstalled.addListener(() => {
 
 async function quickSave(url, title, notes, source = "context_menu") {
   const values = await getTrustedConfig();
-  if (!values.apiToken) return;
-  if (!/^https?:\/\//i.test(url || "")) return;
+  if (!values.apiToken) {
+    return { outcome: "not_configured", saved: false, queued: false, dropped: false };
+  }
+  if (!/^https?:\/\//i.test(url || "")) {
+    return { outcome: "unsupported_url", saved: false, queued: false, dropped: false };
+  }
   const payload = {
     url,
     title: title || url,
@@ -116,7 +120,16 @@ async function quickSave(url, title, notes, source = "context_menu") {
 
   // The shared client owns enqueuePendingSave so every capture surface deduplicates identically.
   const result = await saveBookmarkPayload(payload, values, { source });
-  return isSavedStatus(result.status) || result.status === 409;
+  const saved = isSavedStatus(result.status) || result.status === 409;
+  // Every capture surface reports the same three outcomes. Returning a bare
+  // boolean here meant a context-menu save that was queued, or refused because
+  // the queue was full, looked exactly like a failure that had been recorded.
+  if (saved) return { outcome: "saved", saved: true, queued: false, dropped: false };
+  if (result.queued) return { outcome: "queued", saved: false, queued: true, dropped: false };
+  if (result.dropped) {
+    return { outcome: "dropped", saved: false, queued: false, dropped: true, message: result.message };
+  }
+  return { outcome: "failed", saved: false, queued: false, dropped: false };
 }
 
 api.contextMenus.onClicked.addListener(async (info, tab) => {
@@ -142,5 +155,10 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 
   const source = info.menuItemId === "save-to-bop-selection" ? "selection" : "context_menu";
-  await quickSave(url, title, notes, source);
+  const result = await quickSave(url, title, notes, source);
+  // A context-menu save has no panel to report into, so the badge is the only
+  // place the outcome can land. Ignoring it was how a queued or refused capture
+  // became invisible.
+  await refreshPendingBadge();
+  return result;
 });

@@ -4,6 +4,7 @@ const DEFAULTS = {
   defaultCategory: "Uncategorized / Needs Review"
 };
 const PENDING_SAVES_KEY = "pendingSaves";
+const PENDING_ALERT_KEY = "pendingSavesAlert";
 const CLEARED_SAVES_KEY = "lastClearedPendingSaves";
 
 function normalizeDefaultCategory(value) {
@@ -130,12 +131,29 @@ async function saveBookmarkPayload(payload, config, { source = "unknown", journa
     });
     let body = {};
     try { body = await response.json(); } catch { /* response body is optional */ }
-    const queued = journal && isRetryableSaveStatus(response.status);
-    if (queued) await enqueuePendingSave(normalizedPayload, `HTTP ${response.status}`, source);
-    return { status: response.status, body, queued };
+    const retryable = journal && isRetryableSaveStatus(response.status);
+    let outcome = { queued: false, dropped: false, message: "" };
+    if (retryable) {
+      outcome = await enqueuePendingSave(normalizedPayload, `HTTP ${response.status}`, source);
+    } else if (isSavedStatus(response.status) || response.status === 409) {
+      // Only write when there is something to clear. A successful save is the
+      // common path and should not touch storage just to rewrite a null.
+      if (await getPendingAlert()) {
+        await clearPendingAlert();
+        await refreshPendingBadge();
+      }
+    }
+    return {
+      status: response.status, body,
+      queued: outcome.queued, dropped: outcome.dropped, message: outcome.message
+    };
   } catch {
-    if (journal) await enqueuePendingSave(normalizedPayload, "API unavailable", source);
-    return { status: 0, body: {}, queued: Boolean(journal) };
+    if (!journal) return { status: 0, body: {}, queued: false, dropped: false, message: "" };
+    const outcome = await enqueuePendingSave(normalizedPayload, "API unavailable", source);
+    return {
+      status: 0, body: {},
+      queued: outcome.queued, dropped: outcome.dropped, message: outcome.message
+    };
   }
 }
 
@@ -694,7 +712,46 @@ async function getPendingSaves() {
 }
 
 async function setPendingSaves(items) {
-  await storageSet({ [PENDING_SAVES_KEY]: items.slice(-50) });
+  // No cap. A queue that silently drops its oldest entries loses captures the
+  // user was told were saved, so the only limit is what storage will hold, and
+  // hitting that limit is reported rather than absorbed.
+  await storageSet({ [PENDING_SAVES_KEY]: items });
+}
+
+async function getPendingAlert() {
+  const stored = await storageGet({ [PENDING_ALERT_KEY]: null });
+  return stored[PENDING_ALERT_KEY] || null;
+}
+
+async function setPendingAlert(alert) {
+  await storageSet({ [PENDING_ALERT_KEY]: alert });
+}
+
+async function clearPendingAlert() {
+  await storageSet({ [PENDING_ALERT_KEY]: null });
+}
+
+function actionApi() {
+  return api.action || api.browserAction || null;
+}
+
+async function refreshPendingBadge() {
+  const action = actionApi();
+  if (!action) return;
+  const pending = await getPendingSaves();
+  const alert = await getPendingAlert();
+  const count = pending.length;
+  const text = alert ? "!" : (count ? String(Math.min(count, 999)) : "");
+  const title = alert
+    ? `Bookmark Organizer Pro: ${alert.message}`
+    : (count ? `Bookmark Organizer Pro: ${count} save(s) waiting to retry` : "Bookmark Organizer Pro");
+  try {
+    if (action.setBadgeText) await action.setBadgeText({ text });
+    if (action.setBadgeBackgroundColor) {
+      await action.setBadgeBackgroundColor({ color: alert ? "#b42318" : "#b45309" });
+    }
+    if (action.setTitle) await action.setTitle({ title });
+  } catch { /* the action surface is unavailable in this context */ }
 }
 
 async function enqueuePendingSave(payload, reason = "API unavailable", source = "context_menu") {
@@ -709,11 +766,45 @@ async function enqueuePendingSave(payload, reason = "API unavailable", source = 
   } else {
     pending.push(normalized);
   }
-  await setPendingSaves(pending);
-  return pending.length;
+  try {
+    await setPendingSaves(pending);
+  } catch (error) {
+    // The write failed, so the stored queue is still whatever it was before
+    // this capture. Refuse the NEW entry rather than evicting older ones, and
+    // make the refusal visible instead of losing it silently.
+    const message = "Offline queue is full. This capture was not saved.";
+    await setPendingAlert({
+      schema: "bookmark-organizer-pro/pending-alert",
+      kind: "quota",
+      message,
+      url: normalized.payload.url,
+      at: new Date().toISOString()
+    });
+    await refreshPendingBadge();
+    return { queued: false, dropped: true, pending: (await getPendingSaves()).length, message };
+  }
+  await clearPendingAlert();
+  await refreshPendingBadge();
+  return { queued: true, dropped: false, pending: pending.length, message: "" };
 }
 
+let pendingReplayInFlight = null;
+
 async function retryPendingSaves() {
+  // A second replay while the first is mid-flight would re-post entries the
+  // first has already resolved but not yet removed.
+  if (pendingReplayInFlight) return pendingReplayInFlight;
+  pendingReplayInFlight = (async () => {
+    try {
+      return await runPendingReplay();
+    } finally {
+      pendingReplayInFlight = null;
+    }
+  })();
+  return pendingReplayInFlight;
+}
+
+async function runPendingReplay() {
   const config = await getConfig();
   const pending = await getPendingSaves();
   const remaining = [];
@@ -737,6 +828,8 @@ async function retryPendingSaves() {
     }
   }
   await setPendingSaves(remaining);
+  if (!remaining.length) await clearPendingAlert();
+  await refreshPendingBadge();
   return { attempted: pending.length, resolved, remaining: remaining.length };
 }
 
@@ -757,6 +850,8 @@ async function clearPendingSaves({ confirmed = false } = {}) {
     }
   });
   await setPendingSaves([]);
+  await clearPendingAlert();
+  await refreshPendingBadge();
   return pending.length;
 }
 
@@ -772,6 +867,7 @@ async function restoreClearedPendingSaves() {
   }
   await setPendingSaves(merged);
   await storageSet({ [CLEARED_SAVES_KEY]: null });
+  await refreshPendingBadge();
   return snapshot.items.length;
 }
 
