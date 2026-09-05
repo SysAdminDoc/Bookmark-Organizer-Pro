@@ -41,6 +41,11 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
   time to cover the rest. `bop dups` takes `--category` and `--json`.
 - The desktop duplicate scan now covers the collection you have selected rather
   than always scanning the whole library.
+- `bop mcp-status` reports which MCP transport the server would use. If FastMCP
+  is installed but cannot be used, the server now says so with a warning naming
+  the reason and what the fallback loses, instead of quietly starting on the
+  raw SDK without automatic tool schemas, tool annotations, or cache hints. A
+  FastMCP that is simply not installed is still an ordinary, quiet fallback.
 - Refreshing the bookmark table is cheaper on a large library. It used to copy
   the whole library four times per refresh, once more again to filter by
   collection, and re-lowercase every title on every comparison while sorting.

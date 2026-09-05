@@ -65,6 +65,7 @@ _bop() {
         'reader:Manage reader highlights/notes'
         'api-server:Run the local HTTP API'
         'mcp-server:Run the MCP server (stdio)'
+        'mcp-status:Report which MCP transport would be used'
         'mcp-http-server:Run the MCP Streamable HTTP server'
         'sqlite-migrate:Copy JSON bookmarks into SQLite DB'
         'recovery-bundle:Create or restore a full-library backup'
@@ -816,6 +817,13 @@ _bop() {
             _arguments -s \
                 '-h[show this help message and exit]' \
                 '--help[show this help message and exit]'
+            return
+            ;;
+        mcp-status)
+            _arguments -s \
+                '-h[show this help message and exit]' \
+                '--help[show this help message and exit]' \
+                '--json[Emit the status as JSON]'
             return
             ;;
         mcp-http-server)

@@ -85,6 +85,7 @@ _bop_completions() {
         reader
         api-server
         mcp-server
+        mcp-status
         mcp-http-server
         sqlite-migrate
         recovery-bundle
@@ -1375,6 +1376,20 @@ _bop_completions() {
             local -a options=(
                 -h
                 --help
+            )
+            case "$prev" in
+            esac
+            if [[ "$cur" == -* ]]; then
+                _bop_complete_array "$cur" "${options[@]}"
+                return 0
+            fi
+            return 0
+            ;;
+        mcp-status)
+            local -a options=(
+                -h
+                --help
+                --json
             )
             case "$prev" in
             esac

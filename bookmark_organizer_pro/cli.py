@@ -441,6 +441,10 @@ class BookmarkCLI:
         p = sub.add_parser("mcp-server", help="Run the MCP server (stdio)")
         p.set_defaults(func=self._cmd_mcp_server)
 
+        p = sub.add_parser("mcp-status", help="Report which MCP transport would be used")
+        p.add_argument("--json", action="store_true", help="Emit the status as JSON")
+        p.set_defaults(func=self._cmd_mcp_status)
+
         p = sub.add_parser("mcp-http-server", help="Run the MCP Streamable HTTP server")
         p.add_argument("--host", default="127.0.0.1", help="Host (default 127.0.0.1)")
         p.add_argument("--port", type=int, default=8766, help="Port (default 8766)")
@@ -2413,6 +2417,24 @@ Top Domains:
     def _cmd_mcp_server(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.mcp_server import main as _mcp_main
         _mcp_main()
+
+    def _cmd_mcp_status(self, ns: argparse.Namespace):
+        from bookmark_organizer_pro.mcp_server import fastmcp_transport_status
+        status = fastmcp_transport_status()
+        if getattr(ns, "json", False):
+            print(json.dumps(status, indent=2))
+            return 0
+        print(f"Transport: {status['transport']}")
+        print(f"FastMCP installed: {'yes' if status['installed'] else 'no'}")
+        if status["version"]:
+            print(f"FastMCP version: {status['version']}")
+        if status["reason"]:
+            print(f"Reason: {status['reason']}")
+        if status["lost_capabilities"]:
+            print("Not available on this transport:")
+            for capability in status["lost_capabilities"]:
+                print(f"  - {capability}")
+        return 1 if status["degraded"] else 0
 
     def _cmd_mcp_http_server(self, ns: argparse.Namespace):
         from bookmark_organizer_pro.mcp_server import serve_http

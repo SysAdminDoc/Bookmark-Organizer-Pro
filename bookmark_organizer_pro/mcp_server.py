@@ -1961,6 +1961,77 @@ async def serve_stdio() -> int:
     return 0
 
 
+FASTMCP_FALLBACK_CAPABILITIES = (
+    "automatic tool schemas",
+    "tool annotations",
+    "tool-list cache hints",
+)
+
+
+def fastmcp_transport_status(module=None) -> Dict[str, Any]:
+    """Report whether the FastMCP transport can be built, and why not.
+
+    An installed but unusable FastMCP is a defect worth surfacing: the server
+    still starts on the raw SDK and silently drops the capabilities below. A
+    FastMCP that is simply absent is an expected configuration, not a problem.
+    """
+    fastmcp_mod = module if module is not None else _try_import("fastmcp")
+    version = str(getattr(fastmcp_mod, "__version__", "") or "") if fastmcp_mod else ""
+    if fastmcp_mod is None:
+        return {
+            "transport": "raw-sdk",
+            "installed": False,
+            "version": "",
+            "reason": "fastmcp is not installed",
+            "degraded": False,
+            "lost_capabilities": list(FASTMCP_FALLBACK_CAPABILITIES),
+        }
+    factory = getattr(fastmcp_mod, "FastMCP", None)
+    if factory is None:
+        return {
+            "transport": "raw-sdk",
+            "installed": True,
+            "version": version,
+            "reason": "fastmcp is installed but exports no FastMCP attribute",
+            "degraded": True,
+            "lost_capabilities": list(FASTMCP_FALLBACK_CAPABILITIES),
+        }
+    try:
+        factory("bookmark-organizer-pro-probe")
+    except Exception as exc:
+        return {
+            "transport": "raw-sdk",
+            "installed": True,
+            "version": version,
+            "reason": f"fastmcp.FastMCP could not be constructed: {type(exc).__name__}: {exc}",
+            "degraded": True,
+            "lost_capabilities": list(FASTMCP_FALLBACK_CAPABILITIES),
+        }
+    return {
+        "transport": "fastmcp",
+        "installed": True,
+        "version": version,
+        "reason": "",
+        "degraded": False,
+        "lost_capabilities": [],
+    }
+
+
+def _report_transport_status(status: Dict[str, Any]) -> None:
+    """Log the transport decision, loudly when a usable FastMCP failed."""
+    if status["transport"] == "fastmcp":
+        log.info("Using FastMCP transport (auto-schema + ToolAnnotations)")
+        return
+    lost = ", ".join(status["lost_capabilities"])
+    if status["degraded"]:
+        log.warning(
+            f"FastMCP transport unavailable: {status['reason']}. "
+            f"Falling back to the raw MCP SDK without {lost}."
+        )
+    else:
+        log.info(f"FastMCP not available, using raw mcp SDK fallback (no {lost})")
+
+
 def _build_fastmcp_server():
     """Build an MCP server using FastMCP 3.x if available. Returns None if not installed."""
     fastmcp_mod = _try_import("fastmcp")
@@ -2293,15 +2364,14 @@ def main():
     log.info(f"{APP_NAME} MCP server v{APP_VERSION} starting (stdio)")
 
     fastmcp_app = _build_fastmcp_server()
+    _report_transport_status(fastmcp_transport_status())
     if fastmcp_app is not None:
-        log.info("Using FastMCP transport (auto-schema + ToolAnnotations)")
         try:
             fastmcp_app.run(transport="stdio", stateless=True)
         except KeyboardInterrupt:
             pass
         return
 
-    log.info("FastMCP not available, using raw mcp SDK fallback")
     try:
         sys.exit(asyncio.run(serve_stdio()))
     except KeyboardInterrupt:

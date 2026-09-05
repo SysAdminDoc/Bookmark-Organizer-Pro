@@ -2,7 +2,7 @@
 
 Bookmark Organizer Pro is a local-first desktop bookmark and research manager. It keeps browser saves, offline copies, highlights, and search indexes on your machine, with optional AI and MCP access when you choose to enable them.
 
-Executable product contract: 68 CLI subcommands, 37 MCP tools, 6 AI providers, 3 extension surfaces, 59 service modules, 45 UI modules, and 53 test files.
+Executable product contract: 69 CLI subcommands, 37 MCP tools, 6 AI providers, 3 extension surfaces, 59 service modules, 45 UI modules, and 53 test files.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)
 ![Version](https://img.shields.io/badge/Version-v6.16.0-2dd4bf.svg)

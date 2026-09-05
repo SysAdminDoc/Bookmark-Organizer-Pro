@@ -13,6 +13,7 @@ import tempfile
 import shutil
 import sys
 import tomllib
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -1228,3 +1229,93 @@ class TestHybridSearchPaging(MCPToolTestBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFastMCPTransportStatus(unittest.TestCase):
+    """R-183: an installed but unusable FastMCP must not degrade silently."""
+
+    def _status(self, module):
+        from bookmark_organizer_pro.mcp_server import fastmcp_transport_status
+
+        return fastmcp_transport_status(module=module)
+
+    def test_a_missing_fastmcp_attribute_is_reported_as_degraded(self):
+        module = types.SimpleNamespace(__version__="4.0.2")
+
+        status = self._status(module)
+
+        self.assertEqual("raw-sdk", status["transport"])
+        self.assertTrue(status["installed"])
+        self.assertTrue(status["degraded"])
+        self.assertIn("exports no FastMCP attribute", status["reason"])
+        self.assertIn("automatic tool schemas", status["lost_capabilities"])
+
+    def test_a_constructor_failure_names_the_exception(self):
+        def exploding(_name):
+            raise TypeError("unexpected keyword")
+
+        module = types.SimpleNamespace(FastMCP=exploding, __version__="4.0.2")
+
+        status = self._status(module)
+
+        self.assertEqual("raw-sdk", status["transport"])
+        self.assertTrue(status["degraded"])
+        self.assertIn("could not be constructed", status["reason"])
+        self.assertIn("TypeError", status["reason"])
+        self.assertIn("unexpected keyword", status["reason"])
+
+    def test_a_working_fastmcp_reports_the_fastmcp_transport(self):
+        module = types.SimpleNamespace(FastMCP=lambda _name: object(), __version__="3.4.7")
+
+        status = self._status(module)
+
+        self.assertEqual("fastmcp", status["transport"])
+        self.assertFalse(status["degraded"])
+        self.assertEqual("", status["reason"])
+        self.assertEqual([], status["lost_capabilities"])
+
+    def test_an_absent_fastmcp_falls_back_without_being_called_a_defect(self):
+        from bookmark_organizer_pro import mcp_server
+
+        with patch.object(mcp_server, "_try_import", return_value=None):
+            status = mcp_server.fastmcp_transport_status()
+
+        self.assertEqual("raw-sdk", status["transport"])
+        self.assertFalse(status["installed"])
+        self.assertFalse(status["degraded"])
+        self.assertIn("not installed", status["reason"])
+
+    def test_a_degraded_transport_logs_a_warning_and_names_what_is_lost(self):
+        from bookmark_organizer_pro import mcp_server
+
+        status = {
+            "transport": "raw-sdk",
+            "installed": True,
+            "version": "4.0.2",
+            "reason": "fastmcp is installed but exports no FastMCP attribute",
+            "degraded": True,
+            "lost_capabilities": list(mcp_server.FASTMCP_FALLBACK_CAPABILITIES),
+        }
+        with patch.object(mcp_server.log, "warning") as warning:
+            mcp_server._report_transport_status(status)
+
+        warning.assert_called_once()
+        message = warning.call_args[0][0]
+        self.assertIn("exports no FastMCP attribute", message)
+        self.assertIn("tool annotations", message)
+
+    def test_an_expected_fallback_does_not_warn(self):
+        from bookmark_organizer_pro import mcp_server
+
+        status = {
+            "transport": "raw-sdk",
+            "installed": False,
+            "version": "",
+            "reason": "fastmcp is not installed",
+            "degraded": False,
+            "lost_capabilities": list(mcp_server.FASTMCP_FALLBACK_CAPABILITIES),
+        }
+        with patch.object(mcp_server.log, "warning") as warning:
+            mcp_server._report_transport_status(status)
+
+        warning.assert_not_called()
