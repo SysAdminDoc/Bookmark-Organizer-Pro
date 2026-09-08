@@ -378,7 +378,7 @@ def should_skip(domain):
 
 
 def main():
-    zip_path = "C:/Users/--/.claude/projects/c--Users----repos/0fb6def4-6e02-4ff0-bcf2-4556792117bc/tool-results/webfetch-1780692342720-g5hvj1.zip"
+    zip_path = "tranco-top-1m.zip"  # download from https://tranco-list.eu first
 
     with zipfile.ZipFile(zip_path) as zf:
         with zf.open("top-1m.csv") as f:
