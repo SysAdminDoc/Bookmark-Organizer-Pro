@@ -10,6 +10,16 @@ Executable product contract: 69 CLI subcommands, 37 MCP tools, 6 AI providers, 3
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![MCP](https://img.shields.io/badge/MCP-server-7B68EE.svg)
 
+<p align="center">
+  <a href="https://ko-fi.com/X8K126YVER">
+    <img height="42" src="https://storage.ko-fi.com/cdn/kofi2.png?v=3" alt="Buy me a coffee on Ko-fi" />
+  </a>
+</p>
+
+<p align="center">
+  <sub><em>If this project helps you, a coffee helps me keep working on it.</em></sub>
+</p>
+
 ![Bookmark Organizer Pro Screenshot](assets/screenshot.png)
 
 ### MCP setup
