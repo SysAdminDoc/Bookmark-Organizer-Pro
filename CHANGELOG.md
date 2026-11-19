@@ -2397,10 +2397,10 @@ Added ~700 new patterns covering:
 - **SysAdmin & IT**: cisco, juniper, fortinet, sonicwall, sophos, meraki,
   nirsoft, ntlite, autoit, autohotkey, christitus, nexttechconsultants,
   teamlogicit, zoom, webex, logmein, netgate, pfsense, avast forums
-- **News**: local stations (whio, thinktv), alternative (infogalactic,
+- **News**: local stations (whio), alternative (infogalactic,
   bellingcat, dailywire, mises), science (nuclearsecrecy, phys.org)
 - **Weather**: cira.colostate, weatherwise, velocityweather, pivotalweather
-- **Health**: mavenimaging, 2020imaging, compassphs, covid19criticalcare,
+- **Health**: 2020imaging, compassphs, covid19criticalcare,
   anthem, mymoffitt, weasis, osirix, radiant
 - **Shopping**: rei, kuhl, patagonia, thefurniturewarehouse, secretlab,
   laserpointerpro, extraspace storage, northerner
