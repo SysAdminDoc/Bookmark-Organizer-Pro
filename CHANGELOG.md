@@ -4,6 +4,10 @@ All notable changes to Bookmark-Organizer-Pro will be documented in this file.
 
 ## Next release
 
+### Changed
+
+- The built-in categories drop a batch of niche vendor, clinic and benefits-portal domains that came in with a personal bookmark export. The general health sites and keywords are still there.
+
 ### Added
 
 - Deletion now has one persistent Trash contract in the desktop app, command
